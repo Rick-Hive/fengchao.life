@@ -1,4 +1,4 @@
-# fengchao.life — 蜂巢 Hive 高中选课平台
+# fengchao.life — 蜂巢 Hive 选课平台
 
 Parent-facing course-ordering site for CEFF's Hive platform. Parents choose a graduation
 track and pedagogy, read the graduation requirements, pick courses, and submit an order.
