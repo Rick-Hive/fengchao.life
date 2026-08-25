@@ -1,0 +1,36 @@
+{
+  "orderId": "FC-20260825-8KX2QD",
+  "submittedAt": "2026-08-25T12:34:56.789Z",
+  "email": "parent@example.com",
+  "teamsAccount": "parent@equipme",
+  "track": {
+    "trackId": 4,
+    "name": "Domestic: Non-Classical/国内路径：非古典"
+  },
+  "itemCount": 2,
+  "totalPrice": 4800,
+  "currency": "CNY",
+  "items": [
+    {
+      "code": "SCI-HS-101",
+      "name": "生物",
+      "subjects": ["Science/科学"],
+      "grades": ["G9"],
+      "classType": "Live/直播",
+      "language": "Chinese/中文",
+      "teachers": ["张老师"],
+      "price": 2400
+    },
+    {
+      "code": "SCI-HS-201",
+      "name": "化学",
+      "subjects": ["Science/科学"],
+      "grades": ["G10"],
+      "classType": "Live/直播",
+      "language": "Chinese/中文",
+      "teachers": ["殷老师"],
+      "price": 2400
+    }
+  ],
+  "snapshotGeneratedAt": "2026-08-25T09:00:00.000Z"
+}
