@@ -169,21 +169,61 @@
     return sorted[0] + "–" + sorted[sorted.length - 1];
   }
 
+  // The class-type filter's fixed choices, in display order. Airtable's values
+  // contain a Unicode minus (U+2212) rather than a hyphen in "Self−Paced
+  // Course", and course codes do the same, so comparisons normalize every dash
+  // variant plus case and spacing. The full original value is still what gets
+  // stored and displayed — only the comparison is normalized.
+  var CLASS_TYPE_ORDER = ["live course", "prerecorded course", "self-paced course"];
+  function classTypeRank(v) {
+    return String(v || "")
+      .replace(/[‐-―−－]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  // Which grade stages count as K-8. Used to identify K-8 courses by their
+  // grades rather than by a track record — see isK8Course below.
+  var K8_STAGES = { preschool: 1, elementary: 1, middle: 1 };
+
+  // K-8 courses used to be identified solely by being tagged to a 7th "N/A"
+  // graduation track. That record was deleted from the base on 2026-08-27 and
+  // every course was retagged to tracks 1-6, which silently emptied the entire
+  // K-8 catalog. Grades are the durable signal, so they lead now; the old track
+  // tag is still honoured in case the record ever comes back, and a course with
+  // no grades at all is included rather than made invisible.
+  function isK8Course(c) {
+    var k8Track = state.data && state.data.k8TrackId;
+    if (k8Track && c.trackIds && c.trackIds.indexOf(k8Track) !== -1) return true;
+    var grades = c.grades || [];
+    if (!grades.length) return true;
+    return grades.some(function (g) { return K8_STAGES[gradeStageOf(g)]; });
+  }
+
   function trackCourses() {
+    if (!state.data) return [];
+    var list;
+    if (state.level === "k8") {
+      list = state.data.courses.filter(isK8Course);
+      // HS pedagogy is baked into which of the 6 tracks was picked; K-8 has no
+      // track dimension, so it filters on the per-course "Classical" checkbox.
+      // That Airtable field does not exist yet, so every course currently reads
+      // as Non-Classical — the correct default. Guard against it wiping the
+      // catalog: if nothing at all is tagged Classical, the checkbox isn't in
+      // use yet and pedagogy simply doesn't narrow anything.
+      var anyClassical = state.data.courses.some(function (c) { return !!c.pedagogy; });
+      if (anyClassical) {
+        var wantClassical = state.pedagogy === "classical";
+        list = list.filter(function (c) { return !!c.pedagogy === wantClassical; });
+      }
+      return list;
+    }
     var id = trackId();
-    if (!id || !state.data) return [];
-    var list = state.data.courses.filter(function (c) {
+    if (!id) return [];
+    return state.data.courses.filter(function (c) {
       return c.trackIds && c.trackIds.indexOf(id) !== -1;
     });
-    // HS pedagogy is already baked into which of the 6 tracks was picked.
-    // K-8 has one flat track (7), so pedagogy filters directly on the
-    // per-course "Classical" checkbox instead (see api/sync/index.js).
-    // Courses without that checkbox set read as Non-Classical (the default).
-    if (state.level === "k8") {
-      var wantClassical = state.pedagogy === "classical";
-      list = list.filter(function (c) { return !!c.pedagogy === wantClassical; });
-    }
-    return list;
   }
 
   function haystack(c) {
@@ -477,9 +517,19 @@
     var langOptions = optionsFromPairs(all.map(function (c) {
       return { value: c.languageEn, label: languageOf(c) };
     }));
+    // Class type offers exactly three choices, in this order. "Live or Recorded
+    // Course" is deliberately not offered — courses carrying it still appear
+    // under 全部/All and still show their real type on the card and in the
+    // detail view; they just aren't a filter choice of their own.
     var typeOptions = optionsFromPairs(all.map(function (c) {
       return { value: c.classTypeEn, label: classTypeOf(c) };
-    }));
+    })).filter(function (o) {
+      return CLASS_TYPE_ORDER.indexOf(classTypeRank(o.value)) !== -1;
+    });
+    typeOptions.sort(function (a, b) {
+      return CLASS_TYPE_ORDER.indexOf(classTypeRank(a.value)) -
+             CLASS_TYPE_ORDER.indexOf(classTypeRank(b.value));
+    });
     var subjectOptions = optionsFromPairs([].concat.apply([], all.map(function (c) {
       return (c.subjects || []).map(function (s) {
         return { value: subjectKey(s), label: subjectLabel(s) };

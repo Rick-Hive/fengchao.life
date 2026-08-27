@@ -1,7 +1,7 @@
 // UI strings. Data values from Airtable are already bilingual and shown as-is.
 window.I18N = {
   zh: {
-    brandTag: "K-12 选课平台",
+    brandTag: "以线上资源推动线下C教育生态重建",
     langBtn: "EN",
     steps: ["学段", "毕业路径", "教育理念", "毕业要求", "选择课程", "提交订单"],
     stepsK8: ["学段", "教育理念", "选择课程", "提交订单"],
@@ -111,7 +111,7 @@ window.I18N = {
     footNote: "本网站仅用于浏览课程与提交选课订单，不收取任何费用。",
   },
   en: {
-    brandTag: "K-12 Course Platform",
+    brandTag: "Rebuilding offline C-education through online resources",
     langBtn: "中文",
     steps: ["Level", "Track", "Pedagogy", "Requirements", "Courses", "Submit"],
     stepsK8: ["Level", "Pedagogy", "Courses", "Submit"],

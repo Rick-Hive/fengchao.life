@@ -29,19 +29,44 @@ body {
 img { max-width: 100%; }
 
 /* Header */
+/* Brand header. The 蜂巢 mark is gold; the rest of the UI stays blue, so the
+   header carries the only warm accent on the page — a hairline under it picks
+   up the logo's honey tone and ties the two palettes together. */
 .site-header {
   position: sticky; top: 0; z-index: 20;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(224, 168, 32, 0.28), 0 6px 18px -12px rgba(15, 32, 60, 0.28);
 }
 .header-inner {
-  max-width: 1080px; margin: 0 auto; padding: 12px 20px;
-  display: flex; align-items: center; gap: 12px;
+  max-width: 1080px; margin: 0 auto; padding: 13px 20px;
+  display: flex; align-items: center; gap: 13px;
 }
-.logo-mark { width: 34px; height: 34px; flex: none; }
-.brand-name { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
-.brand-tag { font-size: 0.8rem; color: var(--muted); margin-top: -3px; }
+.logo-mark {
+  width: 46px; height: 46px; flex: none;
+  /* the mark is a flat honeycomb; a whisper of shadow lifts it off the header */
+  filter: drop-shadow(0 1px 2px rgba(146, 100, 12, 0.22));
+}
+/* A hair of optical spacing: the wordmark sits slightly tighter to the mark
+   than the tagline, so the lockup reads as one unit. */
+.brand-lockup { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brand-name {
+  font-size: 1.32rem; font-weight: 700; line-height: 1.05;
+  letter-spacing: 0.14em; text-indent: 0.14em;
+  color: var(--ink);
+}
+.brand-tag {
+  font-size: 0.79rem; line-height: 1.25; color: var(--muted);
+  letter-spacing: 0.02em;
+  padding-left: 10px;
+  border-left: 2px solid rgba(224, 168, 32, 0.55);
+}
+@media (max-width: 560px) {
+  .logo-mark { width: 38px; height: 38px; }
+  .brand-name { font-size: 1.14rem; letter-spacing: 0.1em; text-indent: 0.1em; }
+  .brand-tag { font-size: 0.7rem; padding-left: 8px; }
+}
 .header-spacer { flex: 1; }
 .lang-btn {
   border: 1px solid var(--line); background: var(--card); color: var(--ink);
