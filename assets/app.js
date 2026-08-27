@@ -128,12 +128,7 @@
   function gradeStageLabel(key) {
     var stages = window.GRADE_STAGES || [];
     for (var i = 0; i < stages.length; i++) {
-      if (stages[i].key === key) {
-        // Bilingual, current language first.
-        return state.lang === "zh"
-          ? stages[i].zh + " " + stages[i].en
-          : stages[i].en + " " + stages[i].zh;
-      }
+      if (stages[i].key === key) return pickLang(stages[i].en, stages[i].zh);
     }
     return key; // an unmapped grade, labelled by its own name
   }
@@ -338,7 +333,7 @@
       if (v === null || v === undefined) return;
       var lbl = window.REQ_LABELS[key];
       rows +=
-        "<tr><td>" + esc(state.lang === "zh" ? lbl.zh + " " + lbl.en : lbl.en + " " + lbl.zh) +
+        "<tr><td>" + esc(pickLang(lbl.en, lbl.zh)) +
         '</td><td class="num">' + esc(v) + "</td></tr>";
     });
     rows +=
@@ -458,23 +453,25 @@
         '<div class="nav-row"><button class="btn btn-ghost" id="back4">' + esc(t().back) + "</button><span></span></div></section>"
       );
     }
-    // Grade stages present in this track, in stage order. Unmapped grades sort
-    // after the five stages, following the canonical grade order from Airtable.
+    // All five stages are always offered, in canonical order, even where the
+    // current track has no courses in one of them — a parent looks for 大学预科
+    // whether or not anything is tagged into it yet. Unlike the subject filter,
+    // this list is fixed rather than data-derived. Any grade in the data that
+    // belongs to no stage is appended as its own option, in Airtable's grade
+    // order, so a new grade row can never hide the courses tagged to it.
     var gradeOrder = state.data.grades || [];
-    var stageOrder = (window.GRADE_STAGES || []).map(function (s) { return s.key; });
-    var gradeOptions = optionsFromPairs([].concat.apply([], all.map(function (c) {
-      return (c.grades || []).map(function (g) {
-        var k = gradeStageOf(g);
-        return { value: k, label: gradeStageLabel(k) };
-      });
-    })));
-    gradeOptions.sort(function (a, b) {
-      var ia = stageOrder.indexOf(a.value), ib = stageOrder.indexOf(b.value);
-      if (ia === -1 && ib === -1) return gradeOrder.indexOf(a.value) - gradeOrder.indexOf(b.value);
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
+    var gradeOptions = (window.GRADE_STAGES || []).map(function (s) {
+      return { value: s.key, label: gradeStageLabel(s.key) };
     });
+    var looseGrades = optionsFromPairs([].concat.apply([], all.map(function (c) {
+      return (c.grades || [])
+        .filter(function (g) { return !GRADE_STAGE_OF[g]; })
+        .map(function (g) { return { value: g, label: g }; });
+    })));
+    looseGrades.sort(function (a, b) {
+      return gradeOrder.indexOf(a.value) - gradeOrder.indexOf(b.value);
+    });
+    gradeOptions = gradeOptions.concat(looseGrades);
     // Filter options are built from the courses actually in this track, keyed
     // by their English value and labelled in the current page language.
     var langOptions = optionsFromPairs(all.map(function (c) {
@@ -634,7 +631,7 @@
       : '<span class="price tbd">' + esc(t().priceTBD) + "</span>";
 
     var textbooks = (c.textbooks || []).map(function (b) {
-      var name = [b.nameZh, b.nameEn].filter(Boolean).join(" · ") || b.sku;
+      var name = pickLang(b.nameEn, b.nameZh) || b.sku;
       var pr = typeof b.price === "number" ? ' <span class="tb-price">' + esc(fmtPrice(b.price)) + "</span>" : "";
       return '<div class="tb-item">' + esc(name) + pr + "</div>";
     }).join("");

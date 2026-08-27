@@ -235,17 +235,17 @@ window.I18N = {
 // where the -HS- courses start, and the Grades table's own English equivalency
 // column maps "Associate of Arts Degree" to "1st Year College".
 //
-// Labels are shown bilingually, current language first (same convention as
-// REQ_LABELS below). Course cards and the detail view still show the exact
-// grades from Airtable — this grouping is for the filter only. A grade not
-// listed here still appears in the filter under its own name, so adding a row
-// in Airtable can never silently hide courses.
+// Only the page language is shown, never both at once. All five stages are
+// always offered, whether or not courses are tagged into them yet. Course cards
+// and the detail view still show the exact grades from Airtable — this grouping
+// is for the filter only. A grade not listed here still appears in the filter
+// under its own name, so adding a row in Airtable can never hide courses.
 window.GRADE_STAGES = [
   { key: "preschool",   zh: "幼儿",     en: "Preschool",     members: ["Pre-K", "K1", "K2", "K3"] },
   { key: "elementary",  zh: "小学",     en: "Elementary",    members: ["G1", "G2", "G3", "G4", "G5", "G6"] },
   { key: "middle",      zh: "初中",     en: "Middle School", members: ["G7", "G8"] },
   { key: "high",        zh: "高中",     en: "High School",   members: ["G9", "G10", "G11", "G12"] },
-  { key: "college-prep", zh: "大学预科", en: "College Prep",  members: ["Associate of Arts Degree"] },
+  { key: "college-prep", zh: "大学预科", en: "Pre-College",  members: ["Associate of Arts Degree"] },
 ];
 
 // Bilingual labels for the requirements table rows (fixed field set).

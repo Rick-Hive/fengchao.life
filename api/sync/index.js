@@ -5,7 +5,7 @@
 // snapshot — private fields (emails, Teams accounts, contacts, sales data) are
 // never written into it.
 const cfg = require("../shared/config");
-const { writeSnapshot, writeAsset } = require("../shared/blob");
+const { writeSnapshot, readSnapshot, writeAsset } = require("../shared/blob");
 const { hasRole, getPrincipal } = require("../shared/auth");
 
 const API_ROOT = "https://api.airtable.com/v0";
@@ -371,8 +371,43 @@ module.exports = async function (context, req) {
       courses,
     };
 
+    // ---- guard against a destructive sync ---------------------------------
+    // Because the snapshot is replaced whole, a transient Airtable problem (an
+    // expired token, a view filtered down to nothing, a table renamed) would
+    // otherwise publish an empty or gutted catalog over a good one. Compare
+    // against what is currently live and refuse anything that looks like data
+    // loss rather than an edit. `?force=1` overrides, for the legitimate case
+    // where the catalog really did shrink.
+    const force = String((req.query && req.query.force) || "") === "1";
+    if (!force) {
+      let live = null;
+      try { live = await readSnapshot(); } catch (e) { /* first ever sync */ }
+      const before = (live && live.counts) || null;
+      if (before) {
+        const loss = [];
+        for (const key of ["tracks", "courses", "grades", "teachers"]) {
+          const was = before[key] || 0;
+          const now = snapshot.counts[key] || 0;
+          if (was >= 5 && now === 0) loss.push(`${key}: ${was} → 0`);
+          else if (was >= 20 && now < was * 0.5) loss.push(`${key}: ${was} → ${now}`);
+        }
+        if (loss.length) {
+          context.res = {
+            status: 409,
+            body: {
+              error: "Sync refused: this would remove a large part of the catalog.",
+              detail: loss,
+              hint: "Check the Airtable base and the API token, then retry. If the catalog really did shrink this much, re-run with ?force=1.",
+              counts: { before, after: snapshot.counts },
+            },
+          };
+          return;
+        }
+      }
+    }
+
     await writeSnapshot(snapshot);
-    context.res = { status: 200, body: { ok: true, generatedAt: snapshot.generatedAt, counts: snapshot.counts, warnings } };
+    context.res = { status: 200, body: { ok: true, generatedAt: snapshot.generatedAt, counts: snapshot.counts, warnings, forced: force || undefined } };
   } catch (err) {
     context.log.error("sync failed", err);
     context.res = { status: 502, body: { error: String(err.message || err) } };
