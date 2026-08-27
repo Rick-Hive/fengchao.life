@@ -108,7 +108,13 @@
   }
   function classTypeOf(c) { return pickLang(c.classTypeEn, c.classTypeZh); }
   function languageOf(c) { return pickLang(c.languageEn, c.languageZh); }
-  function subjectLabel(s) { return s ? pickLang(s.nameEn, s.nameZh) : ""; }
+  function subjectLabel(s) {
+    if (!s) return "";
+    // A few subjects read better as their English acronym in Chinese too.
+    var over = (window.SUBJECT_LABEL_ZH || {})[s.nameEn];
+    if (state.lang === "zh" && over) return over;
+    return pickLang(s.nameEn, s.nameZh);
+  }
   // Stable, language-independent key — filter values must survive a language
   // toggle, so they key off the English name, never the displayed label.
   function subjectKey(s) { return s ? String(s.nameEn || s.nameZh || "") : ""; }
@@ -169,43 +175,55 @@
     return sorted[0] + "–" + sorted[sorted.length - 1];
   }
 
-  // The class-type filter's fixed choices, in display order. Airtable's values
-  // contain a Unicode minus (U+2212) rather than a hyphen in "Self−Paced
-  // Course", and course codes do the same, so comparisons normalize every dash
-  // variant plus case and spacing. The full original value is still what gets
-  // stored and displayed — only the comparison is normalized.
-  var CLASS_TYPE_ORDER = ["live course", "prerecorded course", "self-paced course"];
-  function classTypeRank(v) {
-    return String(v || "")
-      .replace(/[‐-―−－]/g, "-")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase();
+  // Airtable's values contain a Unicode minus (U+2212) rather than a hyphen in
+  // "Self−Paced Course", and course codes do the same, so every comparison
+  // normalizes dash variants plus case and spacing. Original values are still
+  // what gets stored and displayed — only the comparison is normalized.
+  function dashNorm(v) {
+    return String(v || "").replace(/[‐-―−－]/g, "-").replace(/\s+/g, " ").trim();
+  }
+  function classTypeRank(v) { return dashNorm(v).toLowerCase(); }
+
+  // Which grade stages belong to which school level.
+  var K8_STAGES = { preschool: 1, elementary: 1, middle: 1 };
+  var HS_STAGES = { high: 1, "college-prep": 1 };
+
+  // Level inferred from the course code's middle segment. Every code in the base
+  // carries one (KG/EL/MS/HS/CLP) and it never contradicts the grades, so it is
+  // a safe fallback for the handful of courses with no grade tagged — without it
+  // those courses would belong to no level and disappear from both catalogs.
+  function levelFromCode(code) {
+    var m = dashNorm(code).toUpperCase().match(/-(KG|EL|MS|HS|CLP)-/);
+    if (!m) return null;
+    return m[1] === "HS" || m[1] === "CLP" ? "hs" : "k8";
   }
 
-  // Which grade stages count as K-8. Used to identify K-8 courses by their
-  // grades rather than by a track record — see isK8Course below.
-  var K8_STAGES = { preschool: 1, elementary: 1, middle: 1 };
-
-  // K-8 courses used to be identified solely by being tagged to a 7th "N/A"
-  // graduation track. That record was deleted from the base on 2026-08-27 and
-  // every course was retagged to tracks 1-6, which silently emptied the entire
-  // K-8 catalog. Grades are the durable signal, so they lead now; the old track
-  // tag is still honoured in case the record ever comes back, and a course with
-  // no grades at all is included rather than made invisible.
-  function isK8Course(c) {
-    var k8Track = state.data && state.data.k8TrackId;
-    if (k8Track && c.trackIds && c.trackIds.indexOf(k8Track) !== -1) return true;
+  // Each catalog shows only courses for the level the parent picked: K-8 never
+  // shows high-school courses and vice versa. Grades decide, falling back to the
+  // course code when a course has none. A course genuinely spanning the boundary
+  // (e.g. tagged G8 and G9) legitimately appears in both.
+  //
+  // Level was previously inferred from a 7th "N/A" graduation track, which was
+  // deleted from the base on 2026-08-27, silently emptying the whole K-8
+  // catalog; the old track tag is still honoured in case it ever returns.
+  function courseInLevel(c, level) {
+    if (level === "k8") {
+      var k8Track = state.data && state.data.k8TrackId;
+      if (k8Track && c.trackIds && c.trackIds.indexOf(k8Track) !== -1) return true;
+    }
+    var stages = level === "k8" ? K8_STAGES : HS_STAGES;
     var grades = c.grades || [];
-    if (!grades.length) return true;
-    return grades.some(function (g) { return K8_STAGES[gradeStageOf(g)]; });
+    if (grades.length) {
+      return grades.some(function (g) { return stages[gradeStageOf(g)]; });
+    }
+    return levelFromCode(c.code) === level;
   }
 
   function trackCourses() {
     if (!state.data) return [];
     var list;
     if (state.level === "k8") {
-      list = state.data.courses.filter(isK8Course);
+      list = state.data.courses.filter(function (c) { return courseInLevel(c, "k8"); });
       // HS pedagogy is baked into which of the 6 tracks was picked; K-8 has no
       // track dimension, so it filters on the per-course "Classical" checkbox.
       // That Airtable field does not exist yet, so every course currently reads
@@ -221,8 +239,11 @@
     }
     var id = trackId();
     if (!id) return [];
+    // The track tags alone are not enough: every course in the base is tagged to
+    // the hybrid tracks, elementary ones included, so the high-school catalog
+    // also requires a high-school grade.
     return state.data.courses.filter(function (c) {
-      return c.trackIds && c.trackIds.indexOf(id) !== -1;
+      return c.trackIds && c.trackIds.indexOf(id) !== -1 && courseInLevel(c, "hs");
     });
   }
 
@@ -253,7 +274,9 @@
       if (f.subject && !(c.subjects || []).some(function (s) { return subjectKey(s) === f.subject; })) return false;
       if (f.grade && !(c.grades || []).some(function (g) { return gradeStageOf(g) === f.grade; })) return false;
       if (f.language && c.languageEn !== f.language) return false;
-      if (f.classType && c.classTypeEn !== f.classType) return false;
+      // Rank-compared, not string-compared: the filter key uses a plain hyphen
+      // ("Self-Paced Course") while Airtable stores a Unicode minus.
+      if (f.classType && classTypeRank(c.classTypeEn) !== classTypeRank(f.classType)) return false;
       if (terms.length) {
         var hay = haystack(c);
         for (var i = 0; i < terms.length; i++) if (hay.indexOf(terms[i]) === -1) return false;
@@ -517,18 +540,14 @@
     var langOptions = optionsFromPairs(all.map(function (c) {
       return { value: c.languageEn, label: languageOf(c) };
     }));
-    // Class type offers exactly three choices, in this order. "Live or Recorded
-    // Course" is deliberately not offered — courses carrying it still appear
-    // under 全部/All and still show their real type on the card and in the
-    // detail view; they just aren't a filter choice of their own.
-    var typeOptions = optionsFromPairs(all.map(function (c) {
-      return { value: c.classTypeEn, label: classTypeOf(c) };
-    })).filter(function (o) {
-      return CLASS_TYPE_ORDER.indexOf(classTypeRank(o.value)) !== -1;
-    });
-    typeOptions.sort(function (a, b) {
-      return CLASS_TYPE_ORDER.indexOf(classTypeRank(a.value)) -
-             CLASS_TYPE_ORDER.indexOf(classTypeRank(b.value));
+    // Class type always offers the same three choices in the same order, taken
+    // from window.CLASS_TYPES rather than from the courses present — otherwise
+    // the list changes shape between tracks (no K-8 course is Prerecorded, which
+    // made 录播课 vanish there). "Live or Recorded Course" is deliberately not a
+    // choice; courses carrying it stay visible under 全部/All and still show
+    // their real type on the card and in the detail view.
+    var typeOptions = (window.CLASS_TYPES || []).map(function (ct) {
+      return { value: ct.value, label: pickLang(ct.en, ct.zh) };
     });
     var subjectOptions = optionsFromPairs([].concat.apply([], all.map(function (c) {
       return (c.subjects || []).map(function (s) {
