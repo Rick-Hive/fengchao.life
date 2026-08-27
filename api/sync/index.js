@@ -365,6 +365,54 @@ module.exports = async function (context, req) {
       warnings.push('No teacher has a value for "Name" — check the Teachers table field names.');
     }
 
+    // ---- data problems that affect which catalog a course lands in ----------
+    // The site splits the catalog at G8/G9. A course tagged on both sides of
+    // that line has to appear in both the K-8 and the high-school catalog,
+    // which is almost always a tagging mistake rather than a real offering —
+    // a course does not run from middle school through to Grade 12. Flag them
+    // by name so they can be corrected at the source.
+    const label = (c) => (c.code || c.nameEn || c.nameZh || c.id || "?").trim();
+    const crossLevel = courses.filter((c) => {
+      const ranks = (c.grades || []).map(gradeRank);
+      return ranks.some((r) => r <= 108) && ranks.some((r) => r >= 109);
+    });
+    if (crossLevel.length) {
+      warnings.push(
+        "These courses are tagged with grades on both sides of the G8/G9 line, " +
+        "so they appear in both the K-8 and the high-school catalog — " +
+        "usually a grade-tagging mistake worth correcting: " +
+        crossLevel.map((c) => `${label(c)} (${(c.grades || []).join(", ")})`).join("; ")
+      );
+    }
+    // No grades at all means the level can only be guessed from the course
+    // code, so these are worth tagging properly too.
+    const noGrades = courses.filter((c) => !(c.grades || []).length);
+    if (noGrades.length) {
+      warnings.push(
+        `${noGrades.length} course(s) have no Grade tagged, so the site places them by course code alone: ` +
+        noGrades.map(label).join("; ")
+      );
+    }
+    // The two halves of a split bilingual field should describe the same thing.
+    const CLASS_TYPE_PAIRS = {
+      "live course": "直播课",
+      "prerecorded course": "录播课",
+      "self-paced course": "自定义进度课程",
+      "live or recorded course": "直播或录播课",
+    };
+    const mismatched = courses.filter((c) => {
+      const en = String(c.classTypeEn || "").replace(/[‐-―−－]/g, "-").trim().toLowerCase();
+      const expect = CLASS_TYPE_PAIRS[en];
+      return expect && c.classTypeZh && String(c.classTypeZh).trim() !== expect;
+    });
+    if (mismatched.length) {
+      warnings.push(
+        'These courses have "Class Type" and "课程类型" that disagree, so the site labels them ' +
+        "differently in each language: " +
+        mismatched.map((c) => `${label(c)} (${c.classTypeEn} / ${c.classTypeZh})`).join("; ")
+      );
+    }
+
     const principal = getPrincipal(req);
     const snapshot = {
       generatedAt: new Date().toISOString(),
