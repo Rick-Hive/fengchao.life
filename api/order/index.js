@@ -19,6 +19,22 @@ function tooMany(ip) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+// Policy (Rick, 2026-08-26): mainland free-mail providers are not accepted for
+// orders; parents must use Gmail, Outlook, Yahoo or another international
+// provider. Keep in sync with BLOCKED_EMAIL_DOMAINS in assets/app.js.
+const BLOCKED_EMAIL_DOMAINS = [
+  "qq.com", "vip.qq.com", "foxmail.com",
+  "163.com", "vip.163.com", "126.com", "vip.126.com", "yeah.net", "188.com",
+  "sina.com", "sina.cn", "vip.sina.com",
+  "sohu.com", "tom.com", "21cn.com", "aliyun.com",
+  "139.com", "189.cn", "wo.cn", "wo.com.cn",
+];
+
+function isBlockedEmail(email) {
+  const domain = email.split("@")[1].toLowerCase();
+  return BLOCKED_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith("." + d));
+}
+
 function makeOrderId() {
   const d = new Date();
   const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
@@ -50,7 +66,11 @@ module.exports = async function (context, req) {
     context.res = { status: 400, body: { error: "invalid_email" } };
     return;
   }
-  if (!(trackId >= 1 && trackId <= 6)) {
+  if (isBlockedEmail(email)) {
+    context.res = { status: 400, body: { error: "blocked_email_domain" } };
+    return;
+  }
+  if (!(trackId >= 1 && trackId <= 7)) {
     context.res = { status: 400, body: { error: "invalid_track" } };
     return;
   }
@@ -91,7 +111,11 @@ module.exports = async function (context, req) {
       });
     }
     const total = items.reduce((s, i) => s + (typeof i.price === "number" ? i.price : 0), 0);
-    const track = snapshot.tracks.find((t) => t.trackId === trackId) || null;
+    // trackId 7 is the K–G8 catalog (not a graduation track) — give it a readable name.
+    const track =
+      trackId === 7
+        ? { trackId: 7, name: "K-G8 Courses/小学·初中课程" }
+        : snapshot.tracks.find((t) => t.trackId === trackId) || null;
 
     const order = {
       orderId: makeOrderId(),
