@@ -25,7 +25,7 @@
     mode: null,       // international | domestic | hybrid
     pedagogy: null,   // classical | nonclassical
     data: null,       // snapshot
-    filters: { subject: "", grade: "", language: "", classType: "", teacher: "" },
+    filters: { subject: "", grade: "", language: "", classType: "", q: "" },
     cart: {},         // courseId -> true
     done: null,       // {orderId}
     submitting: false,
@@ -96,14 +96,30 @@
     });
   }
 
+  function haystack(c) {
+    if (!c._hay) {
+      c._hay = [
+        c.name, c.code, c.description, c.language, c.classType,
+        (c.subjects || []).join(" "), (c.grades || []).join(" "),
+        (c.teachers || []).join(" "),
+        c.school && c.school.name ? c.school.name + " " + (c.school.abbr || "") : "",
+      ].join(" ").toLowerCase();
+    }
+    return c._hay;
+  }
+
   function filteredCourses() {
     var f = state.filters;
+    var terms = (f.q || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     var list = trackCourses().filter(function (c) {
       if (f.subject && (c.subjects || []).indexOf(f.subject) === -1) return false;
       if (f.grade && (c.grades || []).indexOf(f.grade) === -1) return false;
       if (f.language && c.language !== f.language) return false;
       if (f.classType && c.classType !== f.classType) return false;
-      if (f.teacher && (c.teachers || []).indexOf(f.teacher) === -1) return false;
+      if (terms.length) {
+        var hay = haystack(c);
+        for (var i = 0; i < terms.length; i++) if (hay.indexOf(terms[i]) === -1) return false;
+      }
       return true;
     });
     list.sort(function (a, b) {
@@ -267,24 +283,41 @@
     );
   }
 
+  function isLiveType(classType) {
+    return /live|直播/i.test(classType || "");
+  }
+
+  // classType + grade chips: the visual "what & who" of the course at a glance.
+  function metaChips(c) {
+    var chips = "";
+    if (c.classType) {
+      var live = isLiveType(c.classType);
+      chips += '<span class="chip chip-type' + (live ? " live" : " recorded") + '">' +
+        (live
+          ? '<svg viewBox="0 0 20 20" width="10" height="10" aria-hidden="true"><circle cx="10" cy="10" r="5" fill="currentColor"/></svg>'
+          : '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M4 5a1 1 0 011-1h6a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 9l4-2.3v6.6L12 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>') +
+        " " + esc(c.classType) + "</span>";
+    }
+    (c.grades || []).forEach(function (g) { chips += '<span class="chip chip-grade">' + esc(g) + "</span>"; });
+    return chips;
+  }
+
+  // Compact card: name + at-a-glance chips (live/recorded, grades) + teacher +
+  // schedule + a short description — no field-label headers, no price (that's
+  // in the detail view). Every pixel goes to information, not chrome.
   function compactCard(c) {
     var selected = !!state.cart[c.id];
-    var tags = [];
-    if (c.classType) tags.push(c.classType);
-    if (c.language) tags.push(c.language);
-    (c.grades || []).slice(0, 4).forEach(function (g) { tags.push(g); });
     var sched = schedShort(c);
-    var priceHtml = typeof c.price === "number"
-      ? '<span class="price">' + esc(fmtPrice(c.price)) + "</span>"
-      : '<span class="price tbd">' + esc(t().priceTBD) + "</span>";
+    var name = c.name || c.code || "—";
     return (
       '<article class="course-card' + (selected ? " selected" : "") + '" data-id="' + esc(c.id) + '" tabindex="0" role="button" aria-expanded="false">' +
-      '<div class="top"><div><h4>' + esc(c.name) + '</h4><div class="code">' + esc(c.code) + '</div></div>' +
+      '<div class="top"><h4>' + esc(name) + (c.code ? ' <span class="code-inline">' + esc(c.code) + "</span>" : "") + "</h4>" +
       '<span class="expand-ic" aria-hidden="true"><svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 8l7 6 7-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>' +
-      '<div class="tag-row">' + tags.map(function (x) { return '<span class="tag">' + esc(x) + "</span>"; }).join("") + "</div>" +
-      ((c.teachers || []).length ? '<div class="card-line teachers-line">' + teacherLinks(c, "t-link") + "</div>" : "") +
+      '<div class="chip-row">' + metaChips(c) + "</div>" +
+      (c.description ? '<p class="course-desc">' + esc(c.description) + "</p>" : "") +
+      ((c.teachers || []).length ? '<div class="card-line teacher-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' + teacherLinks(c, "t-link") + "</div>" : "") +
       (sched ? '<div class="card-line sched-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 5.5V10l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> ' + esc(sched) + "</div>" : "") +
-      '<div class="course-bottom">' + priceHtml + selectBtn(c) + "</div></article>"
+      '<div class="course-bottom"><span class="more-hint">' + esc(t().details) + " ›</span>" + selectBtn(c) + "</div></article>"
     );
   }
 
@@ -307,23 +340,28 @@
     });
     var langs = uniqueSorted(all.map(function (c) { return c.language; }));
     var types = uniqueSorted(all.map(function (c) { return c.classType; }));
-    var teachers = uniqueSorted([].concat.apply([], all.map(function (c) { return c.teachers || []; })));
-
-    var list = filteredCourses();
-    var cards = list.map(compactCard).join("");
 
     return (
       '<section class="panel"><h2>' + esc(t().step4Title) + '</h2><p class="hint">' + esc(hint) + "</p>" +
       '<div class="filter-bar">' +
+      '<div class="filter-group search-group"><label for="fSearch">' + esc(t().searchLabel) + '</label>' +
+      '<div class="search-wrap"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+      '<input id="fSearch" type="search" placeholder="' + esc(t().searchPh) + '" value="' + esc(state.filters.q) + '" autocomplete="off" /></div></div>' +
       selectHtml("fSubject", t().filters.subject, subjects, state.filters.subject) +
       selectHtml("fGrade", t().filters.grade, gradesPresent, state.filters.grade) +
       selectHtml("fLang", t().filters.language, langs, state.filters.language) +
       selectHtml("fType", t().filters.classType, types, state.filters.classType) +
-      selectHtml("fTeacher", t().filters.teacher, teachers, state.filters.teacher) +
       "</div>" +
-      (list.length ? '<div class="course-grid" id="courseGrid">' + cards + "</div>" : '<div class="notice">' + esc(t().noCourses) + "</div>") +
+      '<div id="gridWrap">' + gridHtml() + "</div>" +
       '<div class="nav-row"><button class="btn btn-ghost" id="back4">' + esc(t().back) + "</button><span></span></div></section>"
     );
+  }
+
+  function gridHtml() {
+    var list = filteredCourses();
+    var count = '<div class="result-count">' + list.length + " " + esc(t().resultCount) + "</div>";
+    if (!list.length) return count + '<div class="notice">' + esc(t().noCourses) + "</div>";
+    return count + '<div class="course-grid" id="courseGrid">' + list.map(compactCard).join("") + "</div>";
   }
 
   function renderStep5() {
@@ -606,15 +644,23 @@
     on("back4", "click", function () { state.step = state.level === "k8" ? 0 : 3; render(); });
     on("back5", "click", function () { state.step = 4; render(); });
 
-    ["fSubject", "fGrade", "fLang", "fType", "fTeacher"].forEach(function (id) {
+    ["fSubject", "fGrade", "fLang", "fType"].forEach(function (id) {
       on(id, "change", function (e) {
-        var map = { fSubject: "subject", fGrade: "grade", fLang: "language", fType: "classType", fTeacher: "teacher" };
+        var map = { fSubject: "subject", fGrade: "grade", fLang: "language", fType: "classType" };
         state.filters[map[id]] = e.target.value;
-        render();
+        var gw = document.getElementById("gridWrap");
+        if (gw) gw.innerHTML = gridHtml();
       });
     });
 
-    var grid = document.getElementById("courseGrid");
+    // Smart quick search: filters the grid live as the user types.
+    on("fSearch", "input", function (e) {
+      state.filters.q = e.target.value;
+      var gw = document.getElementById("gridWrap");
+      if (gw) gw.innerHTML = gridHtml();
+    });
+
+    var grid = document.getElementById("gridWrap");
     if (grid) {
       grid.addEventListener("click", function (e) {
         var sel = e.target.closest("[data-select]");
@@ -653,17 +699,24 @@
     on("againBtn", "click", function () {
       state.done = null; state.cart = {}; state.step = 0;
       state.level = null; state.mode = null; state.pedagogy = null;
-      state.filters = { subject: "", grade: "", language: "", classType: "", teacher: "" };
+      state.filters = { subject: "", grade: "", language: "", classType: "", q: "" };
       render();
     });
   }
 
-  function toggleCourse(id, fromOverlay) {
+  function toggleCourse(id) {
     if (!id) return;
     if (state.cart[id]) delete state.cart[id];
     else state.cart[id] = true;
-    // Re-render the page behind; keep any open modal in sync without closing it.
-    render();
+    // On the catalog, update only the grid + cart bar (no scroll jump, search keeps focus);
+    // keep any open modal in sync without closing it.
+    var gw = document.getElementById("gridWrap");
+    if (gw) {
+      gw.innerHTML = gridHtml();
+      renderCartBar();
+    } else {
+      render();
+    }
     refreshModalButtons();
   }
 

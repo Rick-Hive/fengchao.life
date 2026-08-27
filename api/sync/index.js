@@ -29,10 +29,37 @@ async function fetchAllRecords(tableId, pat) {
   return records;
 }
 
-// Get a field's value by exact name (string) or regex prefix.
+// Normalize a field name: lowercase, strip all whitespace (incl. full-width),
+// unify full-width slash/question mark. Makes matching immune to invisible
+// renames like trailing spaces or full-width punctuation.
+function norm(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/[\s 　]+/g, "")
+    .replace(/／/g, "/")
+    .replace(/？/g, "?");
+}
+
+// Get a field's value by exact name (string, with normalized fallback matching)
+// or regex. String specs like "Course Name/课程名称" fall back to matching the
+// English part, then the Chinese part, against normalized record keys.
 function f(fields, spec) {
-  if (typeof spec === "string") return fields[spec];
-  for (const k of Object.keys(fields)) if (spec.test(k)) return fields[k];
+  if (spec instanceof RegExp) {
+    for (const k of Object.keys(fields)) if (spec.test(k)) return fields[k];
+    return undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(fields, spec)) return fields[spec];
+  const n = norm(spec);
+  const parts = n.split("/");
+  const en = parts[0] || "";
+  const zh = parts[1] || "";
+  const keys = Object.keys(fields).sort();
+  for (const k of keys) if (norm(k) === n) return fields[k];
+  if (en) for (const k of keys) if (norm(k).startsWith(en)) return fields[k];
+  for (const k of keys) {
+    const nk = norm(k);
+    if ((en && nk.includes(en)) || (zh && nk.includes(zh))) return fields[k];
+  }
   return undefined;
 }
 
@@ -106,15 +133,15 @@ module.exports = async function (context, req) {
 
     const trackIdByRec = new Map();
     for (const r of trackRecs) {
-      const v = r.fields[cfg.trackFields.trackId];
+      const v = f(r.fields, cfg.trackFields.trackId);
       if (typeof v === "number") trackIdByRec.set(r.id, v);
     }
 
     const subjectByRec = new Map();
-    for (const r of subjectRecs) subjectByRec.set(r.id, r.fields[cfg.tables.subjects.display] || r.id);
+    for (const r of subjectRecs) subjectByRec.set(r.id, f(r.fields, cfg.tables.subjects.display) || r.id);
 
     const gradeByRec = new Map();
-    for (const r of gradeRecs) gradeByRec.set(r.id, r.fields[cfg.tables.grades.display] || r.id);
+    for (const r of gradeRecs) gradeByRec.set(r.id, f(r.fields, cfg.tables.grades.display) || r.id);
 
     const pf = cfg.classPeriodFields;
     const periodByRec = new Map();
@@ -188,14 +215,14 @@ module.exports = async function (context, req) {
       .map((r) => {
         const fields = r.fields;
         const credits = {};
-        for (const c of tf.credits) credits[c.key] = fields[c.field] ?? null;
+        for (const c of tf.credits) credits[c.key] = f(fields, c.field) ?? null;
         return {
-          trackId: fields[tf.trackId] ?? null,
-          name: fields[tf.name] ?? "",
+          trackId: f(fields, tf.trackId) ?? null,
+          name: f(fields, tf.name) ?? "",
           credits,
-          totalCredits: fields[tf.totalCredits] ?? null,
-          serviceHours: fields[tf.serviceHours] ?? null,
-          comments: fields[tf.comments] ?? "",
+          totalCredits: f(fields, tf.totalCredits) ?? null,
+          serviceHours: f(fields, tf.serviceHours) ?? null,
+          comments: f(fields, tf.comments) ?? "",
         };
       })
       .filter((t) => typeof t.trackId === "number" && t.trackId >= 1 && t.trackId <= 6)
@@ -220,42 +247,67 @@ module.exports = async function (context, req) {
         }
       }
 
-      const teacherIds = linkedIds(fields[cf.teachers]);
-      const schoolIds = linkedIds(fields[cf.school]);
+      const teacherIds = linkedIds(f(fields, cf.teachers));
+      const schoolIds = linkedIds(f(fields, cf.school));
       const course = {
         id: r.id,
-        code: fields[cf.code] ?? "",
-        name: fields[cf.name] ?? "",
-        description: fields[cf.description] ?? "",
-        classType: fields[cf.classType] ?? "",
-        grades: linkedIds(fields[cf.grades]).map((id) => gradeByRec.get(id) || id),
-        language: fields[cf.language] ?? "",
-        price: typeof fields[cf.price] === "number" ? fields[cf.price] : null,
-        numClasses: fields[cf.numClasses] ?? null,
+        code: f(fields, cf.code) ?? "",
+        name: f(fields, cf.name) ?? "",
+        description: f(fields, cf.description) ?? "",
+        classType: f(fields, cf.classType) ?? "",
+        grades: linkedIds(f(fields, cf.grades)).map((id) => gradeByRec.get(id) || id),
+        language: f(fields, cf.language) ?? "",
+        price: typeof f(fields, cf.price) === "number" ? f(fields, cf.price) : null,
+        numClasses: f(fields, cf.numClasses) ?? null,
         teachers: teacherIds.map((id) => (teacherByRec.get(id) || {}).name || id),
         teacherIds,
-        schedule: linkedIds(fields[cf.classTime])
+        schedule: linkedIds(f(fields, cf.classTime))
           .map((id) => periodByRec.get(id))
           .filter(Boolean)
           .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
-        subjects: linkedIds(fields[cf.subjects]).map((id) => subjectByRec.get(id) || id),
-        trackIds: linkedIds(fields[cf.tracks])
+        subjects: linkedIds(f(fields, cf.subjects)).map((id) => subjectByRec.get(id) || id),
+        trackIds: linkedIds(f(fields, cf.tracks))
           .map((id) => trackIdByRec.get(id))
           .filter((n) => typeof n === "number"),
-        textbooks: linkedIds(fields[cf.textbooks]).map((id) => textbookByRec.get(id)).filter(Boolean),
+        textbooks: linkedIds(f(fields, cf.textbooks)).map((id) => textbookByRec.get(id)).filter(Boolean),
         school: schoolIds.length ? schoolByRec.get(schoolIds[0]) || null : null,
         prerequisite: f(fields, cf.re.prerequisite) || "",
         academic: !!f(fields, cf.re.academic),
         comments: f(fields, cf.re.comments) || "",
         syllabus,
-        available: isTruthyAvailable(fields[cf.available]),
+        available: isTruthyAvailable(f(fields, cf.available)),
       };
       courses.push(course);
     }
     if (onlyAvailable) courses = courses.filter((c) => c.available);
 
-    const subjects = subjectRecs.map((r) => r.fields[cfg.tables.subjects.display]).filter(Boolean);
-    const grades = gradeRecs.map((r) => r.fields[cfg.tables.grades.display]).filter(Boolean);
+    const subjects = subjectRecs.map((r) => f(r.fields, cfg.tables.subjects.display)).filter(Boolean);
+    const grades = gradeRecs.map((r) => f(r.fields, cfg.tables.grades.display)).filter(Boolean);
+
+    // Warn when an expected field matched nothing in ANY record — that almost
+    // always means the field was renamed in Airtable beyond recognition.
+    const warnings = [];
+    if (courses.length) {
+      const checks = [
+        ["Course Name", (c) => c.name],
+        ["Course ID", (c) => c.code],
+        ["Course Description", (c) => c.description],
+        ["Class Type", (c) => c.classType],
+        ["Teaching Language", (c) => c.language],
+        ["Course Price", (c) => typeof c.price === "number"],
+        ["Grade", (c) => c.grades.length],
+        ["Subject", (c) => c.subjects.length],
+        ["Graduation Track", (c) => c.trackIds.length],
+        ["Teacher", (c) => c.teachers.length],
+        ["Class time", (c) => c.schedule.length],
+      ];
+      for (const [label, get] of checks) {
+        if (!courses.some(get)) warnings.push(`No course has a value for "${label}" — check that field's name in Airtable.`);
+      }
+    }
+    if (teacherProfiles.length && !teacherProfiles.some((p) => p.name)) {
+      warnings.push('No teacher has a value for "Name" — check the Teachers table field names.');
+    }
 
     const principal = getPrincipal(req);
     const snapshot = {
@@ -280,7 +332,7 @@ module.exports = async function (context, req) {
     };
 
     await writeSnapshot(snapshot);
-    context.res = { status: 200, body: { ok: true, generatedAt: snapshot.generatedAt, counts: snapshot.counts } };
+    context.res = { status: 200, body: { ok: true, generatedAt: snapshot.generatedAt, counts: snapshot.counts, warnings } };
   } catch (err) {
     context.log.error("sync failed", err);
     context.res = { status: 502, body: { error: String(err.message || err) } };
