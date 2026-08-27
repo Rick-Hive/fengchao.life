@@ -167,6 +167,7 @@ module.exports = async function (context, req) {
         start: f(r.fields, pf.start) || "",
         end: f(r.fields, pf.end) || "",
         minutes: f(r.fields, pf.minutes) ?? null,
+        range: f(r.fields, pf.range) || "",
       });
     }
 
@@ -287,6 +288,13 @@ module.exports = async function (context, req) {
         numClasses: f(fields, cf.numClasses) ?? null,
         teachers: teacherIds.map((id) => (teacherByRec.get(id) || {}).name || id),
         teacherIds,
+        // Multiple select -> array of English weekday names; a single select or
+        // text value still normalizes to an array so the front end has one shape.
+        days: (() => {
+          const v = f(fields, cf.daysOfWeek);
+          if (Array.isArray(v)) return v.filter(Boolean).map(String);
+          return v ? [String(v)] : [];
+        })(),
         schedule: linkedIds(f(fields, cf.classTime))
           .map((id) => periodByRec.get(id))
           .filter(Boolean)
