@@ -101,7 +101,8 @@ module.exports = async function (context, req) {
       }
       items.push({
         code: c.code,
-        name: c.name,
+        nameEn: c.nameEn,
+        nameZh: c.nameZh,
         subjects: c.subjects,
         grades: c.grades,
         classType: c.classType,

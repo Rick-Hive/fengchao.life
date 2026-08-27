@@ -137,7 +137,7 @@
   function haystack(c) {
     if (!c._hay) {
       c._hay = [
-        c.name, c.code, c.description, c.language, c.classType,
+        c.nameEn, c.nameZh, c.code, c.description, c.language, c.classType,
         (c.subjects || []).join(" "), (c.grades || []).join(" "),
         (c.teachers || []).join(" "),
         c.school && c.school.name ? c.school.name + " " + (c.school.abbr || "") : "",
@@ -169,6 +169,14 @@
   }
 
   function cartIds() { return Object.keys(state.cart); }
+  // Course Name is two separate Airtable fields (English + Chinese, split
+  // 2026-08-27) — show whichever matches the page language, falling back to
+  // the other if that one is blank.
+  function courseName(c) {
+    if (!c) return "";
+    return state.lang === "zh" ? (c.nameZh || c.nameEn || "") : (c.nameEn || c.nameZh || "");
+  }
+
   function courseById(id) {
     var cs = state.data ? state.data.courses : [];
     for (var i = 0; i < cs.length; i++) if (cs[i].id === id) return cs[i];
@@ -363,7 +371,7 @@
   function compactCard(c) {
     var selected = !!state.cart[c.id];
     var sched = schedShort(c);
-    var name = c.name || c.code || "—";
+    var name = courseName(c) || c.code || "—";
     return (
       '<article class="course-card' + (selected ? " selected" : "") + '" data-id="' + esc(c.id) + '" tabindex="0" role="button" aria-expanded="false">' +
       '<div class="top"><h4>' + esc(name) + (c.code ? ' <span class="code-inline">' + esc(c.code) + "</span>" : "") + "</h4>" +
@@ -426,7 +434,7 @@
     var items = cartCourses();
     var rows = items.map(function (c) {
       return (
-        '<div class="summary-item"><span>' + esc(c.name) + ' <span class="code">' + esc(c.code) + "</span></span>" +
+        '<div class="summary-item"><span>' + esc(courseName(c)) + ' <span class="code">' + esc(c.code) + "</span></span>" +
         "<span>" + (typeof c.price === "number" ? esc(fmtPrice(c.price)) : esc(t().priceTBD)) +
         ' <button class="rm" data-id="' + esc(c.id) + '" type="button">' + esc(t().remove) + "</button></span></div>"
       );
@@ -549,7 +557,7 @@
 
     return (
       '<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button>' +
-      '<div class="modal-head"><h3>' + esc(c.name) + '</h3><div class="code">' + esc(c.code) + "</div>" +
+      '<div class="modal-head"><h3>' + esc(courseName(c)) + '</h3><div class="code">' + esc(c.code) + "</div>" +
       '<div class="tag-row">' + tags.map(function (x) { return '<span class="tag">' + esc(x) + "</span>"; }).join("") + "</div></div>" +
       '<div class="modal-body">' +
       (c.description ? '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" + esc(c.description) + "</p></div>" : "") +

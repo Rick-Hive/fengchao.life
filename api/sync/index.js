@@ -252,7 +252,8 @@ module.exports = async function (context, req) {
       const course = {
         id: r.id,
         code: f(fields, cf.code) ?? "",
-        name: f(fields, cf.name) ?? "",
+        nameEn: f(fields, cf.nameEn) ?? "",
+        nameZh: f(fields, cf.nameZh) ?? "",
         description: f(fields, cf.description) ?? "",
         classType: f(fields, cf.classType) ?? "",
         grades: linkedIds(f(fields, cf.grades)).map((id) => gradeByRec.get(id) || id),
@@ -289,7 +290,7 @@ module.exports = async function (context, req) {
     const warnings = [];
     if (courses.length) {
       const checks = [
-        ["Course Name", (c) => c.name],
+        ["Course Name", (c) => c.nameEn || c.nameZh],
         ["Course ID", (c) => c.code],
         ["Course Description", (c) => c.description],
         ["Class Type", (c) => c.classType],

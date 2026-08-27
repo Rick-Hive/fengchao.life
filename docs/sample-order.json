@@ -13,7 +13,8 @@
   "items": [
     {
       "code": "SCI-HS-101",
-      "name": "生物",
+      "nameEn": "Biology",
+      "nameZh": "生物",
       "subjects": ["Science/科学"],
       "grades": ["G9"],
       "classType": "Live/直播",
@@ -23,7 +24,8 @@
     },
     {
       "code": "SCI-HS-201",
-      "name": "化学",
+      "nameEn": "Chemistry",
+      "nameZh": "化学",
       "subjects": ["Science/科学"],
       "grades": ["G10"],
       "classType": "Live/直播",

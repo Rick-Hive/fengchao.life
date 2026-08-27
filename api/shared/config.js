@@ -45,7 +45,12 @@ module.exports = {
 
   courseFields: {
     code: "Course ID/课程编号",
-    name: "Course Name/课程名称",
+    // Course Name was split into two separate fields (2026-08-27): English and
+    // Chinese are now distinct columns, not one bilingual "EN/ZH" field. The
+    // site picks whichever matches the current page language (see courseName()
+    // in assets/app.js), falling back to the other if one is blank.
+    nameEn: "Course Name",
+    nameZh: "课程名称",
     tracks: "Graduation Track/毕业路径",
     description: "Course Description/课程描述",
     classType: "Class Type/课程类型",
