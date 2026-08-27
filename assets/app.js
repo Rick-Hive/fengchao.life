@@ -735,11 +735,10 @@
     var sch = c.schedule || [];
     var days = daysLabel(c);
     var chips = days ? '<span class="sched-chip sched-days">' + esc(days) + "</span>" : "";
+    // Just the time range — the class length is implicit in it and was noise.
     chips += sch.map(function (p) {
       var tm = periodTime(p);
-      var mins = typeof p.minutes === "number" ? " · " + p.minutes + " " + t().minutesUnit : "";
-      var label = (tm || "") + (tm ? mins : "");
-      return label ? '<span class="sched-chip">' + esc(label) + "</span>" : "";
+      return tm ? '<span class="sched-chip">' + esc(tm) + "</span>" : "";
     }).join("");
     return chips;
   }
