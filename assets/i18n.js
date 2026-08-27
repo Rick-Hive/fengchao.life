@@ -4,7 +4,7 @@ window.I18N = {
     brandTag: "K-12 选课平台",
     langBtn: "EN",
     steps: ["学段", "毕业路径", "教育理念", "毕业要求", "选择课程", "提交订单"],
-    stepsK8: ["学段", "选择课程", "提交订单"],
+    stepsK8: ["学段", "教育理念", "选择课程", "提交订单"],
     step0Title: "第一步：请选择学段",
     step0Hint: "请选择孩子所处的学段。小学与初中课程可直接浏览选课；高中课程需先选择毕业路径。",
     levels: {
@@ -114,7 +114,7 @@ window.I18N = {
     brandTag: "K-12 Course Platform",
     langBtn: "中文",
     steps: ["Level", "Track", "Pedagogy", "Requirements", "Courses", "Submit"],
-    stepsK8: ["Level", "Courses", "Submit"],
+    stepsK8: ["Level", "Pedagogy", "Courses", "Submit"],
     step0Title: "Step 1: Choose a school level",
     step0Hint: "Elementary and middle school courses can be browsed directly; high school starts with a graduation track.",
     levels: {

@@ -70,6 +70,14 @@ module.exports = {
       prerequisite: /^Presiquisite|^Prerequisite/i, // text ("N/A", spelling as in base)
       academic: /^Academic Course/i,     // checkbox
       comments: /^Comments/i,            // long text
+      // Pedagogy checkbox (2026-08-27, requested but NOT YET ADDED to the
+      // base) — same pattern as "Academic Course?": a plain checkbox, checked
+      // for Classical courses, left blank for Non-Classical (the default).
+      // Needed so K-8 can filter by pedagogy the same way HS does via track,
+      // even though K-8 has no graduation track split. Until this field
+      // exists in Airtable, f() finds nothing and every course reads as
+      // Non-Classical (blank), which is the correct default, not an error.
+      classical: /^Classical Course/i,
     },
   },
 

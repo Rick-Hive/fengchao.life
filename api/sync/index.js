@@ -274,6 +274,9 @@ module.exports = async function (context, req) {
         school: schoolIds.length ? schoolByRec.get(schoolIds[0]) || null : null,
         prerequisite: f(fields, cf.re.prerequisite) || "",
         academic: !!f(fields, cf.re.academic),
+        // K-8 pedagogy filter source (see cf.re.classical comment above) —
+        // blank/missing in Airtable today reads as false (Non-Classical).
+        pedagogy: !!f(fields, cf.re.classical),
         comments: f(fields, cf.re.comments) || "",
         syllabus,
         available: isTruthyAvailable(f(fields, cf.available)),

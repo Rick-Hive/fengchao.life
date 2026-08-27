@@ -129,15 +129,28 @@
   function trackCourses() {
     var id = trackId();
     if (!id || !state.data) return [];
-    return state.data.courses.filter(function (c) {
+    var list = state.data.courses.filter(function (c) {
       return c.trackIds && c.trackIds.indexOf(id) !== -1;
     });
+    // HS pedagogy is already baked into which of the 6 tracks was picked.
+    // K-8 has one flat track (7), so pedagogy filters directly on the
+    // per-course "Classical" checkbox instead (see api/sync/index.js).
+    // Courses without that checkbox set read as Non-Classical (the default).
+    if (state.level === "k8") {
+      var wantClassical = state.pedagogy === "classical";
+      list = list.filter(function (c) { return !!c.pedagogy === wantClassical; });
+    }
+    return list;
   }
 
   function haystack(c) {
     if (!c._hay) {
+      // Teaching language is deliberately excluded here: most K-8 courses are
+      // taught in Chinese regardless of subject, so including it made a
+      // "chinese" search match nearly the whole catalog instead of just
+      // Chinese-subject courses. Language has its own filter dropdown already.
       c._hay = [
-        c.nameEn, c.nameZh, c.code, c.description, c.language, c.classType,
+        c.nameEn, c.nameZh, c.code, c.description, c.classType,
         (c.subjects || []).join(" "), (c.grades || []).join(" "),
         (c.teachers || []).join(" "),
         c.school && c.school.name ? c.school.name + " " + (c.school.abbr || "") : "",
@@ -197,7 +210,9 @@
 
   function visibleSteps() {
     // [label array, list of internal steps]
-    if (state.level === "k8") return { labels: t().stepsK8, map: [0, 4, 5] };
+    // K-8 reuses the same internal Pedagogy step (2) as HS — it has no
+    // Graduation Track (1) or Requirements (3) step, since those are HS-only.
+    if (state.level === "k8") return { labels: t().stepsK8, map: [0, 2, 4, 5] };
     return { labels: t().steps, map: [0, 1, 2, 3, 4, 5] };
   }
 
@@ -680,7 +695,7 @@
       var card = e.target.closest(".choice-card");
       if (!card) return;
       var lv = card.getAttribute("data-key");
-      if (state.level !== lv) state.cart = {}; // switching level clears the cart
+      if (state.level !== lv) { state.cart = {}; state.pedagogy = null; } // switching level clears the cart + pedagogy
       state.level = lv;
       render();
     });
@@ -700,16 +715,16 @@
     });
     on("next0", "click", function () {
       if (!state.level) return;
-      state.step = state.level === "k8" ? 4 : 1;
+      state.step = state.level === "k8" ? 2 : 1;
       render();
     });
     on("back1", "click", function () { state.step = 0; render(); });
     on("next1", "click", function () { if (state.mode) { state.step = 2; render(); } });
-    on("back2", "click", function () { state.step = 1; render(); });
-    on("next2", "click", function () { if (state.pedagogy) { state.step = 3; render(); } });
+    on("back2", "click", function () { state.step = state.level === "k8" ? 0 : 1; render(); });
+    on("next2", "click", function () { if (state.pedagogy) { state.step = state.level === "k8" ? 4 : 3; render(); } });
     on("back3", "click", function () { state.step = 2; render(); });
     on("next3", "click", function () { state.step = 4; render(); });
-    on("back4", "click", function () { state.step = state.level === "k8" ? 0 : 3; render(); });
+    on("back4", "click", function () { state.step = state.level === "k8" ? 2 : 3; render(); });
     on("back5", "click", function () { state.step = 4; render(); });
 
     ["fSubject", "fGrade", "fLang", "fType"].forEach(function (id) {
