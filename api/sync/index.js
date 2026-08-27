@@ -320,7 +320,23 @@ module.exports = async function (context, req) {
     for (const s of subjectByRec.values()) {
       if (usedSubjectIds.has(s.nameEn) && !subjects.some((x) => x.nameEn === s.nameEn)) subjects.push(s);
     }
-    const grades = gradeRecs.map((r) => f(r.fields, cfg.tables.grades.display)).filter(Boolean);
+    // Airtable returns records in an arbitrary order, so the published grade
+    // list has to be sorted into curriculum order — consumers treat it as the
+    // canonical sequence. Pre-K, then kindergarten, then numbered grades, then
+    // anything else (e.g. "Associate of Arts Degree") last, alphabetically.
+    const gradeRank = (g) => {
+      const s = String(g).trim();
+      if (/^pre-?k$/i.test(s)) return 0;
+      let m = s.match(/^K\s*(\d+)$/i);
+      if (m) return 10 + Number(m[1]);
+      m = s.match(/^G\s*(\d+)$/i);
+      if (m) return 100 + Number(m[1]);
+      return 1000;
+    };
+    const grades = gradeRecs
+      .map((r) => f(r.fields, cfg.tables.grades.display))
+      .filter(Boolean)
+      .sort((a, b) => gradeRank(a) - gradeRank(b) || String(a).localeCompare(String(b)));
 
     // Warn when an expected field matched nothing in ANY record — that almost
     // always means the field was renamed in Airtable beyond recognition.

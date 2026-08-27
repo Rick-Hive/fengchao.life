@@ -166,12 +166,29 @@
 
   // When a course spans more than 3 grades, show a compact range chip
   // (e.g. "G1–G8") instead of one chip per grade.
-  function gradeRangeLabel(grades) {
-    var order = (state.data && state.data.grades) || [];
-    var sorted = grades.slice().sort(function (a, b) {
-      var ia = order.indexOf(a), ib = order.indexOf(b);
-      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  // Curriculum order for grades, derived from GRADE_STAGES so there is only one
+  // place that knows the sequence. This used to rely on the snapshot's own
+  // `grades` array, but the sync publishes it in Airtable record order, which is
+  // arbitrary — that produced range chips like "G12–G8" and put K1-K3 after G12
+  // in the detail view. Anything unrecognized sorts after the known grades,
+  // keeping the snapshot's relative order.
+  var GRADE_RANK = (function () {
+    var r = {}, i = 0;
+    (window.GRADE_STAGES || []).forEach(function (s) {
+      s.members.forEach(function (m) { r[m] = i++; });
     });
+    return r;
+  })();
+  function gradeRank(g) {
+    if (GRADE_RANK[g] !== undefined) return GRADE_RANK[g];
+    var idx = ((state.data && state.data.grades) || []).indexOf(g);
+    return idx === -1 ? 9999 : 1000 + idx;
+  }
+  function sortGrades(grades) {
+    return (grades || []).slice().sort(function (a, b) { return gradeRank(a) - gradeRank(b); });
+  }
+  function gradeRangeLabel(grades) {
+    var sorted = sortGrades(grades);
     return sorted[0] + "–" + sorted[sorted.length - 1];
   }
 
@@ -478,7 +495,7 @@
           : '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M4 5a1 1 0 011-1h6a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 9l4-2.3v6.6L12 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>') +
         " " + esc(ct) + "</span>";
     }
-    var grades = c.grades || [];
+    var grades = sortGrades(c.grades);
     if (grades.length > 3) {
       chips += '<span class="chip chip-grade">' + esc(gradeRangeLabel(grades)) + "</span>";
     } else {
@@ -719,7 +736,7 @@
       (c.description ? '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" + esc(c.description) + "</p></div>" : "") +
       '<div class="d-grid">' +
       row(t().dSubject, esc(subjectLabels(c).join(state.lang === "zh" ? "、" : " · "))) +
-      row(t().dGrades, esc((c.grades || []).join(" · "))) +
+      row(t().dGrades, esc(sortGrades(c.grades).join(" · "))) +
       row(t().dLanguage, esc(languageOf(c))) +
       row(t().dClassType, esc(classTypeOf(c))) +
       row(t().dNumClasses, typeof c.numClasses === "number" ? esc(c.numClasses) + " " + esc(t().classes) : "") +
