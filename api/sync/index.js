@@ -137,8 +137,22 @@ module.exports = async function (context, req) {
       if (typeof v === "number") trackIdByRec.set(r.id, v);
     }
 
+    // A subject resolves to a language pair ({nameEn, nameZh}) rather than one
+    // string, because "Subject Name" and "科目" are separate columns. If only
+    // one side is filled, it stands in for both so nothing renders blank.
+    // Rows with neither name are skipped (the base has a few stray empty rows).
+    const sjf = cfg.tables.subjects;
     const subjectByRec = new Map();
-    for (const r of subjectRecs) subjectByRec.set(r.id, f(r.fields, cfg.tables.subjects.display) || r.id);
+    for (const r of subjectRecs) {
+      const en = String(f(r.fields, sjf.display) || "").trim();
+      const zh = String(f(r.fields, sjf.displayZh) || "").trim();
+      if (!en && !zh) continue;
+      subjectByRec.set(r.id, {
+        nameEn: en || zh,
+        nameZh: zh || en,
+        abbr: String(f(r.fields, sjf.abbr) || "").trim(),
+      });
+    }
 
     const gradeByRec = new Map();
     for (const r of gradeRecs) gradeByRec.set(r.id, f(r.fields, cfg.tables.grades.display) || r.id);
@@ -249,15 +263,26 @@ module.exports = async function (context, req) {
 
       const teacherIds = linkedIds(f(fields, cf.teachers));
       const schoolIds = linkedIds(f(fields, cf.school));
+      // Union the two subject link fields by record ID — they normally hold the
+      // same record, but reading both means a course tagged on only one of them
+      // still gets a subject.
+      const subjectIds = [];
+      for (const spec of [cf.subjects, cf.subjectsZh]) {
+        for (const id of linkedIds(f(fields, spec))) {
+          if (subjectIds.indexOf(id) === -1) subjectIds.push(id);
+        }
+      }
       const course = {
         id: r.id,
         code: f(fields, cf.code) ?? "",
         nameEn: f(fields, cf.nameEn) ?? "",
         nameZh: f(fields, cf.nameZh) ?? "",
         description: f(fields, cf.description) ?? "",
-        classType: f(fields, cf.classType) ?? "",
+        classTypeEn: f(fields, cf.classTypeEn) ?? "",
+        classTypeZh: f(fields, cf.classTypeZh) ?? "",
         grades: linkedIds(f(fields, cf.grades)).map((id) => gradeByRec.get(id) || id),
-        language: f(fields, cf.language) ?? "",
+        languageEn: f(fields, cf.languageEn) ?? "",
+        languageZh: f(fields, cf.languageZh) ?? "",
         price: typeof f(fields, cf.price) === "number" ? f(fields, cf.price) : null,
         numClasses: f(fields, cf.numClasses) ?? null,
         teachers: teacherIds.map((id) => (teacherByRec.get(id) || {}).name || id),
@@ -266,7 +291,7 @@ module.exports = async function (context, req) {
           .map((id) => periodByRec.get(id))
           .filter(Boolean)
           .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
-        subjects: linkedIds(f(fields, cf.subjects)).map((id) => subjectByRec.get(id) || id),
+        subjects: subjectIds.map((id) => subjectByRec.get(id)).filter(Boolean),
         trackIds: linkedIds(f(fields, cf.tracks))
           .map((id) => trackIdByRec.get(id))
           .filter((n) => typeof n === "number"),
@@ -285,7 +310,16 @@ module.exports = async function (context, req) {
     }
     if (onlyAvailable) courses = courses.filter((c) => c.available);
 
-    const subjects = subjectRecs.map((r) => f(r.fields, cfg.tables.subjects.display)).filter(Boolean);
+    // Only subjects that at least one course is actually tagged with reach the
+    // snapshot. The base carries ~20 aspirational categories plus a handful of
+    // stray/typo rows; publishing all of them would put empty options in the
+    // site's subject filter. A category appears the moment a course uses it.
+    const usedSubjectIds = new Set();
+    for (const c of courses) for (const s of c.subjects) if (s && s.nameEn) usedSubjectIds.add(s.nameEn);
+    const subjects = [];
+    for (const s of subjectByRec.values()) {
+      if (usedSubjectIds.has(s.nameEn) && !subjects.some((x) => x.nameEn === s.nameEn)) subjects.push(s);
+    }
     const grades = gradeRecs.map((r) => f(r.fields, cfg.tables.grades.display)).filter(Boolean);
 
     // Warn when an expected field matched nothing in ANY record — that almost
@@ -296,8 +330,10 @@ module.exports = async function (context, req) {
         ["Course Name", (c) => c.nameEn || c.nameZh],
         ["Course ID", (c) => c.code],
         ["Course Description", (c) => c.description],
-        ["Class Type", (c) => c.classType],
-        ["Teaching Language", (c) => c.language],
+        ["Class Type", (c) => c.classTypeEn],
+        ["课程类型", (c) => c.classTypeZh],
+        ["Teaching Language", (c) => c.languageEn],
+        ["授课语言", (c) => c.languageZh],
         ["Course Price", (c) => typeof c.price === "number"],
         ["Grade", (c) => c.grades.length],
         ["Subject", (c) => c.subjects.length],

@@ -99,20 +99,68 @@
     });
   }
 
-  // Subject filter groups (see window.SUBJECT_GROUPS in i18n.js): collapses
-  // ~20 fine-grained Airtable subjects into a handful of broad areas for the
-  // filter dropdown only. Detail views still show the exact subject(s).
-  var SUBJECT_GROUP_OF = {};
-  (window.SUBJECT_GROUPS || []).forEach(function (g) {
-    g.members.forEach(function (m) { SUBJECT_GROUP_OF[m] = g.key; });
+  // ---- bilingual field helpers -------------------------------------------
+  // Class Type, Teaching Language and Subject are each two Airtable columns
+  // (English + Chinese). Show whichever matches the page language, falling
+  // back to the other when one side is blank.
+  function pickLang(en, zh) {
+    return state.lang === "zh" ? (zh || en || "") : (en || zh || "");
+  }
+  function classTypeOf(c) { return pickLang(c.classTypeEn, c.classTypeZh); }
+  function languageOf(c) { return pickLang(c.languageEn, c.languageZh); }
+  function subjectLabel(s) { return s ? pickLang(s.nameEn, s.nameZh) : ""; }
+  // Stable, language-independent key — filter values must survive a language
+  // toggle, so they key off the English name, never the displayed label.
+  function subjectKey(s) { return s ? String(s.nameEn || s.nameZh || "") : ""; }
+  function subjectLabels(c) {
+    return (c.subjects || []).map(subjectLabel).filter(Boolean);
+  }
+
+  // ---- grade stages (see window.GRADE_STAGES in i18n.js) ------------------
+  // The grade filter offers 幼儿/小学/初中/高中/大学预科 instead of 17 individual
+  // grades. A grade that isn't in any stage becomes its own option keyed by
+  // its raw name, so nothing is ever filtered out of existence.
+  var GRADE_STAGE_OF = {};
+  (window.GRADE_STAGES || []).forEach(function (s) {
+    s.members.forEach(function (m) { GRADE_STAGE_OF[m] = s.key; });
   });
-  function subjectGroupOf(s) { return SUBJECT_GROUP_OF[s] || "other"; }
-  function subjectGroupLabel(key) {
-    var groups = window.SUBJECT_GROUPS || [];
-    for (var i = 0; i < groups.length; i++) {
-      if (groups[i].key === key) return state.lang === "zh" ? groups[i].zh : groups[i].en;
+  function gradeStageOf(g) { return GRADE_STAGE_OF[g] || g; }
+  function gradeStageLabel(key) {
+    var stages = window.GRADE_STAGES || [];
+    for (var i = 0; i < stages.length; i++) {
+      if (stages[i].key === key) {
+        // Bilingual, current language first.
+        return state.lang === "zh"
+          ? stages[i].zh + " " + stages[i].en
+          : stages[i].en + " " + stages[i].zh;
+      }
     }
-    return key;
+    return key; // an unmapped grade, labelled by its own name
+  }
+
+  // Preferred order for the subject filter, per CEFF's course taxonomy.
+  // Anything not listed still appears — appended alphabetically — so a newly
+  // tagged category is never silently hidden.
+  var SUBJECT_ORDER = [
+    "Math", "Chinese", "English", "Science",
+    "Social Studies", "Social Science", "ESL", "Bible/Theology",
+  ];
+
+  // Older snapshots (before the 2026-08-27 field split) carry `classType`,
+  // `language` and plain-string `subjects`. Deploying the front-end and the
+  // sync function out of step used to produce blank fields; normalizing on
+  // load means a stale snapshot degrades to single-language text instead.
+  function normalizeCourse(c) {
+    if (c.classTypeEn === undefined && c.classTypeZh === undefined) {
+      c.classTypeEn = c.classTypeZh = c.classType || "";
+    }
+    if (c.languageEn === undefined && c.languageZh === undefined) {
+      c.languageEn = c.languageZh = c.language || "";
+    }
+    c.subjects = (c.subjects || []).map(function (s) {
+      return typeof s === "string" ? { nameEn: s, nameZh: s, abbr: "" } : s;
+    }).filter(Boolean);
+    return c;
   }
 
   // When a course spans more than 3 grades, show a compact range chip
@@ -150,8 +198,10 @@
       // "chinese" search match nearly the whole catalog instead of just
       // Chinese-subject courses. Language has its own filter dropdown already.
       c._hay = [
-        c.nameEn, c.nameZh, c.code, c.description, c.classType,
-        (c.subjects || []).join(" "), (c.grades || []).join(" "),
+        c.nameEn, c.nameZh, c.code, c.description,
+        c.classTypeEn, c.classTypeZh,
+        (c.subjects || []).map(function (s) { return s.nameEn + " " + s.nameZh; }).join(" "),
+        (c.grades || []).join(" "),
         (c.teachers || []).join(" "),
         c.school && c.school.name ? c.school.name + " " + (c.school.abbr || "") : "",
       ].join(" ").toLowerCase();
@@ -163,10 +213,12 @@
     var f = state.filters;
     var terms = (f.q || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     var list = trackCourses().filter(function (c) {
-      if (f.subject && !(c.subjects || []).some(function (s) { return subjectGroupOf(s) === f.subject; })) return false;
-      if (f.grade && (c.grades || []).indexOf(f.grade) === -1) return false;
-      if (f.language && c.language !== f.language) return false;
-      if (f.classType && c.classType !== f.classType) return false;
+      // Subject / language / class-type filters compare stable English keys, so
+      // an active filter keeps working when the page language is toggled.
+      if (f.subject && !(c.subjects || []).some(function (s) { return subjectKey(s) === f.subject; })) return false;
+      if (f.grade && !(c.grades || []).some(function (g) { return gradeStageOf(g) === f.grade; })) return false;
+      if (f.language && c.languageEn !== f.language) return false;
+      if (f.classType && c.classTypeEn !== f.classType) return false;
       if (terms.length) {
         var hay = haystack(c);
         for (var i = 0; i < terms.length; i++) if (hay.indexOf(terms[i]) === -1) return false;
@@ -307,18 +359,9 @@
     );
   }
 
-  function selectHtml(id, label, options, current) {
-    var opts = '<option value="">' + esc(t().filters.all) + "</option>";
-    options.forEach(function (o) {
-      opts += '<option value="' + esc(o) + '"' + (o === current ? " selected" : "") + ">" + esc(o) + "</option>";
-    });
-    return (
-      '<div class="filter-group"><label for="' + id + '">' + esc(label) + '</label><select id="' + id + '">' + opts + "</select></div>"
-    );
-  }
-
-  // Like selectHtml, but options are {value,label} pairs (value != display text) —
-  // used for the subject filter, whose options are grouped labels, not raw data values.
+  // Filter dropdown. Options are {value,label} pairs: every filter now keys off
+  // a stable, language-independent value (an English name or a stage key) while
+  // displaying a localized label, so a filter survives a language toggle.
   function selectHtmlKV(id, label, options, current) {
     var opts = '<option value="">' + esc(t().filters.all) + "</option>";
     options.forEach(function (o) {
@@ -329,15 +372,18 @@
     );
   }
 
-  function uniqueSorted(arr) {
+  // De-duplicate {value,label} pairs by value, keeping the first non-empty
+  // label. Order is insertion order — callers sort as they need.
+  function optionsFromPairs(pairs) {
     var seen = {};
     var out = [];
-    arr.forEach(function (v) {
-      if (v == null || v === "") return;
-      var k = String(v);
-      if (!seen[k]) { seen[k] = true; out.push(k); }
+    pairs.forEach(function (p) {
+      if (!p || !p.value) return;
+      if (seen[p.value]) return;
+      seen[p.value] = true;
+      out.push({ value: p.value, label: p.label || p.value });
     });
-    return out.sort();
+    return out;
   }
 
   function teacherLinks(c, cls) {
@@ -363,13 +409,16 @@
   // classType + grade chips: the visual "what & who" of the course at a glance.
   function metaChips(c) {
     var chips = "";
-    if (c.classType) {
-      var live = isLiveType(c.classType);
+    var ct = classTypeOf(c);
+    if (ct) {
+      // Test the English value: it always says "Live"/"Prerecorded" even when
+      // the chip itself is showing 直播课 or 录播课.
+      var live = isLiveType(c.classTypeEn || ct);
       chips += '<span class="chip chip-type' + (live ? " live" : " recorded") + '">' +
         (live
           ? '<svg viewBox="0 0 20 20" width="10" height="10" aria-hidden="true"><circle cx="10" cy="10" r="5" fill="currentColor"/></svg>'
           : '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M4 5a1 1 0 011-1h6a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 9l4-2.3v6.6L12 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>') +
-        " " + esc(c.classType) + "</span>";
+        " " + esc(ct) + "</span>";
     }
     var grades = c.grades || [];
     if (grades.length > 3) {
@@ -409,18 +458,44 @@
         '<div class="nav-row"><button class="btn btn-ghost" id="back4">' + esc(t().back) + "</button><span></span></div></section>"
       );
     }
+    // Grade stages present in this track, in stage order. Unmapped grades sort
+    // after the five stages, following the canonical grade order from Airtable.
     var gradeOrder = state.data.grades || [];
-    var gradesPresent = uniqueSorted([].concat.apply([], all.map(function (c) { return c.grades || []; })));
-    gradesPresent.sort(function (a, b) {
-      var ia = gradeOrder.indexOf(a), ib = gradeOrder.indexOf(b);
-      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    var stageOrder = (window.GRADE_STAGES || []).map(function (s) { return s.key; });
+    var gradeOptions = optionsFromPairs([].concat.apply([], all.map(function (c) {
+      return (c.grades || []).map(function (g) {
+        var k = gradeStageOf(g);
+        return { value: k, label: gradeStageLabel(k) };
+      });
+    })));
+    gradeOptions.sort(function (a, b) {
+      var ia = stageOrder.indexOf(a.value), ib = stageOrder.indexOf(b.value);
+      if (ia === -1 && ib === -1) return gradeOrder.indexOf(a.value) - gradeOrder.indexOf(b.value);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
     });
-    var langs = uniqueSorted(all.map(function (c) { return c.language; }));
-    var types = uniqueSorted(all.map(function (c) { return c.classType; }));
-    var groupOrder = (window.SUBJECT_GROUPS || []).map(function (g) { return g.key; });
-    var groupKeys = uniqueSorted([].concat.apply([], all.map(function (c) { return (c.subjects || []).map(subjectGroupOf); })));
-    groupKeys.sort(function (a, b) { return groupOrder.indexOf(a) - groupOrder.indexOf(b); });
-    var subjectOptions = groupKeys.map(function (k) { return { value: k, label: subjectGroupLabel(k) }; });
+    // Filter options are built from the courses actually in this track, keyed
+    // by their English value and labelled in the current page language.
+    var langOptions = optionsFromPairs(all.map(function (c) {
+      return { value: c.languageEn, label: languageOf(c) };
+    }));
+    var typeOptions = optionsFromPairs(all.map(function (c) {
+      return { value: c.classTypeEn, label: classTypeOf(c) };
+    }));
+    var subjectOptions = optionsFromPairs([].concat.apply([], all.map(function (c) {
+      return (c.subjects || []).map(function (s) {
+        return { value: subjectKey(s), label: subjectLabel(s) };
+      });
+    })));
+    // Subjects follow CEFF's taxonomy order; unlisted ones sort after, by label.
+    subjectOptions.sort(function (a, b) {
+      var ia = SUBJECT_ORDER.indexOf(a.value), ib = SUBJECT_ORDER.indexOf(b.value);
+      if (ia === -1 && ib === -1) return a.label.localeCompare(b.label);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
 
     return (
       '<section class="panel"><h2>' + esc(t().step4Title) + '</h2><p class="hint">' + esc(hint) + "</p>" +
@@ -429,9 +504,9 @@
       '<div class="search-wrap"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
       '<input id="fSearch" type="search" placeholder="' + esc(t().searchPh) + '" value="' + esc(state.filters.q) + '" autocomplete="off" /></div></div>' +
       selectHtmlKV("fSubject", t().filters.subject, subjectOptions, state.filters.subject) +
-      selectHtml("fGrade", t().filters.grade, gradesPresent, state.filters.grade) +
-      selectHtml("fLang", t().filters.language, langs, state.filters.language) +
-      selectHtml("fType", t().filters.classType, types, state.filters.classType) +
+      selectHtmlKV("fGrade", t().filters.grade, gradeOptions, state.filters.grade) +
+      selectHtmlKV("fLang", t().filters.language, langOptions, state.filters.language) +
+      selectHtmlKV("fType", t().filters.classType, typeOptions, state.filters.classType) +
       "</div>" +
       '<div id="gridWrap">' + gridHtml() + "</div>" +
       '<div class="nav-row"><button class="btn btn-ghost" id="back4">' + esc(t().back) + "</button><span></span></div></section>"
@@ -551,8 +626,8 @@
 
   function courseModalHtml(c) {
     var tags = [];
-    if (c.classType) tags.push(c.classType);
-    if (c.language) tags.push(c.language);
+    if (classTypeOf(c)) tags.push(classTypeOf(c));
+    if (languageOf(c)) tags.push(languageOf(c));
     if (c.academic) tags.push(t().dAcademic);
     var priceHtml = typeof c.price === "number"
       ? '<span class="price big">' + esc(fmtPrice(c.price)) + "</span>"
@@ -577,10 +652,10 @@
       '<div class="modal-body">' +
       (c.description ? '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" + esc(c.description) + "</p></div>" : "") +
       '<div class="d-grid">' +
-      row(t().dSubject, esc((c.subjects || []).join("、"))) +
+      row(t().dSubject, esc(subjectLabels(c).join(state.lang === "zh" ? "、" : " · "))) +
       row(t().dGrades, esc((c.grades || []).join(" · "))) +
-      row(t().dLanguage, esc(c.language)) +
-      row(t().dClassType, esc(c.classType)) +
+      row(t().dLanguage, esc(languageOf(c))) +
+      row(t().dClassType, esc(classTypeOf(c))) +
       row(t().dNumClasses, typeof c.numClasses === "number" ? esc(c.numClasses) + " " + esc(t().classes) : "") +
       row(t().dSchedule, schedFull(c) || '<span class="tbd">' + esc(t().scheduleTBD) + "</span>", true) +
       row(t().dTeachers, (c.teachers || []).length ? teacherLinks(c, "t-chip") : "", true) +
@@ -874,6 +949,7 @@
       return res.json();
     })
     .then(function (data) {
+      (data.courses || []).forEach(normalizeCourse);
       state.data = data;
       var n = document.getElementById("loadingNotice");
       if (n) n.remove();

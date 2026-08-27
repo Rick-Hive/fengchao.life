@@ -220,24 +220,32 @@ window.I18N = {
   },
 };
 
-// Subject-filter groups: the live Subjects table has ~20 fine-grained entries,
-// too many for a single dropdown. Group them into a handful of broad areas —
-// roughly matching the number of graduation tracks — for filtering only; the
-// course detail view still shows the exact subject(s) from Airtable. Any
-// subject not listed here falls back to the last group ("other").
-window.SUBJECT_GROUPS = [
-  { key: "ela-en", zh: "英语语言艺术", en: "English Language Arts",
-    members: ["English Foundations/英文基础", "English Writing/英文写作", "English Literature/英文文学", "Phonics/自然拼读", "ESL/英语第二语言", "Public Speaking/公众演讲", "Logic and Rhetoric/逻辑与修辞"] },
-  { key: "ela-zh", zh: "中文语言艺术", en: "Chinese Language Arts",
-    members: ["Chinese Literature/中文文学", "Chinese Writing/中文写作", "Chinese Language Arts/中文基础"] },
-  { key: "math-sci", zh: "数学与科学", en: "Math & Science",
-    members: ["Math/数学", "Science/科学"] },
-  { key: "humanities", zh: "人文与社会", en: "Humanities & Social Studies",
-    members: ["History/历史", "Social Studies/社会学", "Third Language/第三语言", "Bible圣经/Theology神学", "Psychology心理学/Personal个人发展 Development"] },
-  { key: "arts", zh: "艺术与音乐", en: "Arts & Music",
-    members: ["Fine Arts/艺术", "Music/音乐"] },
-  { key: "other", zh: "体育与其他", en: "PE & Other",
-    members: ["Physical Education/体育", "Teacher Training/教师培训", "Electives/选修课"] },
+// NOTE: window.SUBJECT_GROUPS was removed 2026-08-27. It existed to collapse
+// ~20 fine-grained Airtable subjects into 6 broad areas for the filter
+// dropdown. That is no longer needed: the base now tags every course with one
+// of a small set of real categories (Math, Chinese, English, Science, Social
+// Studies, ESL, Bible/Theology), each carrying its own English and Chinese
+// name, so the filter is built straight from the data. Ordering lives in
+// SUBJECT_ORDER in assets/app.js.
+
+// Grade stages for the grade filter. The Grades table has 17 rows (Pre-K
+// through "Associate of Arts Degree"), far too many for one dropdown — parents
+// think in stages. Boundaries are taken from the base's own course coding, not
+// invented: G7 is where the CH-MS-/SCI-MS- (middle school) courses start, G9
+// where the -HS- courses start, and the Grades table's own English equivalency
+// column maps "Associate of Arts Degree" to "1st Year College".
+//
+// Labels are shown bilingually, current language first (same convention as
+// REQ_LABELS below). Course cards and the detail view still show the exact
+// grades from Airtable — this grouping is for the filter only. A grade not
+// listed here still appears in the filter under its own name, so adding a row
+// in Airtable can never silently hide courses.
+window.GRADE_STAGES = [
+  { key: "preschool",   zh: "幼儿",     en: "Preschool",     members: ["Pre-K", "K1", "K2", "K3"] },
+  { key: "elementary",  zh: "小学",     en: "Elementary",    members: ["G1", "G2", "G3", "G4", "G5", "G6"] },
+  { key: "middle",      zh: "初中",     en: "Middle School", members: ["G7", "G8"] },
+  { key: "high",        zh: "高中",     en: "High School",   members: ["G9", "G10", "G11", "G12"] },
+  { key: "college-prep", zh: "大学预科", en: "College Prep",  members: ["Associate of Arts Degree"] },
 ];
 
 // Bilingual labels for the requirements table rows (fixed field set).

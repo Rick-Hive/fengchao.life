@@ -103,10 +103,14 @@ module.exports = async function (context, req) {
         code: c.code,
         nameEn: c.nameEn,
         nameZh: c.nameZh,
-        subjects: c.subjects,
+        // Internal ops message (Teams/Power Automate): show both languages
+        // regardless of which one the parent was browsing in.
+        subjects: (c.subjects || []).map((s) =>
+          s && typeof s === "object" ? [s.nameZh, s.nameEn].filter(Boolean).join(" / ") : s
+        ),
         grades: c.grades,
-        classType: c.classType,
-        language: c.language,
+        classType: [c.classTypeZh, c.classTypeEn].filter(Boolean).join(" / "),
+        language: [c.languageZh, c.languageEn].filter(Boolean).join(" / "),
         teachers: c.teachers,
         price: c.price, // trusted price from snapshot, never from the client
       });

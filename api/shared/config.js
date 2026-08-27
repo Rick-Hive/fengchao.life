@@ -10,7 +10,9 @@ module.exports = {
   tables: {
     tracks:       { id: "tbltFG1wvhlxdMNCm", display: "Track ID" },
     courses:      { id: "tblWTiOgX1pM40U4A", display: "Course Name/课程名称" },
-    subjects:     { id: "tblvQaPpgBRZSuT48", display: "Subject Name" },
+    // Course Subject table. "Subject Name" is English, "科目" is Chinese —
+    // two separate columns, so a subject resolves to a language pair.
+    subjects:     { id: "tblvQaPpgBRZSuT48", display: "Subject Name", displayZh: "科目", abbr: "Abbreviation/简写" },
     grades:       { id: "tblQBtt6PSLLGeULf", display: "Title/年级名称" },
     teachers:     { id: "tbltGNxS4Hdy2YiGA", display: "Name / 姓名" },
     classPeriods: { id: "tblaC1VEnTdYvCFOo" },
@@ -53,14 +55,28 @@ module.exports = {
     nameZh: "课程名称",
     tracks: "Graduation Track/毕业路径",
     description: "Course Description/课程描述",
-    classType: "Class Type/课程类型",
+    // Class Type and Teaching Language were each split into two single-language
+    // fields (2026-08-27), same as Course Name. Verified live values:
+    //   Class Type        Live Course / Live or Recorded Course /
+    //                     Prerecorded Course / Self-Paced Course
+    //   课程类型            直播课 / 直播或录播课 / 录播课 / 自定义进度课程
+    //   Teaching Language English / Chinese      授课语言  英语 / 中文
+    classTypeEn: "Class Type",
+    classTypeZh: "课程类型",
     grades: "Grade/年级",
-    language: "Teaching Language/授课语言",
+    languageEn: "Teaching Language",
+    languageZh: "授课语言",
     price: "Course Price/课程价格",
     numClasses: "Number of Classes/课时数",
     teachers: "Teacher/授课老师",
     classTime: "Class time/上课时间",   // now a LINK to Class Periods
-    subjects: "Subject/学科",
+    // "Subject" (EN) and "学科" (ZH) are TWO independent link fields that both
+    // point at the same Course Subject table — 学科 just displays the 科目
+    // column instead of the primary field. Both carry record IDs via the API,
+    // so the sync reads both and unions them by record ID; the language pair
+    // comes from the linked subject record, not from which field it came in on.
+    subjects: "Subject",
+    subjectsZh: "学科",
     textbooks: "Textbook SKU/教材编码", // LINK to Textbook table
     school: "School or Institution/学校或机构",
     available: "Available/可用？",
