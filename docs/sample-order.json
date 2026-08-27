@@ -13,22 +13,36 @@
   "items": [
     {
       "code": "SCI-HS-101",
-      "name": "生物",
-      "subjects": ["Science/科学"],
-      "grades": ["G9"],
-      "classType": "Live/直播",
-      "language": "Chinese/中文",
-      "teachers": ["张老师"],
+      "nameEn": "Biology",
+      "nameZh": "生物",
+      "subjects": [
+        "科学 / Science"
+      ],
+      "grades": [
+        "G9"
+      ],
+      "classType": "直播课 / Live Course",
+      "language": "中文 / Chinese",
+      "teachers": [
+        "张老师"
+      ],
       "price": 2400
     },
     {
       "code": "SCI-HS-201",
-      "name": "化学",
-      "subjects": ["Science/科学"],
-      "grades": ["G10"],
-      "classType": "Live/直播",
-      "language": "Chinese/中文",
-      "teachers": ["殷老师"],
+      "nameEn": "Chemistry",
+      "nameZh": "化学",
+      "subjects": [
+        "科学 / Science"
+      ],
+      "grades": [
+        "G10"
+      ],
+      "classType": "直播课 / Live Course",
+      "language": "中文 / Chinese",
+      "teachers": [
+        "殷老师"
+      ],
       "price": 2400
     }
   ],
