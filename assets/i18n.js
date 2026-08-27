@@ -46,6 +46,7 @@ window.I18N = {
     noCourses: "没有符合筛选条件的课程。",
     noCoursesTrack: "该学段/路径的课程即将上线，敬请期待。",
     priceTBD: "价格待定",
+    scheduleTBD: "时间待定",
     classes: "课时",
     select: "选择",
     selectedBtn: "已选 ✓",
@@ -155,6 +156,7 @@ window.I18N = {
     noCourses: "No courses match the current filters.",
     noCoursesTrack: "Courses for this level/track are coming soon.",
     priceTBD: "Price TBD",
+    scheduleTBD: "Time TBD",
     classes: "classes",
     select: "Select",
     selectedBtn: "Selected ✓",
@@ -217,6 +219,26 @@ window.I18N = {
     footNote: "This site is for browsing courses and submitting course orders only; no payment is collected here.",
   },
 };
+
+// Subject-filter groups: the live Subjects table has ~20 fine-grained entries,
+// too many for a single dropdown. Group them into a handful of broad areas —
+// roughly matching the number of graduation tracks — for filtering only; the
+// course detail view still shows the exact subject(s) from Airtable. Any
+// subject not listed here falls back to the last group ("other").
+window.SUBJECT_GROUPS = [
+  { key: "ela-en", zh: "英语语言艺术", en: "English Language Arts",
+    members: ["English Foundations/英文基础", "English Writing/英文写作", "English Literature/英文文学", "Phonics/自然拼读", "ESL/英语第二语言", "Public Speaking/公众演讲", "Logic and Rhetoric/逻辑与修辞"] },
+  { key: "ela-zh", zh: "中文语言艺术", en: "Chinese Language Arts",
+    members: ["Chinese Literature/中文文学", "Chinese Writing/中文写作", "Chinese Language Arts/中文基础"] },
+  { key: "math-sci", zh: "数学与科学", en: "Math & Science",
+    members: ["Math/数学", "Science/科学"] },
+  { key: "humanities", zh: "人文与社会", en: "Humanities & Social Studies",
+    members: ["History/历史", "Social Studies/社会学", "Third Language/第三语言", "Bible圣经/Theology神学", "Psychology心理学/Personal个人发展 Development"] },
+  { key: "arts", zh: "艺术与音乐", en: "Arts & Music",
+    members: ["Fine Arts/艺术", "Music/音乐"] },
+  { key: "other", zh: "体育与其他", en: "PE & Other",
+    members: ["Physical Education/体育", "Teacher Training/教师培训", "Electives/选修课"] },
+];
 
 // Bilingual labels for the requirements table rows (fixed field set).
 window.REQ_LABELS = {

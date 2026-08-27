@@ -74,18 +74,56 @@
     if (/pm/i.test(m[3])) h += 12;
     return (h < 10 ? "0" : "") + h + ":" + m[2];
   }
+  // Days-of-week isn't a field in Airtable yet (checked both Course and Class
+  // Periods tables, 2026-08-27) — this reads it defensively (p.days / p.day)
+  // so the moment that field is added to Class Periods and wired into
+  // classPeriodFields in api/shared/config.js, it appears here automatically,
+  // combined with the time on the same line rather than a separate row.
+  function periodDays(p) {
+    var d = p.days || p.day || "";
+    return Array.isArray(d) ? d.join("、") : d;
+  }
+
   function schedShort(c) {
     var sch = c.schedule || [];
     if (!sch.length) return "";
     return sch.map(function (p) {
       var tm = p.start ? fmtTime(p.start) + (p.end ? "–" + fmtTime(p.end) : "") : "";
-      return (p.shortName || p.title || "") + (tm ? " " + tm : "");
+      var days = periodDays(p);
+      return (p.shortName || p.title || "") + (days ? " " + days : "") + (tm ? " " + tm : "");
     }).join(" · ");
   }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
+  }
+
+  // Subject filter groups (see window.SUBJECT_GROUPS in i18n.js): collapses
+  // ~20 fine-grained Airtable subjects into a handful of broad areas for the
+  // filter dropdown only. Detail views still show the exact subject(s).
+  var SUBJECT_GROUP_OF = {};
+  (window.SUBJECT_GROUPS || []).forEach(function (g) {
+    g.members.forEach(function (m) { SUBJECT_GROUP_OF[m] = g.key; });
+  });
+  function subjectGroupOf(s) { return SUBJECT_GROUP_OF[s] || "other"; }
+  function subjectGroupLabel(key) {
+    var groups = window.SUBJECT_GROUPS || [];
+    for (var i = 0; i < groups.length; i++) {
+      if (groups[i].key === key) return state.lang === "zh" ? groups[i].zh : groups[i].en;
+    }
+    return key;
+  }
+
+  // When a course spans more than 3 grades, show a compact range chip
+  // (e.g. "G1–G8") instead of one chip per grade.
+  function gradeRangeLabel(grades) {
+    var order = (state.data && state.data.grades) || [];
+    var sorted = grades.slice().sort(function (a, b) {
+      var ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+    return sorted[0] + "–" + sorted[sorted.length - 1];
   }
 
   function trackCourses() {
@@ -112,7 +150,7 @@
     var f = state.filters;
     var terms = (f.q || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     var list = trackCourses().filter(function (c) {
-      if (f.subject && (c.subjects || []).indexOf(f.subject) === -1) return false;
+      if (f.subject && !(c.subjects || []).some(function (s) { return subjectGroupOf(s) === f.subject; })) return false;
       if (f.grade && (c.grades || []).indexOf(f.grade) === -1) return false;
       if (f.language && c.language !== f.language) return false;
       if (f.classType && c.classType !== f.classType) return false;
@@ -256,6 +294,18 @@
     );
   }
 
+  // Like selectHtml, but options are {value,label} pairs (value != display text) —
+  // used for the subject filter, whose options are grouped labels, not raw data values.
+  function selectHtmlKV(id, label, options, current) {
+    var opts = '<option value="">' + esc(t().filters.all) + "</option>";
+    options.forEach(function (o) {
+      opts += '<option value="' + esc(o.value) + '"' + (o.value === current ? " selected" : "") + ">" + esc(o.label) + "</option>";
+    });
+    return (
+      '<div class="filter-group"><label for="' + id + '">' + esc(label) + '</label><select id="' + id + '">' + opts + "</select></div>"
+    );
+  }
+
   function uniqueSorted(arr) {
     var seen = {};
     var out = [];
@@ -298,7 +348,12 @@
           : '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M4 5a1 1 0 011-1h6a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 9l4-2.3v6.6L12 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>') +
         " " + esc(c.classType) + "</span>";
     }
-    (c.grades || []).forEach(function (g) { chips += '<span class="chip chip-grade">' + esc(g) + "</span>"; });
+    var grades = c.grades || [];
+    if (grades.length > 3) {
+      chips += '<span class="chip chip-grade">' + esc(gradeRangeLabel(grades)) + "</span>";
+    } else {
+      grades.forEach(function (g) { chips += '<span class="chip chip-grade">' + esc(g) + "</span>"; });
+    }
     return chips;
   }
 
@@ -331,7 +386,6 @@
         '<div class="nav-row"><button class="btn btn-ghost" id="back4">' + esc(t().back) + "</button><span></span></div></section>"
       );
     }
-    var subjects = state.data.subjects || [];
     var gradeOrder = state.data.grades || [];
     var gradesPresent = uniqueSorted([].concat.apply([], all.map(function (c) { return c.grades || []; })));
     gradesPresent.sort(function (a, b) {
@@ -340,6 +394,10 @@
     });
     var langs = uniqueSorted(all.map(function (c) { return c.language; }));
     var types = uniqueSorted(all.map(function (c) { return c.classType; }));
+    var groupOrder = (window.SUBJECT_GROUPS || []).map(function (g) { return g.key; });
+    var groupKeys = uniqueSorted([].concat.apply([], all.map(function (c) { return (c.subjects || []).map(subjectGroupOf); })));
+    groupKeys.sort(function (a, b) { return groupOrder.indexOf(a) - groupOrder.indexOf(b); });
+    var subjectOptions = groupKeys.map(function (k) { return { value: k, label: subjectGroupLabel(k) }; });
 
     return (
       '<section class="panel"><h2>' + esc(t().step4Title) + '</h2><p class="hint">' + esc(hint) + "</p>" +
@@ -347,7 +405,7 @@
       '<div class="filter-group search-group"><label for="fSearch">' + esc(t().searchLabel) + '</label>' +
       '<div class="search-wrap"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
       '<input id="fSearch" type="search" placeholder="' + esc(t().searchPh) + '" value="' + esc(state.filters.q) + '" autocomplete="off" /></div></div>' +
-      selectHtml("fSubject", t().filters.subject, subjects, state.filters.subject) +
+      selectHtmlKV("fSubject", t().filters.subject, subjectOptions, state.filters.subject) +
       selectHtml("fGrade", t().filters.grade, gradesPresent, state.filters.grade) +
       selectHtml("fLang", t().filters.language, langs, state.filters.language) +
       selectHtml("fType", t().filters.classType, types, state.filters.classType) +
@@ -461,8 +519,10 @@
     if (!sch.length) return "";
     return sch.map(function (p) {
       var tm = p.start ? fmtTime(p.start) + (p.end ? "–" + fmtTime(p.end) : "") : "";
+      var days = periodDays(p);
       var mins = typeof p.minutes === "number" ? " · " + p.minutes + " " + t().minutesUnit : "";
-      return '<span class="sched-chip">' + esc((p.title || p.shortName || "") + (tm ? "  " + tm : "") + mins) + "</span>";
+      // Weekday + time on one line, e.g. "Period 1/第一节 周一、周三 08:15–09:00 · 45 分钟".
+      return '<span class="sched-chip">' + esc((p.title || p.shortName || "") + (days ? " " + days : "") + (tm ? "  " + tm : "") + mins) + "</span>";
     }).join("");
   }
 
@@ -499,7 +559,7 @@
       row(t().dLanguage, esc(c.language)) +
       row(t().dClassType, esc(c.classType)) +
       row(t().dNumClasses, typeof c.numClasses === "number" ? esc(c.numClasses) + " " + esc(t().classes) : "") +
-      row(t().dSchedule, schedFull(c), true) +
+      row(t().dSchedule, schedFull(c) || '<span class="tbd">' + esc(t().scheduleTBD) + "</span>", true) +
       row(t().dTeachers, (c.teachers || []).length ? teacherLinks(c, "t-chip") : "", true) +
       row(t().dSchool, c.school && c.school.name ? esc(c.school.name) + (c.school.abbr ? ' <span class="muted">(' + esc(c.school.abbr) + ")</span>" : "") : "") +
       row(t().dTextbooks, textbooks, true) +

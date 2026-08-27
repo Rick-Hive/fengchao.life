@@ -117,11 +117,11 @@ img { max-width: 100%; }
 
 /* Course cards (compact) */
 .choice-grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); max-width: 720px; }
-.course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; }
 .course-card {
   background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
-  padding: 16px; cursor: pointer; box-shadow: var(--shadow); position: relative;
-  display: flex; flex-direction: column; gap: 9px;
+  padding: 22px; cursor: pointer; box-shadow: var(--shadow); position: relative;
+  display: flex; flex-direction: column; gap: 11px;
   transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 .course-card:hover {
@@ -131,7 +131,7 @@ img { max-width: 100%; }
 .course-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .course-card.selected { border-color: var(--accent); background: var(--accent-soft); }
 .course-card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.course-card h4 { margin: 0; font-size: 1.02rem; line-height: 1.4; }
+.course-card h4 { margin: 0; font-size: 1.1rem; line-height: 1.4; }
 .course-card .code { color: var(--muted); font-size: 0.74rem; letter-spacing: 0.04em; margin-top: 1px; }
 .expand-ic {
   width: 26px; height: 26px; border-radius: 8px; flex: none;
@@ -147,8 +147,8 @@ img { max-width: 100%; }
 /* Compact card content: no field-label chrome — name, chips, teacher, schedule */
 .code-inline { font-weight: 400; color: var(--muted); font-size: 0.76rem; letter-spacing: 0.03em; }
 .course-desc {
-  color: var(--muted); font-size: 0.85rem; margin: 0; line-height: 1.55;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  color: var(--muted); font-size: 0.89rem; margin: 0; line-height: 1.55;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 .more-hint { color: var(--accent-dark); font-size: 0.84rem; font-weight: 600; }
 .teachers-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -182,6 +182,7 @@ img { max-width: 100%; }
 .price { font-weight: 800; color: var(--accent-dark); font-size: 1.08rem; font-variant-numeric: tabular-nums; }
 .price.big { font-size: 1.35rem; }
 .price.tbd { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+.d-value .tbd { color: var(--muted); font-style: italic; }
 .btn-select {
   border: 2px solid var(--accent); background: #fff; color: var(--accent-dark);
   border-radius: 999px; padding: 7px 20px; font-size: 0.88rem; font-weight: 700;
@@ -202,7 +203,7 @@ body.modal-open { overflow: hidden; }
 .modal-overlay.show { opacity: 1; }
 .modal {
   background: var(--card); border-radius: 18px; box-shadow: 0 20px 60px rgba(30, 41, 59, 0.3);
-  width: 100%; max-width: 640px; max-height: min(86vh, 780px);
+  width: 100%; max-width: 760px; max-height: min(90vh, 860px);
   display: flex; flex-direction: column; position: relative;
   transform: translateY(14px) scale(0.985); transition: transform 0.18s ease;
   overflow: hidden;
@@ -214,12 +215,12 @@ body.modal-open { overflow: hidden; }
   background: #eef2f8; color: var(--muted); font-size: 0.95rem; font-weight: 700;
 }
 .modal-x:hover { background: var(--accent); color: #fff; }
-.modal-head { padding: 22px 56px 12px 24px; border-bottom: 1px solid var(--line); }
-.modal-head h3 { margin: 0 0 2px; font-size: 1.25rem; line-height: 1.35; }
+.modal-head { padding: 26px 60px 14px 28px; border-bottom: 1px solid var(--line); }
+.modal-head h3 { margin: 0 0 2px; font-size: 1.32rem; line-height: 1.35; }
 .modal-head .code { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.04em; margin-bottom: 8px; }
-.modal-body { padding: 16px 24px; overflow-y: auto; }
+.modal-body { padding: 20px 28px; overflow-y: auto; }
 .modal-foot {
-  padding: 14px 24px; border-top: 1px solid var(--line);
+  padding: 16px 28px; border-top: 1px solid var(--line);
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
   background: #f8fafc;
 }
