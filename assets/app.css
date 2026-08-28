@@ -248,7 +248,7 @@ button.step-item.done:focus-visible { outline: 2px solid var(--accent); outline-
   padding: 12px 14px; box-shadow: var(--shadow); position: sticky; top: 62px; z-index: 10;
 }
 .filter-group { display: flex; flex-direction: column; gap: 2px; min-width: 130px; flex: 1; }
-.filter-group label { font-size: 0.72rem; color: var(--muted); }
+.filter-group label { font-size: 0.88rem; color: var(--muted); }
 .search-group { flex: 2.2; min-width: 220px; }
 .search-wrap { position: relative; }
 .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
@@ -331,6 +331,8 @@ button.step-item.done:focus-visible { outline: 2px solid var(--accent); outline-
 .price.big { font-size: 1.35rem; }
 .price.tbd { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 .d-value .tbd { color: var(--muted); font-style: italic; }
+/* An empty course description shows a quiet "coming soon" placeholder. */
+.desc-tbd { color: var(--muted); font-style: italic; }
 .btn-select {
   border: 2px solid var(--accent); background: #fff; color: var(--accent-dark);
   border-radius: 999px; padding: 7px 20px; font-size: 0.88rem; font-weight: 700;
@@ -374,7 +376,9 @@ body.modal-open { overflow: hidden; }
 }
 .d-desc { margin-bottom: 14px; }
 .d-desc p { margin: 4px 0 0; color: var(--ink); font-size: 0.92rem; }
-.d-label { font-size: 0.74rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+/* Field labels read at least as large as their values (per review feedback —
+   a label smaller than its value looked wrong, e.g. 授课语言 under 英语). */
+.d-label { font-size: 0.92rem; font-weight: 700; color: var(--muted); letter-spacing: 0.03em; }
 .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
 .d-row { min-width: 0; }
 .d-value { font-size: 0.92rem; margin-top: 2px; overflow-wrap: break-word; }
@@ -464,7 +468,7 @@ span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(-
 .summary-item .rm { color: var(--muted); background: none; border: none; cursor: pointer; font-size: 0.8rem; padding: 0 4px; text-decoration: underline; text-decoration-style: dashed; }
 .summary-item .rm:hover { color: var(--accent-dark); }
 .summary-total { display: flex; justify-content: space-between; font-weight: 800; padding-top: 12px; border-top: 2px solid var(--line); margin-top: 6px; }
-.form-card label { display: block; font-size: 0.85rem; font-weight: 600; margin: 14px 0 4px; }
+.form-card label { display: block; font-size: 0.95rem; font-weight: 600; margin: 14px 0 4px; }
 .form-card input {
   width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.95rem;
   background: #fff; color: var(--ink);
