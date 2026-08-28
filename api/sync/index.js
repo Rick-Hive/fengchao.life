@@ -278,7 +278,8 @@ module.exports = async function (context, req) {
         code: f(fields, cf.code) ?? "",
         nameEn: f(fields, cf.nameEn) ?? "",
         nameZh: f(fields, cf.nameZh) ?? "",
-        description: f(fields, cf.description) ?? "",
+        descriptionEn: f(fields, cf.descriptionEn) ?? "",
+        descriptionZh: f(fields, cf.descriptionZh) ?? "",
         classTypeEn: f(fields, cf.classTypeEn) ?? "",
         classTypeZh: f(fields, cf.classTypeZh) ?? "",
         grades: linkedIds(f(fields, cf.grades)).map((id) => gradeByRec.get(id) || id),
@@ -286,6 +287,7 @@ module.exports = async function (context, req) {
         languageZh: f(fields, cf.languageZh) ?? "",
         price: typeof f(fields, cf.price) === "number" ? f(fields, cf.price) : null,
         numClasses: f(fields, cf.numClasses) ?? null,
+        creditHours: typeof f(fields, cf.creditHours) === "number" ? f(fields, cf.creditHours) : null,
         teachers: teacherIds.map((id) => (teacherByRec.get(id) || {}).name || id),
         teacherIds,
         // Multiple select -> array of English weekday names; a single select or
@@ -353,7 +355,7 @@ module.exports = async function (context, req) {
       const checks = [
         ["Course Name", (c) => c.nameEn || c.nameZh],
         ["Course ID", (c) => c.code],
-        ["Course Description", (c) => c.description],
+        ["Course Description", (c) => c.descriptionEn || c.descriptionZh],
         ["Class Type", (c) => c.classTypeEn],
         ["课程类型", (c) => c.classTypeZh],
         ["Teaching Language", (c) => c.languageEn],

@@ -54,7 +54,13 @@ module.exports = {
     nameEn: "Course Name",
     nameZh: "课程名称",
     tracks: "Graduation Track/毕业路径",
-    description: "Course Description/课程描述",
+    // Course Description was split into two separate fields (2026-08-28), same
+    // pattern as Course Name / Class Type / Teaching Language: the site picks
+    // whichever matches the current page language, falling back to the other.
+    descriptionEn: "Course Description",
+    descriptionZh: "课程描述",
+    // Number field, e.g. 0.5 / 1.0 — added 2026-08-28.
+    creditHours: "Credit Hours",
     // Class Type and Teaching Language were each split into two single-language
     // fields (2026-08-27), same as Course Name. Verified live values:
     //   Class Type        Live Course / Live or Recorded Course /
