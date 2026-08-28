@@ -1,15 +1,16 @@
 /* fengchao.life — Hive course ordering. Self-hosted styles, no external assets. */
 :root {
-  /* Warm, editorial palette (matching the EquipMe materials site: a soft
-     cream ground, near-black text, and a deep navy accent) rather than the
-     cooler blue-gray/bright-blue pairing used earlier. */
-  --bg: #fdf8f5;
+  /* Palette matched to the EquipMe materials site: a cool light gray-blue
+     ground (their actual page background, not the warm-white card behind the
+     product image — sampled at #f2f4f8), near-black text, and a deep navy
+     accent. */
+  --bg: #f2f4f8;
   --card: #ffffff;
   --ink: #1c1c1c;
   /* Kept dark rather than a visibly "gray" tone — secondary text should read
      as black at a glance, just a shade lighter than headings, not muted-gray. */
   --muted: #333333;
-  --line: #e7ded5;
+  --line: #dde3ec;
   --accent: #1d4a83;
   --accent-dark: #123a63;
   --accent-soft: #e8eef5;
@@ -96,7 +97,7 @@ img { max-width: 100%; }
   font: inherit; font-size: 0.88rem; border-radius: 999px;
   padding: 7px 13px; cursor: pointer; white-space: nowrap;
 }
-.menu-btn:hover { background: #f3ede4; }
+.menu-btn:hover { background: #eef1f6; }
 .menu-group.open > .menu-btn { background: #e8eef5; border-color: #c3d2e0; }
 .menu-btn .caret { transition: transform 0.15s ease; flex: none; }
 .menu-group.open .caret { transform: rotate(180deg); }
@@ -113,7 +114,7 @@ img { max-width: 100%; }
   padding: 9px 12px; border-radius: 8px; font-size: 0.89rem;
   color: var(--ink); text-decoration: none;
 }
-a.menu-item:hover { background: #f3ede4; }
+a.menu-item:hover { background: #eef1f6; }
 .menu-item .ext-ic { color: var(--muted); font-size: 0.8rem; }
 /* Planned features read as unavailable rather than broken. */
 .menu-item.is-soon { color: var(--muted); cursor: default; }
@@ -183,7 +184,7 @@ a.menu-item:hover { background: #f3ede4; }
 .step-item { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; color: var(--muted); font-size: 0.85rem; }
 .step-item .dot {
   width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: #f3ede4; color: var(--muted); font-weight: 700; font-size: 0.8rem; flex: none;
+  background: #eef1f6; color: var(--muted); font-weight: 700; font-size: 0.8rem; flex: none;
 }
 .step-item.active { color: var(--accent-dark); font-weight: 600; }
 .step-item.active .dot { background: var(--accent); color: #fff; }
@@ -221,7 +222,7 @@ a.menu-item:hover { background: #f3ede4; }
 .req-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .req-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .req-table th, .req-table td { padding: 10px 16px; border-bottom: 1px solid var(--line); text-align: left; }
-.req-table th { background: #f3ede4; font-weight: 600; }
+.req-table th { background: #eef1f6; font-weight: 600; }
 .req-table tr:last-child td { border-bottom: none; }
 .req-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .req-total td { background: var(--accent-soft); font-weight: 700; }
@@ -272,13 +273,13 @@ a.menu-item:hover { background: #f3ede4; }
 .expand-ic {
   width: 26px; height: 26px; border-radius: 8px; flex: none;
   display: grid; place-items: center; color: var(--muted);
-  background: #f3ede4; transition: background 0.15s, color 0.15s;
+  background: #eef1f6; transition: background 0.15s, color 0.15s;
 }
 .course-card:hover .expand-ic { background: var(--accent); color: #fff; }
 .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag {
   font-size: 0.72rem; padding: 2px 9px; border-radius: 999px;
-  background: #f3ede4; color: var(--accent-dark); border: 1px solid var(--line);
+  background: #eef1f6; color: var(--accent-dark); border: 1px solid var(--line);
 }
 /* Compact card content: no field-label chrome — name, chips, teacher, schedule */
 .code-inline { font-weight: 400; color: var(--muted); font-size: 0.76rem; letter-spacing: 0.03em; }
@@ -298,7 +299,7 @@ a.menu-item:hover { background: #f3ede4; }
 }
 /* Same neutral chip for both kinds of metadata — the icon carries the meaning
    (a solid dot for live, a filmstrip for recorded), not a wash of color. */
-.chip-type, .chip-grade { background: #f3ede4; color: var(--ink); border-color: var(--line); }
+.chip-type, .chip-grade { background: #eef1f6; color: var(--ink); border-color: var(--line); }
 .chip-grade { font-variant-numeric: tabular-nums; color: var(--muted); }
 .chip-type.live svg { color: var(--accent); }
 .chip-type.recorded svg { color: var(--muted); }
@@ -348,7 +349,7 @@ body.modal-open { overflow: hidden; }
 .modal-x {
   position: absolute; top: 12px; right: 12px; z-index: 2;
   width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
-  background: #f3ede4; color: var(--muted); font-size: 0.95rem; font-weight: 700;
+  background: #eef1f6; color: var(--muted); font-size: 0.95rem; font-weight: 700;
 }
 .modal-x:hover { background: var(--accent); color: #fff; }
 .modal-head { padding: 26px 60px 14px 28px; border-bottom: 1px solid var(--line); }
@@ -358,7 +359,7 @@ body.modal-open { overflow: hidden; }
 .modal-foot {
   padding: 16px 28px; border-top: 1px solid var(--line);
   display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  background: #faf6f2;
+  background: #f5f7fa;
 }
 .d-desc { margin-bottom: 14px; }
 .d-desc p { margin: 4px 0 0; color: var(--ink); font-size: 0.92rem; }
@@ -369,7 +370,7 @@ body.modal-open { overflow: hidden; }
 .d-value .muted { color: var(--muted); font-size: 0.82rem; }
 .d-grid .d-row.wide { grid-column: 1 / -1; }
 .sched-chip {
-  display: inline-block; background: #f3ede4; border: 1px solid var(--line);
+  display: inline-block; background: #eef1f6; border: 1px solid var(--line);
   border-radius: 8px; padding: 3px 10px; margin: 2px 6px 2px 0; font-size: 0.84rem;
 }
 /* The weekday chip leads the schedule row, so it reads a step stronger than
@@ -387,11 +388,11 @@ body.modal-open { overflow: hidden; }
 .syl-link:hover { color: var(--accent); }
 .t-chip {
   display: inline-flex; align-items: center; margin: 2px 8px 2px 0;
-  background: #f3ede4; color: var(--ink); border: 1px solid var(--line);
+  background: #eef1f6; color: var(--ink); border: 1px solid var(--line);
   border-radius: 999px; padding: 4px 14px; font-size: 0.86rem; font-weight: 600; cursor: pointer;
 }
 .t-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
-span.t-chip.plain { background: #f3ede4; border-color: var(--line); color: var(--muted); cursor: default; }
+span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(--muted); cursor: default; }
 
 /* Teacher modal */
 .teacher-modal { max-width: 520px; }
