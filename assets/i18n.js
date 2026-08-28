@@ -2,6 +2,9 @@
 window.I18N = {
   zh: {
     brandTag: "以线上资源推动线下C教育生态重建",
+    brandValues: ["开放", "自治", "协作", "双语"],
+    menuLabel: "菜单",
+    comingSoon: "即将上线",
     langBtn: "EN",
     steps: ["学段", "毕业路径", "教育理念", "毕业要求", "选择课程", "提交订单"],
     stepsK8: ["学段", "教育理念", "选择课程", "提交订单"],
@@ -108,10 +111,12 @@ window.I18N = {
     errGeneric: "提交失败，请稍后重试。",
     loadErr: "课程数据尚未发布，请稍后访问。",
     loading: "正在加载…",
-    footNote: "本网站仅用于浏览课程与提交选课订单，不收取任何费用。",
   },
   en: {
     brandTag: "Rebuilding the offline C-education ecosystem through online resources",
+    brandValues: ["Open", "Autonomous", "Collaborative", "Bilingual"],
+    menuLabel: "Menu",
+    comingSoon: "Coming soon",
     langBtn: "中文",
     steps: ["Level", "Track", "Pedagogy", "Requirements", "Courses", "Submit"],
     stepsK8: ["Level", "Pedagogy", "Courses", "Submit"],
@@ -216,7 +221,6 @@ window.I18N = {
     errGeneric: "Submission failed; please try again.",
     loadErr: "Course data has not been published yet. Please check back soon.",
     loading: "Loading…",
-    footNote: "This site is for browsing courses and submitting course orders only; no payment is collected here.",
   },
 };
 
@@ -278,6 +282,46 @@ window.WEEKDAYS = {
 // Canonical week order, so display never depends on the order the options were
 // picked in Airtable.
 window.WEEKDAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
+// ---------------------------------------------------------------------------
+// Site menus. Items with a `url` link out (external links open in a new tab;
+// `mailto:` opens the mail client). Items without one are placeholders for
+// features that still need a form, storage, an approval step and a write back
+// into Airtable — they render disabled with a "coming soon" tag rather than
+// linking nowhere, so the menu shows the full plan without pretending the
+// feature exists.
+window.SITE_MENUS = [
+  {
+    zh: "教育工具", en: "Educational Tools",
+    items: [
+      { zh: "微软教育版 Teams", en: "Microsoft Teams for Education", url: "https://forms.cloud.microsoft/r/TeG4ZH4U4E" },
+      { zh: "学生信息系统",     en: "Student Information System",     url: "https://bridge.opensis.com/" },
+      { zh: "Moodle LMS",       en: "Moodle LMS",                     url: "https://learn.qiaoliang.online/" },
+      { zh: "数字版权管理和分发系统", en: "Digital Rights Management & Distribution", url: "https://view.protectedpdf.com/portal/BES/LogIn" },
+      { zh: "联系我们",         en: "Contact Us",                     url: "mailto:contact@fengchao.life" },
+    ],
+  },
+  {
+    zh: "教育服务", en: "Educational Services",
+    items: [
+      { zh: "G.P.A. 计算器", en: "G.P.A. Calculator" },
+      { zh: "大学项目",       en: "College Programs" },
+      { zh: "国际C学校",      en: "International C-Schools" },
+      { zh: "标化考试",       en: "Standardized Tests" },
+      { zh: "双学分课程",     en: "Dual-Enrollment Courses" },
+      { zh: "成绩单认证（仅对蜂巢团体开放）", en: "Transcript Certification (Hive groups only)" },
+    ],
+  },
+  {
+    zh: "蜂巢生态", en: "Hive Ecosystem",
+    items: [
+      { zh: "我要教课",     en: "I Want to Teach" },
+      { zh: "我要找课",     en: "Find a Course" },
+      { zh: "加入已有蜂巢", en: "Join an Existing Hive" },
+      { zh: "创建新蜂巢",   en: "Start a New Hive" },
+    ],
+  },
+];
 
 window.SUBJECT_LABEL_ZH = { "ESL": "ESL" };
 

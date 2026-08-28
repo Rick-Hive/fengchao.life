@@ -42,6 +42,8 @@ img { max-width: 100%; }
 .header-inner {
   max-width: 1080px; margin: 0 auto; padding: 13px 20px;
   display: flex; align-items: center; gap: 13px;
+  /* anchors the mobile nav panel, which drops out of the header */
+  position: relative;
 }
 .logo-mark {
   width: 46px; height: 46px; flex: none;
@@ -56,11 +58,79 @@ img { max-width: 100%; }
   letter-spacing: 0.14em; text-indent: 0.14em;
   color: var(--ink);
 }
+.brand-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+/* The four values sit beside the wordmark, quieter than it but warmer than the
+   tagline — they are a statement of principle, not a description. */
+.brand-values {
+  font-size: 0.76rem; letter-spacing: 0.08em; color: #a9781a;
+  white-space: nowrap;
+}
 .brand-tag {
   font-size: 0.79rem; line-height: 1.25; color: var(--muted);
   letter-spacing: 0.02em;
   padding-left: 10px;
   border-left: 2px solid rgba(224, 168, 32, 0.55);
+}
+
+/* ---- site menus ---- */
+.site-nav { display: flex; align-items: center; gap: 2px; }
+.menu-group { position: relative; }
+.menu-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid transparent; background: none; color: var(--ink);
+  font: inherit; font-size: 0.88rem; border-radius: 999px;
+  padding: 7px 13px; cursor: pointer; white-space: nowrap;
+}
+.menu-btn:hover { background: #eef2f8; }
+.menu-group.open > .menu-btn { background: #e6edfb; border-color: #c7d7f5; }
+.menu-btn .caret { transition: transform 0.15s ease; flex: none; }
+.menu-group.open .caret { transform: rotate(180deg); }
+.menu-panel {
+  display: none; position: absolute; right: 0; top: calc(100% + 6px);
+  min-width: 250px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 32px -10px rgba(15, 32, 60, 0.3);
+  padding: 6px; z-index: 40;
+}
+.menu-group.open .menu-panel { display: block; }
+.menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; font-size: 0.89rem;
+  color: var(--ink); text-decoration: none;
+}
+a.menu-item:hover { background: #eef2f8; }
+.menu-item .ext-ic { color: var(--muted); font-size: 0.8rem; }
+/* Planned features read as unavailable rather than broken. */
+.menu-item.is-soon { color: var(--muted); cursor: default; }
+.soon-tag {
+  font-size: 0.68rem; color: #a9781a; background: #fdf6e6;
+  border: 1px solid #f0e0b8; border-radius: 999px; padding: 1px 7px;
+  white-space: nowrap; flex: none;
+}
+.nav-toggle {
+  display: none; align-items: center; gap: 6px;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 999px; padding: 6px 13px; font: inherit; font-size: 0.85rem; cursor: pointer;
+}
+
+/* Below this width the three dropdowns cannot sit next to the brand, so the
+   nav collapses behind a Menu button and opens as one stacked list. */
+@media (max-width: 900px) {
+  .nav-toggle { display: inline-flex; }
+  .site-nav {
+    display: none; position: absolute; left: 0; right: 0; top: 100%;
+    flex-direction: column; align-items: stretch; gap: 0;
+    background: var(--card); border-top: 1px solid var(--line);
+    box-shadow: 0 14px 30px -12px rgba(15, 32, 60, 0.3);
+    padding: 8px; max-height: 70vh; overflow-y: auto;
+  }
+  .site-nav.expanded { display: flex; }
+  .menu-btn { width: 100%; justify-content: space-between; border-radius: 10px; }
+  .menu-panel {
+    position: static; display: block; min-width: 0; border: none;
+    box-shadow: none; padding: 0 0 6px 10px;
+  }
+  .menu-panel .menu-item { font-size: 0.86rem; }
 }
 @media (max-width: 560px) {
   .logo-mark { width: 38px; height: 38px; }
@@ -367,7 +437,6 @@ span.t-chip.plain { background: #eef2f8; border-color: var(--line); color: var(-
 
 /* Misc */
 .notice { text-align: center; color: var(--muted); padding: 60px 12px; }
-.site-footer { text-align: center; color: var(--muted); font-size: 0.8rem; padding: 24px 12px 90px; }
 .hidden { display: none !important; }
 @media (max-width: 640px) {
   .stepper { font-size: 0.75rem; }

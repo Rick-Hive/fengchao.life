@@ -14,10 +14,18 @@
     <div class="header-inner">
       <img class="logo-mark" src="/assets/logo-mark.png" width="160" height="160" alt="蜂巢" />
       <div class="brand-lockup">
-        <div class="brand-name">蜂巢</div>
+        <div class="brand-line">
+          <span class="brand-name">蜂巢</span>
+          <span class="brand-values" id="brandValues"></span>
+        </div>
         <div class="brand-tag" id="brandTag">以线上资源推动线下C教育生态重建</div>
       </div>
       <div class="header-spacer"></div>
+      <nav class="site-nav" id="siteNav" aria-label="site"></nav>
+      <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">
+        <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span id="navToggleLabel">菜单</span>
+      </button>
       <button class="lang-btn" id="langBtn" type="button">EN</button>
     </div>
   </header>
@@ -35,8 +43,6 @@
       <button class="btn btn-primary" id="cartNext" type="button"></button>
     </div>
   </div>
-
-  <footer class="site-footer" id="footNote"></footer>
 
   <script src="/assets/i18n.js"></script>
   <script src="/assets/app.js"></script>
