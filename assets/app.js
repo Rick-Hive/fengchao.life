@@ -40,19 +40,17 @@
   } catch (e) {}
 
   // ---- wizard progress persistence ----
-  // Everything above lived only in the `state` object, so any refresh (or
-  // reopening the tab) threw away the parent's progress and dropped them back
-  // to step 0 — reported as "refresh always goes back to the home page".
   // Selections, cart, and contact fields are mirrored to localStorage on every
-  // render and restored on boot; step is bumped up to 5 for a very deliberate,
-  // discrete action so refreshing that page doesn't quietly wipe the cart the
-  // customer is about to submit. The key is versioned so a future change to
-  // this shape can be ignored instead of crashing on old saved data.
+  // render and restored on boot, so a refresh never loses the parent's choices
+  // or their cart. WHICH page they are on, however, lives in the URL hash (see
+  // the routing block below), not here — a bare URL is the home page, a URL
+  // with a hash is that page. The key is versioned so a future change to this
+  // shape can be ignored instead of crashing on old saved data.
   var WIZARD_KEY = "fc-wizard-v1";
   function persistWizard() {
     try {
       localStorage.setItem(WIZARD_KEY, JSON.stringify({
-        step: state.step, level: state.level, mode: state.mode, pedagogy: state.pedagogy,
+        level: state.level, mode: state.mode, pedagogy: state.pedagogy,
         cart: state.cart, filters: state.filters, email: state.email, teams: state.teams,
         done: state.done,
       }));
@@ -65,7 +63,6 @@
     var r;
     try { r = JSON.parse(raw); } catch (e) { return; }
     if (!r || typeof r !== "object") return;
-    if (typeof r.step === "number" && r.step >= 0 && r.step <= 5) state.step = r.step;
     if (r.level === "k8" || r.level === "hs") state.level = r.level;
     if (r.mode === "international" || r.mode === "domestic" || r.mode === "hybrid") state.mode = r.mode;
     if (r.pedagogy === "classical" || r.pedagogy === "nonclassical") state.pedagogy = r.pedagogy;
@@ -76,18 +73,71 @@
     if (typeof r.email === "string") state.email = r.email;
     if (typeof r.teams === "string") state.teams = r.teams;
     if (r.done && typeof r.done === "object") state.done = r.done;
-    // Clamp a step that has outrun its prerequisites (e.g. saved mid-flow with
-    // an older shape) back to the furthest step that's actually reachable,
-    // rather than rendering a step with missing selections underneath it.
-    if (!state.level) state.step = 0;
-    else if (state.level === "hs") {
-      if (!state.mode) state.step = Math.min(state.step, 1);
-      else if (!state.pedagogy) state.step = Math.min(state.step, 2);
-    } else if (state.level === "k8" && state.step === 1) {
-      state.step = 0; // k8 has no track/mode step to land on
-    }
   }
   restoreWizard();
+
+  // ---- URL routing (back/forward + shareable step URLs) -------------------
+  // Each wizard page gets its own hash (#/level, #/courses, …), so the site
+  // behaves like ordinary web pages: the browser Back/Forward buttons move
+  // between steps, refreshing keeps you on the page you were on (the hash is
+  // part of the URL), and typing the bare address always lands on the home
+  // page — selections and cart still restored from localStorage, just not the
+  // position. A hash pointing past its prerequisites (typed by hand, stale
+  // bookmark, cart emptied since) is clamped back to the furthest step that
+  // is actually reachable.
+  var STEP_HASHES = ["level", "track", "pedagogy", "requirements", "courses", "order"];
+  var HASH_SUPPRESS = false;
+  function clampStep(n) {
+    if (typeof n !== "number" || isNaN(n)) return 0;
+    n = Math.max(0, Math.min(5, Math.floor(n)));
+    if (!state.level) return 0;
+    if (state.level === "hs") {
+      if (!state.mode) n = Math.min(n, 1);
+      else if (!state.pedagogy) n = Math.min(n, 2);
+    } else {
+      // K-8 has no track (1) or requirements (3) step.
+      if (n === 1) n = 0;
+      if (n === 3) n = state.pedagogy ? 4 : 2;
+      if (!state.pedagogy) n = Math.min(n, 2);
+    }
+    if (n === 5 && !cartIds().length) n = 4;
+    return n;
+  }
+  function applyHash(h) {
+    if (h === "done") {
+      if (!state.done) { state.step = 0; }
+      return;
+    }
+    state.done = null;
+    var i = STEP_HASHES.indexOf(h);
+    state.step = clampStep(i === -1 ? 0 : i);
+  }
+  // Boot: the URL decides the page. No hash = home page, by design.
+  (function () {
+    var h = location.hash.replace(/^#\/?/, "");
+    if (!h) { state.step = 0; state.done = null; return; }
+    applyHash(h);
+  })();
+  // Keep the URL in step with the state. Assigning location.hash creates a
+  // history entry, which is exactly what makes Back/Forward work; the very
+  // first normalization on a bare URL uses replaceState instead so the home
+  // page doesn't become two history entries.
+  function syncHash() {
+    var want = "#/" + (state.done ? "done" : STEP_HASHES[state.step]);
+    if (location.hash === want) return;
+    if (!location.hash) {
+      try { history.replaceState(null, "", want); } catch (e) { location.hash = want; }
+      return;
+    }
+    HASH_SUPPRESS = true; // our own assignment; the listener should ignore it
+    location.hash = want;
+  }
+  window.addEventListener("hashchange", function () {
+    if (HASH_SUPPRESS) { HASH_SUPPRESS = false; return; }
+    applyHash(location.hash.replace(/^#\/?/, ""));
+    closeAllModals();
+    render();
+  });
 
   function t() { return window.I18N[state.lang]; }
   function k8Id() { return (state.data && state.data.k8TrackId) || 7; }
@@ -1015,6 +1065,7 @@
 
   function render() {
     persistWizard();
+    syncHash();
     document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
     document.getElementById("brandTag").textContent = t().brandTag;
     document.getElementById("langBtn").textContent = t().langBtn;
