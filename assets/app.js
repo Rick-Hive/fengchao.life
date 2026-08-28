@@ -851,13 +851,110 @@
     });
   }
 
+  /* ---------- site menus ---------- */
+
+  // Menus come from window.SITE_MENUS. An item with a `url` is a real link;
+  // one without is a planned feature and renders disabled with a "coming soon"
+  // tag, so the menu can show the whole roadmap without pretending anything
+  // works yet. Rebuilt on every render so a language toggle relabels it.
+  function renderNav() {
+    var nav = document.getElementById("siteNav");
+    if (!nav) return;
+    var open = nav.getAttribute("data-open");
+    nav.innerHTML = (window.SITE_MENUS || []).map(function (m, i) {
+      var id = "menu" + i;
+      var items = m.items.map(function (it) {
+        var label = pickLang(it.en, it.zh);
+        if (!it.url) {
+          return '<span class="menu-item is-soon" aria-disabled="true">' + esc(label) +
+                 '<span class="soon-tag">' + esc(t().comingSoon) + "</span></span>";
+        }
+        var external = it.url.indexOf("mailto:") !== 0;
+        return '<a class="menu-item" href="' + esc(it.url) + '"' +
+               (external ? ' target="_blank" rel="noopener noreferrer"' : "") + ">" +
+               esc(label) + (external ? '<span class="ext-ic" aria-hidden="true">↗</span>' : "") + "</a>";
+      }).join("");
+      return (
+        '<div class="menu-group' + (open === id ? " open" : "") + '" data-menu="' + id + '">' +
+        '<button class="menu-btn" type="button" data-menu-btn="' + id + '" aria-expanded="' + (open === id ? "true" : "false") + '">' +
+        esc(pickLang(m.en, m.zh)) +
+        '<svg class="caret" viewBox="0 0 20 20" width="11" height="11" aria-hidden="true"><path d="M4 7l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        "</button>" +
+        '<div class="menu-panel">' + items + "</div></div>"
+      );
+    }).join("");
+    var lbl = document.getElementById("navToggleLabel");
+    if (lbl) lbl.textContent = t().menuLabel;
+  }
+
+  function closeMenus() {
+    var nav = document.getElementById("siteNav");
+    if (!nav) return;
+    nav.removeAttribute("data-open");
+    Array.prototype.forEach.call(nav.querySelectorAll(".menu-group"), function (g) {
+      g.classList.remove("open");
+      var b = g.querySelector(".menu-btn");
+      if (b) b.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function bindNavOnce() {
+    var nav = document.getElementById("siteNav");
+    var toggle = document.getElementById("navToggle");
+    if (!nav) return;
+    nav.addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest(".menu-btn") : null;
+      if (!btn) return;
+      var id = btn.getAttribute("data-menu-btn");
+      var wasOpen = nav.getAttribute("data-open") === id;
+      closeMenus();
+      if (!wasOpen) {
+        nav.setAttribute("data-open", id);
+        var g = nav.querySelector('[data-menu="' + id + '"]');
+        if (g) g.classList.add("open");
+        btn.setAttribute("aria-expanded", "true");
+      }
+    });
+    // Clicking a real link closes the menu behind it.
+    nav.addEventListener("click", function (e) {
+      if (e.target.closest && e.target.closest("a.menu-item")) {
+        closeMenus();
+        nav.classList.remove("expanded");
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+    if (toggle) {
+      toggle.addEventListener("click", function () {
+        var isOpen = nav.classList.toggle("expanded");
+        toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        if (!isOpen) closeMenus();
+      });
+    }
+    document.addEventListener("click", function (e) {
+      if (nav.contains(e.target)) return;
+      if (toggle && toggle.contains(e.target)) return;
+      closeMenus();
+      nav.classList.remove("expanded");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        closeMenus();
+        nav.classList.remove("expanded");
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+
   /* ---------- main render ---------- */
 
   function render() {
     document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
     document.getElementById("brandTag").textContent = t().brandTag;
     document.getElementById("langBtn").textContent = t().langBtn;
-    document.getElementById("footNote").textContent = t().footNote;
+    var bv = document.getElementById("brandValues");
+    if (bv) bv.textContent = (t().brandValues || []).join(state.lang === "zh" ? " · " : " · ");
+    renderNav();
     renderStepper();
 
     if (state.done) { app.innerHTML = renderDone(); bind(); renderCartBar(); return; }
@@ -1061,6 +1158,9 @@
   });
 
   /* ---------- boot ---------- */
+  // Nav listeners are attached once and survive re-renders, because renderNav()
+  // only replaces the markup inside #siteNav, never the element itself.
+  bindNavOnce();
   render();
   fetch("/api/data")
     .then(function (res) {
