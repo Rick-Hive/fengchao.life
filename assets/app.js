@@ -401,7 +401,7 @@
   function renderStep0() {
     var l = t().levels;
     return (
-      '<section class="panel"><h2>' + esc(t().step0Title) + '</h2><p class="hint">' + esc(t().step0Hint) + "</p>" +
+      '<section class="panel panel-short"><h2>' + esc(t().step0Title) + '</h2><p class="hint">' + esc(t().step0Hint) + "</p>" +
       '<div class="choice-grid choice-grid-2" id="levelGrid">' +
       choiceCard("k8", l.k8.name, l.k8.desc, state.level === "k8") +
       choiceCard("hs", l.hs.name, l.hs.desc, state.level === "hs") +
@@ -413,7 +413,7 @@
   function renderStep1() {
     var m = t().modes;
     return (
-      '<section class="panel"><h2>' + esc(t().step1Title) + '</h2><p class="hint">' + esc(t().step1Hint) + "</p>" +
+      '<section class="panel panel-short"><h2>' + esc(t().step1Title) + '</h2><p class="hint">' + esc(t().step1Hint) + "</p>" +
       '<div class="choice-grid" id="modeGrid">' +
       choiceCard("international", m.international.name, m.international.desc, state.mode === "international") +
       choiceCard("domestic", m.domestic.name, m.domestic.desc, state.mode === "domestic") +
@@ -427,7 +427,7 @@
   function renderStep2() {
     var p = t().pedagogies;
     return (
-      '<section class="panel"><h2>' + esc(t().step2Title) + '</h2><p class="hint">' + esc(t().step2Hint) + "</p>" +
+      '<section class="panel panel-short"><h2>' + esc(t().step2Title) + '</h2><p class="hint">' + esc(t().step2Hint) + "</p>" +
       '<div class="choice-grid choice-grid-2" id="pedGrid">' +
       choiceCard("classical", p.classical.name, p.classical.desc, state.pedagogy === "classical") +
       choiceCard("nonclassical", p.nonclassical.name, p.nonclassical.desc, state.pedagogy === "nonclassical") +
@@ -615,7 +615,7 @@
     });
 
     return (
-      '<section class="panel"><h2>' + esc(t().step4Title) + '</h2><p class="hint">' + esc(hint) + "</p>" +
+      '<section class="panel"><div class="panel-head-line"><h2>' + esc(t().step4Title) + '</h2><span class="hint-inline">' + esc(hint) + "</span></div>" +
       '<div class="filter-bar">' +
       '<div class="filter-group search-group"><label for="fSearch">' + esc(t().searchLabel) + '</label>' +
       '<div class="search-wrap"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
