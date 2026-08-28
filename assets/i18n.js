@@ -2,7 +2,7 @@
 window.I18N = {
   zh: {
     brandTag: "以线上资源推动线下C教育生态重建",
-    brandValues: ["开放", "自治", "协作", "双语"],
+    brandValues: ["开放", "自治", "协作"],
     menuLabel: "菜单",
     comingSoon: "即将上线",
     langBtn: "EN",
@@ -114,7 +114,7 @@ window.I18N = {
   },
   en: {
     brandTag: "Rebuilding the offline C-education ecosystem through online resources",
-    brandValues: ["Open", "Autonomous", "Collaborative", "Bilingual"],
+    brandValues: ["Open", "Autonomous", "Collaborative"],
     menuLabel: "Menu",
     comingSoon: "Coming soon",
     langBtn: "中文",
