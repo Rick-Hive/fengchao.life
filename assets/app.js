@@ -277,6 +277,22 @@
   // `language` and plain-string `subjects`. Deploying the front-end and the
   // sync function out of step used to produce blank fields; normalizing on
   // load means a stale snapshot degrades to single-language text instead.
+  // Airtable returns most text fields as strings, but some field types — AI
+  // generated text in particular — arrive as an object like {state, value,
+  // isStale}. A snapshot published before the sync learned to unwrap those
+  // would render as "[object Object]", so the front end unwraps defensively
+  // too and the fix doesn't have to wait for a re-sync.
+  function asText(v) {
+    if (v == null) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+    if (Object.prototype.toString.call(v) === "[object Array]") {
+      return v.map(asText).filter(Boolean).join(" ");
+    }
+    if (typeof v === "object") return typeof v.value === "string" ? v.value : asText(v.value === undefined ? null : v.value);
+    return "";
+  }
+
   function normalizeCourse(c) {
     if (c.classTypeEn === undefined && c.classTypeZh === undefined) {
       c.classTypeEn = c.classTypeZh = c.classType || "";
@@ -284,6 +300,14 @@
     if (c.languageEn === undefined && c.languageZh === undefined) {
       c.languageEn = c.languageZh = c.language || "";
     }
+    // Older snapshots have one `description`; newer ones have the EN/ZH pair.
+    if (c.descriptionEn === undefined && c.descriptionZh === undefined) {
+      c.descriptionEn = c.descriptionZh = c.description || "";
+    }
+    c.descriptionEn = asText(c.descriptionEn);
+    c.descriptionZh = asText(c.descriptionZh);
+    c.comments = asText(c.comments);
+    c.prerequisite = asText(c.prerequisite);
     c.subjects = (c.subjects || []).map(function (s) {
       return typeof s === "string" ? { nameEn: s, nameZh: s, abbr: "" } : s;
     }).filter(Boolean);
@@ -664,7 +688,9 @@
       '<div class="top"><h4>' + esc(name) + (c.code ? ' <span class="code-inline">' + esc(c.code) + "</span>" : "") + "</h4>" +
       '<span class="expand-ic" aria-hidden="true"><svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 8l7 6 7-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>' +
       '<div class="chip-row">' + metaChips(c) + "</div>" +
-      (courseDesc(c) ? '<p class="course-desc">' + esc(courseDesc(c)) + "</p>" : "") +
+      (courseDesc(c)
+        ? '<p class="course-desc">' + esc(courseDesc(c)) + "</p>"
+        : '<p class="course-desc desc-tbd">' + esc(t().comingSoon) + "</p>") +
       ((c.teachers || []).length ? '<div class="card-line teacher-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' + teacherLinks(c, "t-link") + "</div>" : "") +
       (sched ? '<div class="card-line sched-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 5.5V10l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> ' + esc(sched) + "</div>" : "") +
       '<div class="course-bottom"><span class="more-hint">' + esc(t().details) + " ›</span>" + selectBtn(c) + "</div></article>"
@@ -883,7 +909,8 @@
       '<div class="modal-head"><h3>' + esc(courseName(c)) + '</h3><div class="code">' + esc(c.code) + "</div>" +
       '<div class="tag-row">' + tags.map(function (x) { return '<span class="tag">' + esc(x) + "</span>"; }).join("") + "</div></div>" +
       '<div class="modal-body">' +
-      (courseDesc(c) ? '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" + esc(courseDesc(c)) + "</p></div>" : "") +
+      '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" +
+      (courseDesc(c) ? esc(courseDesc(c)) : '<span class="desc-tbd">' + esc(t().comingSoon) + "</span>") + "</p></div>" +
       '<div class="d-grid">' +
       row(t().dSubject, esc(subjectLabels(c).join(state.lang === "zh" ? "、" : " · "))) +
       row(t().dGrades, esc(sortGrades(c.grades).join(" · "))) +

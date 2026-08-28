@@ -76,6 +76,23 @@ function linkedIds(v) {
   return isRecordIdArray(v) ? v : [];
 }
 
+// Airtable returns most text fields as plain strings, but some field types —
+// AI-generated text in particular — come back as an object like
+// {state: "generated", value: "...", isStale: false}. Publishing that raw
+// renders as "[object Object]" on the site, so every free-text field goes
+// through this unwrap before it enters the snapshot.
+function asText(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map(asText).filter(Boolean).join(" ");
+  if (typeof v === "object") {
+    if (typeof v.value === "string") return v.value;
+    return v.value === undefined ? "" : asText(v.value);
+  }
+  return "";
+}
+
 function isTruthyAvailable(v) {
   if (v === undefined || v === null || v === "") return true; // unset -> include
   if (typeof v === "boolean") return v;
@@ -278,8 +295,8 @@ module.exports = async function (context, req) {
         code: f(fields, cf.code) ?? "",
         nameEn: f(fields, cf.nameEn) ?? "",
         nameZh: f(fields, cf.nameZh) ?? "",
-        descriptionEn: f(fields, cf.descriptionEn) ?? "",
-        descriptionZh: f(fields, cf.descriptionZh) ?? "",
+        descriptionEn: asText(f(fields, cf.descriptionEn)),
+        descriptionZh: asText(f(fields, cf.descriptionZh)),
         classTypeEn: f(fields, cf.classTypeEn) ?? "",
         classTypeZh: f(fields, cf.classTypeZh) ?? "",
         grades: linkedIds(f(fields, cf.grades)).map((id) => gradeByRec.get(id) || id),
@@ -307,12 +324,12 @@ module.exports = async function (context, req) {
           .filter((n) => typeof n === "number"),
         textbooks: linkedIds(f(fields, cf.textbooks)).map((id) => textbookByRec.get(id)).filter(Boolean),
         school: schoolIds.length ? schoolByRec.get(schoolIds[0]) || null : null,
-        prerequisite: f(fields, cf.re.prerequisite) || "",
+        prerequisite: asText(f(fields, cf.re.prerequisite)),
         academic: !!f(fields, cf.re.academic),
         // K-8 pedagogy filter source (see cf.re.classical comment above) —
         // blank/missing in Airtable today reads as false (Non-Classical).
         pedagogy: !!f(fields, cf.re.classical),
-        comments: f(fields, cf.re.comments) || "",
+        comments: asText(f(fields, cf.re.comments)),
         syllabus,
         available: isTruthyAvailable(f(fields, cf.available)),
       };
