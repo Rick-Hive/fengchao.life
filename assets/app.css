@@ -27,7 +27,7 @@ html, body { margin: 0; padding: 0; }
 /* Nearly every size in this file is in rem, so bumping the root size scales
    body copy, buttons, chips, and headings together — a straightforward fix
    for "everything reads a little small" without hand-tuning each rule. */
-html { font-size: 19px; }
+html { font-size: 17px; }
 body {
   background: var(--bg);
   color: var(--ink);
