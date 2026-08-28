@@ -39,6 +39,56 @@
     if (saved === "en" || saved === "zh") state.lang = saved;
   } catch (e) {}
 
+  // ---- wizard progress persistence ----
+  // Everything above lived only in the `state` object, so any refresh (or
+  // reopening the tab) threw away the parent's progress and dropped them back
+  // to step 0 — reported as "refresh always goes back to the home page".
+  // Selections, cart, and contact fields are mirrored to localStorage on every
+  // render and restored on boot; step is bumped up to 5 for a very deliberate,
+  // discrete action so refreshing that page doesn't quietly wipe the cart the
+  // customer is about to submit. The key is versioned so a future change to
+  // this shape can be ignored instead of crashing on old saved data.
+  var WIZARD_KEY = "fc-wizard-v1";
+  function persistWizard() {
+    try {
+      localStorage.setItem(WIZARD_KEY, JSON.stringify({
+        step: state.step, level: state.level, mode: state.mode, pedagogy: state.pedagogy,
+        cart: state.cart, filters: state.filters, email: state.email, teams: state.teams,
+        done: state.done,
+      }));
+    } catch (e) {}
+  }
+  function restoreWizard() {
+    var raw;
+    try { raw = localStorage.getItem(WIZARD_KEY); } catch (e) { return; }
+    if (!raw) return;
+    var r;
+    try { r = JSON.parse(raw); } catch (e) { return; }
+    if (!r || typeof r !== "object") return;
+    if (typeof r.step === "number" && r.step >= 0 && r.step <= 5) state.step = r.step;
+    if (r.level === "k8" || r.level === "hs") state.level = r.level;
+    if (r.mode === "international" || r.mode === "domestic" || r.mode === "hybrid") state.mode = r.mode;
+    if (r.pedagogy === "classical" || r.pedagogy === "nonclassical") state.pedagogy = r.pedagogy;
+    if (r.cart && typeof r.cart === "object" && !Array.isArray(r.cart)) state.cart = r.cart;
+    if (r.filters && typeof r.filters === "object") {
+      for (var k in state.filters) if (typeof r.filters[k] === "string") state.filters[k] = r.filters[k];
+    }
+    if (typeof r.email === "string") state.email = r.email;
+    if (typeof r.teams === "string") state.teams = r.teams;
+    if (r.done && typeof r.done === "object") state.done = r.done;
+    // Clamp a step that has outrun its prerequisites (e.g. saved mid-flow with
+    // an older shape) back to the furthest step that's actually reachable,
+    // rather than rendering a step with missing selections underneath it.
+    if (!state.level) state.step = 0;
+    else if (state.level === "hs") {
+      if (!state.mode) state.step = Math.min(state.step, 1);
+      else if (!state.pedagogy) state.step = Math.min(state.step, 2);
+    } else if (state.level === "k8" && state.step === 1) {
+      state.step = 0; // k8 has no track/mode step to land on
+    }
+  }
+  restoreWizard();
+
   function t() { return window.I18N[state.lang]; }
   function k8Id() { return (state.data && state.data.k8TrackId) || 7; }
   function trackId() {
@@ -384,8 +434,16 @@
     for (var i = 0; i < vs.map.length; i++) {
       if (i > 0) html += '<span class="step-sep">›</span>';
       var internal = vs.map[i];
-      var cls = internal === state.step ? "active" : internal < state.step ? "done" : "";
-      html += '<div class="step-item ' + cls + '"><span class="dot">' + (i + 1) + '</span><span class="lbl">' + esc(vs.labels[i]) + "</span></div>";
+      var isDone = internal < state.step;
+      var cls = internal === state.step ? "active" : isDone ? "done" : "";
+      var inner = '<span class="dot">' + (i + 1) + '</span><span class="lbl">' + esc(vs.labels[i]) + "</span>";
+      // Only completed steps are clickable — jumping ahead could land on a step
+      // whose prerequisites (level/mode/pedagogy) aren't set yet. Going back to
+      // an already-completed step is always safe: it was reachable once, and
+      // its selections are still in state.
+      html += isDone
+        ? '<button type="button" class="step-item ' + cls + '" data-goto-step="' + internal + '">' + inner + "</button>"
+        : '<div class="step-item ' + cls + '">' + inner + "</div>";
     }
     el.innerHTML = html;
   }
@@ -949,6 +1007,7 @@
   /* ---------- main render ---------- */
 
   function render() {
+    persistWizard();
     document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
     document.getElementById("brandTag").textContent = t().brandTag;
     document.getElementById("langBtn").textContent = t().langBtn;
@@ -1024,6 +1083,7 @@
         state.filters[map[id]] = e.target.value;
         var gw = document.getElementById("gridWrap");
         if (gw) gw.innerHTML = gridHtml();
+        persistWizard(); // this path updates gridWrap directly and skips render()
       });
     });
 
@@ -1032,6 +1092,7 @@
       state.filters.q = e.target.value;
       var gw = document.getElementById("gridWrap");
       if (gw) gw.innerHTML = gridHtml();
+      persistWizard(); // this path updates gridWrap directly and skips render()
     });
 
     var grid = document.getElementById("gridWrap");
@@ -1067,8 +1128,8 @@
       render();
     });
 
-    on("email", "input", function (e) { state.email = e.target.value; });
-    on("teams", "input", function (e) { state.teams = e.target.value; });
+    on("email", "input", function (e) { state.email = e.target.value; persistWizard(); });
+    on("teams", "input", function (e) { state.teams = e.target.value; persistWizard(); });
     on("submitBtn", "click", submitOrder);
     on("againBtn", "click", function () {
       state.done = null; state.cart = {}; state.step = 0;
@@ -1088,6 +1149,7 @@
     if (gw) {
       gw.innerHTML = gridHtml();
       renderCartBar();
+      persistWizard(); // this path skips render(), so persist explicitly
     } else {
       render();
     }
@@ -1157,10 +1219,29 @@
     render();
   });
 
+  // Clicking a completed step in the breadcrumb jumps straight back to it —
+  // bound once on the container itself (renderStepper only replaces its
+  // innerHTML on every render, never the #stepper element), same pattern as
+  // bindNavOnce below.
+  function bindStepperOnce() {
+    var el = document.getElementById("stepper");
+    if (!el) return;
+    el.addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest("[data-goto-step]") : null;
+      if (!btn) return;
+      var n = parseInt(btn.getAttribute("data-goto-step"), 10);
+      if (isNaN(n) || n >= state.step) return;
+      closeAllModals();
+      state.step = n;
+      render();
+    });
+  }
+
   /* ---------- boot ---------- */
   // Nav listeners are attached once and survive re-renders, because renderNav()
   // only replaces the markup inside #siteNav, never the element itself.
   bindNavOnce();
+  bindStepperOnce();
   render();
   fetch("/api/data")
     .then(function (res) {
