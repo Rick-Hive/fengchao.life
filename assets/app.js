@@ -347,7 +347,7 @@
       // "chinese" search match nearly the whole catalog instead of just
       // Chinese-subject courses. Language has its own filter dropdown already.
       c._hay = [
-        c.nameEn, c.nameZh, c.code, c.description,
+        c.nameEn, c.nameZh, c.code, c.descriptionEn, c.descriptionZh,
         c.classTypeEn, c.classTypeZh,
         (c.subjects || []).map(function (s) { return s.nameEn + " " + s.nameZh; }).join(" "),
         (c.grades || []).join(" "),
@@ -399,6 +399,12 @@
   function courseName(c) {
     if (!c) return "";
     return state.lang === "zh" ? (c.nameZh || c.nameEn || "") : (c.nameEn || c.nameZh || "");
+  }
+  // Course Description is split the same way (2026-08-28): show whichever
+  // matches the page language, falling back to the other if that one is blank.
+  function courseDesc(c) {
+    if (!c) return "";
+    return state.lang === "zh" ? (c.descriptionZh || c.descriptionEn || "") : (c.descriptionEn || c.descriptionZh || "");
   }
 
   function courseById(id) {
@@ -608,7 +614,7 @@
       '<div class="top"><h4>' + esc(name) + (c.code ? ' <span class="code-inline">' + esc(c.code) + "</span>" : "") + "</h4>" +
       '<span class="expand-ic" aria-hidden="true"><svg viewBox="0 0 20 20" width="16" height="16"><path d="M3 8l7 6 7-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>' +
       '<div class="chip-row">' + metaChips(c) + "</div>" +
-      (c.description ? '<p class="course-desc">' + esc(c.description) + "</p>" : "") +
+      (courseDesc(c) ? '<p class="course-desc">' + esc(courseDesc(c)) + "</p>" : "") +
       ((c.teachers || []).length ? '<div class="card-line teacher-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' + teacherLinks(c, "t-link") + "</div>" : "") +
       (sched ? '<div class="card-line sched-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 5.5V10l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> ' + esc(sched) + "</div>" : "") +
       '<div class="course-bottom"><span class="more-hint">' + esc(t().details) + " ›</span>" + selectBtn(c) + "</div></article>"
@@ -827,13 +833,14 @@
       '<div class="modal-head"><h3>' + esc(courseName(c)) + '</h3><div class="code">' + esc(c.code) + "</div>" +
       '<div class="tag-row">' + tags.map(function (x) { return '<span class="tag">' + esc(x) + "</span>"; }).join("") + "</div></div>" +
       '<div class="modal-body">' +
-      (c.description ? '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" + esc(c.description) + "</p></div>" : "") +
+      (courseDesc(c) ? '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" + esc(courseDesc(c)) + "</p></div>" : "") +
       '<div class="d-grid">' +
       row(t().dSubject, esc(subjectLabels(c).join(state.lang === "zh" ? "、" : " · "))) +
       row(t().dGrades, esc(sortGrades(c.grades).join(" · "))) +
       row(t().dLanguage, esc(languageOf(c))) +
       row(t().dClassType, esc(classTypeOf(c))) +
       row(t().dNumClasses, typeof c.numClasses === "number" ? esc(c.numClasses) + " " + esc(t().classes) : "") +
+      row(t().dCreditHours, typeof c.creditHours === "number" ? esc(c.creditHours) : "") +
       row(t().dSchedule, schedFull(c) || '<span class="tbd">' + esc(t().scheduleTBD) + "</span>", true) +
       row(t().dTeachers, (c.teachers || []).length ? teacherLinks(c, "t-chip") : "", true) +
       row(t().dSchool, c.school && c.school.name ? esc(c.school.name) + (c.school.abbr ? ' <span class="muted">(' + esc(c.school.abbr) + ")</span>" : "") : "") +
