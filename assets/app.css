@@ -181,7 +181,13 @@ a.menu-item:hover { background: #eef1f6; }
 
 /* Stepper */
 .stepper { display: flex; gap: 4px; margin: 8px 0 28px; flex-wrap: wrap; }
-.step-item { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; color: var(--muted); font-size: 0.85rem; }
+.step-item {
+  display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px;
+  color: var(--muted); font-size: 0.85rem;
+  /* A completed step renders as a <button>; reset its default chrome so it
+     still reads as a breadcrumb, not a form control. */
+  border: none; background: none; font-family: inherit; line-height: inherit;
+}
 .step-item .dot {
   width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
   background: #eef1f6; color: var(--muted); font-weight: 700; font-size: 0.8rem; flex: none;
@@ -189,6 +195,11 @@ a.menu-item:hover { background: #eef1f6; }
 .step-item.active { color: var(--accent-dark); font-weight: 600; }
 .step-item.active .dot { background: var(--accent); color: #fff; }
 .step-item.done .dot { background: var(--accent-soft); color: var(--accent-dark); }
+/* Completed steps are clickable — jump back and revise an earlier choice. */
+button.step-item.done { cursor: pointer; }
+button.step-item.done:hover { color: var(--accent-dark); background: var(--accent-soft); }
+button.step-item.done:hover .dot { background: var(--accent-dark); color: #fff; }
+button.step-item.done:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .step-sep { align-self: center; color: var(--line); }
 
 /* Panels */

@@ -434,8 +434,16 @@
     for (var i = 0; i < vs.map.length; i++) {
       if (i > 0) html += '<span class="step-sep">›</span>';
       var internal = vs.map[i];
-      var cls = internal === state.step ? "active" : internal < state.step ? "done" : "";
-      html += '<div class="step-item ' + cls + '"><span class="dot">' + (i + 1) + '</span><span class="lbl">' + esc(vs.labels[i]) + "</span></div>";
+      var isDone = internal < state.step;
+      var cls = internal === state.step ? "active" : isDone ? "done" : "";
+      var inner = '<span class="dot">' + (i + 1) + '</span><span class="lbl">' + esc(vs.labels[i]) + "</span>";
+      // Only completed steps are clickable — jumping ahead could land on a step
+      // whose prerequisites (level/mode/pedagogy) aren't set yet. Going back to
+      // an already-completed step is always safe: it was reachable once, and
+      // its selections are still in state.
+      html += isDone
+        ? '<button type="button" class="step-item ' + cls + '" data-goto-step="' + internal + '">' + inner + "</button>"
+        : '<div class="step-item ' + cls + '">' + inner + "</div>";
     }
     el.innerHTML = html;
   }
@@ -1211,10 +1219,29 @@
     render();
   });
 
+  // Clicking a completed step in the breadcrumb jumps straight back to it —
+  // bound once on the container itself (renderStepper only replaces its
+  // innerHTML on every render, never the #stepper element), same pattern as
+  // bindNavOnce below.
+  function bindStepperOnce() {
+    var el = document.getElementById("stepper");
+    if (!el) return;
+    el.addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest("[data-goto-step]") : null;
+      if (!btn) return;
+      var n = parseInt(btn.getAttribute("data-goto-step"), 10);
+      if (isNaN(n) || n >= state.step) return;
+      closeAllModals();
+      state.step = n;
+      render();
+    });
+  }
+
   /* ---------- boot ---------- */
   // Nav listeners are attached once and survive re-renders, because renderNav()
   // only replaces the markup inside #siteNav, never the element itself.
   bindNavOnce();
+  bindStepperOnce();
   render();
   fetch("/api/data")
     .then(function (res) {
