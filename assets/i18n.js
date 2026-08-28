@@ -261,6 +261,24 @@ window.GRADE_STAGES = [
 // Subject labels that should not use the Chinese name from Airtable. Keyed by
 // the English subject name. Renaming 科目 to "ESL" in the base would make this
 // entry unnecessary.
+// Weekdays. The Course table's "Day of Week" is a multiple select holding
+// English names, so the Chinese side is supplied here rather than in Airtable.
+// `enShort` keeps the compact course card from wrapping; the detail view uses
+// the full name. Saturday and Sunday are included so adding them as options in
+// Airtable needs no code change.
+window.WEEKDAYS = {
+  Monday:    { zh: "周一", en: "Monday",    enShort: "Mon" },
+  Tuesday:   { zh: "周二", en: "Tuesday",   enShort: "Tue" },
+  Wednesday: { zh: "周三", en: "Wednesday", enShort: "Wed" },
+  Thursday:  { zh: "周四", en: "Thursday",  enShort: "Thu" },
+  Friday:    { zh: "周五", en: "Friday",    enShort: "Fri" },
+  Saturday:  { zh: "周六", en: "Saturday",  enShort: "Sat" },
+  Sunday:    { zh: "周日", en: "Sunday",    enShort: "Sun" },
+};
+// Canonical week order, so display never depends on the order the options were
+// picked in Airtable.
+window.WEEKDAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+
 window.SUBJECT_LABEL_ZH = { "ESL": "ESL" };
 
 window.CLASS_TYPES = [

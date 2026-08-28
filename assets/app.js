@@ -79,19 +79,45 @@
   // so the moment that field is added to Class Periods and wired into
   // classPeriodFields in api/shared/config.js, it appears here automatically,
   // combined with the time on the same line rather than a separate row.
-  function periodDays(p) {
-    var d = p.days || p.day || "";
-    return Array.isArray(d) ? d.join("、") : d;
+  // ---- weekdays + class times --------------------------------------------
+  // "Day of Week" is a multiple select on the Course table holding English day
+  // names; the Chinese names come from window.WEEKDAYS. Weekdays belong to the
+  // course, times to the linked class periods, so the two are rendered together
+  // rather than one per period. Days always print in week order regardless of
+  // the order they were selected in Airtable.
+  function courseDays(c, opts) {
+    var order = window.WEEKDAY_ORDER || [];
+    var map = window.WEEKDAYS || {};
+    var days = (c.days || []).slice().sort(function (a, b) {
+      var ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    return days.map(function (d) {
+      var w = map[d];
+      if (!w) return d; // an option not in the map still shows, untranslated
+      if (state.lang === "zh") return w.zh;
+      return opts && opts.shortEn ? w.enShort : w.en;
+    });
+  }
+  function daysLabel(c, opts) {
+    var parts = courseDays(c, opts);
+    if (!parts.length) return "";
+    return parts.join(state.lang === "zh" ? "、" : ", ");
+  }
+  // Prefer the "Class Start-End Time" text from Airtable — it is the value the
+  // Course table's link column displays, so it is what the base owner expects
+  // to see. Fall back to composing the range from Start/End times.
+  function periodTime(p) {
+    if (p.range) return String(p.range).trim();
+    if (!p.start) return "";
+    return fmtTime(p.start) + (p.end ? "–" + fmtTime(p.end) : "");
   }
 
   function schedShort(c) {
-    var sch = c.schedule || [];
-    if (!sch.length) return "";
-    return sch.map(function (p) {
-      var tm = p.start ? fmtTime(p.start) + (p.end ? "–" + fmtTime(p.end) : "") : "";
-      var days = periodDays(p);
-      return (p.shortName || p.title || "") + (days ? " " + days : "") + (tm ? " " + tm : "");
-    }).join(" · ");
+    var times = (c.schedule || []).map(periodTime).filter(Boolean);
+    var days = daysLabel(c, { shortEn: true });
+    if (!times.length) return days;                    // weekday known, time not
+    return (days ? days + " " : "") + times.join(" · ");
   }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -166,12 +192,29 @@
 
   // When a course spans more than 3 grades, show a compact range chip
   // (e.g. "G1–G8") instead of one chip per grade.
-  function gradeRangeLabel(grades) {
-    var order = (state.data && state.data.grades) || [];
-    var sorted = grades.slice().sort(function (a, b) {
-      var ia = order.indexOf(a), ib = order.indexOf(b);
-      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  // Curriculum order for grades, derived from GRADE_STAGES so there is only one
+  // place that knows the sequence. This used to rely on the snapshot's own
+  // `grades` array, but the sync publishes it in Airtable record order, which is
+  // arbitrary — that produced range chips like "G12–G8" and put K1-K3 after G12
+  // in the detail view. Anything unrecognized sorts after the known grades,
+  // keeping the snapshot's relative order.
+  var GRADE_RANK = (function () {
+    var r = {}, i = 0;
+    (window.GRADE_STAGES || []).forEach(function (s) {
+      s.members.forEach(function (m) { r[m] = i++; });
     });
+    return r;
+  })();
+  function gradeRank(g) {
+    if (GRADE_RANK[g] !== undefined) return GRADE_RANK[g];
+    var idx = ((state.data && state.data.grades) || []).indexOf(g);
+    return idx === -1 ? 9999 : 1000 + idx;
+  }
+  function sortGrades(grades) {
+    return (grades || []).slice().sort(function (a, b) { return gradeRank(a) - gradeRank(b); });
+  }
+  function gradeRangeLabel(grades) {
+    var sorted = sortGrades(grades);
     return sorted[0] + "–" + sorted[sorted.length - 1];
   }
 
@@ -258,6 +301,14 @@
         c.classTypeEn, c.classTypeZh,
         (c.subjects || []).map(function (s) { return s.nameEn + " " + s.nameZh; }).join(" "),
         (c.grades || []).join(" "),
+        // Weekdays in both languages, so "Monday", "Mon" and "周一" all match.
+        // Unlike teaching language these are distinctive tokens, so they don't
+        // create the false positives that got c.language removed from here.
+        (c.days || []).map(function (d) {
+          var w = (window.WEEKDAYS || {})[d];
+          return w ? d + " " + w.enShort + " " + w.zh : d;
+        }).join(" "),
+        (c.schedule || []).map(function (p) { return p.range || ""; }).join(" "),
         (c.teachers || []).join(" "),
         c.school && c.school.name ? c.school.name + " " + (c.school.abbr || "") : "",
       ].join(" ").toLowerCase();
@@ -478,7 +529,7 @@
           : '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true"><path d="M4 5a1 1 0 011-1h6a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 9l4-2.3v6.6L12 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>') +
         " " + esc(ct) + "</span>";
     }
-    var grades = c.grades || [];
+    var grades = sortGrades(c.grades);
     if (grades.length > 3) {
       chips += '<span class="chip chip-grade">' + esc(gradeRangeLabel(grades)) + "</span>";
     } else {
@@ -678,16 +729,18 @@
     return '<div class="d-row' + (wide ? " wide" : "") + '"><div class="d-label">' + esc(label) + '</div><div class="d-value">' + valueHtml + "</div></div>";
   }
 
+  // Detail view: weekdays first (full names), then one chip per class period.
+  // e.g. "周一、周四" + "10:50 - 11:35 · 45 分钟"
   function schedFull(c) {
     var sch = c.schedule || [];
-    if (!sch.length) return "";
-    return sch.map(function (p) {
-      var tm = p.start ? fmtTime(p.start) + (p.end ? "–" + fmtTime(p.end) : "") : "";
-      var days = periodDays(p);
-      var mins = typeof p.minutes === "number" ? " · " + p.minutes + " " + t().minutesUnit : "";
-      // Weekday + time on one line, e.g. "Period 1/第一节 周一、周三 08:15–09:00 · 45 分钟".
-      return '<span class="sched-chip">' + esc((p.title || p.shortName || "") + (days ? " " + days : "") + (tm ? "  " + tm : "") + mins) + "</span>";
+    var days = daysLabel(c);
+    var chips = days ? '<span class="sched-chip sched-days">' + esc(days) + "</span>" : "";
+    // Just the time range — the class length is implicit in it and was noise.
+    chips += sch.map(function (p) {
+      var tm = periodTime(p);
+      return tm ? '<span class="sched-chip">' + esc(tm) + "</span>" : "";
     }).join("");
+    return chips;
   }
 
   function courseModalHtml(c) {
@@ -719,7 +772,7 @@
       (c.description ? '<div class="d-desc"><div class="d-label">' + esc(t().dDescription) + "</div><p>" + esc(c.description) + "</p></div>" : "") +
       '<div class="d-grid">' +
       row(t().dSubject, esc(subjectLabels(c).join(state.lang === "zh" ? "、" : " · "))) +
-      row(t().dGrades, esc((c.grades || []).join(" · "))) +
+      row(t().dGrades, esc(sortGrades(c.grades).join(" · "))) +
       row(t().dLanguage, esc(languageOf(c))) +
       row(t().dClassType, esc(classTypeOf(c))) +
       row(t().dNumClasses, typeof c.numClasses === "number" ? esc(c.numClasses) + " " + esc(t().classes) : "") +

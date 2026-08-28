@@ -70,6 +70,10 @@ module.exports = {
     numClasses: "Number of Classes/课时数",
     teachers: "Teacher/授课老师",
     classTime: "Class time/上课时间",   // now a LINK to Class Periods
+    // Multiple select on the Course table: Monday…Friday (English values).
+    // Weekdays are a property of the course, not of the class period, so they
+    // are read here and rendered alongside every period's time.
+    daysOfWeek: "Day of Week",
     // "Subject" (EN) and "学科" (ZH) are TWO independent link fields that both
     // point at the same Course Subject table — 学科 just displays the 科目
     // column instead of the primary field. Both carry record IDs via the API,
@@ -119,6 +123,10 @@ module.exports = {
     start: /^Start Time/i,
     end: /^End Time/i,
     minutes: /^Length/i,
+    // Single line text, e.g. "10:50 - 11:35". This is the field the Course
+    // table's "Class time/上课时间" link shows, so it is what parents expect to
+    // see; the site prefers it over composing the range from start/end.
+    range: /^Class Start-?End/i,
   },
 
   // Textbook table: public-safe fields only (sales/order fields never synced).
