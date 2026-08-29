@@ -311,6 +311,13 @@
     c.subjects = (c.subjects || []).map(function (s) {
       return typeof s === "string" ? { nameEn: s, nameZh: s, abbr: "" } : s;
     }).filter(Boolean);
+    // Defensive: older snapshots (synced before the sync-side fix) can still
+    // have a raw Airtable record id sitting in `teachers` where a linked
+    // Teacher record had a blank Name field or had been deleted — never show
+    // that internal id as if it were a person's name.
+    c.teachers = (c.teachers || []).filter(function (name) {
+      return !/^rec[A-Za-z0-9]{10,}$/.test(String(name || ""));
+    });
     return c;
   }
 
