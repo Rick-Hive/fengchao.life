@@ -301,7 +301,11 @@ window.WEEKDAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Satu
 // into Airtable — they render disabled with a "coming soon" tag rather than
 // linking nowhere, so the menu shows the full plan without pretending the
 // feature exists.
+// A top-level entry with its own `url` and no `items` is a plain link in the
+// nav bar rather than a dropdown — used for destinations that have nothing to
+// group under them (教材 / Textbooks).
 window.SITE_MENUS = [
+  { zh: "教材", en: "Textbooks", url: "https://www.equipme.cloud/product-types/" },
   {
     zh: "教育工具", en: "Educational Tools",
     items: [
@@ -309,13 +313,14 @@ window.SITE_MENUS = [
       { zh: "学生信息系统",     en: "Student Information System",     url: "https://bridge.opensis.com/" },
       { zh: "Moodle LMS",       en: "Moodle LMS",                     url: "https://learn.qiaoliang.online/" },
       { zh: "数字版权管理和分发系统", en: "Digital Rights Management & Distribution", url: "https://view.protectedpdf.com/portal/BES/LogIn" },
+      // Moved out of 教育服务 (Rick, 2026-08-29): it is a tool, not a service.
+      { zh: "G.P.A. 计算器",    en: "G.P.A. Calculator" },
       { zh: "联系我们",         en: "Contact Us",                     url: "mailto:contact@fengchao.life" },
     ],
   },
   {
     zh: "教育服务", en: "Educational Services",
     items: [
-      { zh: "G.P.A. 计算器", en: "G.P.A. Calculator" },
       { zh: "大学项目",       en: "College Programs" },
       { zh: "国际C学校",      en: "International C-Schools" },
       { zh: "标化考试",       en: "Standardized Tests" },

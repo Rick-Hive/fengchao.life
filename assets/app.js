@@ -1050,7 +1050,17 @@
     var open = nav.getAttribute("data-open");
     nav.innerHTML = (window.SITE_MENUS || []).map(function (m, i) {
       var id = "menu" + i;
-      var items = m.items.map(function (it) {
+      // A top-level entry with a url and no items is a plain link, not a
+      // dropdown: same .menu-btn pill so it sits flush with the dropdowns,
+      // minus the caret and panel.
+      if (m.url && !m.items) {
+        var mExternal = m.url.indexOf("mailto:") !== 0;
+        return '<a class="menu-btn menu-link" href="' + esc(m.url) + '"' +
+               (mExternal ? ' target="_blank" rel="noopener noreferrer"' : "") + ">" +
+               esc(pickLang(m.en, m.zh)) +
+               (mExternal ? '<span class="ext-ic" aria-hidden="true">↗</span>' : "") + "</a>";
+      }
+      var items = (m.items || []).map(function (it) {
         var label = pickLang(it.en, it.zh);
         if (!it.url) {
           return '<span class="menu-item is-soon" aria-disabled="true">' + esc(label) +
@@ -1092,6 +1102,8 @@
     nav.addEventListener("click", function (e) {
       var btn = e.target.closest ? e.target.closest(".menu-btn") : null;
       if (!btn) return;
+      // Plain top-level links share the .menu-btn pill but open nothing.
+      if (btn.tagName === "A") return;
       var id = btn.getAttribute("data-menu-btn");
       var wasOpen = nav.getAttribute("data-open") === id;
       closeMenus();
@@ -1104,7 +1116,7 @@
     });
     // Clicking a real link closes the menu behind it.
     nav.addEventListener("click", function (e) {
-      if (e.target.closest && e.target.closest("a.menu-item")) {
+      if (e.target.closest && e.target.closest("a.menu-item, a.menu-link")) {
         closeMenus();
         nav.classList.remove("expanded");
         if (toggle) toggle.setAttribute("aria-expanded", "false");
