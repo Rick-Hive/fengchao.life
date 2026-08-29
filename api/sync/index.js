@@ -265,6 +265,12 @@ module.exports = async function (context, req) {
     const cf = cfg.courseFields;
     const onlyAvailable = process.env.SYNC_ONLY_AVAILABLE === "1";
     let courses = [];
+    // Courses whose Teacher link points at a record with no "Name" value, or at
+    // a record that no longer exists (deleted from the Teachers table) — either
+    // way teacherByRec has nothing usable for that id. Collected here so a
+    // single warning can name them, rather than ever showing the raw Airtable
+    // record ID as if it were a teacher's name on the public site.
+    const danglingTeacherLinks = [];
     for (const r of courseRecs) {
       const fields = r.fields;
 
@@ -305,7 +311,10 @@ module.exports = async function (context, req) {
         price: typeof f(fields, cf.price) === "number" ? f(fields, cf.price) : null,
         numClasses: f(fields, cf.numClasses) ?? null,
         creditHours: typeof f(fields, cf.creditHours) === "number" ? f(fields, cf.creditHours) : null,
-        teachers: teacherIds.map((id) => (teacherByRec.get(id) || {}).name || id),
+        // Never fall back to the raw record id here — an unresolved link (blank
+        // Name field, or the linked Teacher record was deleted) is dropped from
+        // the public list instead of leaking an internal Airtable id as a name.
+        teachers: teacherIds.map((id) => (teacherByRec.get(id) || {}).name || "").filter(Boolean),
         teacherIds,
         // Multiple select -> array of English weekday names; a single select or
         // text value still normalizes to an array so the front end has one shape.
@@ -333,6 +342,12 @@ module.exports = async function (context, req) {
         syllabus,
         available: isTruthyAvailable(f(fields, cf.available)),
       };
+      if (teacherIds.length && !course.teachers.length) {
+        danglingTeacherLinks.push({
+          label: (course.code || course.nameEn || course.nameZh || course.id).trim(),
+          ids: teacherIds,
+        });
+      }
       courses.push(course);
     }
     if (onlyAvailable) courses = courses.filter((c) => c.available);
@@ -391,6 +406,13 @@ module.exports = async function (context, req) {
     if (teacherProfiles.length && !teacherProfiles.some((p) => p.name)) {
       warnings.push('No teacher has a value for "Name" — check the Teachers table field names.');
     }
+    if (danglingTeacherLinks.length) {
+      warnings.push(
+        "These courses link to a Teacher record with a blank \"Name\" field, or a Teacher record " +
+        "that no longer exists, so no teacher shows on the public site for them — check the Teachers " +
+        "table: " + danglingTeacherLinks.map((d) => d.label).join("; ")
+      );
+    }
 
     // ---- data problems that affect which catalog a course lands in ----------
     // The site splits the catalog at G8/G9. A course tagged on both sides of
@@ -399,7 +421,12 @@ module.exports = async function (context, req) {
     // a course does not run from middle school through to Grade 12. Flag them
     // by name so they can be corrected at the source.
     const label = (c) => (c.code || c.nameEn || c.nameZh || c.id || "?").trim();
+    // Teacher Training courses are for teachers, not students placed by grade —
+    // spanning both sides of the G8/G9 line is expected for them, not a
+    // tagging mistake, so they're excluded from this check entirely.
+    const isTeacherTraining = (c) => (c.subjects || []).some((s) => s && s.nameEn === "Teacher Training");
     const crossLevel = courses.filter((c) => {
+      if (isTeacherTraining(c)) return false;
       const ranks = (c.grades || []).map(gradeRank);
       return ranks.some((r) => r <= 108) && ranks.some((r) => r >= 109);
     });

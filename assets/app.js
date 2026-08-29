@@ -86,7 +86,15 @@
   // bookmark, cart emptied since) is clamped back to the furthest step that
   // is actually reachable.
   var STEP_HASHES = ["level", "track", "pedagogy", "requirements", "courses", "order"];
+  var COURSES_STEP = STEP_HASHES.indexOf("courses");
   var HASH_SUPPRESS = false;
+  // Tracks which step the last render() actually painted, so render() can
+  // tell a fresh arrival at the course list (from any direction — forward,
+  // back, a stepper jump, or browser Back/Forward) apart from a re-render
+  // that happens while already there (toggling cart, opening a modal, …).
+  // Starts null so landing straight on #/courses via a bookmark/refresh also
+  // resets, which is harmless since the filters start empty anyway.
+  var lastRenderedStep = null;
   function clampStep(n) {
     if (typeof n !== "number" || isNaN(n)) return 0;
     n = Math.max(0, Math.min(5, Math.floor(n)));
@@ -311,6 +319,13 @@
     c.subjects = (c.subjects || []).map(function (s) {
       return typeof s === "string" ? { nameEn: s, nameZh: s, abbr: "" } : s;
     }).filter(Boolean);
+    // Defensive: older snapshots (synced before the sync-side fix) can still
+    // have a raw Airtable record id sitting in `teachers` where a linked
+    // Teacher record had a blank Name field or had been deleted — never show
+    // that internal id as if it were a person's name.
+    c.teachers = (c.teachers || []).filter(function (name) {
+      return !/^rec[A-Za-z0-9]{10,}$/.test(String(name || ""));
+    });
     return c;
   }
 
@@ -416,23 +431,20 @@
 
   function haystack(c) {
     if (!c._hay) {
-      // Teaching language is deliberately excluded here: most K-8 courses are
-      // taught in Chinese regardless of subject, so including it made a
-      // "chinese" search match nearly the whole catalog instead of just
-      // Chinese-subject courses. Language has its own filter dropdown already.
+      // Quick search is deliberately narrow (per 2026-08-29 discussion):
+      // course name, course code, the school/teacher who deliver the course,
+      // and subject. Everything else that used to be indexed here — class
+      // type, teaching language, grade, weekday, schedule time, and the full
+      // description text — is deliberately excluded: class type/language/
+      // grade already have their own filter dropdowns (indexing them here
+      // too was redundant), weekday/schedule time were low-value, and a word
+      // buried in a description could surface an unrelated course. The course
+      // code is kept even though it wasn't on the original 4-item list —
+      // staff and parents search by the exact code often enough that
+      // dropping it seemed like a regression.
       c._hay = [
-        c.nameEn, c.nameZh, c.code, c.descriptionEn, c.descriptionZh,
-        c.classTypeEn, c.classTypeZh,
+        c.nameEn, c.nameZh, c.code,
         (c.subjects || []).map(function (s) { return s.nameEn + " " + s.nameZh; }).join(" "),
-        (c.grades || []).join(" "),
-        // Weekdays in both languages, so "Monday", "Mon" and "周一" all match.
-        // Unlike teaching language these are distinctive tokens, so they don't
-        // create the false positives that got c.language removed from here.
-        (c.days || []).map(function (d) {
-          var w = (window.WEEKDAYS || {})[d];
-          return w ? d + " " + w.enShort + " " + w.zh : d;
-        }).join(" "),
-        (c.schedule || []).map(function (p) { return p.range || ""; }).join(" "),
         (c.teachers || []).join(" "),
         c.school && c.school.name ? c.school.name + " " + (c.school.abbr || "") : "",
       ].join(" ").toLowerCase();
@@ -797,7 +809,14 @@
       '<p class="field-note">' + esc(t().emailNote) + "</p>" +
       '<label for="teams">' + esc(t().teamsLabel) + '</label>' +
       '<input id="teams" type="text" placeholder="' + esc(t().teamsPh) + '" value="' + esc(state.teams) + '" />' +
-      '<div class="hp"><label>Company<input id="company" type="text" tabindex="-1" autocomplete="off" /></label></div>' +
+      // Honeypot. Deliberately NOT called "company" and with no visible label
+      // text: Chrome's address autofill recognizes a company/organization
+      // field by its id, name and label and fills it even with
+      // autocomplete="off", which silently classified real parents' orders as
+      // bot traffic (they saw a success screen, but nothing ever reached
+      // Teams). The name is meaningless to autofill heuristics, the wrapper is
+      // aria-hidden so screen readers skip it, and autocomplete is off.
+      '<div class="hp" aria-hidden="true"><input id="fcHpField" name="fc_hp_field" type="text" tabindex="-1" autocomplete="off" /></div>' +
       '<p class="form-err" id="formErr">' + esc(state.formErr) + "</p>" +
       '<button class="btn btn-primary" id="submitBtn" style="width:100%;margin-top:8px" ' + (state.submitting ? "disabled" : "") + ">" +
       esc(state.submitting ? t().submitting : t().submitOrder) + "</button></div></div>" +
@@ -1091,6 +1110,13 @@
   /* ---------- main render ---------- */
 
   function render() {
+    // Arriving fresh at the course list (from any step, either direction)
+    // always starts from a clean slate — a search or filter left over from
+    // a previous visit is surprising, not helpful.
+    if (state.step === COURSES_STEP && lastRenderedStep !== COURSES_STEP) {
+      state.filters = { subject: "", grade: "", language: "", classType: "", q: "" };
+    }
+    lastRenderedStep = state.step;
     persistWizard();
     syncHash();
     document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
@@ -1261,7 +1287,7 @@
     if (cartIds().length === 0) { state.formErr = t().errEmpty; render(); return; }
     state.submitting = true; state.formErr = ""; render();
 
-    var hp = document.getElementById("company");
+    var hp = document.getElementById("fcHpField");
     fetch("/api/order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

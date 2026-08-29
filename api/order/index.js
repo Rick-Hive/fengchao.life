@@ -46,8 +46,24 @@ module.exports = async function (context, req) {
   const body = req.body || {};
 
   // Honeypot: real users never fill this hidden field.
-  if (typeof body.company === "string" && body.company.trim() !== "") {
-    context.res = { status: 200, body: { ok: true, orderId: makeOrderId() } }; // silently drop
+  //
+  // The field used to be called `company`, which Chrome's address autofill
+  // recognized as an organization field and filled even with
+  // autocomplete="off" — silently classifying real parents' orders as bot
+  // traffic. `company` is deliberately NOT honoured any more, not even as a
+  // fallback for browsers still running a cached copy of the old front end:
+  // keeping it would preserve the very bug this fixes for exactly those
+  // users. A bot replaying the old field name now gets through, which is the
+  // right trade — a stray bot order reaching Teams is a nuisance, a real
+  // family's order vanishing without trace is not.
+  const hp = typeof body.fc_hp_field === "string" ? body.fc_hp_field.trim() : "";
+  if (hp) {
+    // Logged, not silent: a dropped order is otherwise indistinguishable from a
+    // delivered one, which is exactly what made the autofill bug so hard to see.
+    context.log.warn(
+      `Honeypot triggered; order dropped without notifying. email=${String(body.email || "").slice(0, 120)} value=${hp.slice(0, 80)}`
+    );
+    context.res = { status: 200, body: { ok: true, orderId: makeOrderId() } };
     return;
   }
 
