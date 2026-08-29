@@ -109,6 +109,12 @@ window.I18N = {
     errEmailDomain: "暂不支持 QQ、163、新浪等邮箱，请使用 Gmail、Outlook、Yahoo 等国际邮箱。",
     errEmpty: "请至少选择一门课程。",
     errRate: "提交过于频繁，请稍后再试。",
+    // Distinct messages per failure cause. A single generic message made a
+    // real outage indistinguishable from a typo, so each server-side error
+    // now says what actually happened and what the parent can do about it.
+    errNotify: "订单未能送达，我们的通知系统暂时不可用。请稍后重试，或直接与我们联系。",
+    errSnapshot: "课程数据暂时不可用，请稍后重试。",
+    errCourseGone: "订单中有课程已下架，请返回课程列表重新选择。",
     errGeneric: "提交失败，请稍后重试。",
     loadErr: "课程数据尚未发布，请稍后访问。",
     loading: "正在加载…",
@@ -220,6 +226,9 @@ window.I18N = {
     errEmailDomain: "QQ, 163, Sina and similar mailboxes are not supported — please use Gmail, Outlook, Yahoo or another international provider.",
     errEmpty: "Please select at least one course.",
     errRate: "Too many submissions; please try again later.",
+    errNotify: "Your order could not be delivered — our notification system is temporarily unavailable. Please try again shortly, or contact us directly.",
+    errSnapshot: "Course data is temporarily unavailable. Please try again shortly.",
+    errCourseGone: "A course in your order is no longer available. Please go back to the course list and reselect.",
     errGeneric: "Submission failed; please try again.",
     loadErr: "Course data has not been published yet. Please check back soon.",
     loading: "Loading…",

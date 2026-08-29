@@ -210,6 +210,40 @@ module.exports = async function (context, req) {
 
     /* ---- teachers: public profiles + photo mirroring ---- */
 
+    // Every teacher field published below is free text on the public site, but
+    // some of them are LINK fields in Airtable, which the API returns as arrays
+    // of record ids. Publishing those raw put a bare "recXXXXXXXXXXXXXX" on the
+    // teacher card where a name belonged. plainText() flattens a value to
+    // display text and drops anything still shaped like a record id, so an
+    // unresolved link renders as nothing rather than as an internal id.
+    const REC_ID = /^rec[A-Za-z0-9]{10,}$/;
+    const plainText = (v) =>
+      asArray(v)
+        .map((x) => {
+          if (x == null) return "";
+          if (typeof x === "string") return REC_ID.test(x) ? "" : x;
+          if (typeof x === "number" || typeof x === "boolean") return String(x);
+          if (typeof x === "object" && typeof x.value === "string") return x.value;
+          return "";
+        })
+        .filter(Boolean)
+        .join(", ");
+    // "Organization / 所属机构" links to the Schools table, so resolve those ids
+    // into real school names instead of merely dropping them.
+    const unresolvedOrgIds = new Set();
+    const orgNames = (v) =>
+      asArray(v)
+        .map((x) => {
+          if (typeof x !== "string") return "";
+          if (!REC_ID.test(x)) return x; // already plain text
+          const s = schoolByRec.get(x);
+          if (s && (s.name || s.abbr)) return s.name || s.abbr;
+          unresolvedOrgIds.add(x);
+          return "";
+        })
+        .filter(Boolean)
+        .join(", ");
+
     const tef = cfg.teacherFields;
     const teacherByRec = new Map();
     const teacherProfiles = [];
@@ -227,13 +261,13 @@ module.exports = async function (context, req) {
         teacherId: f(fields, tef.id) || "",
         name,
         photo, // asset key or null
-        bio: f(fields, tef.bio) || "",
-        expertise: f(fields, tef.expertise) || "",
-        subjects: f(fields, tef.subjects) || "",
-        languages: f(fields, tef.languages) || "",
-        courseTypes: f(fields, tef.courseTypes) || "",
-        gradeLevels: f(fields, tef.gradeLevels) || "",
-        organization: f(fields, tef.organization) || "",
+        bio: plainText(f(fields, tef.bio)),
+        expertise: plainText(f(fields, tef.expertise)),
+        subjects: plainText(f(fields, tef.subjects)),
+        languages: plainText(f(fields, tef.languages)),
+        courseTypes: plainText(f(fields, tef.courseTypes)),
+        gradeLevels: plainText(f(fields, tef.gradeLevels)),
+        organization: orgNames(f(fields, tef.organization)),
       };
       teacherByRec.set(r.id, profile);
       teacherProfiles.push(profile);
@@ -405,6 +439,13 @@ module.exports = async function (context, req) {
     }
     if (teacherProfiles.length && !teacherProfiles.some((p) => p.name)) {
       warnings.push('No teacher has a value for "Name" — check the Teachers table field names.');
+    }
+    if (unresolvedOrgIds.size) {
+      warnings.push(
+        "Some teachers' \"Organization / 所属机构\" links point at records that " +
+        "aren't in the Schools table, so their organization is left blank " +
+        "rather than showing an internal record id: " + [...unresolvedOrgIds].join(", ")
+      );
     }
     if (danglingTeacherLinks.length) {
       warnings.push(
