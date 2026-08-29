@@ -10,9 +10,17 @@ module.exports = {
   tables: {
     tracks:       { id: "tbltFG1wvhlxdMNCm", display: "Track ID" },
     courses:      { id: "tblWTiOgX1pM40U4A", display: "Course Name/课程名称" },
-    // Course Subject table. "Subject Name" is English, "科目" is Chinese —
-    // two separate columns, so a subject resolves to a language pair.
-    subjects:     { id: "tblvQaPpgBRZSuT48", display: "Subject Name", displayZh: "科目", abbr: "Abbreviation/简写" },
+    // Course Subject table. "Subject Name" is English, "学科" is Chinese —
+    // two separate columns, so a subject resolves to a language pair. The
+    // Chinese column was renamed from "科目" to "学科" during the 2026-08-29
+    // table restructuring (12 consolidated categories); the old name is kept
+    // below only as a comment so the history isn't lost. The "Abbreviation/
+    // 简写" column was removed from this table in the same restructuring —
+    // abbreviations for the ~20 fine-grained subject codes now live in their
+    // own "Course Abbreviation/课程简写" table, which nothing on the site
+    // reads (subject.abbr was never displayed anywhere), so `abbr` below is
+    // left pointing at a name that will simply resolve empty going forward.
+    subjects:     { id: "tblvQaPpgBRZSuT48", display: "Subject Name", displayZh: "学科", abbr: "Abbreviation/简写" },
     grades:       { id: "tblQBtt6PSLLGeULf", display: "Title/年级名称" },
     teachers:     { id: "tbltGNxS4Hdy2YiGA", display: "Name / 姓名" },
     classPeriods: { id: "tblaC1VEnTdYvCFOo" },

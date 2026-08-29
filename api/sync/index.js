@@ -421,7 +421,12 @@ module.exports = async function (context, req) {
     // a course does not run from middle school through to Grade 12. Flag them
     // by name so they can be corrected at the source.
     const label = (c) => (c.code || c.nameEn || c.nameZh || c.id || "?").trim();
+    // Teacher Training courses are for teachers, not students placed by grade —
+    // spanning both sides of the G8/G9 line is expected for them, not a
+    // tagging mistake, so they're excluded from this check entirely.
+    const isTeacherTraining = (c) => (c.subjects || []).some((s) => s && s.nameEn === "Teacher Training");
     const crossLevel = courses.filter((c) => {
+      if (isTeacherTraining(c)) return false;
       const ranks = (c.grades || []).map(gradeRank);
       return ranks.some((r) => r <= 108) && ranks.some((r) => r >= 109);
     });
