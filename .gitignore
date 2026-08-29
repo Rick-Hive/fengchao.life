@@ -1,0 +1,13 @@
+# Local test output (Playwright screenshots) — never part of the deployed site.
+shots/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local Azure Functions settings (secrets live in Azure app settings)
+api/local.settings.json
