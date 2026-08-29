@@ -109,6 +109,12 @@ window.I18N = {
     errEmailDomain: "暂不支持 QQ、163、新浪等邮箱，请使用 Gmail、Outlook、Yahoo 等国际邮箱。",
     errEmpty: "请至少选择一门课程。",
     errRate: "提交过于频繁，请稍后再试。",
+    // Distinct messages per failure cause. A single generic message made a
+    // real outage indistinguishable from a typo, so each server-side error
+    // now says what actually happened and what the parent can do about it.
+    errNotify: "订单未能送达，我们的通知系统暂时不可用。请稍后重试，或直接与我们联系。",
+    errSnapshot: "课程数据暂时不可用，请稍后重试。",
+    errCourseGone: "订单中有课程已下架，请返回课程列表重新选择。",
     errGeneric: "提交失败，请稍后重试。",
     loadErr: "课程数据尚未发布，请稍后访问。",
     loading: "正在加载…",
@@ -220,6 +226,9 @@ window.I18N = {
     errEmailDomain: "QQ, 163, Sina and similar mailboxes are not supported — please use Gmail, Outlook, Yahoo or another international provider.",
     errEmpty: "Please select at least one course.",
     errRate: "Too many submissions; please try again later.",
+    errNotify: "Your order could not be delivered — our notification system is temporarily unavailable. Please try again shortly, or contact us directly.",
+    errSnapshot: "Course data is temporarily unavailable. Please try again shortly.",
+    errCourseGone: "A course in your order is no longer available. Please go back to the course list and reselect.",
     errGeneric: "Submission failed; please try again.",
     loadErr: "Course data has not been published yet. Please check back soon.",
     loading: "Loading…",
@@ -292,7 +301,11 @@ window.WEEKDAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Satu
 // into Airtable — they render disabled with a "coming soon" tag rather than
 // linking nowhere, so the menu shows the full plan without pretending the
 // feature exists.
+// A top-level entry with its own `url` and no `items` is a plain link in the
+// nav bar rather than a dropdown — used for destinations that have nothing to
+// group under them (教材 / Textbooks).
 window.SITE_MENUS = [
+  { zh: "教材", en: "Textbooks", url: "https://www.equipme.cloud/product-types/" },
   {
     zh: "教育工具", en: "Educational Tools",
     items: [
@@ -300,13 +313,14 @@ window.SITE_MENUS = [
       { zh: "学生信息系统",     en: "Student Information System",     url: "https://bridge.opensis.com/" },
       { zh: "Moodle LMS",       en: "Moodle LMS",                     url: "https://learn.qiaoliang.online/" },
       { zh: "数字版权管理和分发系统", en: "Digital Rights Management & Distribution", url: "https://view.protectedpdf.com/portal/BES/LogIn" },
+      // Moved out of 教育服务 (Rick, 2026-08-29): it is a tool, not a service.
+      { zh: "G.P.A. 计算器",    en: "G.P.A. Calculator" },
       { zh: "联系我们",         en: "Contact Us",                     url: "mailto:contact@fengchao.life" },
     ],
   },
   {
     zh: "教育服务", en: "Educational Services",
     items: [
-      { zh: "G.P.A. 计算器", en: "G.P.A. Calculator" },
       { zh: "大学项目",       en: "College Programs" },
       { zh: "国际C学校",      en: "International C-Schools" },
       { zh: "标化考试",       en: "Standardized Tests" },

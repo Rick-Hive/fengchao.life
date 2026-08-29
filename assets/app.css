@@ -98,6 +98,9 @@ img { max-width: 100%; }
   padding: 7px 13px; cursor: pointer; white-space: nowrap;
 }
 .menu-btn:hover { background: #eef1f6; }
+/* Top-level plain link (no dropdown) — same pill, no underline. */
+a.menu-link { text-decoration: none; }
+a.menu-link .ext-ic { font-size: 0.78rem; }
 .menu-group.open > .menu-btn { background: #e8eef5; border-color: #c3d2e0; }
 .menu-btn .caret { transition: transform 0.15s ease; flex: none; }
 .menu-group.open .caret { transform: rotate(180deg); }

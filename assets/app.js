@@ -329,6 +329,32 @@
     return c;
   }
 
+  // Several Teachers-table columns ("Organization / 所属机构" in particular) are
+  // LINK fields, which Airtable's API returns as arrays of record ids. A
+  // snapshot published before the sync learned to resolve them puts a bare
+  // "recXXXXXXXXXXXXXX" on the teacher card where the school name belongs, so
+  // the front end flattens these defensively and drops anything still shaped
+  // like a record id — an old snapshot then self-heals without a re-sync.
+  var REC_ID_RE = /^rec[A-Za-z0-9]{10,}$/;
+  function plainTeacherText(v) {
+    if (v == null) return "";
+    var arr = Object.prototype.toString.call(v) === "[object Array]" ? v : [v];
+    var out = [];
+    for (var i = 0; i < arr.length; i++) {
+      var x = arr[i];
+      if (typeof x === "string") { if (!REC_ID_RE.test(x)) out.push(x); }
+      else if (typeof x === "number" || typeof x === "boolean") out.push(String(x));
+      else if (x && typeof x === "object" && typeof x.value === "string") out.push(x.value);
+    }
+    return out.join(", ");
+  }
+  function normalizeTeacher(p) {
+    if (!p) return p;
+    ["bio", "expertise", "subjects", "languages", "courseTypes", "gradeLevels", "organization"]
+      .forEach(function (k) { p[k] = plainTeacherText(p[k]); });
+    return p;
+  }
+
   // When a course spans more than 3 grades, show a compact range chip
   // (e.g. "G1–G8") instead of one chip per grade.
   // Curriculum order for grades, derived from GRADE_STAGES so there is only one
@@ -1024,7 +1050,17 @@
     var open = nav.getAttribute("data-open");
     nav.innerHTML = (window.SITE_MENUS || []).map(function (m, i) {
       var id = "menu" + i;
-      var items = m.items.map(function (it) {
+      // A top-level entry with a url and no items is a plain link, not a
+      // dropdown: same .menu-btn pill so it sits flush with the dropdowns,
+      // minus the caret and panel.
+      if (m.url && !m.items) {
+        var mExternal = m.url.indexOf("mailto:") !== 0;
+        return '<a class="menu-btn menu-link" href="' + esc(m.url) + '"' +
+               (mExternal ? ' target="_blank" rel="noopener noreferrer"' : "") + ">" +
+               esc(pickLang(m.en, m.zh)) +
+               (mExternal ? '<span class="ext-ic" aria-hidden="true">↗</span>' : "") + "</a>";
+      }
+      var items = (m.items || []).map(function (it) {
         var label = pickLang(it.en, it.zh);
         if (!it.url) {
           return '<span class="menu-item is-soon" aria-disabled="true">' + esc(label) +
@@ -1066,6 +1102,8 @@
     nav.addEventListener("click", function (e) {
       var btn = e.target.closest ? e.target.closest(".menu-btn") : null;
       if (!btn) return;
+      // Plain top-level links share the .menu-btn pill but open nothing.
+      if (btn.tagName === "A") return;
       var id = btn.getAttribute("data-menu-btn");
       var wasOpen = nav.getAttribute("data-open") === id;
       closeMenus();
@@ -1078,7 +1116,7 @@
     });
     // Clicking a real link closes the menu behind it.
     nav.addEventListener("click", function (e) {
-      if (e.target.closest && e.target.closest("a.menu-item")) {
+      if (e.target.closest && e.target.closest("a.menu-item, a.menu-link")) {
         closeMenus();
         nav.classList.remove("expanded");
         if (toggle) toggle.setAttribute("aria-expanded", "false");
@@ -1296,7 +1334,12 @@
         teamsAccount: (state.teams || "").trim(),
         trackId: trackId(),
         courseIds: cartIds(),
-        company: hp ? hp.value : "",
+        // The honeypot field is `fc_hp_field`, matching api/order/index.js.
+        // It used to be sent as `company`, which the server stopped honouring
+        // when Chrome's address autofill was found filling it and silently
+        // classifying real parents' orders as bot traffic — so while this was
+        // named `company` the honeypot was simply dead on both ends.
+        fc_hp_field: hp ? hp.value : "",
       }),
     })
       .then(function (res) {
@@ -1311,8 +1354,24 @@
           state.formErr = t().errRate;
         } else if (r.body && r.body.error === "blocked_email_domain") {
           state.formErr = t().errEmailDomain;
+        } else if (r.body && r.body.error === "notify_failed") {
+          state.formErr = t().errNotify;
+        } else if (r.body && (r.body.error === "no_snapshot" || r.status === 503)) {
+          state.formErr = t().errSnapshot;
+        } else if (r.body && r.body.error === "unknown_course") {
+          state.formErr = t().errCourseGone;
         } else {
           state.formErr = t().errGeneric;
+        }
+        // The generic branch above hides which failure actually happened, and
+        // a parent reporting "it says submission failed" gives us nothing to
+        // work with. Log the real status/error to the console so the cause is
+        // recoverable from a screenshot of devtools.
+        if (!(r.ok && r.body && r.body.ok)) {
+          try {
+            console.error("[fengchao] order submit failed:", r.status,
+              r.body && r.body.error ? r.body.error : r.body);
+          } catch (e) {}
         }
         render();
       })
@@ -1361,6 +1420,7 @@
     })
     .then(function (data) {
       (data.courses || []).forEach(normalizeCourse);
+      (data.teacherProfiles || []).forEach(normalizeTeacher);
       state.data = data;
       var n = document.getElementById("loadingNotice");
       if (n) n.remove();
