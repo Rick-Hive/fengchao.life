@@ -117,10 +117,16 @@ module.exports = async function (context, req) {
       }
       items.push({
         code: c.code,
-        nameEn: c.nameEn,
-        nameZh: c.nameZh,
         // Internal ops message (Teams/Power Automate): show both languages
         // regardless of which one the parent was browsing in.
+        //
+        // `name` is REQUIRED by the flow trigger's Request Body JSON Schema and is
+        // what the Teams message template renders. It was dropped when the bilingual
+        // refactor split it into nameEn/nameZh, which made Power Automate reject every
+        // order with HTTP 400 before a run was ever created. Keep `name` populated.
+        name: [c.nameZh, c.nameEn].filter(Boolean).join(" / "),
+        nameEn: c.nameEn,
+        nameZh: c.nameZh,
         subjects: (c.subjects || []).map((s) =>
           s && typeof s === "object" ? [s.nameZh, s.nameEn].filter(Boolean).join(" / ") : s
         ),
@@ -142,8 +148,10 @@ module.exports = async function (context, req) {
       orderId: makeOrderId(),
       submittedAt: new Date().toISOString(),
       email,
-      teamsAccount: teamsAccount || null,
-      track: track ? { trackId: track.trackId, name: track.name } : { trackId },
+      // The trigger schema types these as strings; sending null or omitting `name`
+      // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
+      teamsAccount: teamsAccount || "",
+      track: track ? { trackId: track.trackId, name: track.name || "" } : { trackId, name: "" },
       itemCount: items.length,
       totalPrice: total,
       currency: "CNY",
