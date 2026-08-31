@@ -26,6 +26,23 @@ module.exports = {
     classPeriods: { id: "tblaC1VEnTdYvCFOo" },
     textbooks:    { id: "tblboTRWTZ8cKvv1a" },
     schools:      { id: "tblRVfq00Q5QKkR5h" },
+    // Customer-facing message copy (order confirmation email, Teams
+    // notification), edited in Airtable rather than in code so wording changes
+    // don't need a deploy. Addressed BY NAME, not by table id, so creating a
+    // table with this name is all that's needed — no config change. The sync
+    // treats a missing table as "not set up yet" and the API falls back to the
+    // built-in defaults in api/shared/messages.js, so the site keeps working
+    // whether or not this table exists.
+    templates:    { id: process.env.AIRTABLE_TEMPLATES_TABLE || "Message Templates/消息模板", optional: true },
+  },
+
+  // One row per (key, language). Body/Subject support {{placeholders}} —
+  // see PLACEHOLDERS in api/shared/messages.js for the list.
+  templateFields: {
+    key: /^(Key|键|模板)/i,
+    language: /^(Language|语言)/i,
+    subject: /^(Subject|标题|主题)/i,
+    body: /^(Body|正文|内容)/i,
   },
 
   trackFields: {

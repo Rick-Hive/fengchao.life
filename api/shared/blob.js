@@ -67,6 +67,55 @@ async function readSnapshot() {
   return JSON.parse(buf.toString("utf8"));
 }
 
+// Hand out the next number in a named counter, atomically.
+//
+// Order ids embed a per-day, per-school running number (FC-20260831-KXC-001),
+// which means two parents ordering from the same hive in the same second must
+// not receive the same number. Blob storage has no increment primitive, so this
+// uses optimistic concurrency: read the value with its ETag, write back with
+// If-Match, and retry when someone else won the race. `ifNoneMatch: "*"` makes
+// the very first write fail rather than clobber a counter created concurrently.
+//
+// Throws if it cannot get a number. Callers must treat that as non-fatal and
+// fall back to a random suffix — losing a tidy sequence is a cosmetic problem,
+// losing an order is not.
+async function nextSequence(key, attempts) {
+  const container = getContainerClient();
+  await container.createIfNotExists();
+  const blob = container.getBlockBlobClient("counters/" + key + ".txt");
+  const tries = attempts || 6;
+
+  for (let i = 0; i < tries; i++) {
+    try {
+      let current = 0;
+      let conditions;
+      if (await blob.exists()) {
+        const props = await blob.getProperties();
+        const buf = await blob.downloadToBuffer();
+        const parsed = parseInt(buf.toString("utf8").trim(), 10);
+        current = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        conditions = { ifMatch: props.etag };
+      } else {
+        conditions = { ifNoneMatch: "*" };
+      }
+
+      const next = current + 1;
+      const body = String(next);
+      await blob.upload(body, Buffer.byteLength(body), {
+        conditions,
+        blobHTTPHeaders: { blobContentType: "text/plain; charset=utf-8" },
+      });
+      return next;
+    } catch (err) {
+      // 412 Precondition Failed / 409 Conflict = lost the race; read and retry.
+      const status = err && err.statusCode;
+      if (status !== 412 && status !== 409) throw err;
+      await new Promise((r) => setTimeout(r, 40 + Math.floor(Math.random() * 80)));
+    }
+  }
+  throw new Error(`nextSequence(${key}): still contended after ${tries} attempts`);
+}
+
 // Mirror one binary asset (teacher photo, syllabus file) into the assets container.
 async function writeAsset(key, buffer, contentType) {
   const container = getAssetsContainerClient();
@@ -87,4 +136,4 @@ async function readAsset(key) {
   return { buffer, contentType: props.contentType || "application/octet-stream" };
 }
 
-module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset };
+module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset, nextSequence };

@@ -1334,6 +1334,9 @@
         teamsAccount: (state.teams || "").trim(),
         trackId: trackId(),
         courseIds: cartIds(),
+        // Drives the language of the confirmation email and the hive's Teams
+        // notification — the family should be answered in the language they chose.
+        lang: state.lang,
         // The honeypot field is `fc_hp_field`, matching api/order/index.js.
         // It used to be sent as `company`, which the server stopped honouring
         // when Chrome's address autofill was found filling it and silently

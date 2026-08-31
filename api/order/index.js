@@ -1,7 +1,8 @@
 // POST /api/order — validates the submission, re-prices it from the trusted
 // snapshot, and forwards the order JSON server-side to the Power Automate
 // "When an HTTP request is received" flow (URL is a server-side secret).
-const { readSnapshot } = require("../shared/blob");
+const { readSnapshot, nextSequence } = require("../shared/blob");
+const { buildMessages } = require("../shared/messages");
 
 // Best-effort in-memory rate limit (per function instance).
 const hits = new Map();
@@ -35,11 +36,70 @@ function isBlockedEmail(email) {
   return BLOCKED_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith("." + d));
 }
 
-function makeOrderId() {
-  const d = new Date();
-  const ymd = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
-  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `FC-${ymd}-${rand}`;
+// Beijing-time date stamp. Order ids are read by people who all live in that
+// timezone, so a UTC stamp would label an evening order with tomorrow's date.
+function ymdBeijing(d) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d || new Date());
+  return parts.replace(/-/g, "");
+}
+
+// The hive segment of an order id: its Abbreviation if the Schools table has
+// one, otherwise its full name (which for these partners is usually already
+// short, e.g. CAP or IEW). Latin letters, digits and Chinese characters survive;
+// spaces and punctuation do not, so "Kids' X-Center" becomes KIDSXCENTER.
+function schoolSegment(items) {
+  const seen = [];
+  for (const it of items) {
+    const raw = String(it.schoolAbbr || it.schoolName || "").trim();
+    const seg = raw
+      .toUpperCase()
+      .replace(/[^A-Z0-9一-鿿]/g, "")
+      .slice(0, 12);
+    if (seg && seen.indexOf(seg) === -1) seen.push(seg);
+  }
+  if (seen.length === 1) return seen[0];
+  // An order spanning several hives has no single owner, and payment is settled
+  // per hive, so flag it rather than pick one arbitrarily. If these turn out to
+  // be common, the better fix is splitting such a submission into one order per
+  // hive — that is a data-model change, not a formatting one.
+  if (seen.length > 1) return "MULTI";
+  return "";
+}
+
+// FC-20260831-KXC-001. The running number is per day and per hive, so each
+// partner sees its own 001, 002 rather than a shared global counter.
+//
+// The sequence is best-effort by design: if the counter blob is unavailable or
+// too contended, fall back to a short readable random suffix and still take the
+// order. A tidy sequence is cosmetic; a dropped order is not. Ambiguous
+// characters (0/O, 1/I/L, U) are excluded from the fallback alphabet so the id
+// survives being read aloud over the phone.
+const FALLBACK_ALPHABET = "23456789ACDEFGHJKMNPQRTVWXYZ";
+
+function randomSuffix(n) {
+  let out = "";
+  for (let i = 0; i < n; i++) {
+    out += FALLBACK_ALPHABET[Math.floor(Math.random() * FALLBACK_ALPHABET.length)];
+  }
+  return out;
+}
+
+async function makeOrderId(items, log) {
+  const ymd = ymdBeijing();
+  const seg = schoolSegment(items || []);
+  const prefix = seg ? `FC-${ymd}-${seg}` : `FC-${ymd}`;
+  try {
+    const n = await nextSequence(`${ymd}-${seg || "ALL"}`);
+    return `${prefix}-${String(n).padStart(3, "0")}`;
+  } catch (err) {
+    if (log) log(`order id sequence unavailable, using random suffix: ${String(err.message || err)}`);
+    return `${prefix}-${randomSuffix(4)}`;
+  }
 }
 
 module.exports = async function (context, req) {
@@ -63,7 +123,10 @@ module.exports = async function (context, req) {
     context.log.warn(
       `Honeypot triggered; order dropped without notifying. email=${String(body.email || "").slice(0, 120)} value=${hp.slice(0, 80)}`
     );
-    context.res = { status: 200, body: { ok: true, orderId: makeOrderId() } };
+    // Return a plausible-looking id so the bot sees success, but do NOT consume
+    // a real sequence number — the hive's daily numbering should count orders,
+    // not bots.
+    context.res = { status: 200, body: { ok: true, orderId: `FC-${ymdBeijing()}-${randomSuffix(4)}` } };
     return;
   }
 
@@ -77,6 +140,10 @@ module.exports = async function (context, req) {
   const teamsAccount = String(body.teamsAccount || "").trim().slice(0, 200);
   const trackId = Number(body.trackId);
   const courseIds = Array.isArray(body.courseIds) ? body.courseIds.slice(0, 60) : [];
+  // The language the parent actually ordered in. Everything they receive — the
+  // confirmation email — and the hive's Teams notification are rendered in it,
+  // so the hive replies in the language the family already chose.
+  const lang = body.lang === "en" ? "en" : "zh";
 
   if (!EMAIL_RE.test(email) || email.length > 254) {
     context.res = { status: 400, body: { error: "invalid_email" } };
@@ -135,6 +202,10 @@ module.exports = async function (context, req) {
         language: [c.languageZh, c.languageEn].filter(Boolean).join(" / "),
         teachers: c.teachers,
         price: c.price, // trusted price from snapshot, never from the client
+        // Which hive owns this course. Drives the order id's hive segment and
+        // the "所属蜂巢" line, since payment and enrolment are settled per hive.
+        schoolName: (c.school && c.school.name) || "",
+        schoolAbbr: (c.school && c.school.abbr) || "",
       });
     }
     const total = items.reduce((s, i) => s + (typeof i.price === "number" ? i.price : 0), 0);
@@ -145,7 +216,7 @@ module.exports = async function (context, req) {
         : snapshot.tracks.find((t) => t.trackId === trackId) || null;
 
     const order = {
-      orderId: makeOrderId(),
+      orderId: await makeOrderId(items, (m) => context.log.warn(m)),
       submittedAt: new Date().toISOString(),
       email,
       // The trigger schema types these as strings; sending null or omitting `name`
@@ -157,7 +228,17 @@ module.exports = async function (context, req) {
       currency: "CNY",
       items,
       snapshotGeneratedAt: snapshot.generatedAt,
+      lang,
     };
+
+    // Power Automate receives finished text, not fields to assemble. See the
+    // header comment in api/shared/messages.js for why.
+    const msg = buildMessages(order, snapshot.messageTemplates, lang);
+    order.notifyText = msg.notifyText;
+    order.emailTo = email;
+    order.emailSubject = msg.emailSubject;
+    order.emailHtml = msg.emailHtml;
+    order.emailBodyText = msg.emailBodyText;
 
     const headers = { "Content-Type": "application/json" };
     if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;

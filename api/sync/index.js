@@ -146,6 +146,24 @@ module.exports = async function (context, req) {
         fetchAllRecords(cfg.tables.schools.id, pat),
       ]);
 
+    // Message copy is optional: the table is addressed by name and may simply
+    // not exist yet. A missing or unreadable table must never fail a sync —
+    // the API falls back to the built-in defaults in api/shared/messages.js.
+    let templateRecs = [];
+    let templatesTableMissing = false;
+    try {
+      templateRecs = await fetchAllRecords(
+        encodeURIComponent(cfg.tables.templates.id),
+        pat
+      );
+    } catch (e) {
+      templatesTableMissing = true;
+      context.log.warn(
+        `Message Templates table not read (${String(e.message || e).slice(0, 160)}); ` +
+          "falling back to built-in message copy."
+      );
+    }
+
     /* ---- per-table lookup maps ---- */
 
     const trackIdByRec = new Map();
@@ -508,6 +526,45 @@ module.exports = async function (context, req) {
       );
     }
 
+    /* ---- message copy: one row per (key, language) ---- */
+
+    // Shaped as { key: { zh: {subject, body}, en: {...} } } so the API can look
+    // up exactly what it needs without scanning. Rows with an unrecognized
+    // language or a blank key are skipped and reported as warnings rather than
+    // silently ignored — a typo'd language code would otherwise mean a parent
+    // quietly receives the English default.
+    const mtf = cfg.templateFields;
+    const messageTemplates = {};
+    for (const r of templateRecs) {
+      const key = String(f(r.fields, mtf.key) || "").trim();
+      const langRaw = String(f(r.fields, mtf.language) || "").trim().toLowerCase();
+      if (!key) continue;
+      const lang = /^(zh|中文|chinese|cn)/.test(langRaw)
+        ? "zh"
+        : /^(en|英文|english)/.test(langRaw)
+        ? "en"
+        : "";
+      if (!lang) {
+        warnings.push(
+          `Message template "${key}" has an unrecognized Language value ` +
+            `("${langRaw}") and was skipped — use zh or en.`
+        );
+        continue;
+      }
+      if (!messageTemplates[key]) messageTemplates[key] = {};
+      messageTemplates[key][lang] = {
+        subject: String(f(r.fields, mtf.subject) || "").trim(),
+        body: String(f(r.fields, mtf.body) || "").trim(),
+      };
+    }
+    if (templatesTableMissing) {
+      warnings.push(
+        `No "${cfg.tables.templates.id}" table was readable, so the order ` +
+          "confirmation email and Teams message use the built-in default " +
+          "wording. Create that table to edit the copy without a deploy."
+      );
+    }
+
     const principal = getPrincipal(req);
     const snapshot = {
       generatedAt: new Date().toISOString(),
@@ -528,6 +585,7 @@ module.exports = async function (context, req) {
       grades,
       teacherProfiles,
       courses,
+      messageTemplates,
     };
 
     // ---- guard against a destructive sync ---------------------------------

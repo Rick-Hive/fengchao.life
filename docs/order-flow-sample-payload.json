@@ -1,0 +1,42 @@
+{
+  "orderId": "FC-20260831-KXC-001",
+  "submittedAt": "2026-08-31T14:22:00.000Z",
+  "email": "parent@gmail.com",
+  "teamsAccount": "parent@gmail.com",
+  "track": {
+    "trackId": 7,
+    "name": "K-G8 Courses/小学·初中课程"
+  },
+  "itemCount": 1,
+  "totalPrice": 3500,
+  "currency": "CNY",
+  "items": [
+    {
+      "code": "SCI-EL-401",
+      "name": "科学革命 / Science in the Scientific Revolution",
+      "nameEn": "Science in the Scientific Revolution",
+      "nameZh": "科学革命",
+      "subjects": [
+        "科学 / Science"
+      ],
+      "grades": [
+        "G10"
+      ],
+      "classType": "选修 / Elective",
+      "language": "中文 / Chinese",
+      "teachers": [
+        "Teacher Name"
+      ],
+      "price": 3500,
+      "schoolName": "Kingsway Christian Academy",
+      "schoolAbbr": "KXC"
+    }
+  ],
+  "snapshotGeneratedAt": "2026-08-31T00:00:00.000Z",
+  "lang": "zh",
+  "notifyText": "🐝 新订单 FC-20260831-KXC-001\n\n提交时间：2026/08/31 22:22（北京时间）\n教育路径：K-G8 Courses/小学·初中课程\n联系邮箱：parent@gmail.com\nTeams 账号：parent@gmail.com\n所属蜂巢：Kingsway Christian Academy\n\n课程（1 门）：\n• SCI-EL-401 科学革命 — ¥3,500\n\n合计：¥3,500",
+  "emailTo": "parent@gmail.com",
+  "emailSubject": "【蜂巢】已收到您的选课订单 FC-20260831-KXC-001",
+  "emailHtml": "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.7;color:#1f2328;max-width:640px\">您好，<br>\n<br>\n我们已收到您的选课订单，感谢您的信任。<br>\n<br>\n订单编号：FC-20260831-KXC-001<br>\n提交时间：2026/08/31 22:22（北京时间）<br>\n教育路径：K-G8 Courses/小学·初中课程<br>\n<br>\n所选课程（1 门）：<br>\n• SCI-EL-401 科学革命 — ¥3,500<br>\n<br>\n合计：¥3,500<br>\n<br>\n课程提供方将在 2 个工作日内与您联系，商定付款与入学事宜。<br>\n如 2 个工作日内未收到联系，请直接回复本邮件。<br>\n<br>\n蜂巢</div>",
+  "emailBodyText": "您好，\n\n我们已收到您的选课订单，感谢您的信任。\n\n订单编号：FC-20260831-KXC-001\n提交时间：2026/08/31 22:22（北京时间）\n教育路径：K-G8 Courses/小学·初中课程\n\n所选课程（1 门）：\n• SCI-EL-401 科学革命 — ¥3,500\n\n合计：¥3,500\n\n课程提供方将在 2 个工作日内与您联系，商定付款与入学事宜。\n如 2 个工作日内未收到联系，请直接回复本邮件。\n\n蜂巢"
+}
