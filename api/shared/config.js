@@ -172,6 +172,11 @@ module.exports = {
   schoolFields: {
     name: /^Name\//i,
     abbr: /Abbreviation$/i,
+    // Where this hive's orders are delivered. BOTH ARE PRIVATE: they are synced
+    // into snapshot.private, which /api/data strips before serving the public
+    // site. Never move them into the course objects.
+    teamsChannelId: /^(Teams\s*Channel|频道)/i,
+    notifyEmail: /^(Notify\s*Email|通知邮箱)/i,
   },
 
   snapshotBlob: {

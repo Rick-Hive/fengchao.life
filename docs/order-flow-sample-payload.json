@@ -1,6 +1,6 @@
 {
-  "orderId": "FC-20260831-KXC-001",
-  "submittedAt": "2026-08-31T14:22:00.000Z",
+  "orderId": "FC-20260901-KXC-001",
+  "submittedAt": "2026-09-01T02:10:00.000Z",
   "email": "parent@gmail.com",
   "teamsAccount": "parent@gmail.com",
   "track": {
@@ -32,11 +32,27 @@
       "schoolAbbr": "KXC"
     }
   ],
-  "snapshotGeneratedAt": "2026-08-31T00:00:00.000Z",
+  "snapshotGeneratedAt": "2026-09-01T00:00:00.000Z",
   "lang": "zh",
-  "notifyText": "🐝 新订单 FC-20260831-KXC-001\n\n提交时间：2026/08/31 22:22（北京时间）\n教育路径：K-G8 Courses/小学·初中课程\n联系邮箱：parent@gmail.com\nTeams 账号：parent@gmail.com\n所属蜂巢：Kingsway Christian Academy\n\n课程（1 门）：\n• SCI-EL-401 科学革命 — ¥3,500\n\n合计：¥3,500",
+  "notifyText": "🐝 新订单 FC-20260901-KXC-001\n\n家长联系方式\n· 邮箱：parent@gmail.com\n· Teams：parent@gmail.com\n· 沟通语言：中文\n\n订单信息\n· 提交时间：2026/09/01 10:10（北京时间）\n· 教育路径：K-G8 Courses/小学·初中课程\n· 所属机构：Kingsway Christian Academy\n\n课程明细（共 1 门）\n• SCI-EL-401 科学革命 — ¥3,500\n\n合计：¥3,500\n\n请在 2 个工作日内联系家长，确认开课时间、付款方式与入学手续。\n家长已收到自动确认邮件，并已被告知由贵机构直接联系。",
   "emailTo": "parent@gmail.com",
-  "emailSubject": "【蜂巢】已收到您的选课订单 FC-20260831-KXC-001",
-  "emailHtml": "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.7;color:#1f2328;max-width:640px\">您好，<br>\n<br>\n我们已收到您的选课订单，感谢您的信任。<br>\n<br>\n订单编号：FC-20260831-KXC-001<br>\n提交时间：2026/08/31 22:22（北京时间）<br>\n教育路径：K-G8 Courses/小学·初中课程<br>\n<br>\n所选课程（1 门）：<br>\n• SCI-EL-401 科学革命 — ¥3,500<br>\n<br>\n合计：¥3,500<br>\n<br>\n课程提供方将在 2 个工作日内与您联系，商定付款与入学事宜。<br>\n如 2 个工作日内未收到联系，请直接回复本邮件。<br>\n<br>\n蜂巢</div>",
-  "emailBodyText": "您好，\n\n我们已收到您的选课订单，感谢您的信任。\n\n订单编号：FC-20260831-KXC-001\n提交时间：2026/08/31 22:22（北京时间）\n教育路径：K-G8 Courses/小学·初中课程\n\n所选课程（1 门）：\n• SCI-EL-401 科学革命 — ¥3,500\n\n合计：¥3,500\n\n课程提供方将在 2 个工作日内与您联系，商定付款与入学事宜。\n如 2 个工作日内未收到联系，请直接回复本邮件。\n\n蜂巢"
+  "emailSubject": "【蜂巢】订单确认 FC-20260901-KXC-001｜已收到您的选课",
+  "emailHtml": "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.7;color:#1f2328;max-width:640px\">您好，<br>\n<br>\n感谢您通过蜂巢选课。您的订单已经收到，以下是订单详情，请您核对：<br>\n<br>\n订单编号：FC-20260901-KXC-001<br>\n提交时间：2026/09/01 10:10（北京时间）<br>\n教育路径：K-G8 Courses/小学·初中课程<br>\n<br>\n所选课程（共 1 门）：<br>\n• SCI-EL-401 科学革命 — ¥3,500<br>\n<br>\n合计：¥3,500<br>\n<br>\n接下来会发生什么<br>\n课程所属机构（Kingsway Christian Academy）将在 2 个工作日内直接与您联系，与您确认开课时间、付款方式与入学手续。付款与入学由课程所属机构与您单独完成，蜂巢不代收任何费用。<br>\n<br>\n如超过 2 个工作日仍未收到联系，请直接回复本邮件并注明订单编号，我们会为您跟进。<br>\n<br>\n蜂巢<br>\n以线上资源推动C教育生态重建<br>\nhttps://www.fengchao.life</div>",
+  "emailBodyText": "您好，\n\n感谢您通过蜂巢选课。您的订单已经收到，以下是订单详情，请您核对：\n\n订单编号：FC-20260901-KXC-001\n提交时间：2026/09/01 10:10（北京时间）\n教育路径：K-G8 Courses/小学·初中课程\n\n所选课程（共 1 门）：\n• SCI-EL-401 科学革命 — ¥3,500\n\n合计：¥3,500\n\n接下来会发生什么\n课程所属机构（Kingsway Christian Academy）将在 2 个工作日内直接与您联系，与您确认开课时间、付款方式与入学手续。付款与入学由课程所属机构与您单独完成，蜂巢不代收任何费用。\n\n如超过 2 个工作日仍未收到联系，请直接回复本邮件并注明订单编号，我们会为您跟进。\n\n蜂巢\n以线上资源推动C教育生态重建\nhttps://www.fengchao.life",
+  "routes": [
+    {
+      "hiveKey": "KXC",
+      "schoolName": "Kingsway Christian Academy",
+      "schoolAbbr": "KXC",
+      "teamsChannelId": "19:00000000000000000000000000000000@thread.tacv2",
+      "notifyEmail": "kingsway@example.com",
+      "itemCount": 1,
+      "subtotal": 3500,
+      "currency": "CNY",
+      "notifyText": "🐝 新订单 FC-20260901-KXC-001\n\n家长联系方式\n· 邮箱：parent@gmail.com\n· Teams：parent@gmail.com\n· 沟通语言：中文\n\n订单信息\n· 提交时间：2026/09/01 10:10（北京时间）\n· 教育路径：K-G8 Courses/小学·初中课程\n· 所属机构：Kingsway Christian Academy\n\n课程明细（共 1 门）\n• SCI-EL-401 科学革命 — ¥3,500\n\n合计：¥3,500\n\n请在 2 个工作日内联系家长，确认开课时间、付款方式与入学手续。\n家长已收到自动确认邮件，并已被告知由贵机构直接联系。",
+      "notifySubject": "新订单 FC-20260901-KXC-001｜1 门课程｜¥3,500",
+      "notifyHtml": "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.7;color:#1f2328;max-width:640px\">🐝 新订单 FC-20260901-KXC-001<br>\n<br>\n家长联系方式<br>\n· 邮箱：parent@gmail.com<br>\n· Teams：parent@gmail.com<br>\n· 沟通语言：中文<br>\n<br>\n订单信息<br>\n· 提交时间：2026/09/01 10:10（北京时间）<br>\n· 教育路径：K-G8 Courses/小学·初中课程<br>\n· 所属机构：Kingsway Christian Academy<br>\n<br>\n课程明细（共 1 门）<br>\n• SCI-EL-401 科学革命 — ¥3,500<br>\n<br>\n合计：¥3,500<br>\n<br>\n请在 2 个工作日内联系家长，确认开课时间、付款方式与入学手续。<br>\n家长已收到自动确认邮件，并已被告知由贵机构直接联系。</div>"
+    }
+  ],
+  "routeCount": 1
 }

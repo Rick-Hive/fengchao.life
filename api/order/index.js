@@ -3,6 +3,7 @@
 // "When an HTTP request is received" flow (URL is a server-side secret).
 const { readSnapshot, nextSequence } = require("../shared/blob");
 const { buildMessages } = require("../shared/messages");
+const { groupByHive } = require("../shared/hive");
 
 // Best-effort in-memory rate limit (per function instance).
 const hits = new Map();
@@ -233,12 +234,48 @@ module.exports = async function (context, req) {
 
     // Power Automate receives finished text, not fields to assemble. See the
     // header comment in api/shared/messages.js for why.
-    const msg = buildMessages(order, snapshot.messageTemplates, lang);
+    const templates = snapshot.messageTemplates;
+    const msg = buildMessages(order, templates, lang);
     order.notifyText = msg.notifyText;
     order.emailTo = email;
     order.emailSubject = msg.emailSubject;
     order.emailHtml = msg.emailHtml;
     order.emailBodyText = msg.emailBodyText;
+
+    // Per-hive delivery. An order can span hives, and each settles payment and
+    // enrolment with the family separately, so each gets its own message listing
+    // only its own courses and its own subtotal — not the whole order.
+    //
+    // Routing comes from snapshot.private (never served to browsers): each hive's
+    // Teams channel id and notification address, filled in on the Schools table.
+    // A hive with neither still produces a route, with empty destinations — the
+    // flow posts those to the default channel so an order can never silently
+    // vanish because an Airtable cell was left blank.
+    const routing = (snapshot.private && snapshot.private.schoolRouting) || {};
+    order.routes = groupByHive(items).map((g) => {
+      const dest = routing[g.key] || {};
+      const scoped = {
+        ...order,
+        items: g.items,
+        itemCount: g.itemCount,
+        totalPrice: g.subtotal,
+      };
+      const m = buildMessages(scoped, templates, lang);
+      return {
+        hiveKey: g.key,
+        schoolName: dest.name || g.schoolName,
+        schoolAbbr: dest.abbr || g.schoolAbbr,
+        teamsChannelId: dest.teamsChannelId || "",
+        notifyEmail: dest.notifyEmail || "",
+        itemCount: g.itemCount,
+        subtotal: g.subtotal,
+        currency: order.currency,
+        notifyText: m.notifyText,
+        notifySubject: m.notifySubject,
+        notifyHtml: m.notifyHtml,
+      };
+    });
+    order.routeCount = order.routes.length;
 
     const headers = { "Content-Type": "application/json" };
     if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;

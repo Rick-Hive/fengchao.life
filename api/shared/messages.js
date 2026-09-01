@@ -30,6 +30,7 @@ const PLACEHOLDERS = [
   "currency",
   "schoolNames",
   "replyDays",
+  "langName",
 ];
 
 // Business promise stated in the confirmation email. Kept here so it is stated
@@ -37,35 +38,42 @@ const PLACEHOLDERS = [
 const REPLY_WORKING_DAYS = 2;
 
 const DEFAULT_TEMPLATES = {
+  // Parent-facing. Sets one expectation deliberately: the hive contacts them,
+  // and money never changes hands through 蜂巢.
   order_confirmation: {
     zh: {
-      subject: "【蜂巢】已收到您的选课订单 {{orderId}}",
+      subject: "【蜂巢】订单确认 {{orderId}}｜已收到您的选课",
       body: [
         "您好，",
         "",
-        "我们已收到您的选课订单，感谢您的信任。",
+        "感谢您通过蜂巢选课。您的订单已经收到，以下是订单详情，请您核对：",
         "",
         "订单编号：{{orderId}}",
         "提交时间：{{submittedAt}}",
         "教育路径：{{trackName}}",
         "",
-        "所选课程（{{itemCount}} 门）：",
+        "所选课程（共 {{itemCount}} 门）：",
         "{{courseList}}",
         "",
         "合计：{{totalPrice}}",
         "",
-        "课程提供方将在 {{replyDays}} 个工作日内与您联系，商定付款与入学事宜。",
-        "如 {{replyDays}} 个工作日内未收到联系，请直接回复本邮件。",
+        "接下来会发生什么",
+        "课程所属机构（{{schoolNames}}）将在 {{replyDays}} 个工作日内直接与您联系，" +
+          "与您确认开课时间、付款方式与入学手续。付款与入学由课程所属机构与您单独完成，蜂巢不代收任何费用。",
+        "",
+        "如超过 {{replyDays}} 个工作日仍未收到联系，请直接回复本邮件并注明订单编号，我们会为您跟进。",
         "",
         "蜂巢",
+        "以线上资源推动C教育生态重建",
+        "https://www.fengchao.life",
       ].join("\n"),
     },
     en: {
-      subject: "[Hive] Your course order {{orderId}} has been received",
+      subject: "[Hive] Order confirmation {{orderId}} — we have your course selection",
       body: [
         "Hello,",
         "",
-        "We have received your course order. Thank you.",
+        "Thank you for choosing courses through Hive. Your order has been received. Please check the details below:",
         "",
         "Order number: {{orderId}}",
         "Submitted: {{submittedAt}}",
@@ -76,47 +84,71 @@ const DEFAULT_TEMPLATES = {
         "",
         "Total: {{totalPrice}}",
         "",
-        "The course provider will contact you within {{replyDays}} working days to arrange payment and enrolment.",
-        "If you have not heard from anyone within {{replyDays}} working days, please reply to this email.",
+        "What happens next",
+        "The institution offering these courses ({{schoolNames}}) will contact you directly within " +
+          "{{replyDays}} working days to confirm the start date, payment and enrolment. Payment and " +
+          "enrolment are handled between you and that institution; Hive does not collect fees.",
+        "",
+        "If you have not heard from anyone within {{replyDays}} working days, reply to this email with " +
+          "your order number and we will follow up for you.",
         "",
         "Hive",
+        "Rebuilding the C-education ecosystem through online resources",
+        "https://www.fengchao.life",
       ].join("\n"),
     },
   },
 
+  // Hive-facing: posted to the hive's Teams channel and emailed to its
+  // notification address. Written to be scanned in a channel — who to contact,
+  // in which language, by when — not read as prose.
   order_notification: {
     zh: {
-      subject: "新订单 {{orderId}}",
+      subject: "新订单 {{orderId}}｜{{itemCount}} 门课程｜{{totalPrice}}",
       body: [
         "🐝 新订单 {{orderId}}",
         "",
-        "提交时间：{{submittedAt}}",
-        "教育路径：{{trackName}}",
-        "联系邮箱：{{email}}",
-        "Teams 账号：{{teamsAccount}}",
-        "所属蜂巢：{{schoolNames}}",
+        "家长联系方式",
+        "· 邮箱：{{email}}",
+        "· Teams：{{teamsAccount}}",
+        "· 沟通语言：{{langName}}",
         "",
-        "课程（{{itemCount}} 门）：",
+        "订单信息",
+        "· 提交时间：{{submittedAt}}",
+        "· 教育路径：{{trackName}}",
+        "· 所属机构：{{schoolNames}}",
+        "",
+        "课程明细（共 {{itemCount}} 门）",
         "{{courseList}}",
         "",
         "合计：{{totalPrice}}",
+        "",
+        "请在 {{replyDays}} 个工作日内联系家长，确认开课时间、付款方式与入学手续。",
+        "家长已收到自动确认邮件，并已被告知由贵机构直接联系。",
       ].join("\n"),
     },
     en: {
-      subject: "New order {{orderId}}",
+      subject: "New order {{orderId}} — {{itemCount}} course(s) — {{totalPrice}}",
       body: [
         "🐝 New order {{orderId}}",
         "",
-        "Submitted: {{submittedAt}}",
-        "Track: {{trackName}}",
-        "Email: {{email}}",
-        "Teams account: {{teamsAccount}}",
-        "Hive: {{schoolNames}}",
+        "Family contact",
+        "· Email: {{email}}",
+        "· Teams: {{teamsAccount}}",
+        "· Preferred language: {{langName}}",
         "",
-        "Courses ({{itemCount}}):",
+        "Order",
+        "· Submitted: {{submittedAt}}",
+        "· Track: {{trackName}}",
+        "· Institution: {{schoolNames}}",
+        "",
+        "Courses ({{itemCount}})",
         "{{courseList}}",
         "",
         "Total: {{totalPrice}}",
+        "",
+        "Please contact the family within {{replyDays}} working days to confirm the start date, payment and enrolment.",
+        "They have already received an automatic confirmation email telling them you will be in touch.",
       ].join("\n"),
     },
   },
@@ -241,14 +273,23 @@ function buildMessages(order, templates, lang) {
     currency: order.currency,
     schoolNames: schoolNamesOf(order.items),
     replyDays: REPLY_WORKING_DAYS,
+    // So a hive knows which language to reply in without guessing from the name.
+    langName: l === "zh" ? "中文" : "English",
   };
 
   const notify = resolveTemplate(templates, "order_notification", l);
   const confirm = resolveTemplate(templates, "order_confirmation", l);
   const emailBody = renderTemplate(confirm.body, vars);
 
+  const notifyBody = renderTemplate(notify.body, vars);
+
   return {
-    notifyText: renderTemplate(notify.body, vars),
+    // Hive-facing: the same wording is posted to Teams and emailed to the hive's
+    // notification address, so a hive that does not live in Teams still gets it.
+    notifyText: notifyBody,
+    notifySubject: renderTemplate(notify.subject, vars),
+    notifyHtml: wrapEmailHtml(notifyBody),
+    // Parent-facing.
     emailSubject: renderTemplate(confirm.subject, vars),
     emailBodyText: emailBody,
     emailHtml: wrapEmailHtml(emailBody),

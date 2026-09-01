@@ -7,6 +7,7 @@
 const cfg = require("../shared/config");
 const { writeSnapshot, readSnapshot, writeAsset } = require("../shared/blob");
 const { hasRole, getPrincipal } = require("../shared/auth");
+const { hiveKey } = require("../shared/hive");
 
 const API_ROOT = "https://api.airtable.com/v0";
 
@@ -132,6 +133,8 @@ module.exports = async function (context, req) {
     return;
   }
   const log = (m) => context.log(m);
+  // Warnings raised before the main `warnings` array exists, merged into it below.
+  const earlyWarnings = [];
 
   try {
     const [trackRecs, courseRecs, subjectRecs, gradeRecs, teacherRecs, periodRecs, textbookRecs, schoolRecs] =
@@ -219,11 +222,27 @@ module.exports = async function (context, req) {
 
     const sf = cfg.schoolFields;
     const schoolByRec = new Map();
+    // Order-delivery routing, keyed the same way api/order groups an order's
+    // courses. Deliberately NOT part of the school objects embedded in courses:
+    // those are public (see /api/data), and a Teams channel id plus an internal
+    // notification address are not. This map is written to snapshot.private.
+    const schoolRouting = {};
     for (const r of schoolRecs) {
-      schoolByRec.set(r.id, {
-        name: f(r.fields, sf.name) || "",
-        abbr: f(r.fields, sf.abbr) || "",
-      });
+      const name = String(f(r.fields, sf.name) || "").trim();
+      const abbr = String(f(r.fields, sf.abbr) || "").trim();
+      schoolByRec.set(r.id, { name, abbr });
+
+      const channelId = String(asText(f(r.fields, sf.teamsChannelId)) || "").trim();
+      const notifyEmail = String(asText(f(r.fields, sf.notifyEmail)) || "").trim();
+      const key = hiveKey(abbr || name);
+      if (!key) continue;
+      schoolRouting[key] = { name, abbr, teamsChannelId: channelId, notifyEmail };
+      if (!channelId && !notifyEmail) {
+        earlyWarnings.push(
+          `Hive "${name || abbr}" has neither a Teams Channel ID nor a Notify ` +
+            "Email, so its orders fall back to the default channel only."
+        );
+      }
     }
 
     /* ---- teachers: public profiles + photo mirroring ---- */
@@ -434,7 +453,7 @@ module.exports = async function (context, req) {
 
     // Warn when an expected field matched nothing in ANY record — that almost
     // always means the field was renamed in Airtable beyond recognition.
-    const warnings = [];
+    const warnings = [...earlyWarnings];
     if (courses.length) {
       const checks = [
         ["Course Name", (c) => c.nameEn || c.nameZh],
@@ -586,6 +605,9 @@ module.exports = async function (context, req) {
       teacherProfiles,
       courses,
       messageTemplates,
+      // PRIVATE — stripped by /api/data before the snapshot reaches a browser.
+      // Anything secret or internal belongs under this key and nowhere else.
+      private: { schoolRouting },
     };
 
     // ---- guard against a destructive sync ---------------------------------
