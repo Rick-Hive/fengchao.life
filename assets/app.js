@@ -40,18 +40,26 @@
   } catch (e) {}
 
   // ---- wizard progress persistence ----
-  // Selections, cart, and contact fields are mirrored to localStorage on every
-  // render and restored on boot, so a refresh never loses the parent's choices
-  // or their cart. WHICH page they are on, however, lives in the URL hash (see
-  // the routing block below), not here — a bare URL is the home page, a URL
-  // with a hash is that page. The key is versioned so a future change to this
-  // shape can be ignored instead of crashing on old saved data.
+  // Selections and cart are mirrored to localStorage on every render and
+  // restored on boot, so a refresh never loses the parent's choices. WHICH page
+  // they are on, however, lives in the URL hash (see the routing block below),
+  // not here — a bare URL is the home page, a URL with a hash is that page. The
+  // key is versioned so a future change to this shape can be ignored instead of
+  // crashing on old saved data.
+  //
+  // The contact fields (email, Teams account) are deliberately NOT persisted:
+  // they belong to one submission, not to the browser. Reloading the order page
+  // presents empty fields, so the next person at a shared family computer never
+  // finds someone else's address pre-filled and never submits an order under it
+  // by accident. They still survive moving between steps within a visit, since
+  // that is in-memory state. Values written by an older build are simply not
+  // read back, and the first render overwrites them out of storage.
   var WIZARD_KEY = "fc-wizard-v1";
   function persistWizard() {
     try {
       localStorage.setItem(WIZARD_KEY, JSON.stringify({
         level: state.level, mode: state.mode, pedagogy: state.pedagogy,
-        cart: state.cart, filters: state.filters, email: state.email, teams: state.teams,
+        cart: state.cart, filters: state.filters,
         done: state.done,
       }));
     } catch (e) {}
@@ -70,8 +78,7 @@
     if (r.filters && typeof r.filters === "object") {
       for (var k in state.filters) if (typeof r.filters[k] === "string") state.filters[k] = r.filters[k];
     }
-    if (typeof r.email === "string") state.email = r.email;
-    if (typeof r.teams === "string") state.teams = r.teams;
+    // r.email / r.teams are ignored on purpose — see persistWizard above.
     if (r.done && typeof r.done === "object") state.done = r.done;
   }
   restoreWizard();
