@@ -199,10 +199,14 @@ a.menu-item:hover { background: #eef1f6; }
 .step-item.active .dot { background: var(--accent); color: #fff; }
 .step-item.done .dot { background: var(--accent-soft); color: var(--accent-dark); }
 /* Completed steps are clickable — jump back and revise an earlier choice. */
-button.step-item.done { cursor: pointer; }
-button.step-item.done:hover { color: var(--accent-dark); background: var(--accent-soft); }
-button.step-item.done:hover .dot { background: var(--accent-dark); color: #fff; }
-button.step-item.done:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Any step the wizard can actually jump to is a real button: completed ones
+   (.done) and ready-but-not-yet-visited ones (.ready). A step whose
+   prerequisites are missing stays a plain div and explains itself on hover. */
+button.step-item { cursor: pointer; }
+button.step-item:hover { color: var(--accent-dark); background: var(--accent-soft); }
+button.step-item:hover .dot { background: var(--accent-dark); color: #fff; }
+button.step-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+div.step-item:not(.active) { cursor: not-allowed; }
 .step-sep { align-self: center; color: var(--line); }
 
 /* Panels */
