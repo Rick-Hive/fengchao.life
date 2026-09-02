@@ -102,11 +102,16 @@ const DEFAULT_TEMPLATES = {
   // Hive-facing: posted to the hive's Teams channel and emailed to its
   // notification address. Written to be scanned in a channel — who to contact,
   // in which language, by when — not read as prose.
+  //
+  // The subject carries only the order id. Counts and totals used to be in it
+  // too, which made it long enough to be truncated in a mail list and, worse,
+  // put a money figure in the one line that gets forwarded and quoted. All of
+  // that detail is in the body, one scroll away.
   order_notification: {
     zh: {
-      subject: "新订单 {{orderId}}｜{{itemCount}} 门课程｜{{totalPrice}}",
+      subject: "蜂巢新订单 {{orderId}}",
       body: [
-        "🐝 新订单 {{orderId}}",
+        "🐝 蜂巢新订单 {{orderId}}",
         "",
         "家长联系方式",
         "· 邮箱：{{email}}",
@@ -128,9 +133,9 @@ const DEFAULT_TEMPLATES = {
       ].join("\n"),
     },
     en: {
-      subject: "New order {{orderId}} — {{itemCount}} course(s) — {{totalPrice}}",
+      subject: "New Hive order {{orderId}}",
       body: [
-        "🐝 New order {{orderId}}",
+        "🐝 New Hive order {{orderId}}",
         "",
         "Family contact",
         "· Email: {{email}}",

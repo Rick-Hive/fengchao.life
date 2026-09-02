@@ -559,16 +559,33 @@
     for (var i = 0; i < vs.map.length; i++) {
       if (i > 0) html += '<span class="step-sep">›</span>';
       var internal = vs.map[i];
-      var isDone = internal < state.step;
-      var cls = internal === state.step ? "active" : isDone ? "done" : "";
+      // Once the order is placed every step behind it is complete, so all of
+      // them stay clickable. Without this the done page is a dead end: a refresh
+      // there restores state.step to its default 0, nothing satisfies
+      // `internal < state.step`, the whole stepper renders as inert text, and the
+      // only way out is the done button — which throws the cart away.
+      var finished = !!state.done;
+      var isDone = finished || internal < state.step;
+      var isCurrent = !finished && internal === state.step;
+      // Forward jumps are allowed as far as they actually work. clampStep() is
+      // the authority on that: it returns the furthest step reachable with the
+      // selections made so far, so `clampStep(n) === n` means "this step is
+      // ready". Steps that are not ready stay inert rather than silently
+      // redirecting the click somewhere else, and say why on hover.
+      var reachable = clampStep(internal) === internal;
+      var clickable = isDone || (!isCurrent && reachable);
+      var cls = isCurrent ? "active" : isDone ? "done" : reachable ? "ready" : "";
+      var why = clickable || isCurrent
+        ? ""
+        : ' title="' + esc(internal === 5 ? t().stepNeedCart : t().stepNeedEarlier) + '"';
       var inner = '<span class="dot">' + (i + 1) + '</span><span class="lbl">' + esc(vs.labels[i]) + "</span>";
       // Only completed steps are clickable — jumping ahead could land on a step
       // whose prerequisites (level/mode/pedagogy) aren't set yet. Going back to
       // an already-completed step is always safe: it was reachable once, and
       // its selections are still in state.
-      html += isDone
+      html += clickable
         ? '<button type="button" class="step-item ' + cls + '" data-goto-step="' + internal + '">' + inner + "</button>"
-        : '<div class="step-item ' + cls + '">' + inner + "</div>";
+        : '<div class="step-item ' + cls + '"' + why + ">" + inner + "</div>";
     }
     el.innerHTML = html;
   }
@@ -1410,9 +1427,16 @@
       var btn = e.target.closest ? e.target.closest("[data-goto-step]") : null;
       if (!btn) return;
       var n = parseInt(btn.getAttribute("data-goto-step"), 10);
-      if (isNaN(n) || n >= state.step) return;
+      if (isNaN(n)) return;
+      // clampStep() decides where the click may land, so a forward jump to a
+      // step that is not ready simply cannot happen — the stepper does not
+      // render those as buttons in the first place.
+      if (!state.done && clampStep(n) !== n) return;
       closeAllModals();
-      state.step = n;
+      // Leaving the done page has to clear the finished order, or render()
+      // short-circuits straight back to it and the click looks ignored.
+      state.done = null;
+      state.step = clampStep(n);
       render();
     });
   }
