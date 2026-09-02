@@ -246,6 +246,15 @@ window.I18N = {
 // Studies, ESL, Bible/Theology), each carrying its own English and Chinese
 // name, so the filter is built straight from the data. Ordering lives in
 // SUBJECT_ORDER in assets/app.js.
+//
+// 2026-09-02: the base grew a second, coarser grouping on top of this — the
+// Course Subject table's "Subject filter"/"学科筛选键值" fields — so several
+// real categories (e.g. Chinese Literature / Chinese Writing / Chinese
+// Language Art) can share one "Chinese" filter bucket while each course still
+// shows its own precise subject name. The FILTER dropdown/matching uses that
+// grouping (subjectFilterKey()/subjectFilterLabel() in assets/app.js); course
+// cards, the detail view and search results still use the plain subject name
+// (subjectLabel()). SUBJECT_ORDER above is keyed by the filter bucket name.
 
 // Grade stages for the grade filter. The Grades table has 17 rows (Pre-K
 // through "Associate of Arts Degree"), far too many for one dropdown — parents

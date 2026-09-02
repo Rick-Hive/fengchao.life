@@ -244,16 +244,32 @@ module.exports = async function (context, req) {
     // string, because "Subject Name" and "科目" are separate columns. If only
     // one side is filled, it stands in for both so nothing renders blank.
     // Rows with neither name are skipped (the base has a few stray empty rows).
+    //
+    // "Subject filter" / "学科筛选键值" (added 2026-09-02) let several
+    // fine-grained subjects share one coarser filter bucket — e.g. Chinese
+    // Literature / Chinese Writing / Chinese Language Art all filter under
+    // "Chinese" — without losing their own precise name on the course card.
+    // When a row has no filter value set yet, it falls back to its own name,
+    // i.e. it is its own filter bucket (today's behaviour, unchanged).
     const sjf = cfg.tables.subjects;
     const subjectByRec = new Map();
     for (const r of subjectRecs) {
       const en = String(f(r.fields, sjf.display) || "").trim();
       const zh = String(f(r.fields, sjf.displayZh) || "").trim();
       if (!en && !zh) continue;
+      const nameEn = en || zh;
+      const nameZh = zh || en;
+      const filterEn = String(f(r.fields, sjf.filterEn) || "").trim() || nameEn;
+      const filterZh = String(f(r.fields, sjf.filterZh) || "").trim() || nameZh;
       subjectByRec.set(r.id, {
-        nameEn: en || zh,
-        nameZh: zh || en,
+        nameEn,
+        nameZh,
         abbr: String(f(r.fields, sjf.abbr) || "").trim(),
+        // Stable filter key (English) + bilingual filter label. Multiple
+        // subject rows can share the same filterKey on purpose.
+        filterKey: filterEn,
+        filterNameEn: filterEn,
+        filterNameZh: filterZh,
       });
     }
 
@@ -398,9 +414,15 @@ module.exports = async function (context, req) {
         const fields = r.fields;
         const credits = {};
         for (const c of tf.credits) credits[c.key] = f(fields, c.field) ?? null;
+        const nameEn = f(fields, tf.name) ?? "";
+        const nameZh = f(fields, tf.nameZh) ?? "";
         return {
           trackId: f(fields, tf.trackId) ?? null,
-          name: f(fields, tf.name) ?? "",
+          nameEn,
+          nameZh,
+          // Kept for any older consumer that still reads the single `name`
+          // field directly (see courseName()-style bilingual pairs elsewhere).
+          name: nameEn || nameZh,
           credits,
           totalCredits: f(fields, tf.totalCredits) ?? null,
           serviceHours: f(fields, tf.serviceHours) ?? null,
