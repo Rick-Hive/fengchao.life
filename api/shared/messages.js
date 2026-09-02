@@ -104,9 +104,9 @@ const DEFAULT_TEMPLATES = {
   // in which language, by when — not read as prose.
   order_notification: {
     zh: {
-      subject: "新订单 {{orderId}}｜{{itemCount}} 门课程｜{{totalPrice}}",
+      subject: "蜂巢新订单 {{orderId}}｜{{itemCount}} 门课程｜{{totalPrice}}",
       body: [
-        "🐝 新订单 {{orderId}}",
+        "🐝 蜂巢新订单 {{orderId}}",
         "",
         "家长联系方式",
         "· 邮箱：{{email}}",
@@ -128,9 +128,9 @@ const DEFAULT_TEMPLATES = {
       ].join("\n"),
     },
     en: {
-      subject: "New order {{orderId}} — {{itemCount}} course(s) — {{totalPrice}}",
+      subject: "New Hive order {{orderId}} — {{itemCount}} course(s) — {{totalPrice}}",
       body: [
-        "🐝 New order {{orderId}}",
+        "🐝 New Hive order {{orderId}}",
         "",
         "Family contact",
         "· Email: {{email}}",
