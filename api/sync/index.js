@@ -302,10 +302,24 @@ module.exports = async function (context, req) {
       const key = hiveKey(abbr || name);
       if (!key) continue;
       schoolRouting[key] = { name, abbr, teamsChannelId: channelId, notifyEmail };
+      // Warn per missing destination rather than only when both are missing: a
+      // blank Teams Channel ID is the one that used to break the flow's post
+      // outright, and it is invisible from the order side until an order for
+      // that hive arrives.
       if (!channelId && !notifyEmail) {
         earlyWarnings.push(
-          `Hive "${name || abbr}" has neither a Teams Channel ID nor a Notify ` +
-            "Email, so its orders fall back to the default channel only."
+          `Hive "${name || abbr}" has neither a Teams Channel ID nor a Notify Email — ` +
+            "its orders reach the default channel only, and no one there is emailed."
+        );
+      } else if (!channelId) {
+        earlyWarnings.push(
+          `Hive "${name || abbr}" has no Teams Channel ID, so its orders are posted ` +
+            "to the default channel (flagged as misrouted) instead of its own."
+        );
+      } else if (!notifyEmail) {
+        earlyWarnings.push(
+          `Hive "${name || abbr}" has no Notify Email, so it is told about orders ` +
+            "in Teams only."
         );
       }
     }

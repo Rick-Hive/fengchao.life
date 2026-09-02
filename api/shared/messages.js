@@ -297,6 +297,7 @@ function buildMessages(order, templates, lang) {
 }
 
 module.exports = {
+  escapeHtml,
   PLACEHOLDERS,
   DEFAULT_TEMPLATES,
   REPLY_WORKING_DAYS,

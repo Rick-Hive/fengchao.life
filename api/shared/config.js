@@ -187,4 +187,19 @@ module.exports = {
   assetsBlob: {
     container: process.env.ASSETS_CONTAINER || "site-assets",
   },
+
+  // Fallback Teams channel for order notifications.
+  //
+  // The flow posts each hive's notification to the channel id carried on its
+  // route, with no fallback of its own — so a hive whose "Teams Channel ID" cell
+  // is blank would make that loop iteration fail and the order would go
+  // unannounced. This is the safety net: when a hive has no channel of its own,
+  // its notification is posted here instead, and the payload marks the route so
+  // the message itself says where it should have gone.
+  //
+  // Set DEFAULT_TEAMS_CHANNEL_ID to the "General" channel id of the Hive Orders
+  // team (Teams → channel → Get link to channel; take the segment after
+  // /channel/ and URL-decode it: %3A → ":", %40 → "@"). Left unset, behaviour is
+  // as before — a blank cell breaks that hive's post — and the sync warns.
+  defaultTeamsChannelId: process.env.DEFAULT_TEAMS_CHANNEL_ID || "",
 };

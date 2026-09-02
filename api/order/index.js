@@ -1,8 +1,9 @@
 // POST /api/order — validates the submission, re-prices it from the trusted
 // snapshot, and forwards the order JSON server-side to the Power Automate
 // "When an HTTP request is received" flow (URL is a server-side secret).
+const cfg = require("../shared/config");
 const { readSnapshot, nextSequence } = require("../shared/blob");
-const { buildMessages } = require("../shared/messages");
+const { buildMessages, escapeHtml } = require("../shared/messages");
 const { groupByHive } = require("../shared/hive");
 
 // Best-effort in-memory rate limit (per function instance).
@@ -261,18 +262,41 @@ module.exports = async function (context, req) {
         totalPrice: g.subtotal,
       };
       const m = buildMessages(scoped, templates, lang);
+
+      // A hive with no channel of its own falls back to the default channel, so
+      // the order is still announced somewhere rather than failing the flow's
+      // post. Flagged and logged, because a silent fallback would hide a blank
+      // Airtable cell indefinitely — and prefixed onto the message so whoever
+      // reads the default channel knows it was misrouted, not addressed to them.
+      const ownChannel = dest.teamsChannelId || "";
+      const channelId = ownChannel || cfg.defaultTeamsChannelId || "";
+      const usedDefaultChannel = !ownChannel && !!channelId;
+      if (!ownChannel) {
+        context.log.warn(
+          `Hive "${dest.name || g.schoolName || g.key}" has no Teams Channel ID; ` +
+            (channelId
+              ? "posting to the default channel instead."
+              : "no DEFAULT_TEAMS_CHANNEL_ID is configured either, so this post will fail.")
+        );
+      }
+      const notice =
+        lang === "en"
+          ? `<div><b>⚠️ Misrouted:</b> "${escapeHtml(dest.name || g.schoolName || g.key)}" has no Teams channel configured, so this landed here.</div><br>`
+          : `<div><b>⚠️ 投递错位：</b>「${escapeHtml(dest.name || g.schoolName || g.key)}」未配置 Teams 频道，因此这条通知落在了这里。</div><br>`;
+
       return {
         hiveKey: g.key,
         schoolName: dest.name || g.schoolName,
         schoolAbbr: dest.abbr || g.schoolAbbr,
-        teamsChannelId: dest.teamsChannelId || "",
+        teamsChannelId: channelId,
+        usedDefaultChannel,
         notifyEmail: dest.notifyEmail || "",
         itemCount: g.itemCount,
         subtotal: g.subtotal,
         currency: order.currency,
         notifyText: m.notifyText,
         notifySubject: m.notifySubject,
-        notifyHtml: m.notifyHtml,
+        notifyHtml: usedDefaultChannel ? notice + m.notifyHtml : m.notifyHtml,
       };
     });
     order.routeCount = order.routes.length;
