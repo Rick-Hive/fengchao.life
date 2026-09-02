@@ -203,7 +203,19 @@ module.exports = async function (context, req) {
         classType: [c.classTypeZh, c.classTypeEn].filter(Boolean).join(" / "),
         language: [c.languageZh, c.languageEn].filter(Boolean).join(" / "),
         teachers: c.teachers,
-        price: c.price, // trusted price from snapshot, never from the client
+        // Trusted price from the snapshot, never from the client.
+        //
+        // The snapshot stores null for a course whose price is not set yet
+        // ("价格待定"), and the flow trigger's schema types price as a REQUIRED
+        // INTEGER — so passing null through made Power Automate reject the whole
+        // order with 400 before creating a run, and the family saw "订单未能送达".
+        // One unpriced course in the cart killed the entire submission.
+        //
+        // So the wire value is always a number, and `priceTbd` carries the fact
+        // that it is a placeholder. The messages render "价格待定" / "Price TBD"
+        // for those lines rather than a misleading ¥0.
+        price: typeof c.price === "number" ? c.price : 0,
+        priceTbd: typeof c.price !== "number",
         // Which hive owns this course. Drives the order id's hive segment and
         // the "所属蜂巢" line, since payment and enrolment are settled per hive.
         schoolName: (c.school && c.school.name) || "",

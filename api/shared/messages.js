@@ -214,13 +214,34 @@ function courseName(it, lang) {
   return first || second || it.name || "";
 }
 
+// A course whose price is not set yet shows the placeholder the site shows,
+// not ¥0 — a family reading "¥0" would reasonably think the course is free.
+function priceLabel(it, currency, lang) {
+  const tbd = it.priceTbd || typeof it.price !== "number";
+  if (tbd) return pick(lang) === "zh" ? "价格待定" : "Price TBD";
+  return formatMoney(it.price, currency, lang);
+}
+
 function formatCourseList(items, currency, lang) {
   return (items || [])
     .map((it) => {
       const bits = [it.code, courseName(it, lang)].filter(Boolean).join(" ");
-      return `• ${bits} — ${formatMoney(it.price, currency, lang)}`;
+      return `• ${bits} — ${priceLabel(it, currency, lang)}`;
     })
     .join("\n");
+}
+
+// The order total sums only real prices, so a cart containing an unpriced
+// course would otherwise present a total that quietly understates the order.
+// The caveat is appended to the value rather than added to the templates, so
+// wording already edited in Airtable keeps working untouched.
+function totalLabel(order, lang) {
+  const money = formatMoney(order.totalPrice, order.currency, lang);
+  const tbd = (order.items || []).filter((it) => it.priceTbd || typeof it.price !== "number").length;
+  if (!tbd) return money;
+  return pick(lang) === "zh"
+    ? `${money}（另有 ${tbd} 门课程价格待定，未计入）`
+    : `${money} (excludes ${tbd} course${tbd > 1 ? "s" : ""} with no price yet)`;
 }
 
 function schoolNamesOf(items) {
@@ -269,7 +290,7 @@ function buildMessages(order, templates, lang) {
     trackName: (order.track && order.track.name) || "",
     itemCount: order.itemCount,
     courseList: formatCourseList(order.items, order.currency, l),
-    totalPrice: formatMoney(order.totalPrice, order.currency, l),
+    totalPrice: totalLabel(order, l),
     currency: order.currency,
     schoolNames: schoolNamesOf(order.items),
     replyDays: REPLY_WORKING_DAYS,
@@ -307,4 +328,6 @@ module.exports = {
   formatMoney,
   formatWhen,
   formatCourseList,
+  priceLabel,
+  totalLabel,
 };
