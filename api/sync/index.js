@@ -64,6 +64,72 @@ function f(fields, spec) {
   return undefined;
 }
 
+// Names a Message Templates table might plausibly have. The configured value
+// first, then the CSV-import default, then each half of the bilingual name —
+// Airtable shows the name but nothing warns you that it is also an API address.
+function templateTableCandidates() {
+  const configured = String(cfg.tables.templates.id || "").trim();
+  const halves = configured.includes("/") ? configured.split("/").map((s) => s.trim()) : [];
+  return [configured, ...halves, "message-templates", "Message Templates", "消息模板"]
+    .filter(Boolean)
+    .filter((v, i, a) => a.indexOf(v) === i);
+}
+
+// Ask Airtable for the base's real table list. Needs schema.bases:read on the
+// PAT; returns null (not an error) when that scope is absent, so the caller
+// falls back to guessing names.
+async function listBaseTables(pat) {
+  try {
+    const res = await fetch(`${API_ROOT}/meta/bases/${cfg.baseId}/tables`, {
+      headers: { Authorization: `Bearer ${pat}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.tables) ? data.tables : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// -> { records, found, via, tableNames }
+async function findTemplateRecords(pat, context) {
+  const candidates = templateTableCandidates();
+  const wanted = new Set(candidates.map(norm));
+
+  const tables = await listBaseTables(pat);
+  if (tables) {
+    const hit = tables.find((t) => wanted.has(norm(t.name)));
+    if (hit) {
+      try {
+        return {
+          records: await fetchAllRecords(hit.id, pat),
+          found: true,
+          via: `metadata → ${hit.name} (${hit.id})`,
+          tableNames: tables.map((t) => t.name),
+        };
+      } catch (e) {
+        context.log.warn(`Message templates: found "${hit.name}" but could not read it: ${String(e.message || e).slice(0, 160)}`);
+      }
+    }
+    return { records: [], found: false, via: "metadata (no matching table)", tableNames: tables.map((t) => t.name) };
+  }
+
+  // No metadata scope — try addressing each candidate name directly.
+  for (const name of candidates) {
+    try {
+      return {
+        records: await fetchAllRecords(encodeURIComponent(name), pat),
+        found: true,
+        via: `name "${name}"`,
+        tableNames: null,
+      };
+    } catch (e) {
+      /* try the next candidate */
+    }
+  }
+  return { records: [], found: false, via: "no candidate name matched", tableNames: null };
+}
+
 function isRecordIdArray(v) {
   return Array.isArray(v) && v.length > 0 && v.every((x) => typeof x === "string" && x.startsWith("rec"));
 }
@@ -149,23 +215,22 @@ module.exports = async function (context, req) {
         fetchAllRecords(cfg.tables.schools.id, pat),
       ]);
 
-    // Message copy is optional: the table is addressed by name and may simply
-    // not exist yet. A missing or unreadable table must never fail a sync —
-    // the API falls back to the built-in defaults in api/shared/messages.js.
-    let templateRecs = [];
-    let templatesTableMissing = false;
-    try {
-      templateRecs = await fetchAllRecords(
-        encodeURIComponent(cfg.tables.templates.id),
-        pat
-      );
-    } catch (e) {
-      templatesTableMissing = true;
-      context.log.warn(
-        `Message Templates table not read (${String(e.message || e).slice(0, 160)}); ` +
-          "falling back to built-in message copy."
-      );
-    }
+    // Message copy is optional: the table may simply not exist yet, and a
+    // missing or unreadable one must never fail a sync — the API falls back to
+    // the built-in defaults in api/shared/messages.js.
+    //
+    // Finding it is deliberately forgiving. Addressing a table by name is
+    // brittle in ways that are invisible from Airtable's UI: the intended name
+    // contains a "/", which does not survive a URL path cleanly, and a table
+    // created by importing a CSV is named after the file ("message-templates"),
+    // not after whatever the instructions said to call it. So: resolve the real
+    // table id through the metadata API when the PAT allows it, and otherwise
+    // try each candidate name in turn. The names actually present in the base
+    // are reported in the warning, which turns "not readable" from a dead end
+    // into a one-glance fix.
+    const templateResult = await findTemplateRecords(pat, context);
+    const templateRecs = templateResult.records;
+    const templatesTableMissing = !templateResult.found;
 
     /* ---- per-table lookup maps ---- */
 
@@ -577,11 +642,21 @@ module.exports = async function (context, req) {
       };
     }
     if (templatesTableMissing) {
+      // Say what was looked for AND what is actually there — a name mismatch is
+      // the likeliest cause and is otherwise invisible from the sync result.
+      const seen = templateResult.tableNames
+        ? ` Tables in this base: ${templateResult.tableNames.map((n) => `"${n}"`).join(", ")}.`
+        : " (Could not list the base's tables — the Airtable token lacks the schema.bases:read scope.)";
       warnings.push(
-        `No "${cfg.tables.templates.id}" table was readable, so the order ` +
-          "confirmation email and Teams message use the built-in default " +
-          "wording. Create that table to edit the copy without a deploy."
+        `No message-templates table was readable (${templateResult.via}), so the ` +
+          "order confirmation email and Teams message use the built-in default wording. " +
+          `Looked for: ${templateTableCandidates().map((n) => `"${n}"`).join(", ")}.${seen}`
       );
+    } else if (Object.keys(messageTemplates).length) {
+      const rows = Object.entries(messageTemplates)
+        .map(([k, v]) => `${k} [${Object.keys(v).sort().join(", ")}]`)
+        .join("; ");
+      context.log(`Message templates loaded via ${templateResult.via}: ${rows}`);
     }
 
     const principal = getPrincipal(req);
