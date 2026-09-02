@@ -231,17 +231,32 @@ function formatCourseList(items, currency, lang) {
     .join("\n");
 }
 
-// The order total sums only real prices, so a cart containing an unpriced
-// course would otherwise present a total that quietly understates the order.
-// The caveat is appended to the value rather than added to the templates, so
-// wording already edited in Airtable keeps working untouched.
+// The order total sums only the prices that exist, so a cart containing an
+// unpriced course would otherwise show a figure that looks final and is not —
+// and a hive could quote it to the family verbatim.
+//
+// It is not deleted, because the hive still needs to know whether this is a ¥400
+// order or a ¥5,000 one. It is relabelled as what it truthfully is: a floor.
+// "¥5,288 起" cannot be mistaken for a quote. The caveat is appended to the
+// value rather than added to the templates, so wording already edited in
+// Airtable keeps working untouched.
 function totalLabel(order, lang) {
+  const items = order.items || [];
+  const tbd = items.filter((it) => it.priceTbd || typeof it.price !== "number").length;
   const money = formatMoney(order.totalPrice, order.currency, lang);
-  const tbd = (order.items || []).filter((it) => it.priceTbd || typeof it.price !== "number").length;
+  const zh = pick(lang) === "zh";
+
   if (!tbd) return money;
-  return pick(lang) === "zh"
-    ? `${money}（另有 ${tbd} 门课程价格待定，未计入）`
-    : `${money} (excludes ${tbd} course${tbd > 1 ? "s" : ""} with no price yet)`;
+
+  // Nothing priced at all: a floor of zero is meaningless, so give up the number.
+  if (tbd === items.length) return zh ? "价格待定" : "Price TBD";
+
+  // "起" and "At least" are the same claim: this is a floor, not a quote.
+  // Capitalised so it still reads correctly if a template ever places
+  // {{totalPrice}} at the start of a line rather than after a "Total:" label.
+  return zh
+    ? `${money} 起（${tbd} 门课程价格待定）`
+    : `At least ${money} (${tbd} course${tbd > 1 ? "s" : ""} not priced yet)`;
 }
 
 function schoolNamesOf(items) {
