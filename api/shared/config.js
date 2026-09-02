@@ -20,7 +20,12 @@ module.exports = {
     // own "Course Abbreviation/课程简写" table, which nothing on the site
     // reads (subject.abbr was never displayed anywhere), so `abbr` below is
     // left pointing at a name that will simply resolve empty going forward.
-    subjects:     { id: "tblvQaPpgBRZSuT48", display: "Subject Name", displayZh: "学科", abbr: "Abbreviation/简写" },
+    // "Subject filter" / "学科筛选键值" were added 2026-09-02: several
+    // fine-grained subjects (e.g. Chinese Literature / Chinese Writing /
+    // Chinese Language Art) can share one coarser filter bucket ("Chinese")
+    // without losing their precise name on the course card/detail view. See
+    // subjectFilterKey()/subjectFilterLabel() in assets/app.js.
+    subjects:     { id: "tblvQaPpgBRZSuT48", display: "Subject Name", displayZh: "学科", abbr: "Abbreviation/简写", filterEn: "Subject filter", filterZh: "学科筛选键值" },
     grades:       { id: "tblQBtt6PSLLGeULf", display: "Title/年级名称" },
     teachers:     { id: "tbltGNxS4Hdy2YiGA", display: "Name / 姓名" },
     classPeriods: { id: "tblaC1VEnTdYvCFOo" },
@@ -47,7 +52,11 @@ module.exports = {
 
   trackFields: {
     trackId: "Track ID",
+    // "毕业路径" (added 2026-09-02) is the Chinese name of the track, alongside
+    // the existing English-only "Track Name" — same split-column pattern as
+    // Course Name/课程名称 etc. `name` stays the English side.
     name: "Track Name",
+    nameZh: "毕业路径",
     totalCredits: "Total Credits/总学分",
     serviceHours: "Community Service Hours/社区服务小时",
     comments: "Comments/备注",

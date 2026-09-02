@@ -256,11 +256,21 @@
     if (state.lang === "zh" && over) return over;
     return pickLang(s.nameEn, s.nameZh);
   }
-  // Stable, language-independent key — filter values must survive a language
-  // toggle, so they key off the English name, never the displayed label.
-  function subjectKey(s) { return s ? String(s.nameEn || s.nameZh || "") : ""; }
   function subjectLabels(c) {
     return (c.subjects || []).map(subjectLabel).filter(Boolean);
+  }
+  // The SUBJECT FILTER dropdown (and filter matching) deliberately uses a
+  // coarser grouping than the subject shown on the course card: several
+  // fine-grained subjects (Chinese Literature / Chinese Writing / Chinese
+  // Language Art) share one "Chinese" filter bucket via Airtable's "Subject
+  // filter"/"学科筛选键值" fields, even though the course still displays its
+  // own precise subject name everywhere else. Falls back to the subject's own
+  // name/key when no filter value is set (older snapshot, or not yet tagged),
+  // so filtering degrades to today's un-grouped behaviour rather than breaking.
+  function subjectFilterKey(s) { return s ? String(s.filterKey || s.nameEn || s.nameZh || "") : ""; }
+  function subjectFilterLabel(s) {
+    if (!s) return "";
+    return pickLang(s.filterNameEn, s.filterNameZh) || subjectLabel(s);
   }
 
   // ---- grade stages (see window.GRADE_STAGES in i18n.js) ------------------
@@ -324,7 +334,15 @@
     c.comments = asText(c.comments);
     c.prerequisite = asText(c.prerequisite);
     c.subjects = (c.subjects || []).map(function (s) {
-      return typeof s === "string" ? { nameEn: s, nameZh: s, abbr: "" } : s;
+      if (typeof s === "string") s = { nameEn: s, nameZh: s, abbr: "" };
+      if (!s) return s;
+      // Backfill the filter key/label for a snapshot synced before the
+      // "Subject filter" fields existed — falls back to the subject's own
+      // name, same as sync-side default, so filtering just stays un-grouped.
+      if (!s.filterKey) s.filterKey = s.nameEn || s.nameZh || "";
+      if (!s.filterNameEn) s.filterNameEn = s.nameEn || "";
+      if (!s.filterNameZh) s.filterNameZh = s.nameZh || "";
+      return s;
     }).filter(Boolean);
     // Defensive: older snapshots (synced before the sync-side fix) can still
     // have a raw Airtable record id sitting in `teachers` where a linked
@@ -477,7 +495,9 @@
       // dropping it seemed like a regression.
       c._hay = [
         c.nameEn, c.nameZh, c.code,
-        (c.subjects || []).map(function (s) { return s.nameEn + " " + s.nameZh; }).join(" "),
+        (c.subjects || []).map(function (s) {
+          return s.nameEn + " " + s.nameZh + " " + (s.filterNameEn || "") + " " + (s.filterNameZh || "");
+        }).join(" "),
         (c.teachers || []).join(" "),
         c.school && c.school.name ? c.school.name + " " + (c.school.abbr || "") : "",
       ].join(" ").toLowerCase();
@@ -491,7 +511,7 @@
     var list = trackCourses().filter(function (c) {
       // Subject / language / class-type filters compare stable English keys, so
       // an active filter keeps working when the page language is toggled.
-      if (f.subject && !(c.subjects || []).some(function (s) { return subjectKey(s) === f.subject; })) return false;
+      if (f.subject && !(c.subjects || []).some(function (s) { return subjectFilterKey(s) === f.subject; })) return false;
       if (f.grade && !(c.grades || []).some(function (g) { return gradeStageOf(g) === f.grade; })) return false;
       if (f.language && c.languageEn !== f.language) return false;
       // Rank-compared, not string-compared: the filter key uses a plain hyphen
@@ -524,6 +544,14 @@
   function courseDesc(c) {
     if (!c) return "";
     return state.lang === "zh" ? (c.descriptionZh || c.descriptionEn || "") : (c.descriptionEn || c.descriptionZh || "");
+  }
+  // Track name is split the same way (毕业路径/Track Name, added 2026-09-02):
+  // show whichever matches the page language, falling back to the other, and
+  // falling back further to the older single `name` field for a snapshot
+  // synced before this split existed.
+  function trackName(tr) {
+    if (!tr) return "";
+    return pickLang(tr.nameEn, tr.nameZh) || tr.name || "";
   }
 
   function courseById(id) {
@@ -660,7 +688,7 @@
 
     return (
       '<section class="panel"><h2>' + esc(t().step3Title) + '</h2><p class="hint">' + esc(t().step3Hint) +
-      (tr.name ? " — <b>" + esc(tr.name) + "</b>" : "") + "</p>" +
+      (trackName(tr) ? " — <b>" + esc(trackName(tr)) + "</b>" : "") + "</p>" +
       '<div class="req-card"><table class="req-table"><thead><tr><th>' + esc(t().reqSubject) + "</th><th style=\"text-align:right\">" + esc(t().reqCredits) + "</th></tr></thead><tbody>" +
       rows + "</tbody></table></div>" + policy +
       '<div class="nav-row"><button class="btn btn-ghost" id="back3">' + esc(t().back) + '</button>' +
@@ -804,7 +832,7 @@
     });
     var subjectOptions = optionsFromPairs([].concat.apply([], all.map(function (c) {
       return (c.subjects || []).map(function (s) {
-        return { value: subjectKey(s), label: subjectLabel(s) };
+        return { value: subjectFilterKey(s), label: subjectFilterLabel(s) };
       });
     })));
     // Subjects follow CEFF's taxonomy order; unlisted ones sort after, by label.
