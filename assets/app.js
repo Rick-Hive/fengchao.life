@@ -559,8 +559,14 @@
     for (var i = 0; i < vs.map.length; i++) {
       if (i > 0) html += '<span class="step-sep">›</span>';
       var internal = vs.map[i];
-      var isDone = internal < state.step;
-      var cls = internal === state.step ? "active" : isDone ? "done" : "";
+      // Once the order is placed every step behind it is complete, so all of
+      // them stay clickable. Without this the done page is a dead end: a refresh
+      // there restores state.step to its default 0, nothing satisfies
+      // `internal < state.step`, the whole stepper renders as inert text, and the
+      // only way out is "再下一单" — which throws the cart away.
+      var finished = !!state.done;
+      var isDone = finished || internal < state.step;
+      var cls = !finished && internal === state.step ? "active" : isDone ? "done" : "";
       var inner = '<span class="dot">' + (i + 1) + '</span><span class="lbl">' + esc(vs.labels[i]) + "</span>";
       // Only completed steps are clickable — jumping ahead could land on a step
       // whose prerequisites (level/mode/pedagogy) aren't set yet. Going back to
@@ -1410,9 +1416,15 @@
       var btn = e.target.closest ? e.target.closest("[data-goto-step]") : null;
       if (!btn) return;
       var n = parseInt(btn.getAttribute("data-goto-step"), 10);
-      if (isNaN(n) || n >= state.step) return;
+      if (isNaN(n)) return;
+      // From the done page any step is a step backwards, so the usual "no
+      // jumping ahead" guard does not apply there.
+      if (!state.done && n >= state.step) return;
       closeAllModals();
-      state.step = n;
+      // Leaving the done page has to clear the finished order, or render()
+      // short-circuits straight back to it and the click looks ignored.
+      state.done = null;
+      state.step = clampStep(n);
       render();
     });
   }
