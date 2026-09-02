@@ -56,4 +56,10 @@ jobs:
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
+          # Required, same as the build job. Without it the action fails with
+          # "deployment_token was not provided", so every merged PR left its
+          # preview environment behind and emailed a red build - the Free plan
+          # allows only 3 staging environments per app, so those leftovers
+          # would eventually block new PR preview builds.
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_GREEN_BUSH_0425AF100 }}
           action: "close"
