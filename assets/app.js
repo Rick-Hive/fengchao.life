@@ -295,8 +295,41 @@
   // tagged category is never silently hidden.
   var SUBJECT_ORDER = [
     "Math", "Chinese", "English", "Science",
-    "Social Studies", "Social Science", "ESL", "Bible/Theology",
+    "Social Studies", "ESL", "Bible/Theology",
   ];
+
+  // ---- requirements-page course lists (see window.REQ_SUBJECTS in i18n.js) --
+  // Which subject a course carries decides which graduation-requirement row it
+  // is offered under. Matching deliberately uses the course's Subject, not its
+  // filter bucket, so History (bucketed under Social Studies for the catalog
+  // filter, but an elementary subject) cannot leak into the high-school Social
+  // Studies requirement.
+  //
+  // Normalisation mirrors norm() in api/sync/index.js — lowercase, strip
+  // whitespace including full-width, unify the full-width slash — so a subject
+  // renamed with different spacing or punctuation still matches.
+  function normSubj(s) {
+    return String(s == null ? "" : s).toLowerCase().replace(/[\s　]+/g, "").replace(/／/g, "/");
+  }
+  // Courses available under one requirement row, already scoped to the current
+  // track and to high school by trackCourses(). Returns [] when the row has no
+  // subjects mapped or nothing available matches — the caller then renders no
+  // list at all rather than an empty-state message.
+  function reqCourses(key) {
+    var names = (window.REQ_SUBJECTS || {})[key] || [];
+    if (!names.length) return [];
+    var want = {};
+    names.forEach(function (n) { want[normSubj(n)] = true; });
+    return trackCourses().filter(function (c) {
+      return (c.subjects || []).some(function (s) {
+        return s && (want[normSubj(s.nameEn)] || want[normSubj(s.nameZh)]);
+      });
+    });
+  }
+  // Which requirement rows are expanded. Module-level rather than on `state`
+  // on purpose: `state` is mirrored to localStorage, and a disclosure being
+  // open is not worth persisting across reloads.
+  var reqOpen = {};
 
   // Older snapshots (before the 2026-08-27 field split) carry `classType`,
   // `language` and plain-string `subjects`. Deploying the front-end and the
@@ -674,9 +707,38 @@
       var v = tr.credits ? tr.credits[key] : null;
       if (v === null || v === undefined) return;
       var lbl = window.REQ_LABELS[key];
+      var name = esc(pickLang(lbl.en, lbl.zh));
+      var cs = reqCourses(key);
+      // No course list for a row with nothing available — the label is plain
+      // text and the row reads exactly as it did before this feature.
+      if (!cs.length) {
+        rows += "<tr><td>" + name + '</td><td class="num">' + esc(v) + "</td></tr>";
+        return;
+      }
+      var open = !!reqOpen[key];
       rows +=
-        "<tr><td>" + esc(pickLang(lbl.en, lbl.zh)) +
-        '</td><td class="num">' + esc(v) + "</td></tr>";
+        '<tr class="req-row' + (open ? " open" : "") + '"><td>' +
+        '<button type="button" class="req-toggle" data-req="' + esc(key) + '" aria-expanded="' + (open ? "true" : "false") + '">' +
+        '<span class="req-caret" aria-hidden="true">' + (open ? "▾" : "▸") + "</span>" +
+        name + ' <span class="req-count">' + cs.length + " " + esc(t().reqAvailable) + "</span>" +
+        "</button></td>" +
+        '<td class="num">' + esc(v) + "</td></tr>";
+      if (open) {
+        rows +=
+          '<tr class="req-courses"><td colspan="2"><div class="req-chips">' +
+          cs.map(function (c) {
+            var inCart = !!state.cart[c.id];
+            return (
+              '<button type="button" class="req-chip' + (inCart ? " in-cart" : "") + '" data-id="' + esc(c.id) + '">' +
+              (c.code ? '<span class="req-chip-code">' + esc(c.code) + "</span>" : "") +
+              esc(courseName(c) || c.code || "—") +
+              (typeof c.creditHours === "number" ? ' <span class="req-chip-cr">' + esc(c.creditHours) + "</span>" : "") +
+              (inCart ? ' <span class="req-chip-tick" aria-hidden="true">✓</span>' : "") +
+              "</button>"
+            );
+          }).join("") +
+          "</div></td></tr>";
+      }
     });
     rows +=
       '<tr class="req-total"><td>' + esc(t().totalCredits) + '</td><td class="num">' + esc(tr.totalCredits == null ? "—" : tr.totalCredits) + "</td></tr>" +
@@ -689,7 +751,7 @@
     return (
       '<section class="panel"><h2>' + esc(t().step3Title) + '</h2><p class="hint">' + esc(t().step3Hint) +
       (trackName(tr) ? " — <b>" + esc(trackName(tr)) + "</b>" : "") + "</p>" +
-      '<div class="req-card"><table class="req-table"><thead><tr><th>' + esc(t().reqSubject) + "</th><th style=\"text-align:right\">" + esc(t().reqCredits) + "</th></tr></thead><tbody>" +
+      '<div class="req-card" id="reqCard"><table class="req-table"><thead><tr><th>' + esc(t().reqSubject) + "</th><th style=\"text-align:right\">" + esc(t().reqCredits) + "</th></tr></thead><tbody>" +
       rows + "</tbody></table></div>" + policy +
       '<div class="nav-row"><button class="btn btn-ghost" id="back3">' + esc(t().back) + '</button>' +
       '<button class="btn btn-primary" id="next3">' + esc(t().nextStep) + "</button></div></section>"
@@ -1295,6 +1357,25 @@
       if (gw) gw.innerHTML = gridHtml();
       persistWizard(); // this path updates gridWrap directly and skips render()
     });
+
+    // Requirements page: expand/collapse a row's course list, and open the
+    // course detail modal from a chip. Deliberately the SAME modal the catalog
+    // uses (openCourseModal), so "view or select" needs no second UI and the
+    // Select button inside it already writes to the shared cart.
+    var reqCard = document.getElementById("reqCard");
+    if (reqCard) {
+      reqCard.addEventListener("click", function (e) {
+        var tg = e.target.closest("[data-req]");
+        if (tg) {
+          var k = tg.getAttribute("data-req");
+          reqOpen[k] = !reqOpen[k];
+          render();
+          return;
+        }
+        var chip = e.target.closest(".req-chip");
+        if (chip) openCourseModal(chip.getAttribute("data-id"));
+      });
+    }
 
     var grid = document.getElementById("gridWrap");
     if (grid) {

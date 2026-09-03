@@ -31,6 +31,7 @@ window.I18N = {
     step3Hint: "以下为所选路径的毕业要求，请仔细阅读后点击下一步。",
     reqSubject: "学科",
     reqCredits: "所需学分",
+    reqAvailable: "门可选",
     totalCredits: "总学分",
     serviceHours: "社区服务（小时）",
     policyTitle: "毕业政策说明",
@@ -152,6 +153,7 @@ window.I18N = {
     step3Hint: "Requirements for your selected track. Please read carefully, then continue.",
     reqSubject: "Subject",
     reqCredits: "Credits required",
+    reqAvailable: "available",
     totalCredits: "Total credits",
     serviceHours: "Community service (hours)",
     policyTitle: "Graduation policy notes",
@@ -367,10 +369,66 @@ window.REQ_LABELS = {
   english: { zh: "英语", en: "English" },
   chinese: { zh: "中文", en: "Chinese" },
   social: { zh: "社会学", en: "Social Studies" },
-  bible: { zh: "圣经 / 神学与修辞", en: "Bible / Theology & Rhetoric" },
+  // 修辞/Rhetoric was deleted from the base 2026-09-03, so it is no longer
+  // named here. The Track table's column is still "Bible & Theology & Rhetoric
+  // Credits" — that is the data source's name, not what parents are shown.
+  bible: { zh: "圣经 / 神学", en: "Bible / Theology" },
   speaking: { zh: "公众演讲", en: "Public Speaking" },
   secondLang: { zh: "第二外语", en: "Second Foreign Language" },
   fineArts: { zh: "艺术", en: "Fine Arts" },
   pe: { zh: "体育", en: "Physical Education" },
   elective: { zh: "选修", en: "Electives" },
+};
+
+// Which Course Subject rows satisfy each graduation-requirement row, used to
+// list the actual available courses under each row on the requirements page
+// (renderStep3 in assets/app.js). Keyed by the REQ_LABELS keys above, which are
+// also the keys the sync publishes in each track's `credits` object.
+//
+// Matched against the course's **Subject**, not its "Subject filter" bucket,
+// and that distinction is load-bearing: History buckets under Social Studies
+// for catalog filtering, but History is an elementary subject and must NOT
+// count toward the high-school Social Studies requirement. Bucket-matching
+// would silently pull it in.
+//
+// Matching is tolerant (see reqCourses/normSubj in assets/app.js): case,
+// whitespace and full-width punctuation are ignored, either language matches,
+// and any one of the listed spellings is enough — so renaming a subject in
+// Airtable does not have to break this immediately.
+//
+// Policy, confirmed by Rick 2026-09-03, for HIGH SCHOOL programs:
+//   · ESL counts toward Electives, NOT English.
+//   · History is elementary-only; excluded from Social Studies.
+//   · Rhetoric was deleted from the base.
+//   · Public Speaking and Physical Education have no subject of their own, so
+//     they are deliberately absent below — those rows show their credit
+//     requirement with no course list, rather than repeating the elective list.
+// A key that is missing here, or whose subjects match nothing currently
+// available, renders no course list at all.
+//
+// NOTE: Music, Art and Third Language were added to Airtable on 2026-09-03 but
+// do not appear in the snapshot yet. The sync only publishes subjects that at
+// least one course is actually tagged with (see api/sync/index.js), so the
+// Fine Arts and Second Foreign Language rows stay bare until courses carry
+// those subjects and a re-sync runs. That is expected, not a bug.
+window.REQ_SUBJECTS = {
+  math:       ["Math", "数学"],
+  science:    ["Science", "科学"],
+  english:    ["English Foundations", "English Writing", "English Literature",
+               "英文基础", "英文写作", "英文文学"],
+  chinese:    ["Chinese Language Art", "Chinese Writing", "Chinese Literature",
+               "中文基础", "中文写作", "中文文学"],
+  social:     ["Social Studies", "社科"],
+  // Added 2026-09-03. This row was left unmapped on the understanding that
+  // no Public Speaking subject existed -- then "EWR-HS-302 Introduction to
+  // Public Speaking" appeared in the base. Listing the spellings costs
+  // nothing if no such subject exists: the row simply stays bare, exactly as
+  // it does today. Note the course code prefix is EWR (English Writing), so
+  // if that course is tagged English Writing rather than Public Speaking it
+  // will surface under the English requirement instead -- worth checking.
+  speaking:   ["Public Speaking", "公众演讲", "演讲"],
+  bible:      ["Bible/Theology", "圣经/神学"],
+  secondLang: ["Third Language", "第三语言", "第三外语"],
+  fineArts:   ["Music", "Art", "音乐", "艺术", "美术"],
+  elective:   ["Electives", "选修课", "ESL"],
 };

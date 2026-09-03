@@ -244,6 +244,34 @@ div.step-item:not(.active) { cursor: not-allowed; }
 .req-table tr:last-child td { border-bottom: none; }
 .req-table td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .req-total td { background: var(--accent-soft); font-weight: 700; }
+
+/* Requirements page: per-row course lists (see window.REQ_SUBJECTS in i18n.js).
+   A row only becomes a disclosure when courses are actually available, so the
+   table still reads as a plain reference table for rows with nothing to show. */
+.req-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.req-toggle:hover { color: var(--accent); }
+.req-caret { color: var(--muted); font-size: 0.8rem; width: 0.8em; }
+.req-count { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+.req-row.open .req-count { color: var(--accent); }
+.req-courses td { background: #f7f9fc; padding-top: 8px; padding-bottom: 12px; }
+.req-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.req-chip {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--card); color: var(--ink);
+  font: inherit; font-size: 0.82rem; cursor: pointer; text-align: left;
+}
+.req-chip:hover { border-color: var(--accent); color: var(--accent); }
+.req-chip-code { color: var(--muted); font-size: 0.74rem; letter-spacing: 0.03em; }
+.req-chip-cr { color: var(--muted); font-size: 0.74rem; font-variant-numeric: tabular-nums; }
+/* Already in the cart. Never red — that reads as rejection in Chinese UI. */
+.req-chip.in-cart { border-color: var(--accent); background: var(--accent-soft); }
+.req-chip-tick { color: var(--accent); font-size: 0.78rem; }
+@media (max-width: 560px) { .req-chip { font-size: 0.78rem; } }
 .policy { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; margin-top: 16px; box-shadow: var(--shadow); }
 .policy h3 { margin: 0 0 8px; font-size: 1rem; color: var(--accent-dark); }
 .policy pre { white-space: pre-wrap; font-family: inherit; margin: 0; font-size: 0.88rem; color: var(--muted); }
