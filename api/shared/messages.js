@@ -219,6 +219,40 @@ function courseName(it, lang) {
   return first || second || it.name || "";
 }
 
+// Squash any internal newline or run of spaces down to a single space.
+//
+// An Airtable cell can hold a line break — "TT-CHLT-109 / 《失乐园》" arrived
+// with one inside the course name — and while HTML collapses that invisibly on
+// the website, these messages are composed as PLAIN TEXT, so it split one
+// course across two lines and broke the "• code name — price" shape. Guarding
+// here fixes every message immediately and needs no re-sync; the stray newline
+// is still worth cleaning at the source.
+function oneLine(s) {
+  return String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+}
+
+// The track name renders in ONE language — the language the order was placed
+// in — for BOTH audiences: the parent's confirmation email and the hive's
+// notification. This is the site's single-language rule (v15) and it applies to
+// the hive too; "国际路线：非古典教育 / International: Non-Classical" was
+// wrong in both places, not just the parent's email.
+//
+// Note this differs from the course fields in the payload (name, subjects,
+// class type, teaching language), which really are sent bilingually. Those are
+// data the flow may reuse; this is display text the reader sees.
+//
+// `api/order/index.js` sends nameZh/nameEn alongside the combined `name`. When
+// only the flat `name` is present (a snapshot synced before the 毕业路径
+// split) it is used as-is, which is the best available fallback.
+function trackNameOne(order, lang) {
+  const t = (order && order.track) || {};
+  const zh = oneLine(t.nameZh);
+  const en = oneLine(t.nameEn);
+  const first = pick(lang) === "zh" ? zh : en;
+  const second = pick(lang) === "zh" ? en : zh;
+  return first || second || oneLine(t.name);
+}
+
 // A course whose price is not set yet shows the placeholder the site shows,
 // not ¥0 — a family reading "¥0" would reasonably think the course is free.
 function priceLabel(it, currency, lang) {
@@ -230,7 +264,7 @@ function priceLabel(it, currency, lang) {
 function formatCourseList(items, currency, lang) {
   return (items || [])
     .map((it) => {
-      const bits = [it.code, courseName(it, lang)].filter(Boolean).join(" ");
+      const bits = [oneLine(it.code), oneLine(courseName(it, lang))].filter(Boolean).join(" ");
       return `• ${bits} — ${priceLabel(it, currency, lang)}`;
     })
     .join("\n");
@@ -307,7 +341,7 @@ function buildMessages(order, templates, lang) {
     submittedAt: formatWhen(order.submittedAt, l),
     email: order.email,
     teamsAccount: order.teamsAccount || (l === "zh" ? "（未填写）" : "(not provided)"),
-    trackName: (order.track && order.track.name) || "",
+    trackName: trackNameOne(order, l),
     itemCount: order.itemCount,
     courseList: formatCourseList(order.items, order.currency, l),
     totalPrice: totalLabel(order, l),

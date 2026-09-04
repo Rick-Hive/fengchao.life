@@ -258,7 +258,21 @@ module.exports = async function (context, req) {
       // The trigger schema types these as strings; sending null or omitting `name`
       // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
       teamsAccount: teamsAccount || "",
-      track: track ? { trackId: track.trackId, name: trackLabel(track) } : { trackId, name: "" },
+      // `name` stays the combined "中文 / English" string the flow's trigger
+      // schema has always seen. nameZh/nameEn are sent alongside it so
+      // api/shared/messages.js can render ONE language for the parent's
+      // confirmation email and BOTH for the hive's notification — a bilingual
+      // track line in a Chinese email breaks the single-language rule.
+      // Additive only: extra properties do not fail the trigger's schema
+      // (routes[].usedDefaultChannel is already sent without being in it).
+      track: track
+        ? {
+            trackId: track.trackId,
+            name: trackLabel(track),
+            nameZh: track.nameZh || "",
+            nameEn: track.nameEn || "",
+          }
+        : { trackId, name: "", nameZh: "", nameEn: "" },
       itemCount: items.length,
       totalPrice: total,
       currency: "CNY",
