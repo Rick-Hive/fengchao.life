@@ -32,7 +32,17 @@ html { font-size: 17px; }
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Latin fonts FIRST, CJK after. Font fallback is per-character, so Latin
+     glyphs come from Segoe UI (Windows) or the platform UI font, while Chinese
+     falls through to PingFang/YaHei/Noto. The CJK fonts used to lead this list,
+     and because PingFang SC and Microsoft YaHei both carry Latin glyphs,
+     English was being rendered in a Chinese font's Latin and never reached
+     Segoe UI at all. Requested 2026-09-04: match Segoe UI for English.
+     No webfont is loaded -- these are all system fonts, which keeps the
+     self-hosted-assets-only rule (mainland-China reliability) intact. */
+  font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
+               Roboto, "Helvetica Neue", Arial,
+               "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   line-height: 1.6;
   /* body fills at least the viewport and lays out header/main as a column,
      so main (.wrap) can flex to the exact remaining height below the header
