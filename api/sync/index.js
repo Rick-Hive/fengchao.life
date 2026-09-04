@@ -426,7 +426,13 @@ module.exports = async function (context, req) {
           credits,
           totalCredits: f(fields, tf.totalCredits) ?? null,
           serviceHours: f(fields, tf.serviceHours) ?? null,
-          comments: f(fields, tf.comments) ?? "",
+          // Split 2026-09-04 (Comment / 备注). Read both single-language
+          // columns; fall back to the old combined column for a base that has
+          // not been split yet. `comments` stays populated for any consumer
+          // still reading the single field.
+          commentsEn: asText(f(fields, tf.commentsEn)),
+          commentsZh: asText(f(fields, tf.commentsZh)),
+          comments: asText(f(fields, tf.commentsEn) || f(fields, tf.commentsZh) || f(fields, tf.comments)),
         };
       })
       .filter((t) => typeof t.trackId === "number" && t.trackId >= 1 && t.trackId <= 6)

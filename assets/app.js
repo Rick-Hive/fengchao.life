@@ -744,8 +744,12 @@
       '<tr class="req-total"><td>' + esc(t().totalCredits) + '</td><td class="num">' + esc(tr.totalCredits == null ? "—" : tr.totalCredits) + "</td></tr>" +
       '<tr class="req-total"><td>' + esc(t().serviceHours) + '</td><td class="num">' + esc(tr.serviceHours == null ? "—" : tr.serviceHours) + "</td></tr>";
 
-    var policy = tr.comments
-      ? '<div class="policy"><h3>' + esc(t().policyTitle) + "</h3><pre>" + esc(String(tr.comments).replace(/^"|"$/g, "")) + "</pre></div>"
+    // Policy notes are a language pair since 2026-09-04 (Comment / 备注). Show
+    // the page language, fall back to the other, then to the old combined
+    // `comments` for a snapshot synced before the split.
+    var notes = pickLang(tr.commentsEn, tr.commentsZh) || tr.comments || "";
+    var policy = notes
+      ? '<div class="policy"><h3>' + esc(t().policyTitle) + "</h3><pre>" + esc(String(notes).replace(/^"|"$/g, "")) + "</pre></div>"
       : "";
 
     return (

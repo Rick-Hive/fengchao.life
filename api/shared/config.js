@@ -59,6 +59,13 @@ module.exports = {
     nameZh: "毕业路径",
     totalCredits: "Total Credits/总学分",
     serviceHours: "Community Service Hours/社区服务小时",
+    // "Comments/备注" was split into two single-language columns (2026-09-04),
+    // same pattern as Track Name/毕业路径: "Comment" is English, "备注" Chinese.
+    // The requirements page shows whichever matches the page language, via
+    // trackComments() in assets/app.js. `comments` is kept as the old combined
+    // name so a snapshot synced before the split still resolves.
+    commentsEn: "Comment",
+    commentsZh: "备注",
     comments: "Comments/备注",
     // subject-credit columns shown on the requirements page, in display order
     credits: [
