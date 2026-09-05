@@ -67,7 +67,11 @@ vc.on("error", (...a) => console.log("   [console.error]", ...a));
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://www.fengchao.life/", virtualConsole: vc });
 const { window } = dom;
 window.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve(snapshot) });
-window.scrollTo = () => {};
+let scrollCalls = 0;
+window.scrollTo = () => { scrollCalls++; };
+// jsdom only provides rAF with pretendToBeVisual; the modal uses it to animate in.
+window.requestAnimationFrame = cb => setTimeout(() => cb(Date.now()), 0);
+window.cancelAnimationFrame = id => clearTimeout(id);
 window.matchMedia = () => ({ matches: false, addEventListener(){}, removeEventListener(){} });
 
 window.eval(fs.readFileSync(ROOT + "i18n.js", "utf8"));
@@ -199,6 +203,33 @@ setTimeout(() => {
   check("PE has its own row now", reqRow("体育"), ["PE-HS-101"]);
   check("社会学 stays empty — no HS social-studies course in this fixture",
     plainRow("社会学"), true);
+
+  // Expanding/collapsing a row must not scroll the page: render() jumps to the
+  // top, which threw the parent away from the row they had just opened.
+  const before = scrollCalls;
+  reqToggle("艺术").click();                       // expand
+  check("expanding a row does not scroll the page", scrollCalls, before);
+  check("...and the row really is open",
+    doc.querySelectorAll(".req-courses .req-chip").length > 0, true);
+  reqToggle("艺术").click();                       // collapse
+  check("collapsing does not scroll either", scrollCalls, before);
+  check("...and the row really is closed",
+    doc.querySelectorAll(".req-courses .req-chip").length, 0);
+
+  // Selecting a course from a requirement chip is the third path that used to
+  // fall through to render().
+  reqToggle("艺术").click();
+  const chip = doc.querySelector(".req-courses .req-chip");
+  chip.click();                                    // opens the detail modal
+  const selectBtn = doc.querySelector(".modal [data-select]");
+  if (selectBtn) {
+    selectBtn.click();
+    check("selecting from a requirement chip does not scroll", scrollCalls, before);
+    check("...and the chip shows as selected",
+      !!doc.querySelector(".req-courses .req-chip.in-cart"), true);
+  } else {
+    check("modal offered a Select button", !!selectBtn, true);
+  }
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);

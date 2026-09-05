@@ -821,9 +821,13 @@
     );
   }
 
-  function renderStep3() {
+  // The requirements table, rebuilt on its own so expanding a row can replace
+  // just this markup inside #reqCard. Going through render() instead would
+  // rebuild the whole step and scroll the page back to the top — the row a
+  // parent just opened would jump off screen and have to be found again.
+  function reqTableHtml() {
     var tr = track();
-    if (!tr) return '<div class="notice">' + esc(t().loadErr) + "</div>";
+    if (!tr) return "";
     var rows = "";
     var creditKeys = Object.keys(window.REQ_LABELS);
     creditKeys.forEach(function (key) {
@@ -867,6 +871,17 @@
       '<tr class="req-total"><td>' + esc(t().totalCredits) + '</td><td class="num">' + esc(tr.totalCredits == null ? "—" : tr.totalCredits) + "</td></tr>" +
       '<tr class="req-total"><td>' + esc(t().serviceHours) + '</td><td class="num">' + esc(tr.serviceHours == null ? "—" : tr.serviceHours) + "</td></tr>";
 
+    return (
+      '<table class="req-table"><thead><tr><th>' + esc(t().reqSubject) +
+      '</th><th style="text-align:right">' + esc(t().reqCredits) + "</th></tr></thead><tbody>" +
+      rows + "</tbody></table>"
+    );
+  }
+
+  function renderStep3() {
+    var tr = track();
+    if (!tr) return '<div class="notice">' + esc(t().loadErr) + "</div>";
+
     // Policy notes are a language pair since 2026-09-04 (Comment / 备注). Show
     // the page language, fall back to the other, then to the old combined
     // `comments` for a snapshot synced before the split.
@@ -878,8 +893,7 @@
     return (
       '<section class="panel"><h2>' + esc(t().step3Title) + '</h2><p class="hint">' + esc(t().step3Hint) +
       (trackName(tr) ? " — <b>" + esc(trackName(tr)) + "</b>" : "") + "</p>" +
-      '<div class="req-card" id="reqCard"><table class="req-table"><thead><tr><th>' + esc(t().reqSubject) + "</th><th style=\"text-align:right\">" + esc(t().reqCredits) + "</th></tr></thead><tbody>" +
-      rows + "</tbody></table></div>" + policy +
+      '<div class="req-card" id="reqCard">' + reqTableHtml() + "</div>" + policy +
       '<div class="nav-row"><button class="btn btn-ghost" id="back3">' + esc(t().back) + '</button>' +
       '<button class="btn btn-primary" id="next3">' + esc(t().nextStep) + "</button></div></section>"
     );
@@ -1618,7 +1632,13 @@
         if (tg) {
           var k = tg.getAttribute("data-req");
           reqOpen[k] = !reqOpen[k];
-          render();
+          // Replace only the table, never render() — the row must stay under
+          // the cursor. render() rebuilds the step and scrolls to the top, so
+          // opening a row halfway down the page threw the parent back up to the
+          // heading and made them scroll to find what they had just opened.
+          // The listener is on #reqCard itself, so swapping its contents keeps
+          // it live and needs no rebinding.
+          reqCard.innerHTML = reqTableHtml();
           return;
         }
         var chip = e.target.closest(".req-chip");
@@ -1674,13 +1694,20 @@
     if (!id) return;
     if (state.cart[id]) delete state.cart[id];
     else state.cart[id] = true;
-    // On the catalog, update only the grid + cart bar (no scroll jump, search keeps focus);
-    // keep any open modal in sync without closing it.
+    // Update in place wherever the course is shown — the catalog grid, or the
+    // requirements table when a course was picked from a requirement row's
+    // chip. Both avoid render(), which scrolls the page back to the top (and on
+    // the catalog would also drop focus from the search box).
     var gw = document.getElementById("gridWrap");
+    var reqCard = document.getElementById("reqCard");
     if (gw) {
       gw.innerHTML = gridHtml();
       renderCartBar();
       persistWizard(); // this path skips render(), so persist explicitly
+    } else if (reqCard) {
+      reqCard.innerHTML = reqTableHtml(); // repaints the chip's selected state
+      renderCartBar();
+      persistWizard();
     } else {
       render();
     }
