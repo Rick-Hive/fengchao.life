@@ -362,14 +362,17 @@
       var items = [], grouped = {};
       (s.groups || []).forEach(function (g) {
         g.members.forEach(function (m) { grouped[m] = 1; });
-        items.push({ value: g.key, label: pickLang(g.en, g.zh) || g.key });
+        // A merged entry carries its own label ("K") and keeps it — the stage
+        // name (幼儿) is not what a parent is picking here.
+        items.push({ value: g.key, label: pickLang(g.en, g.zh) || g.key, named: true });
       });
       s.members.forEach(function (m) { if (!grouped[m]) items.push({ value: m, label: m }); });
       items.sort(function (a, b) { return gradeRank(firstMember(a.value)) - gradeRank(firstMember(b.value)); });
-      // A stage holding a single grade (大学预科) reads better as one row under
-      // the stage's own name than as a heading over one oddly-named grade
-      // ("Associate of Arts Degree").
-      if (items.length === 1) items[0].label = gradeStageLabel(s.key);
+      // A stage holding a single unnamed grade shows the stage's own name
+      // instead: "Associate of Arts Degree" is the raw row name in Airtable,
+      // while the stage is called 大学预科 / Pre-College, which is both shorter
+      // and what the rest of the site calls it.
+      if (items.length === 1 && !items[0].named) items[0].label = gradeStageLabel(s.key);
       return { key: s.key, label: gradeStageLabel(s.key), items: items };
     });
     var gradeOrder = (state.data && state.data.grades) || [];
@@ -898,23 +901,18 @@
   }
 
   // The grade filter's multi-select: a button showing the current selection,
-  // over a panel of checkboxes grouped by stage. Each stage with more than one
-  // entry gets a "小学 · 全部" row that ticks or clears the whole stage at once,
-  // so "all of elementary" stays one click even though the grades are listed
-  // individually. Rendered as plain HTML like every other control here; the
-  // open/close and change handling lives in bindGradeFilter().
+  // over a panel of grade checkboxes. Only the grades themselves are listed —
+  // no "小学 · 全部" stage rows: they read as a second kind of thing in a list
+  // that is otherwise one row per grade, and the 全部 entry at the top of the
+  // control already covers "no grade filter at all". Stages survive only as the
+  // grouping and ordering of the rows (and the thin rule between groups).
+  // Rendered as plain HTML like every other control here; open/close and change
+  // handling live in bindGradeFilter().
   function gradeMultiHtml(groups, selected) {
     var sel = {};
     selected.forEach(function (v) { sel[v] = 1; });
     var body = groups.map(function (g) {
-      var rows = "";
-      if (g.label && g.items.length > 1) {
-        var allOn = g.items.every(function (it) { return !!sel[it.value]; });
-        rows +=
-          '<label class="ms-row ms-stage-row"><input type="checkbox" data-stage="' + esc(g.key) + '"' +
-          (allOn ? " checked" : "") + ' /><span>' + esc(g.label) + " · " + esc(t().filters.all) + "</span></label>";
-      }
-      rows += g.items.map(function (it) {
+      var rows = g.items.map(function (it) {
         return (
           '<label class="ms-row"><input type="checkbox" data-grade="' + esc(it.value) + '"' +
           (sel[it.value] ? " checked" : "") + ' /><span>' + esc(it.label) + "</span></label>"
@@ -1491,14 +1489,10 @@
     var apply = function () {
       var sel = gradeSel(), on = {};
       sel.forEach(function (v) { on[v] = 1; });
-      // Re-sync every box from the stored selection, so a stage row and its
-      // grades can never disagree about what is selected.
+      // Re-sync every box from the stored selection rather than trusting the
+      // one that was just clicked — the selection is the single source of truth.
       Array.prototype.forEach.call(panel.querySelectorAll("input[data-grade]"), function (el) {
         el.checked = !!on[el.getAttribute("data-grade")];
-      });
-      Array.prototype.forEach.call(panel.querySelectorAll("input[data-stage]"), function (el) {
-        var g = gradeGroups.filter(function (x) { return x.key === el.getAttribute("data-stage"); })[0];
-        el.checked = !!(g && g.items.length && g.items.every(function (it) { return !!on[it.value]; }));
       });
       var txt = btn.querySelector(".ms-btn-txt");
       if (txt) txt.textContent = gradeSummary(gradeGroups, sel);
@@ -1513,12 +1507,7 @@
       var sel = gradeSel();
       var add = function (v) { if (sel.indexOf(v) === -1) sel.push(v); };
       var drop = function (v) { var i = sel.indexOf(v); if (i !== -1) sel.splice(i, 1); };
-      if (el.hasAttribute("data-stage")) {
-        var g = gradeGroups.filter(function (x) { return x.key === el.getAttribute("data-stage"); })[0];
-        (g ? g.items : []).forEach(function (it) { (el.checked ? add : drop)(it.value); });
-      } else {
-        (el.checked ? add : drop)(el.getAttribute("data-grade"));
-      }
+      (el.checked ? add : drop)(el.getAttribute("data-grade"));
       setGradeSel(sel);
       apply();
     });

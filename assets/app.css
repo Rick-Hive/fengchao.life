@@ -336,7 +336,6 @@ div.step-item:not(.active) { cursor: not-allowed; }
 }
 .ms-row:hover { background: var(--bg); }
 .ms-row input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; cursor: pointer; }
-.ms-stage-row { font-weight: 600; color: var(--muted); }
 .ms-foot { border-top: 1px solid var(--line); margin-top: 4px; padding: 6px 4px 2px; text-align: right; }
 .ms-clear {
   border: 0; background: none; color: var(--accent); font-size: 0.82rem; cursor: pointer;

@@ -61,10 +61,8 @@ const count = () => {
 };
 const names = () => Array.from(doc.querySelectorAll(".course-card h4"))
   .map(h => h.textContent.replace(/\s+/g, " ").trim().replace(/\s+\S+-\S+-\S+$/, ""));
-const rows = () => Array.from(doc.querySelectorAll("#fGradePanel .ms-row")).map(r => {
-  const i = r.querySelector("input");
-  return (i.hasAttribute("data-stage") ? "[all] " : "  ") + r.querySelector("span").textContent + (i.checked ? "  ✓" : "");
-});
+const rows = () => Array.from(doc.querySelectorAll("#fGradePanel .ms-row"))
+  .map(r => r.querySelector("span").textContent);
 
 let failures = 0;
 const check = (label, actual, expected) => {
@@ -91,14 +89,14 @@ const goToCatalog = (level) => {
   }
 };
 const box = (v) => pick('#fGradePanel input[data-grade="' + v + '"]');
-const stageBox = (k) => pick('#fGradePanel input[data-stage="' + k + '"]');
 
 setTimeout(() => {
   goToCatalog("k8");
 
-  check("K-8 panel lists stages + grades, K1-K3 merged into K",
-    rows().map(r => r.trim()),
-    ["[all] 幼儿 · 全部", "Pre-K", "K", "[all] 小学 · 全部", "G1", "G2", "G3", "G4", "G5", "G6", "[all] 初中 · 全部", "G7", "G8"]);
+  check("K-8 lists bare grade codes only, kindergarten merged into K",
+    rows(),
+    ["K", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"]);
+  check("no stage rows anywhere", doc.querySelectorAll("#fGradePanel input[data-stage]").length, 0);
   check("K-8 offers no high-school grade", rows().some(r => /高中|大学预科|G9|G1[012]/.test(r)), false);
   check("no filter -> whole K-8 catalog", count(), 6);
 
@@ -118,30 +116,37 @@ setTimeout(() => {
   check("clear unticks every box", Array.from(doc.querySelectorAll("#fGradePanel input")).some(i => i.checked), false);
 
   tick(box("K"));
-  check("merged K matches K1/K2/K3 but not Pre-K", names(), ["幼儿中文"]);
+  check("K covers Pre-K, K1, K2 and K3 together", names().sort(), ["幼儿中文", "学前中文"].sort());
 
   click(pick("#fGradeClear"));
-  tick(stageBox("elementary"));
-  check("stage row selects the whole stage", names().sort(), ["数学一年级", "数学二年级", "数学三年级", "数学五年级"].sort());
-  check("stage row ticks its children", ["G1","G2","G3","G4","G5","G6"].every(g => box(g).checked), true);
-  tick(box("G2"));
-  check("unticking one grade unticks the stage row", stageBox("elementary").checked, false);
-  check("...and keeps the rest", names().sort(), ["数学一年级", "数学三年级", "数学五年级"].sort());
+  tick(box("G1")); tick(box("G2")); tick(box("G3")); tick(box("G4")); tick(box("G5")); tick(box("G6"));
+  check("ticking every elementary grade is still one OR", names().sort(),
+    ["数学一年级", "数学二年级", "数学三年级", "数学五年级"].sort());
 
   // ---- high school -------------------------------------------------------
   click(pick("#back4"));
   click(pick("#back2"));
   goToCatalog("hs");
-  check("HS panel lists G9-G12 and 大学预科 as one row",
-    rows().map(r => r.trim()),
-    ["[all] 高中 · 全部", "G9", "G10", "G11", "G12", "大学预科"]);
-  check("HS offers no K-8 grade", rows().some(r => /幼儿|小学|初中|Pre-K|^K$|G[1-8]$/.test(r.trim())), false);
+  check("HS lists G9-G12 plus 大学预科, no stage rows",
+    rows(),
+    ["G9", "G10", "G11", "G12", "大学预科"]);
+  check("HS offers no K-8 grade", rows().some(r => /^(K|Pre-K|G[1-8])$/.test(r)), false);
   check("switching level cleared the K-8 grade selection", doc.querySelector(".ms-btn-txt").textContent, "全部");
 
   tick(box("G9"));
   check("G9 matches the course tagged G9+G10", names(), ["代数二"]);
   tick(box("Associate of Arts Degree"));
   check("G9 OR 大学预科", names().sort(), ["代数二", "大学预科"].sort());
+
+  // The college-prep row is the one entry that is a name rather than a grade
+  // code, so it must follow the page language instead of staying Chinese.
+  click(pick("#langBtn"));
+  check("EN: college prep row is English, grade codes unchanged",
+    rows(), ["G9", "G10", "G11", "G12", "Pre-College"]);
+  check("EN: selection survives the language toggle",
+    doc.querySelector(".ms-btn-txt").textContent, "G9 +1");
+  click(pick("#langBtn"));
+  check("ZH: back to 大学预科", rows(), ["G9", "G10", "G11", "G12", "大学预科"]);
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);
