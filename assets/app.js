@@ -413,10 +413,19 @@
 
   // ---- requirements-page course lists (see window.REQ_SUBJECTS in i18n.js) --
   // Which subject a course carries decides which graduation-requirement row it
-  // is offered under. Matching deliberately uses the course's Subject, not its
-  // filter bucket, so History (bucketed under Social Studies for the catalog
-  // filter, but an elementary subject) cannot leak into the high-school Social
-  // Studies requirement.
+  // is offered under. Matching uses the course's Subject and NEVER its filter
+  // bucket — the two answer different questions and must not be swapped here:
+  //
+  //   Subject  = what the course actually is. It decides credit, so it decides
+  //              which requirement row a course can satisfy.
+  //   Bucket   = a display grouping that exists only to keep the catalog's
+  //              subject dropdown short (Chinese Literature / Writing / Language
+  //              Art all filter under one "Chinese"). It is a filtering
+  //              convenience, never a statement about credit.
+  //
+  // Bucket-matching here would put a Music course under Electives (its bucket
+  // is Specials/Electives, its subject is Music) and could pull History into
+  // the high-school Social Studies requirement. Requirements read Subject.
   //
   // Normalisation mirrors norm() in api/sync/index.js — lowercase, strip
   // whitespace including full-width, unify the full-width slash — so a subject

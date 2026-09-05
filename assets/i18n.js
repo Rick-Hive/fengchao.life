@@ -447,8 +447,23 @@ window.REQ_SUBJECTS = {
   // if that course is tagged English Writing rather than Public Speaking it
   // will surface under the English requirement instead -- worth checking.
   speaking:   ["Public Speaking", "公众演讲", "演讲"],
-  bible:      ["Bible/Theology", "圣经/神学"],
-  secondLang: ["Third Language", "第三语言", "第三外语"],
+  // The Track column is "Bible & Theology & Rhetoric Credits". Rhetoric exists
+  // again as a subject row (with no courses yet), so it is named here: listing
+  // a subject nothing is tagged with costs nothing, and the row would otherwise
+  // silently miss the first Rhetoric course added.
+  bible:      ["Bible/Theology", "圣经/神学", "Rhetoric", "修辞学"],
+  // The subject is "Third Languages" (plural) / 第二外语 — the singular
+  // spellings that used to be here matched nothing, so the four Third Languages
+  // courses appeared under no requirement row at all. Old spellings kept as
+  // tolerance in case the row is renamed back.
+  secondLang: ["Third Languages", "第二外语", "Third Language", "第三语言", "第三外语"],
   fineArts:   ["Music", "Art", "音乐", "艺术", "美术"],
-  elective:   ["Electives", "选修课", "ESL"],
+  pe:         ["PE", "体育"],
+  // Only courses whose SUBJECT is Electives. ESL used to be listed here, which
+  // is why three ESL courses showed up under 选修 on the requirements page —
+  // ESL is its own subject and is not a graduation requirement, so it now
+  // appears on no requirement row (the catalog is unaffected). If ESL should
+  // count toward electives, tag those courses Electives in Airtable rather than
+  // re-adding the mapping here.
+  elective:   ["Electives", "选修课"],
 };

@@ -19,11 +19,24 @@ const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8")
   .replace(/<script[^>]*><\/script>/g, "");
 
 // A snapshot shaped like the real one: courses tagged across K-8 and HS grades.
+// A high-school course carrying one subject, with an explicit filter bucket.
+const subj = (id, code, en, zh, subject, bucket) => ({
+  id, code, nameEn: en, nameZh: zh, grades: ["G11", "G12"],
+  trackIds: [1, 2, 3, 4, 5, 6], price: 100, teachers: [],
+  subjects: [{ nameEn: subject, nameZh: subject, filterKey: bucket, filterNameEn: bucket, filterNameZh: bucket }],
+});
+
 const snapshot = {
   generatedAt: "2026-09-05T00:00:00Z",
   k8TrackId: 7,
   grades: ["G12","K1","G2","G7","G9","G11","G3","Pre-K","K2","K3","G1","G4","G5","G6","G8","G10","Associate of Arts Degree"],
-  tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: {}, totalCredits: 24, serviceHours: 50, commentsEn: "EN policy", commentsZh: "中文政策", comments: "EN policy" }],
+  tracks: [{
+    trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典",
+    credits: { math: 4, science: 3, english: 4, chinese: 2, social: 2, bible: 2,
+               speaking: 1, secondLang: 1, fineArts: 1, pe: 1, elective: 2 },
+    totalCredits: 24, serviceHours: 50,
+    commentsEn: "EN policy", commentsZh: "中文政策", comments: "EN policy",
+  }],
   subjects: [{ nameEn: "Math", nameZh: "数学", filterKey: "Math", filterNameEn: "Math", filterNameZh: "数学" }],
   courses: [
     { id: "c1", code: "MTH-EL-101", nameEn: "Math G1",     nameZh: "数学一年级", grades: ["G1"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
@@ -35,6 +48,14 @@ const snapshot = {
     { id: "c7", code: "MTH-HS-201", nameEn: "Algebra II",  nameZh: "代数二",     grades: ["G9","G10"],      trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c8", code: "MTH-HS-301", nameEn: "Calculus",    nameZh: "微积分",     grades: ["G11","G12"],     trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c9", code: "CLP-CLP-101",nameEn: "AA Seminar",  nameZh: "大学预科",   grades: ["Associate of Arts Degree"], trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    // Requirements-page fixtures. Each carries a subject whose FILTER BUCKET
+    // differs from it, which is exactly the confusion the page must not make.
+    subj("e1", "ESL-HS-101",  "Advanced ESL",   "高级ESL课程", "ESL",             "ESL"),
+    subj("e2", "ESL-SPK-201", "Free Talk",      "英语自由会话", "ESL",             "ESL"),
+    subj("t1", "THL-HS-101",  "Spanish I",      "西班牙语一",   "Third Languages", "Electives"),
+    subj("m1", "MUS-HS-101",  "Choir",          "合唱",        "Music",           "Specials"),
+    subj("p1", "PE-HS-101",   "Team Sports",    "团队运动",     "PE",              "Specials"),
+    subj("x1", "ELE-HS-101",  "Yearbook",       "年鉴",        "Electives",       "Electives"),
   ],
   teachers: [], messages: {},
 };
@@ -150,6 +171,34 @@ setTimeout(() => {
     doc.querySelector(".ms-btn-txt").textContent, "G9 +1");
   click(pick("#langBtn"));
   check("ZH: back to 大学预科", rows(), ["G9", "G10", "G11", "G12", "大学预科"]);
+
+  // ---- graduation requirements page: subject decides the row, never bucket --
+  click(pick("#back4"));            // back to the requirements step
+  // Expanding a row re-renders the step, so re-query the DOM after each click
+  // rather than holding on to the button that triggered it.
+  const reqToggle = label => Array.from(doc.querySelectorAll(".req-toggle"))
+    .find(b => b.textContent.replace(/[▾▸\s]/g, "").startsWith(label));
+  const reqRow = label => {
+    const btn = reqToggle(label);
+    if (!btn) return null;
+    btn.click();
+    const chips = Array.from(doc.querySelectorAll(".req-courses .req-chip-code"))
+      .map(c => c.textContent.trim());
+    const collapse = reqToggle(label);
+    if (collapse) collapse.click();
+    return chips;
+  };
+  const plainRow = label => Array.from(doc.querySelectorAll(".req-table td"))
+    .some(td => td.textContent.trim() === label && !td.querySelector(".req-toggle"));
+
+  check("ESL courses appear under NO requirement row", reqRow("选修"), ["ELE-HS-101"]);
+  check("a Music course sits under 艺术, not 选修 (bucket says Specials)",
+    reqRow("艺术"), ["MUS-HS-101"]);
+  check("a Third Languages course sits under 第二外语 (bucket says Electives)",
+    reqRow("第二外语"), ["THL-HS-101"]);
+  check("PE has its own row now", reqRow("体育"), ["PE-HS-101"]);
+  check("社会学 stays empty — no HS social-studies course in this fixture",
+    plainRow("社会学"), true);
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);
