@@ -1,0 +1,148 @@
+// Grade filter behaviour, driven through the real page in jsdom.
+//
+// Run with:  npm i jsdom && node test/grade-filter.test.js
+//
+// The catalog's grade filter is the one control with real logic behind it —
+// level scoping, stage grouping, merged grades (K1-K3 -> K) and OR'd
+// multi-select — and all of it is invisible from the code alone: the bugs it
+// has produced (a K-8 parent offered "High School", a stale selection filtering
+// everything out while the dropdown showed "All") only appear when the wizard
+// is actually driven. So this drives it: real index.html, real app.js, a
+// fixture snapshot, and clicks.
+const fs = require("fs");
+const { JSDOM } = require("jsdom");
+
+const path = require("path");
+const ROOT = path.join(__dirname, "..", "assets") + path.sep;
+// Use the site's real page skeleton so every element app.js expects exists.
+const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8")
+  .replace(/<script[^>]*><\/script>/g, "");
+
+// A snapshot shaped like the real one: courses tagged across K-8 and HS grades.
+const snapshot = {
+  generatedAt: "2026-09-05T00:00:00Z",
+  k8TrackId: 7,
+  grades: ["G12","K1","G2","G7","G9","G11","G3","Pre-K","K2","K3","G1","G4","G5","G6","G8","G10","Associate of Arts Degree"],
+  tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: {}, totalCredits: 24, serviceHours: 50, commentsEn: "EN policy", commentsZh: "中文政策", comments: "EN policy" }],
+  subjects: [{ nameEn: "Math", nameZh: "数学", filterKey: "Math", filterNameEn: "Math", filterNameZh: "数学" }],
+  courses: [
+    { id: "c1", code: "MTH-EL-101", nameEn: "Math G1",     nameZh: "数学一年级", grades: ["G1"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c2", code: "MTH-EL-103", nameEn: "Math G3",     nameZh: "数学三年级", grades: ["G3"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c3", code: "MTH-EL-105", nameEn: "Math G5",     nameZh: "数学五年级", grades: ["G5"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c4", code: "MTH-EL-102", nameEn: "Math G2",     nameZh: "数学二年级", grades: ["G2"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c5", code: "CHL-KG-101", nameEn: "Kinder Chin", nameZh: "幼儿中文",   grades: ["K1","K2"],       trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c6", code: "CHL-KG-100", nameEn: "Pre-K Chin",  nameZh: "学前中文",   grades: ["Pre-K"],         trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c7", code: "MTH-HS-201", nameEn: "Algebra II",  nameZh: "代数二",     grades: ["G9","G10"],      trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c8", code: "MTH-HS-301", nameEn: "Calculus",    nameZh: "微积分",     grades: ["G11","G12"],     trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c9", code: "CLP-CLP-101",nameEn: "AA Seminar",  nameZh: "大学预科",   grades: ["Associate of Arts Degree"], trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+  ],
+  teachers: [], messages: {},
+};
+
+const { VirtualConsole } = require("jsdom");
+const vc = new VirtualConsole();
+vc.on("jsdomError", (e) => console.log("   [page error]", e.message.split("\n")[0]));
+vc.on("error", (...a) => console.log("   [console.error]", ...a));
+const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://www.fengchao.life/", virtualConsole: vc });
+const { window } = dom;
+window.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve(snapshot) });
+window.scrollTo = () => {};
+window.matchMedia = () => ({ matches: false, addEventListener(){}, removeEventListener(){} });
+
+window.eval(fs.readFileSync(ROOT + "i18n.js", "utf8"));
+window.eval(fs.readFileSync(ROOT + "app.js", "utf8"));
+
+const doc = window.document;
+const click = (el) => el.dispatchEvent(new window.Event("click", { bubbles: true }));
+const tick = (el) => { el.checked = !el.checked; el.dispatchEvent(new window.Event("change", { bubbles: true })); };
+const count = () => {
+  const m = /(\d+)/.exec(doc.querySelector(".result-count")?.textContent || "");
+  return m ? Number(m[1]) : null;
+};
+const names = () => Array.from(doc.querySelectorAll(".course-card h4"))
+  .map(h => h.textContent.replace(/\s+/g, " ").trim().replace(/\s+\S+-\S+-\S+$/, ""));
+const rows = () => Array.from(doc.querySelectorAll("#fGradePanel .ms-row")).map(r => {
+  const i = r.querySelector("input");
+  return (i.hasAttribute("data-stage") ? "[all] " : "  ") + r.querySelector("span").textContent + (i.checked ? "  ✓" : "");
+});
+
+let failures = 0;
+const check = (label, actual, expected) => {
+  const a = JSON.stringify(actual), e = JSON.stringify(expected);
+  const ok = a === e;
+  if (!ok) failures++;
+  console.log(`${ok ? "PASS" : "FAIL"}  ${label}${ok ? "" : `\n        got ${a}\n        want ${e}`}`);
+};
+
+const pick = (sel) => { const el = doc.querySelector(sel); if (!el) throw new Error("missing " + sel); return el; };
+const goToCatalog = (level) => {
+  click(pick('#levelGrid .choice-card[data-key="' + level + '"]'));
+  click(pick("#next0"));
+  if (level === "hs") { click(pick('#modeGrid .choice-card[data-key="international"]')); click(pick("#next1")); }
+  click(pick('#pedGrid .choice-card[data-key="' + (level === "hs" ? "classical" : "nonclassical") + '"]'));
+  click(pick("#next2"));
+  if (level === "hs") {
+    if (!doc.getElementById("next3")) {
+      console.log("   [debug] expected the requirements step; stepper says:",
+        Array.from(doc.querySelectorAll("#stepper .step-item")).map(e => e.className + ":" + e.textContent.trim()).join(" | "));
+      console.log("   [debug] panel html:", (doc.getElementById("app") || {}).innerHTML?.slice(0, 400));
+    }
+    click(pick("#next3"));
+  }
+};
+const box = (v) => pick('#fGradePanel input[data-grade="' + v + '"]');
+const stageBox = (k) => pick('#fGradePanel input[data-stage="' + k + '"]');
+
+setTimeout(() => {
+  goToCatalog("k8");
+
+  check("K-8 panel lists stages + grades, K1-K3 merged into K",
+    rows().map(r => r.trim()),
+    ["[all] 幼儿 · 全部", "Pre-K", "K", "[all] 小学 · 全部", "G1", "G2", "G3", "G4", "G5", "G6", "[all] 初中 · 全部", "G7", "G8"]);
+  check("K-8 offers no high-school grade", rows().some(r => /高中|大学预科|G9|G1[012]/.test(r)), false);
+  check("no filter -> whole K-8 catalog", count(), 6);
+
+  click(pick("#fGradeBtn"));
+  check("button opens the panel", doc.getElementById("fGradePanel").hidden, false);
+  tick(box("G1")); tick(box("G3")); tick(box("G5"));
+  check("G1 + G3 + G5 are OR'd", names().sort(), ["数学一年级", "数学三年级", "数学五年级"].sort());
+  check("summary shows first + overflow", doc.querySelector(".ms-btn-txt").textContent, "G1 +2");
+  check("panel stays open while picking", doc.getElementById("fGradePanel").hidden, false);
+
+  tick(box("G3"));
+  check("unticking G3 removes it", names().sort(), ["数学一年级", "数学五年级"].sort());
+
+  click(pick("#fGradeClear"));
+  check("clear resets to the whole level", count(), 6);
+  check("clear resets the summary", doc.querySelector(".ms-btn-txt").textContent, "全部");
+  check("clear unticks every box", Array.from(doc.querySelectorAll("#fGradePanel input")).some(i => i.checked), false);
+
+  tick(box("K"));
+  check("merged K matches K1/K2/K3 but not Pre-K", names(), ["幼儿中文"]);
+
+  click(pick("#fGradeClear"));
+  tick(stageBox("elementary"));
+  check("stage row selects the whole stage", names().sort(), ["数学一年级", "数学二年级", "数学三年级", "数学五年级"].sort());
+  check("stage row ticks its children", ["G1","G2","G3","G4","G5","G6"].every(g => box(g).checked), true);
+  tick(box("G2"));
+  check("unticking one grade unticks the stage row", stageBox("elementary").checked, false);
+  check("...and keeps the rest", names().sort(), ["数学一年级", "数学三年级", "数学五年级"].sort());
+
+  // ---- high school -------------------------------------------------------
+  click(pick("#back4"));
+  click(pick("#back2"));
+  goToCatalog("hs");
+  check("HS panel lists G9-G12 and 大学预科 as one row",
+    rows().map(r => r.trim()),
+    ["[all] 高中 · 全部", "G9", "G10", "G11", "G12", "大学预科"]);
+  check("HS offers no K-8 grade", rows().some(r => /幼儿|小学|初中|Pre-K|^K$|G[1-8]$/.test(r.trim())), false);
+  check("switching level cleared the K-8 grade selection", doc.querySelector(".ms-btn-txt").textContent, "全部");
+
+  tick(box("G9"));
+  check("G9 matches the course tagged G9+G10", names(), ["代数二"]);
+  tick(box("Associate of Arts Degree"));
+  check("G9 OR 大学预科", names().sort(), ["代数二", "大学预科"].sort());
+
+  console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
+  process.exit(failures ? 1 : 0);
+}, 300);

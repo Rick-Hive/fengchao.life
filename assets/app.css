@@ -308,6 +308,42 @@ div.step-item:not(.active) { cursor: not-allowed; }
   background: #fff; color: var(--ink); width: 100%;
 }
 
+/* Grade multi-select: a select-looking button over a checkbox panel, so a
+   parent can pick G1, G3 and G5 at once. Styled to match .filter-group select
+   exactly when closed, so the filter bar still reads as one row of controls. */
+.ms-group { position: relative; }
+.ms-btn {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; font-size: 0.88rem;
+  background: #fff; color: var(--ink); width: 100%; cursor: pointer; text-align: left;
+  font-family: inherit; line-height: 1.4;
+}
+.ms-btn:hover { border-color: var(--accent); }
+.ms-btn:focus-visible { outline: 2px solid var(--accent); border-color: var(--accent); }
+.ms-btn-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-caret { color: var(--muted); font-size: 0.75rem; flex: none; }
+.ms-panel {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; z-index: 30;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  max-height: 320px; overflow-y: auto; padding: 6px; min-width: 190px;
+}
+.ms-stage { padding: 2px 0; }
+.ms-stage + .ms-stage { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
+.ms-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px;
+  font-size: 0.88rem; cursor: pointer; user-select: none;
+}
+.ms-row:hover { background: var(--bg); }
+.ms-row input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; cursor: pointer; }
+.ms-stage-row { font-weight: 600; color: var(--muted); }
+.ms-foot { border-top: 1px solid var(--line); margin-top: 4px; padding: 6px 4px 2px; text-align: right; }
+.ms-clear {
+  border: 0; background: none; color: var(--accent); font-size: 0.82rem; cursor: pointer;
+  padding: 4px 6px; border-radius: 6px; font-family: inherit;
+}
+.ms-clear:hover { background: var(--bg); }
+
 /* Course cards (compact) */
 .choice-grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); max-width: 720px; }
 .course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; }

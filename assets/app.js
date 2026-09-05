@@ -287,14 +287,110 @@
   }
 
   // ---- grade stages (see window.GRADE_STAGES in i18n.js) ------------------
-  // The grade filter offers 幼儿/小学/初中/高中/大学预科 instead of 17 individual
-  // grades. A grade that isn't in any stage becomes its own option keyed by
-  // its raw name, so nothing is ever filtered out of existence.
+  // The grade filter is grouped by stage: each stage of the CURRENT level is an
+  // <optgroup> whose first entry selects the whole stage (小学 · 全部) and whose
+  // remaining entries are the individual grades inside it. Stage-only filtering
+  // was too coarse to be useful — high school offered just 高中 and 大学预科,
+  // and 高中 is essentially the entire catalog — while 17 bare grades in one
+  // list was the problem stages were invented to solve. Grouping gives both.
+  //
+  // A stage may merge some of its grades into one entry via `groups` (K1/K2/K3
+  // → "K"): parents choose by the distinction they actually make. A grade in no
+  // group is offered on its own, and a grade in no stage at all still becomes
+  // its own option keyed by its raw name, so nothing is filtered out of
+  // existence by a new row in Airtable.
   var GRADE_STAGE_OF = {};
   (window.GRADE_STAGES || []).forEach(function (s) {
     s.members.forEach(function (m) { GRADE_STAGE_OF[m] = s.key; });
   });
   function gradeStageOf(g) { return GRADE_STAGE_OF[g] || g; }
+
+  // Every selectable grade value -> the grade names it matches. Stage keys map
+  // to all their members, merged groups to their own members, and any bare
+  // grade to itself. One lookup drives both the dropdown and the filter test,
+  // so an option can never be offered that the matcher doesn't understand.
+  var GRADE_FILTER_MEMBERS = (function () {
+    var m = {};
+    (window.GRADE_STAGES || []).forEach(function (s) {
+      m[s.key] = s.members.slice();
+      (s.groups || []).forEach(function (g) { m[g.key] = g.members.slice(); });
+      s.members.forEach(function (name) { if (!m[name]) m[name] = [name]; });
+    });
+    return m;
+  })();
+  function gradeFilterMatches(course, value) {
+    var want = GRADE_FILTER_MEMBERS[value] || [value];
+    var have = course.grades || [];
+    for (var i = 0; i < have.length; i++) if (want.indexOf(have[i]) !== -1) return true;
+    return false;
+  }
+
+  // The grade filter is the one multi-select: a parent with children in G1, G3
+  // and G5 wants all three at once, which a <select> can't express. The chosen
+  // values live in `state.filters.grade` as a comma-separated string rather than
+  // an array, so wizard persistence, the reset helpers and the "did any filter
+  // change" checks all keep treating every filter as a plain string.
+  // Several selected grades are OR'd — a course shows if it is tagged with any
+  // of them — while the grade filter as a whole is still AND'd with subject,
+  // language and class type, as before.
+  // The grade entries currently on screen, set by renderStep4() and read by the
+  // change handler. Empty until the catalog step has rendered once.
+  var gradeGroups = [];
+  function gradeSel() {
+    return String(state.filters.grade || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+  function setGradeSel(list) {
+    var seen = {}, out = [];
+    (list || []).forEach(function (v) { if (v && !seen[v]) { seen[v] = 1; out.push(v); } });
+    state.filters.grade = out.join(",");
+  }
+  function gradeMatchesAny(course, values) {
+    for (var i = 0; i < values.length; i++) if (gradeFilterMatches(course, values[i])) return true;
+    return false;
+  }
+  // The selectable entries for the current level, grouped by stage:
+  // [{ key, label, items: [{value, label}] }]. A stage's `groups` collapse
+  // several grades into one entry (K1/K2/K3 → K); everything else is offered
+  // grade by grade. Grades in the data that belong to no stage go in a trailing
+  // group with no heading, so a new row in Airtable can never hide its courses.
+  function gradeFilterGroups(courses) {
+    var levelStages = state.level === "k8" ? K8_STAGES : HS_STAGES;
+    var firstMember = function (v) { return (GRADE_FILTER_MEMBERS[v] || [v])[0]; };
+    var out = (window.GRADE_STAGES || []).filter(function (s) {
+      return !!levelStages[s.key];
+    }).map(function (s) {
+      var items = [], grouped = {};
+      (s.groups || []).forEach(function (g) {
+        g.members.forEach(function (m) { grouped[m] = 1; });
+        items.push({ value: g.key, label: pickLang(g.en, g.zh) || g.key });
+      });
+      s.members.forEach(function (m) { if (!grouped[m]) items.push({ value: m, label: m }); });
+      items.sort(function (a, b) { return gradeRank(firstMember(a.value)) - gradeRank(firstMember(b.value)); });
+      // A stage holding a single grade (大学预科) reads better as one row under
+      // the stage's own name than as a heading over one oddly-named grade
+      // ("Associate of Arts Degree").
+      if (items.length === 1) items[0].label = gradeStageLabel(s.key);
+      return { key: s.key, label: gradeStageLabel(s.key), items: items };
+    });
+    var gradeOrder = (state.data && state.data.grades) || [];
+    var loose = optionsFromPairs([].concat.apply([], (courses || []).map(function (c) {
+      return (c.grades || [])
+        .filter(function (g) { return !GRADE_STAGE_OF[g]; })
+        .map(function (g) { return { value: g, label: g }; });
+    })));
+    loose.sort(function (a, b) { return gradeOrder.indexOf(a.value) - gradeOrder.indexOf(b.value); });
+    if (loose.length) out.push({ key: "", label: "", items: loose });
+    return out;
+  }
+  // What the closed control says: nothing selected reads as 全部/All, one
+  // selection reads as itself, several as "G1 +2" so the button never grows.
+  function gradeSummary(groups, selected) {
+    if (!selected.length) return t().filters.all;
+    var labels = {};
+    groups.forEach(function (g) { g.items.forEach(function (it) { labels[it.value] = it.label; }); });
+    var first = labels[selected[0]] || selected[0];
+    return selected.length === 1 ? first : first + " +" + (selected.length - 1);
+  }
   function gradeStageLabel(key) {
     var stages = window.GRADE_STAGES || [];
     for (var i = 0; i < stages.length; i++) {
@@ -554,11 +650,12 @@
   function filteredCourses() {
     var f = state.filters;
     var terms = (f.q || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+    var grades = gradeSel(); // OR'd together; see gradeMatchesAny
     var list = trackCourses().filter(function (c) {
       // Subject / language / class-type filters compare stable English keys, so
       // an active filter keeps working when the page language is toggled.
       if (f.subject && !(c.subjects || []).some(function (s) { return subjectFilterKey(s) === f.subject; })) return false;
-      if (f.grade && !(c.grades || []).some(function (g) { return gradeStageOf(g) === f.grade; })) return false;
+      if (grades.length && !gradeMatchesAny(c, grades)) return false;
       if (f.language && c.languageEn !== f.language) return false;
       // Rank-compared, not string-compared: the filter key uses a plain hyphen
       // ("Self-Paced Course") while Airtable stores a Unicode minus.
@@ -778,13 +875,62 @@
   // Filter dropdown. Options are {value,label} pairs: every filter now keys off
   // a stable, language-independent value (an English name or a stage key) while
   // displaying a localized label, so a filter survives a language toggle.
+  // An option may carry `group`: consecutive options sharing one group name are
+  // wrapped in an <optgroup> with that heading. Used by the grade filter, whose
+  // entries are stage headings ("小学") over individual grades. Options with no
+  // `group` render flat, so every other filter is unaffected.
   function selectHtmlKV(id, label, options, current) {
     var opts = '<option value="">' + esc(t().filters.all) + "</option>";
+    var openGroup = null;
     options.forEach(function (o) {
+      var g = o.group || null;
+      if (g !== openGroup) {
+        if (openGroup) opts += "</optgroup>";
+        if (g) opts += '<optgroup label="' + esc(g) + '">';
+        openGroup = g;
+      }
       opts += '<option value="' + esc(o.value) + '"' + (o.value === current ? " selected" : "") + ">" + esc(o.label) + "</option>";
     });
+    if (openGroup) opts += "</optgroup>";
     return (
       '<div class="filter-group"><label for="' + id + '">' + esc(label) + '</label><select id="' + id + '">' + opts + "</select></div>"
+    );
+  }
+
+  // The grade filter's multi-select: a button showing the current selection,
+  // over a panel of checkboxes grouped by stage. Each stage with more than one
+  // entry gets a "小学 · 全部" row that ticks or clears the whole stage at once,
+  // so "all of elementary" stays one click even though the grades are listed
+  // individually. Rendered as plain HTML like every other control here; the
+  // open/close and change handling lives in bindGradeFilter().
+  function gradeMultiHtml(groups, selected) {
+    var sel = {};
+    selected.forEach(function (v) { sel[v] = 1; });
+    var body = groups.map(function (g) {
+      var rows = "";
+      if (g.label && g.items.length > 1) {
+        var allOn = g.items.every(function (it) { return !!sel[it.value]; });
+        rows +=
+          '<label class="ms-row ms-stage-row"><input type="checkbox" data-stage="' + esc(g.key) + '"' +
+          (allOn ? " checked" : "") + ' /><span>' + esc(g.label) + " · " + esc(t().filters.all) + "</span></label>";
+      }
+      rows += g.items.map(function (it) {
+        return (
+          '<label class="ms-row"><input type="checkbox" data-grade="' + esc(it.value) + '"' +
+          (sel[it.value] ? " checked" : "") + ' /><span>' + esc(it.label) + "</span></label>"
+        );
+      }).join("");
+      return '<div class="ms-stage">' + rows + "</div>";
+    }).join("");
+    return (
+      '<div class="filter-group ms-group">' +
+      '<label for="fGradeBtn">' + esc(t().filters.grade) + "</label>" +
+      '<button type="button" class="ms-btn" id="fGradeBtn" aria-expanded="false" aria-haspopup="true">' +
+      '<span class="ms-btn-txt">' + esc(gradeSummary(groups, selected)) + "</span>" +
+      '<span class="ms-caret" aria-hidden="true">▾</span></button>' +
+      '<div class="ms-panel" id="fGradePanel" hidden>' + body +
+      '<div class="ms-foot"><button type="button" class="ms-clear" id="fGradeClear">' + esc(t().clearGrades) + "</button></div>" +
+      "</div></div>"
     );
   }
 
@@ -890,22 +1036,13 @@
     // data that belongs to no stage is appended as its own option, in
     // Airtable's grade order, so a new grade row can never hide the courses
     // tagged to it.
-    var levelStages = state.level === "k8" ? K8_STAGES : HS_STAGES;
-    var gradeOrder = state.data.grades || [];
-    var gradeOptions = (window.GRADE_STAGES || []).filter(function (s) {
-      return !!levelStages[s.key];
-    }).map(function (s) {
-      return { value: s.key, label: gradeStageLabel(s.key) };
-    });
-    var looseGrades = optionsFromPairs([].concat.apply([], all.map(function (c) {
-      return (c.grades || [])
-        .filter(function (g) { return !GRADE_STAGE_OF[g]; })
-        .map(function (g) { return { value: g, label: g }; });
-    })));
-    looseGrades.sort(function (a, b) {
-      return gradeOrder.indexOf(a.value) - gradeOrder.indexOf(b.value);
-    });
-    gradeOptions = gradeOptions.concat(looseGrades);
+    // Grade entries are scoped to the selected level and grouped by stage —
+    // K-8 never offers a high-school grade and vice versa, since trackCourses()
+    // has already excluded the other level's courses and such a choice could
+    // only ever return nothing. Kept on a module-level handle so the change
+    // handler can map a stage checkbox back to the grades it covers without
+    // rebuilding the list.
+    gradeGroups = gradeFilterGroups(all);
     // Filter options are built from the courses actually in this track, keyed
     // by their English value and labelled in the current page language.
     var langOptions = optionsFromPairs(all.map(function (c) {
@@ -941,7 +1078,7 @@
       '<div class="search-wrap"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><circle cx="9" cy="9" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M13.5 13.5L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
       '<input id="fSearch" type="search" placeholder="' + esc(t().searchPh) + '" value="' + esc(state.filters.q) + '" autocomplete="off" /></div></div>' +
       selectHtmlKV("fSubject", t().filters.subject, subjectOptions, state.filters.subject) +
-      selectHtmlKV("fGrade", t().filters.grade, gradeOptions, state.filters.grade) +
+      gradeMultiHtml(gradeGroups, gradeSel()) +
       selectHtmlKV("fLang", t().filters.language, langOptions, state.filters.language) +
       selectHtmlKV("fType", t().filters.classType, typeOptions, state.filters.classType) +
       "</div>" +
@@ -1330,6 +1467,86 @@
     if (el) el.addEventListener(ev, fn);
   }
 
+  // The grade multi-select. Ticking a box updates the grid in place rather than
+  // re-rendering the step, so the panel stays open while a parent picks G1, G3
+  // and G5 one after another — a full render would close it on every click.
+  function bindGradeFilter() {
+    var btn = document.getElementById("fGradeBtn");
+    var panel = document.getElementById("fGradePanel");
+    if (!btn || !panel) return;
+
+    var close = function () {
+      panel.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+    };
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var isOpen = !panel.hidden;
+      panel.hidden = isOpen;
+      btn.setAttribute("aria-expanded", isOpen ? "false" : "true");
+    });
+    // Clicks inside the panel must not reach the document handler that closes it.
+    panel.addEventListener("click", function (e) { e.stopPropagation(); });
+
+    var apply = function () {
+      var sel = gradeSel(), on = {};
+      sel.forEach(function (v) { on[v] = 1; });
+      // Re-sync every box from the stored selection, so a stage row and its
+      // grades can never disagree about what is selected.
+      Array.prototype.forEach.call(panel.querySelectorAll("input[data-grade]"), function (el) {
+        el.checked = !!on[el.getAttribute("data-grade")];
+      });
+      Array.prototype.forEach.call(panel.querySelectorAll("input[data-stage]"), function (el) {
+        var g = gradeGroups.filter(function (x) { return x.key === el.getAttribute("data-stage"); })[0];
+        el.checked = !!(g && g.items.length && g.items.every(function (it) { return !!on[it.value]; }));
+      });
+      var txt = btn.querySelector(".ms-btn-txt");
+      if (txt) txt.textContent = gradeSummary(gradeGroups, sel);
+      var gw = document.getElementById("gridWrap");
+      if (gw) gw.innerHTML = gridHtml();
+      persistWizard(); // updates gridWrap directly and skips render(), as the selects do
+    };
+
+    panel.addEventListener("change", function (e) {
+      var el = e.target;
+      if (!el || el.type !== "checkbox") return;
+      var sel = gradeSel();
+      var add = function (v) { if (sel.indexOf(v) === -1) sel.push(v); };
+      var drop = function (v) { var i = sel.indexOf(v); if (i !== -1) sel.splice(i, 1); };
+      if (el.hasAttribute("data-stage")) {
+        var g = gradeGroups.filter(function (x) { return x.key === el.getAttribute("data-stage"); })[0];
+        (g ? g.items : []).forEach(function (it) { (el.checked ? add : drop)(it.value); });
+      } else {
+        (el.checked ? add : drop)(el.getAttribute("data-grade"));
+      }
+      setGradeSel(sel);
+      apply();
+    });
+
+    on("fGradeClear", "click", function (e) {
+      e.stopPropagation();
+      setGradeSel([]);
+      apply();
+    });
+
+    // One document-level listener for the life of the page, not one per render.
+    if (!bindGradeFilter.docBound) {
+      bindGradeFilter.docBound = true;
+      document.addEventListener("click", function () {
+        var p = document.getElementById("fGradePanel");
+        var b = document.getElementById("fGradeBtn");
+        if (p && !p.hidden) { p.hidden = true; if (b) b.setAttribute("aria-expanded", "false"); }
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        var p = document.getElementById("fGradePanel");
+        var b = document.getElementById("fGradeBtn");
+        if (p && !p.hidden) { p.hidden = true; if (b) { b.setAttribute("aria-expanded", "false"); b.focus(); } }
+      });
+    }
+    close();
+  }
+
   function bind() {
     var levelGrid = document.getElementById("levelGrid");
     if (levelGrid) levelGrid.addEventListener("click", function (e) {
@@ -1372,15 +1589,16 @@
     on("back4", "click", function () { state.step = state.level === "k8" ? 2 : 3; render(); });
     on("back5", "click", function () { state.step = 4; render(); });
 
-    ["fSubject", "fGrade", "fLang", "fType"].forEach(function (id) {
+    ["fSubject", "fLang", "fType"].forEach(function (id) {
       on(id, "change", function (e) {
-        var map = { fSubject: "subject", fGrade: "grade", fLang: "language", fType: "classType" };
+        var map = { fSubject: "subject", fLang: "language", fType: "classType" };
         state.filters[map[id]] = e.target.value;
         var gw = document.getElementById("gridWrap");
         if (gw) gw.innerHTML = gridHtml();
         persistWizard(); // this path updates gridWrap directly and skips render()
       });
     });
+    bindGradeFilter();
 
     // Smart quick search: filters the grid live as the user types.
     on("fSearch", "input", function (e) {

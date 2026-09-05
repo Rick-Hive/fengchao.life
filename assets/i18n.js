@@ -39,6 +39,7 @@ window.I18N = {
     step4Hint: "点击卡片查看课程详情；点击“选择”按钮加入订单。可组合筛选，价格从低到高排列。",
     step4HintK8: "以下为小学与初中（K–G8）课程。点击卡片查看详情；点击“选择”按钮加入订单。",
     filters: { subject: "学科", grade: "年级", language: "授课语言", classType: "课程类型", teacher: "授课老师", all: "全部" },
+    clearGrades: "清除所选",
     searchLabel: "快速搜索",
     searchPh: "输入关键词，如：中文、math、生物…",
     resultCount: "门课程",
@@ -161,6 +162,7 @@ window.I18N = {
     step4Hint: "Click a card for full details; use the Select button to add it to your order. Combine filters as needed; sorted by price (low to high).",
     step4HintK8: "Elementary & middle school (K–G8) courses. Click a card for details; use the Select button to add it to your order.",
     filters: { subject: "Subject", grade: "Grade", language: "Language", classType: "Class type", teacher: "Teacher", all: "All" },
+    clearGrades: "Clear",
     searchLabel: "Quick search",
     searchPh: "Type a keyword: Chinese, math, biology…",
     resultCount: "courses",
@@ -270,8 +272,18 @@ window.I18N = {
 // and the detail view still show the exact grades from Airtable — this grouping
 // is for the filter only. A grade not listed here still appears in the filter
 // under its own name, so adding a row in Airtable can never hide courses.
+//
+// `groups` (optional) merges several of a stage's grades into ONE filter entry,
+// for grades parents don't distinguish between when choosing a course. K1/K2/K3
+// are the case that prompted it: a parent thinks "K", not "K2". A grade that is
+// in no group is offered on its own. A group's `key` is the stored filter value,
+// so it must not collide with a real grade name or a stage key.
 window.GRADE_STAGES = [
-  { key: "preschool",   zh: "幼儿",     en: "Preschool",     members: ["Pre-K", "K1", "K2", "K3"] },
+  {
+    key: "preschool", zh: "幼儿", en: "Preschool",
+    members: ["Pre-K", "K1", "K2", "K3"],
+    groups: [{ key: "K", zh: "K", en: "K", members: ["K1", "K2", "K3"] }],
+  },
   { key: "elementary",  zh: "小学",     en: "Elementary",    members: ["G1", "G2", "G3", "G4", "G5", "G6"] },
   { key: "middle",      zh: "初中",     en: "Middle School", members: ["G7", "G8"] },
   { key: "high",        zh: "高中",     en: "High School",   members: ["G9", "G10", "G11", "G12"] },
