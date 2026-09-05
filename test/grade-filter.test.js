@@ -98,7 +98,9 @@ setTimeout(() => {
     ["K", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"]);
   check("no stage rows anywhere", doc.querySelectorAll("#fGradePanel input[data-stage]").length, 0);
   check("K-8 offers no high-school grade", rows().some(r => /高中|大学预科|G9|G1[012]/.test(r)), false);
-  check("no filter -> whole K-8 catalog", count(), 6);
+  check("no filter -> whole K-8 catalog, Pre-K course included", count(), 6);
+  check("the Pre-K course is still in the catalog, just not filterable",
+    names().indexOf("学前中文") !== -1, true);
 
   click(pick("#fGradeBtn"));
   check("button opens the panel", doc.getElementById("fGradePanel").hidden, false);
@@ -116,7 +118,8 @@ setTimeout(() => {
   check("clear unticks every box", Array.from(doc.querySelectorAll("#fGradePanel input")).some(i => i.checked), false);
 
   tick(box("K"));
-  check("K covers Pre-K, K1, K2 and K3 together", names().sort(), ["幼儿中文", "学前中文"].sort());
+  check("K covers K1/K2/K3 only — Pre-K is not part of it", names(), ["幼儿中文"]);
+  check("no Pre-K row is offered", rows().indexOf("Pre-K"), -1);
 
   click(pick("#fGradeClear"));
   tick(box("G1")); tick(box("G2")); tick(box("G3")); tick(box("G4")); tick(box("G5")); tick(box("G6"));

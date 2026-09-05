@@ -282,10 +282,15 @@ window.GRADE_STAGES = [
   {
     key: "preschool", zh: "幼儿", en: "Preschool",
     members: ["Pre-K", "K1", "K2", "K3"],
-    // The whole preschool stage is offered as a single "K": parents choose
-    // between kindergarten and Grade 1, not between K1 and K2, and Pre-K is
-    // folded in so a Pre-K course is still reachable from the filter.
-    groups: [{ key: "K", zh: "K", en: "K", members: ["Pre-K", "K1", "K2", "K3"] }],
+    // K1/K2/K3 are offered as a single "K" — parents choose between
+    // kindergarten and Grade 1, not between K1 and K2.
+    groups: [{ key: "K", zh: "K", en: "K", members: ["K1", "K2", "K3"] }],
+    // `hidden` keeps a grade OUT OF THE FILTER while leaving it in `members`,
+    // which is what places its courses in a level (see courseInLevel). Pre-K is
+    // not offered as a choice: a Pre-K course still appears in the K-8 catalog
+    // under 全部/All, it just isn't separately filterable. Dropping the grade
+    // from `members` instead would strand those courses in no level at all.
+    hidden: ["Pre-K"],
   },
   { key: "elementary",  zh: "小学",     en: "Elementary",    members: ["G1", "G2", "G3", "G4", "G5", "G6"] },
   { key: "middle",      zh: "初中",     en: "Middle School", members: ["G7", "G8"] },

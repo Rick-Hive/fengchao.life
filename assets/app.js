@@ -366,6 +366,7 @@
         // name (幼儿) is not what a parent is picking here.
         items.push({ value: g.key, label: pickLang(g.en, g.zh) || g.key, named: true });
       });
+      (s.hidden || []).forEach(function (m) { grouped[m] = 1; }); // offered nowhere; see `hidden` in i18n.js
       s.members.forEach(function (m) { if (!grouped[m]) items.push({ value: m, label: m }); });
       items.sort(function (a, b) { return gradeRank(firstMember(a.value)) - gradeRank(firstMember(b.value)); });
       // A stage holding a single unnamed grade shows the stage's own name
