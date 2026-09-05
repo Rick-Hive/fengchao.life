@@ -821,6 +821,17 @@
     );
   }
 
+  // "4 学分" / "4 credits". A bare number in the credits column left parents
+  // reading the header to work out what it counted, and the chips were worse —
+  // "ESL-HS-101 高级ESL课程 0.5" says nothing about what the 0.5 is. English
+  // takes the singular for exactly 1; Chinese has one form either way.
+  function creditsWithUnit(v) {
+    if (v === null || v === undefined || v === "") return "—";
+    var n = Number(v);
+    var unit = n === 1 ? t().creditsUnitOne : t().creditsUnit;
+    return v + " " + unit;
+  }
+
   // The requirements table, rebuilt on its own so expanding a row can replace
   // just this markup inside #reqCard. Going through render() instead would
   // rebuild the whole step and scroll the page back to the top — the row a
@@ -839,7 +850,7 @@
       // No course list for a row with nothing available — the label is plain
       // text and the row reads exactly as it did before this feature.
       if (!cs.length) {
-        rows += "<tr><td>" + name + '</td><td class="num">' + esc(v) + "</td></tr>";
+        rows += "<tr><td>" + name + '</td><td class="num">' + esc(creditsWithUnit(v)) + "</td></tr>";
         return;
       }
       var open = !!reqOpen[key];
@@ -849,7 +860,7 @@
         '<span class="req-caret" aria-hidden="true">' + (open ? "▾" : "▸") + "</span>" +
         name + ' <span class="req-count">' + cs.length + " " + esc(t().reqAvailable) + "</span>" +
         "</button></td>" +
-        '<td class="num">' + esc(v) + "</td></tr>";
+        '<td class="num">' + esc(creditsWithUnit(v)) + "</td></tr>";
       if (open) {
         rows +=
           '<tr class="req-courses"><td colspan="2"><div class="req-chips">' +
@@ -859,7 +870,7 @@
               '<button type="button" class="req-chip' + (inCart ? " in-cart" : "") + '" data-id="' + esc(c.id) + '">' +
               (c.code ? '<span class="req-chip-code">' + esc(c.code) + "</span>" : "") +
               esc(courseName(c) || c.code || "—") +
-              (typeof c.creditHours === "number" ? ' <span class="req-chip-cr">' + esc(c.creditHours) + "</span>" : "") +
+              (typeof c.creditHours === "number" ? ' <span class="req-chip-cr">' + esc(creditsWithUnit(c.creditHours)) + "</span>" : "") +
               (inCart ? ' <span class="req-chip-tick" aria-hidden="true">✓</span>' : "") +
               "</button>"
             );
@@ -868,7 +879,7 @@
       }
     });
     rows +=
-      '<tr class="req-total"><td>' + esc(t().totalCredits) + '</td><td class="num">' + esc(tr.totalCredits == null ? "—" : tr.totalCredits) + "</td></tr>" +
+      '<tr class="req-total"><td>' + esc(t().totalCredits) + '</td><td class="num">' + esc(creditsWithUnit(tr.totalCredits)) + "</td></tr>" +
       '<tr class="req-total"><td>' + esc(t().serviceHours) + '</td><td class="num">' + esc(tr.serviceHours == null ? "—" : tr.serviceHours) + "</td></tr>";
 
     return (

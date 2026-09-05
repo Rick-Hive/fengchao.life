@@ -31,6 +31,11 @@ window.I18N = {
     step3Hint: "以下为所选路径的毕业学分要求，请仔细阅读后点击下一步。",
     reqSubject: "学科",
     reqCredits: "所需学分",
+    // Unit shown after every credit number on the requirements page. English
+    // needs both forms so "1 credit" doesn't read as "1 credits"; Chinese has
+    // one form. See creditsWithUnit() in assets/app.js.
+    creditsUnit: "学分",
+    creditsUnitOne: "学分",
     reqAvailable: "门可选",
     totalCredits: "总学分",
     serviceHours: "社区服务（小时）",
@@ -154,6 +159,8 @@ window.I18N = {
     step3Hint: "Credit requirements for your selected track. Please read carefully, then continue.",
     reqSubject: "Subject",
     reqCredits: "Credits required",
+    creditsUnit: "credits",
+    creditsUnitOne: "credit",
     reqAvailable: "available",
     totalCredits: "Total credits",
     serviceHours: "Community service (hours)",

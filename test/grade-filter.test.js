@@ -22,7 +22,7 @@ const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8")
 // A high-school course carrying one subject, with an explicit filter bucket.
 const subj = (id, code, en, zh, subject, bucket) => ({
   id, code, nameEn: en, nameZh: zh, grades: ["G11", "G12"],
-  trackIds: [1, 2, 3, 4, 5, 6], price: 100, teachers: [],
+  trackIds: [1, 2, 3, 4, 5, 6], price: 100, teachers: [], creditHours: 0.5,
   subjects: [{ nameEn: subject, nameZh: subject, filterKey: bucket, filterNameEn: bucket, filterNameZh: bucket }],
 });
 
@@ -181,7 +181,7 @@ setTimeout(() => {
   // Expanding a row re-renders the step, so re-query the DOM after each click
   // rather than holding on to the button that triggered it.
   const reqToggle = label => Array.from(doc.querySelectorAll(".req-toggle"))
-    .find(b => b.textContent.replace(/[▾▸\s]/g, "").startsWith(label));
+    .find(b => b.textContent.replace(/[▾▸]/g, "").trim().startsWith(label));
   const reqRow = label => {
     const btn = reqToggle(label);
     if (!btn) return null;
@@ -203,6 +203,33 @@ setTimeout(() => {
   check("PE has its own row now", reqRow("体育"), ["PE-HS-101"]);
   check("社会学 stays empty — no HS social-studies course in this fixture",
     plainRow("社会学"), true);
+
+  // Credit numbers carry their unit, in the page language.
+  const cellFor = label => {
+    const td = Array.from(doc.querySelectorAll(".req-table tr"))
+      .map(tr => tr.children.length === 2 ? tr : null).filter(Boolean)
+      .find(tr => tr.children[0].textContent.replace(/[▾▸]/g, "").trim().startsWith(label));
+    return td ? td.children[1].textContent.trim() : null;
+  };
+  check("ZH: a requirement row reads '4 学分'", cellFor("数学"), "4 学分");
+  check("ZH: the total row carries the unit too", cellFor("总学分"), "24 学分");
+  check("ZH: a 1-credit row is still 学分", cellFor("体育"), "1 学分");
+  check("service hours keep hours, not credits", cellFor("社区服务"), "50");
+  reqToggle("艺术").click();
+  check("ZH: chip credit shows the unit",
+    doc.querySelector(".req-courses .req-chip-cr").textContent.trim(), "0.5 学分");
+  reqToggle("艺术").click();
+
+  click(pick("#langBtn"));
+  check("EN: plural for 4", cellFor("Math"), "4 credits");
+  check("EN: singular for exactly 1", cellFor("Physical Education"), "1 credit");
+  check("EN: 0.5 is plural", (() => {
+    reqToggle("Fine Arts").click();
+    const v = doc.querySelector(".req-courses .req-chip-cr").textContent.trim();
+    reqToggle("Fine Arts").click();
+    return v;
+  })(), "0.5 credits");
+  click(pick("#langBtn"));
 
   // Expanding/collapsing a row must not scroll the page: render() jumps to the
   // top, which threw the parent away from the row they had just opened.
