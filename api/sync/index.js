@@ -651,6 +651,22 @@ module.exports = async function (context, req) {
         mismatched.map((c) => `${label(c)} (${c.classTypeEn} / ${c.classTypeZh})`).join("; ")
       );
     }
+    // The graduation track's policy notes are a language pair too (Comment /
+    // 备注). A track with only one side filled in renders that language's text
+    // on both versions of the requirements page — readable, but not what a
+    // parent reading the other language expects, so name the tracks rather
+    // than quietly papering over it. A track with neither side filled in is a
+    // different thing (no policy notes at all) and is not reported.
+    const oneSidedNotes = tracks.filter((tr) => !tr.commentsEn !== !tr.commentsZh);
+    if (oneSidedNotes.length) {
+      warnings.push(
+        "These graduation tracks have policy notes in only one language, so the other language " +
+        'falls back to the same text — fill in both "Comment" and "备注": ' +
+        oneSidedNotes
+          .map((tr) => `${tr.nameEn || tr.nameZh || "#" + tr.trackId} (${tr.commentsEn ? "Comment only" : "备注 only"})`)
+          .join("; ")
+      );
+    }
 
     /* ---- message copy: one row per (key, language) ---- */
 
