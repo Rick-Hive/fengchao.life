@@ -857,7 +857,13 @@
       rows +=
         '<tr class="req-row' + (open ? " open" : "") + '"><td>' +
         '<button type="button" class="req-toggle" data-req="' + esc(key) + '" aria-expanded="' + (open ? "true" : "false") + '">' +
-        '<span class="req-caret" aria-hidden="true">' + (open ? "▾" : "▸") + "</span>" +
+        // A drawn chevron in a tinted disc, not a text ▸: the character rendered
+        // at ~10px in the muted grey and parents did not notice the rows were
+        // expandable at all. One shape that rotates, rather than two glyphs, so
+        // opening and closing read as the same control moving.
+        '<span class="req-caret" aria-hidden="true">' +
+        '<svg viewBox="0 0 20 20" width="14" height="14"><path d="M7 4l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        "</span>" +
         name + ' <span class="req-count">' + cs.length + " " + esc(t().reqAvailable) + "</span>" +
         "</button></td>" +
         '<td class="num">' + esc(creditsWithUnit(v)) + "</td></tr>";

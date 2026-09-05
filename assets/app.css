@@ -264,7 +264,17 @@ div.step-item:not(.active) { cursor: not-allowed; }
   font: inherit; color: inherit; text-align: left; cursor: pointer;
 }
 .req-toggle:hover { color: var(--accent); }
-.req-caret { color: var(--muted); font-size: 0.8rem; width: 0.8em; }
+/* The expand control. It reads as a button, not as a stray character: a tinted
+   disc in the accent color, big enough to be an obvious tap target on a phone,
+   and the chevron rotates a quarter turn when the row opens. */
+.req-caret {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; flex: none; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  transition: transform 0.18s ease, background-color 0.18s ease;
+}
+.req-toggle:hover .req-caret { background: #d7e3f0; }
+.req-row.open .req-caret { transform: rotate(90deg); }
 .req-count { color: var(--muted); font-size: 0.8rem; font-weight: 400; }
 .req-row.open .req-count { color: var(--accent); }
 .req-courses td { background: #f7f9fc; padding-top: 8px; padding-bottom: 12px; }
