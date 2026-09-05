@@ -39,6 +39,19 @@
     if (saved === "en" || saved === "zh") state.lang = saved;
   } catch (e) {}
 
+  // The step-4 catalog filters (grade/subject/language/classType) are scoped to
+  // whichever level+track is currently selected — trackCourses() narrows the
+  // catalog first, and the filter dropdowns are populated from what's left in
+  // it. A value picked under one level/track (e.g. grade="high" under HS) has
+  // no guaranteed meaning under another (K-8) and can silently zero out the
+  // whole catalog instead of showing as an invalid/cleared selection, since the
+  // grade dropdown always lists all five stages regardless of level. So every
+  // level/mode/pedagogy change must clear these filters — never carry them
+  // across a level or track switch.
+  function resetCatalogFilters() {
+    state.filters = { subject: "", grade: "", language: "", classType: "", q: "" };
+  }
+
   // ---- wizard progress persistence ----
   // Selections and cart are mirrored to localStorage on every render and
   // restored on boot, so a refresh never loses the parent's choices. WHICH page
@@ -863,14 +876,25 @@
         '<div class="nav-row"><button class="btn btn-ghost" id="back4">' + esc(t().back) + "</button><span></span></div></section>"
       );
     }
-    // All five stages are always offered, in canonical order, even where the
-    // current track has no courses in one of them — a parent looks for 大学预科
-    // whether or not anything is tagged into it yet. Unlike the subject filter,
-    // this list is fixed rather than data-derived. Any grade in the data that
-    // belongs to no stage is appended as its own option, in Airtable's grade
-    // order, so a new grade row can never hide the courses tagged to it.
+    // Every stage that belongs to the CURRENT level is always offered, in
+    // canonical order, even where the current track has no courses in it yet
+    // — a parent looks for 大学预科 whether or not anything is tagged into it
+    // yet. But a stage from the *other* level must never appear here: K-8 has
+    // no course under "high"/"college-prep" and HS has none under "preschool"/
+    // "elementary"/"middle" (courseInLevel() enforces the same K8_STAGES/
+    // HS_STAGES split when building trackCourses()), so leaving those in the
+    // list let a parent pick a combination that can never match anything —
+    // the catalog would silently go to 0 results with no indication the
+    // selected grade belongs to the other level. Unlike the subject filter,
+    // this list is otherwise fixed rather than data-derived. Any grade in the
+    // data that belongs to no stage is appended as its own option, in
+    // Airtable's grade order, so a new grade row can never hide the courses
+    // tagged to it.
+    var levelStages = state.level === "k8" ? K8_STAGES : HS_STAGES;
     var gradeOrder = state.data.grades || [];
-    var gradeOptions = (window.GRADE_STAGES || []).map(function (s) {
+    var gradeOptions = (window.GRADE_STAGES || []).filter(function (s) {
+      return !!levelStages[s.key];
+    }).map(function (s) {
       return { value: s.key, label: gradeStageLabel(s.key) };
     });
     var looseGrades = optionsFromPairs([].concat.apply([], all.map(function (c) {
@@ -1312,7 +1336,7 @@
       var card = e.target.closest(".choice-card");
       if (!card) return;
       var lv = card.getAttribute("data-key");
-      if (state.level !== lv) { state.cart = {}; state.pedagogy = null; } // switching level clears the cart + pedagogy
+      if (state.level !== lv) { state.cart = {}; state.pedagogy = null; resetCatalogFilters(); } // switching level clears the cart + pedagogy + stale catalog filters
       state.level = lv;
       render();
     });
@@ -1320,14 +1344,18 @@
     if (modeGrid) modeGrid.addEventListener("click", function (e) {
       var card = e.target.closest(".choice-card");
       if (!card) return;
-      state.mode = card.getAttribute("data-key");
+      var m = card.getAttribute("data-key");
+      if (state.mode !== m) resetCatalogFilters(); // switching track (mode) can change which grades/subjects/types exist
+      state.mode = m;
       render();
     });
     var pedGrid = document.getElementById("pedGrid");
     if (pedGrid) pedGrid.addEventListener("click", function (e) {
       var card = e.target.closest(".choice-card");
       if (!card) return;
-      state.pedagogy = card.getAttribute("data-key");
+      var p = card.getAttribute("data-key");
+      if (state.pedagogy !== p) resetCatalogFilters(); // switching track (pedagogy, or K-8 classical toggle) too
+      state.pedagogy = p;
       render();
     });
     on("next0", "click", function () {
