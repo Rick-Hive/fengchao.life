@@ -134,9 +134,9 @@ window.I18N = {
     menuLabel: "Menu",
     comingSoon: "Coming soon",
     langBtn: "中文",
-    steps: ["Level", "Track", "Pedagogy", "Credit Requirements", "Courses", "Submit"],
-    stepsK8: ["Level", "Pedagogy", "Courses", "Submit"],
-    step0Title: "Step 1: Choose a school level",
+    steps: ["Learning Stage", "Track", "Pedagogy", "Credit Requirements", "Courses", "Submit"],
+    stepsK8: ["Learning Stage", "Pedagogy", "Courses", "Submit"],
+    step0Title: "Step 1: Choose a learning stage",
     step0Hint: "Elementary and middle school courses can be browsed directly; high school starts with a graduation track.",
     levels: {
       k8: { name: "Elementary & Middle (K–G8)", desc: "Kindergarten through Grade 8: Chinese language arts, science series, English and more — go straight to the catalog." },
