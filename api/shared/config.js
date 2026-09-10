@@ -129,7 +129,26 @@ module.exports = {
     subjects: "Subject",
     subjectsZh: "学科",
     textbooks: "Textbook SKU/教材编码", // LINK to Textbook table
-    school: "School or Institution/学校或机构",
+    // LINK to the Schools table. Renamed in Airtable 2026-09-10 from
+    // "School or Institution/学校或机构" to "Course Deliverer/课程提供方", which
+    // broke it outright: the tolerant matcher covers whitespace, full-width
+    // punctuation and truncation, but nothing in it survives a rename, so the
+    // link resolved to undefined on every course. That was silent and it was
+    // expensive — it blanked the deliverer on the detail view, dropped the
+    // deliverer out of the search haystack, stripped the hive segment out of
+    // every order id, and sent every hive's order to the DEFAULT Teams channel
+    // because groupByHive() keys on the school.
+    //
+    // A REGEX rather than a name, so BOTH spellings resolve. This field is the
+    // routing key for real orders; it must not be one rename away from breaking
+    // again, and a base that has not been renamed yet (or gets renamed back)
+    // keeps working. Anchored on "Course Deliverer" rather than "Course" so it
+    // cannot collide with Course ID / Course Name / Course Description.
+    // `^\s*` because Airtable field names really do carry stray leading
+    // whitespace in this base ("Course  Name" has a double space, and a
+    // course code once arrived with a trailing newline). The regex path in
+    // f() tests raw keys with no normalization, so the anchor has to allow it.
+    school: /^\s*(Course\s*Deliverer|课程提供方|School\s*or\s*Institution|学校或机构)/i,
     available: "Available/可用？",
     // regex-matched (UI truncation / uncertain punctuation):
     re: {

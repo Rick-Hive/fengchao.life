@@ -576,6 +576,11 @@ module.exports = async function (context, req) {
         ["Graduation Track", (c) => c.trackIds.length],
         ["Teacher", (c) => c.teachers.length],
         ["Class time", (c) => c.schedule.length],
+        // Added 2026-09-10. The deliverer link had been renamed in Airtable and
+        // nothing said so: it is the order-routing key, and every hive's order
+        // had been going to the default Teams channel. Any field this load-
+        // bearing belongs in this list.
+        ["Course Deliverer", (c) => !!(c.school && (c.school.name || c.school.abbr))],
       ];
       for (const [label, get] of checks) {
         if (!courses.some(get)) warnings.push(`No course has a value for "${label}" — check that field's name in Airtable.`);
