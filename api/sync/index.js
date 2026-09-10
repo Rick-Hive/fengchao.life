@@ -449,6 +449,22 @@ module.exports = async function (context, req) {
     // single warning can name them, rather than ever showing the raw Airtable
     // record ID as if it were a teacher's name on the public site.
     const danglingTeacherLinks = [];
+    function resolveSchoolIds(fields) {
+      const byName = linkedIds(f(fields, cf.school));
+      if (byName.length) return byName;
+      for (const k of Object.keys(fields).sort()) {
+        const v = fields[k];
+        if (!isRecordIdArray(v)) continue;
+        if (!v.every((id) => schoolByRec.has(id))) continue;
+        delivererFieldsSeen.add(k);
+        return v;
+      }
+      return [];
+    }
+    // Field names the deliverer link was recovered from by shape rather than by
+    // name (see resolveSchoolIds below). Reported so a rename is visible in the
+    // Admin Center instead of only in the code.
+    const delivererFieldsSeen = new Set();
     for (const r of courseRecs) {
       const fields = r.fields;
 
@@ -464,7 +480,17 @@ module.exports = async function (context, req) {
       }
 
       const teacherIds = linkedIds(f(fields, cf.teachers));
-      const schoolIds = linkedIds(f(fields, cf.school));
+      // The deliverer link is resolved by NAME first and, failing that, by what
+      // it POINTS AT: any field holding record ids that all exist in the Schools
+      // table can only be this link. Names are the fragile part of this
+      // integration — this one field was renamed twice (School or Institution →
+      // Course Deliverer) and its second rename silently sent every hive's
+      // order to the default Teams channel, because course.school is the
+      // routing key. Identity by target table survives any rename, and cannot
+      // grab the wrong field: record ids are unique per table, so a Teacher or
+      // Subject link can never satisfy the test. Keys are sorted so the choice
+      // is deterministic rather than dependent on Airtable's field order.
+      const schoolIds = resolveSchoolIds(fields);
       // Union the two subject link fields by record ID — they normally hold the
       // same record, but reading both means a course tagged on only one of them
       // still gets a subject.
@@ -594,6 +620,15 @@ module.exports = async function (context, req) {
         "Some teachers' \"Organization / 所属机构\" links point at records that " +
         "aren't in the Schools table, so their organization is left blank " +
         "rather than showing an internal record id: " + [...unresolvedOrgIds].join(", ")
+      );
+    }
+    if (delivererFieldsSeen.size) {
+      warnings.push(
+        'The course deliverer link did not match its configured name and was recovered by ' +
+        'following its links into the Schools table instead. It is currently named ' +
+        [...delivererFieldsSeen].map((n) => `"${n}"`).join(" / ") +
+        ' in Airtable — set courseFields.school in api/shared/config.js to match, since this ' +
+        'field is the order-routing key and the fallback is a safety net, not the design.'
       );
     }
     if (danglingTeacherLinks.length) {
