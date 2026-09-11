@@ -674,7 +674,7 @@ span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(-
 /* the cell's detail sheet */
 .cm-sheet { max-width: 640px; }
 .cm-sheet-h { margin: 0 0 8px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.cm-sheet-h + .cm-sheet-h, .cm-sheet-items + .cm-sheet-h, .cm-sheet-none + .cm-sheet-h { margin-top: 22px; }
+.cm-sheet-h + .cm-sheet-h, .cm-sheet-items + .cm-sheet-h, .cm-sheet-none + .cm-sheet-h, .cm-sheet-courses + .cm-sheet-h { margin-top: 22px; }
 .cm-sheet-items { margin: 0; padding-left: 2.4em; line-height: 1.55; }
 .cm-sheet-items li { margin-bottom: 4px; }
 .cm-sheet-none { margin: 0; color: var(--muted); }

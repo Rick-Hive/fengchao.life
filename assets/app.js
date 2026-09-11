@@ -1293,14 +1293,11 @@
     var items = mapRowItems(row, grade);
     var courses = mapCellCourses(row, row.spanAll ? null : grade);
     var title = mapRowLabel(row) + (grade ? " · " + grade : "");
-    var html =
-      '<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button>' +
-      '<div class="modal-head"><h3>' + esc(title) + "</h3></div>" +
-      '<div class="modal-body">' +
-      '<h3 class="cm-sheet-h">' + esc(t().mapPlanned) + "</h3>" +
-      (items.length
-        ? '<ol class="cm-sheet-items">' + items.map(function (it) { return "<li>" + esc(itemText(it)) + "</li>"; }).join("") + "</ol>"
-        : '<p class="cm-sheet-none">—</p>') +
+    // Courses FIRST. The green pill is what a parent taps, and the course with
+    // its Select button is what they came for; a 36-book reading list above it
+    // pushed the course below the fold and read as "can't select" (Rick,
+    // 2026-09-11). The planned items follow — they are context, not the action.
+    var coursesHtml =
       '<h3 class="cm-sheet-h">' + esc(t().mapCourses) + "</h3>" +
       (courses.length
         ? '<div class="cm-sheet-courses">' + courses.map(function (c) {
@@ -1309,8 +1306,16 @@
               (c.code ? ' <span class="cm-sheet-code">' + esc(c.code) + "</span>" : "") + "</button>" +
               selectBtn(c, "sm") + "</div>";
           }).join("") + "</div>"
-        : '<p class="cm-sheet-none">' + esc(t().mapNoCourses) + "</p>") +
-      "</div>";
+        : '<p class="cm-sheet-none">' + esc(t().mapNoCourses) + "</p>");
+    var plannedHtml =
+      '<h3 class="cm-sheet-h">' + esc(t().mapPlanned) + "</h3>" +
+      (items.length
+        ? '<ol class="cm-sheet-items">' + items.map(function (it) { return "<li>" + esc(itemText(it)) + "</li>"; }).join("") + "</ol>"
+        : '<p class="cm-sheet-none">—</p>');
+    var html =
+      '<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button>' +
+      '<div class="modal-head"><h3>' + esc(title) + "</h3></div>" +
+      '<div class="modal-body">' + coursesHtml + plannedHtml + "</div>";
     var overlay = openModal(html, "cm-sheet");
     overlay.addEventListener("click", function (e) {
       var b = e.target.closest("[data-course]");
