@@ -24,8 +24,14 @@ window.I18N = {
     step2Title: "第一步：请选择教育理念",
     step2Hint: "请选择您为孩子采用的教育方式。这一选择决定后续学段的称呼与课程范围。",
     pedagogies: {
-      classical: { name: "古典教育", desc: "包含神学与修辞（Theology & Rhetoric）课程的古典基督教教育传统。" },
-      nonclassical: { name: "非古典教育", desc: "以圣经（Bible）课程为核心的常规课程体系。" },
+      // The classical card is just the trivium — the three words are the whole
+      // definition, and they are also exactly what the next page calls the three
+      // stages, so the choice made here explains the vocabulary that follows it.
+      // A sentence explaining the trivium was cut as 啰嗦 (Rick, 2026-09-11).
+      // The non-classical card is defined by what it rests on (a biblical
+      // worldview) rather than by one course on the timetable.
+      classical: { name: "古典教育", desc: "文法、逻辑、修辞。" },
+      nonclassical: { name: "非古典教育", desc: "基于圣经世界观的常规课程体系。" },
     },
     step3Title: "毕业学分要求",
     step3Hint: "以下为所选路径的毕业学分要求，请仔细阅读后点击下一步。",
@@ -149,8 +155,8 @@ window.I18N = {
     step2Title: "Step 1: Choose your pedagogy",
     step2Hint: "Which approach do you use to educate your child? This decides what the stages are called and which courses follow.",
     pedagogies: {
-      classical: { name: "Classical", desc: "Classical Christian tradition, including Theology & Rhetoric courses." },
-      nonclassical: { name: "Non-Classical", desc: "Conventional curriculum centered on Bible courses." },
+      classical: { name: "Classical", desc: "Grammar, Dialectic, Rhetoric." },
+      nonclassical: { name: "Non-Classical", desc: "A conventional curriculum built on a biblical worldview." },
     },
     step3Title: "Graduation credit requirements",
     step3Hint: "Credit requirements for your selected track. Please read carefully, then continue.",
