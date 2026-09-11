@@ -418,6 +418,31 @@ setTimeout(() => {
   check("...and the cart has it", JSON.parse(window.localStorage.getItem("fc-wizard-v1")).cart.c1, true);
   click(sheet2.querySelector("[data-close]"));
 
+  // the cart bar shows on the map (a course was just selected from it) and its
+  // summary opens the cart sheet, where a course can be reviewed and removed
+  check("cart bar is visible on the map once something is selected",
+    doc.getElementById("cartBar").classList.contains("visible"), true);
+  click(pick("#cartInfo"));
+  const cart = doc.querySelector(".cart-sheet");
+  check("the bar's summary opens the cart sheet listing the selection",
+    [!!cart, Array.from(cart.querySelectorAll(".cart-row .cm-sheet-name")).map(e => e.firstChild.textContent.trim())], [true, ["数学一年级"]]);
+  before = scrollCalls;
+  click(cart.querySelector("[data-remove]"));
+  check("removing the last course closes the sheet, empties the cart and hides the bar, without scrolling",
+    [!!doc.querySelector(".cart-sheet.show, .modal-overlay.show"), Object.keys(JSON.parse(window.localStorage.getItem("fc-wizard-v1")).cart).length,
+     doc.getElementById("cartBar").classList.contains("visible"), scrollCalls === before],
+    [false, 0, false, true]);
+  // re-select, then go to the order page from the sheet
+  click(mathRow.children[2]);
+  click(doc.querySelectorAll(".cm-sheet")[doc.querySelectorAll(".cm-sheet").length - 1].querySelector("[data-select]"));
+  click(doc.querySelectorAll(".cm-sheet")[doc.querySelectorAll(".cm-sheet").length - 1].querySelector("[data-close]"));
+  click(pick("#cartInfo"));
+  click(doc.querySelector(".cart-sheet [data-goto-order]"));
+  check("Confirm in the cart sheet goes to the order page", !!doc.getElementById("email"), true);
+  click(pick("#back5"));
+  check("...and Back from the order page returns to the catalog", !!doc.getElementById("gridWrap"), true);
+  click(pick("#back4"));
+
   // phone view: one grade at a time
   check("phone view defaults to the first grade", doc.querySelector(".cm-tab.on").textContent, "K");
   click(doc.querySelector('.cm-tab[data-tab="G1"]'));

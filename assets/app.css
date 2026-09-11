@@ -684,3 +684,22 @@ span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(-
 .cm-sheet-name:hover { color: var(--accent); }
 .cm-sheet-code { display: block; font-weight: 400; font-size: 0.78rem; color: var(--muted); }
 .btn-select.sm { padding: 6px 14px; font-size: 0.85rem; flex: 0 0 auto; }
+
+/* ---------- cart bar summary + cart sheet ---------- */
+/* The bar's summary is a button: it opens the cart sheet. Styled as the text
+   it always was, plus a quiet "查看 ›" so it reads as tappable. */
+button.cart-info {
+  background: none; border: none; color: inherit; font: inherit; text-align: left;
+  padding: 6px 10px; margin: -6px -10px; border-radius: 8px; cursor: pointer;
+}
+button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 255, 255, 0.08); outline: none; }
+.cart-view { margin-left: 10px; font-size: 0.85rem; color: #cbd5e1; }
+.cart-sheet { max-width: 560px; }
+.cart-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.cart-row:last-child { border-bottom: none; }
+.cart-row-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.cart-price { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cart-sheet .rm { background: none; border: none; color: var(--muted); font: inherit; font-size: 0.85rem; cursor: pointer; text-decoration: underline; }
+.cart-sheet .rm:hover { color: var(--ink); }
+.cart-total { font-size: 0.95rem; }
+.cart-total b { font-size: 1.05rem; }

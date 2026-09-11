@@ -1465,17 +1465,62 @@
     );
   }
 
+  // The bar shows wherever a course can be selected — the catalog (4), the
+  // requirements rows (3) and the curriculum map (6) — not on the choice pages
+  // and not on the order page, which is the cart written out in full.
+  var CART_BAR_STEPS = [3, 4, MAP_STEP];
   function renderCartBar() {
     var bar = document.getElementById("cartBar");
     var n = cartIds().length;
-    if (state.step === 4 && n > 0 && !state.done) {
+    if (CART_BAR_STEPS.indexOf(state.step) !== -1 && n > 0 && !state.done) {
       bar.classList.add("visible");
       document.getElementById("cartInfo").innerHTML =
-        esc(t().selected) + " <b>" + n + "</b> " + esc(t().coursesUnit) + " · " + esc(t().total) + " <b>" + esc(fmtPrice(cartTotal()) || "—") + "</b>";
+        esc(t().selected) + " <b>" + n + "</b> " + esc(t().coursesUnit) + " · " + esc(t().total) + " <b>" + esc(fmtPrice(cartTotal()) || "—") + "</b>" +
+        ' <span class="cart-view">' + esc(t().cartView) + " ›</span>";
       document.getElementById("cartNext").textContent = t().confirmSelection;
     } else {
       bar.classList.remove("visible");
     }
+  }
+
+  // The cart sheet: the bar's summary opened up — every selected course with
+  // its price and a Remove, the total, and the same Confirm button. This IS
+  // the shopping cart; there is no separate cart page, because the order step
+  // already lists the cart in full and a second page would duplicate it.
+  function cartSheetHtml() {
+    var items = cartCourses();
+    var rows = items.map(function (c) {
+      return (
+        '<div class="cart-row">' +
+        '<button type="button" class="cm-sheet-name" data-course="' + esc(c.id) + '">' + esc(courseName(c) || c.code) +
+        (c.code ? ' <span class="cm-sheet-code">' + esc(c.code) + "</span>" : "") + "</button>" +
+        '<span class="cart-row-right"><span class="cart-price">' + (typeof c.price === "number" ? esc(fmtPrice(c.price)) : esc(t().priceTBD)) + "</span>" +
+        '<button type="button" class="rm" data-remove="' + esc(c.id) + '">' + esc(t().remove) + "</button></span></div>"
+      );
+    }).join("");
+    return (
+      '<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button>' +
+      '<div class="modal-head"><h3>' + esc(t().cartTitle) + " (" + items.length + ")</h3></div>" +
+      '<div class="modal-body">' + (rows || '<p class="cm-sheet-none">' + esc(t().cartEmpty) + "</p>") + "</div>" +
+      '<div class="modal-foot"><span class="cart-total">' + esc(t().total) + " <b>" + esc(fmtPrice(cartTotal()) || "—") + "</b></span>" +
+      '<button type="button" class="btn btn-primary" data-goto-order' + (items.length ? "" : " disabled") + ">" + esc(t().confirmSelection) + "</button></div>"
+    );
+  }
+  function openCartModal() {
+    var overlay = openModal(cartSheetHtml(), "cart-sheet");
+    overlay.addEventListener("click", function (e) {
+      var rm = e.target.closest("[data-remove]");
+      if (rm) {
+        toggleCourse(rm.getAttribute("data-remove"));   // repaints the page behind, in place
+        if (!cartIds().length) { closeModal(overlay); return; }
+        overlay.querySelector(".modal").innerHTML = cartSheetHtml();
+        return;
+      }
+      var go = e.target.closest("[data-goto-order]");
+      if (go) { closeAllModals(); state.step = 5; render(); return; }
+      var name = e.target.closest("[data-course]");
+      if (name) openCourseModal(name.getAttribute("data-course"));
+    });
   }
 
   /* ---------- modals ---------- */
@@ -1976,6 +2021,7 @@
       });
     }
 
+    on("cartInfo", "click", openCartModal);
     on("cartNext", "click", function () {
       if (cartIds().length === 0) return;
       state.step = 5; state.formErr = ""; render();

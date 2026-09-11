@@ -82,6 +82,10 @@ window.I18N = {
     nextStep: "下一步",
     back: "上一步",
     confirmSelection: "确认所选课程",
+    // the cart sheet, opened from the bottom bar's summary
+    cartTitle: "已选课程",
+    cartView: "查看",
+    cartEmpty: "尚未选择课程。",
     // course detail modal
     dCode: "课程编号",
     dSubject: "学科",
@@ -212,6 +216,9 @@ window.I18N = {
     nextStep: "Next",
     back: "Back",
     confirmSelection: "Confirm selection",
+    cartTitle: "Selected courses",
+    cartView: "View",
+    cartEmpty: "No courses selected yet.",
     dCode: "Course ID",
     dSubject: "Subject",
     dGrades: "Grades",
