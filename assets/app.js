@@ -21,7 +21,10 @@
   var state = {
     lang: "zh",
     step: 0,
-    level: null,      // k8 | hs
+    // grammar (K-G6) | dialectic (G7-G8) | rhetoric (G9-G12). Replaced the old
+    // binary `level` on 2026-09-11: the parent now picks one of three learning
+    // stages, and only `rhetoric` carries a graduation track and requirements.
+    stage: null,
     mode: null,       // international | domestic | hybrid
     pedagogy: null,   // classical | nonclassical
     data: null,       // snapshot
@@ -71,7 +74,7 @@
   function persistWizard() {
     try {
       localStorage.setItem(WIZARD_KEY, JSON.stringify({
-        level: state.level, mode: state.mode, pedagogy: state.pedagogy,
+        stage: state.stage, mode: state.mode, pedagogy: state.pedagogy,
         cart: state.cart, filters: state.filters,
         done: state.done,
       }));
@@ -84,7 +87,13 @@
     var r;
     try { r = JSON.parse(raw); } catch (e) { return; }
     if (!r || typeof r !== "object") return;
-    if (r.level === "k8" || r.level === "hs") state.level = r.level;
+    if (STAGE_KEYS.indexOf(r.stage) !== -1) state.stage = r.stage;
+    // A wizard saved before the three-stage split carried level: "k8" | "hs".
+    // Map it forward rather than dropping the visit: K-8 lands on the grammar
+    // stage (its lower half; the parent re-picks if the child is in G7-G8) and
+    // high school is the rhetoric stage exactly.
+    else if (r.level === "k8") state.stage = "grammar";
+    else if (r.level === "hs") state.stage = "rhetoric";
     if (r.mode === "international" || r.mode === "domestic" || r.mode === "hybrid") state.mode = r.mode;
     if (r.pedagogy === "classical" || r.pedagogy === "nonclassical") state.pedagogy = r.pedagogy;
     if (r.cart && typeof r.cart === "object" && !Array.isArray(r.cart)) state.cart = r.cart;
@@ -94,6 +103,34 @@
     // r.email / r.teams are ignored on purpose — see persistWizard above.
     if (r.done && typeof r.done === "object") state.done = r.done;
   }
+  // ---- learning stages (see window.LEARNING_STAGES in i18n.js) ------------
+  // The stage is the parent's top-level choice and scopes everything after it:
+  // which courses the catalog holds, which grades the filter offers, and
+  // whether the flow includes a graduation track and its credit requirements
+  // (rhetoric only — G9 is where tracks begin, which is why the stage
+  // boundaries were put on that seam).
+  var STAGES = window.LEARNING_STAGES || [];
+  var STAGE_KEYS = STAGES.map(function (s) { return s.key; });
+  var STAGE_BY_KEY = {};
+  STAGES.forEach(function (s) { STAGE_BY_KEY[s.key] = s; });
+  function stageDef(key) { return STAGE_BY_KEY[key || state.stage] || null; }
+  // The only stage with tracks and requirements. Everywhere the code used to
+  // ask `level === "hs"`, it asks this.
+  function isTrackStage(key) { return (key || state.stage) === "rhetoric"; }
+  // Stage name in the parent's own vocabulary: the trivium for classical
+  // families, conventional school names for everyone else. Falls back to the
+  // conventional set until a pedagogy is chosen.
+  function stageName(key) {
+    var d = stageDef(key);
+    if (!d) return "";
+    var set = state.pedagogy === "classical" ? d.classical : d.standard;
+    return pickLang(set.en, set.zh);
+  }
+  function stageGrades(key) {
+    var d = stageDef(key);
+    return d ? d.grades : [];
+  }
+
   restoreWizard();
 
   // ---- URL routing (back/forward + shareable step URLs) -------------------
@@ -115,18 +152,22 @@
   // Starts null so landing straight on #/courses via a bookmark/refresh also
   // resets, which is harmless since the filters start empty anyway.
   var lastRenderedStep = null;
+  // Pedagogy (2) is the first page since 2026-09-11. The internal step ids did
+  // NOT move — they are what every hash, bookmark and stepper jump refers to —
+  // so only the order in visibleSteps() and the guards here changed.
+  var FIRST_STEP = STEP_HASHES.indexOf("pedagogy");
   function clampStep(n) {
-    if (typeof n !== "number" || isNaN(n)) return 0;
+    if (typeof n !== "number" || isNaN(n)) return FIRST_STEP;
     n = Math.max(0, Math.min(5, Math.floor(n)));
-    if (!state.level) return 0;
-    if (state.level === "hs") {
-      if (!state.mode) n = Math.min(n, 1);
-      else if (!state.pedagogy) n = Math.min(n, 2);
-    } else {
-      // K-8 has no track (1) or requirements (3) step.
-      if (n === 1) n = 0;
-      if (n === 3) n = state.pedagogy ? 4 : 2;
-      if (!state.pedagogy) n = Math.min(n, 2);
+    // Nothing is reachable before a pedagogy: it decides what the stages are
+    // called, so even the stage page cannot be rendered honestly without it.
+    if (!state.pedagogy) return FIRST_STEP;
+    if (!state.stage) return n === FIRST_STEP ? FIRST_STEP : 0;
+    if (!isTrackStage()) {
+      // Grammar and dialectic have no graduation track (1) or requirements (3).
+      if (n === 1 || n === 3) n = 4;
+    } else if (!state.mode) {
+      n = Math.min(n, 1);
     }
     if (n === 5 && !cartIds().length) n = 4;
     return n;
@@ -138,12 +179,12 @@
     }
     state.done = null;
     var i = STEP_HASHES.indexOf(h);
-    state.step = clampStep(i === -1 ? 0 : i);
+    state.step = clampStep(i === -1 ? FIRST_STEP : i);
   }
   // Boot: the URL decides the page. No hash = home page, by design.
   (function () {
     var h = location.hash.replace(/^#\/?/, "");
-    if (!h) { state.step = 0; state.done = null; return; }
+    if (!h) { state.step = FIRST_STEP; state.done = null; return; }
     applyHash(h);
   })();
   // Keep the URL in step with the state. Assigning location.hash creates a
@@ -170,7 +211,7 @@
   function t() { return window.I18N[state.lang]; }
   function k8Id() { return (state.data && state.data.k8TrackId) || 7; }
   function trackId() {
-    if (state.level === "k8") return k8Id();
+    if (!isTrackStage()) return k8Id();
     return state.mode && state.pedagogy ? TRACK_MAP[state.mode][state.pedagogy] : null;
   }
   function track() {
@@ -348,16 +389,25 @@
     for (var i = 0; i < values.length; i++) if (gradeFilterMatches(course, values[i])) return true;
     return false;
   }
-  // The selectable entries for the current level, grouped by stage:
-  // [{ key, label, items: [{value, label}] }]. A stage's `groups` collapse
+  // The selectable entries for the CURRENT LEARNING STAGE, grouped by grade
+  // band: [{ key, label, items: [{value, label}] }]. A band's `groups` collapse
   // several grades into one entry (K1/K2/K3 → K); everything else is offered
-  // grade by grade. Grades in the data that belong to no stage go in a trailing
+  // grade by grade. Grades in the data that belong to no band go in a trailing
   // group with no heading, so a new row in Airtable can never hide its courses.
+  //
+  // Scoped to the stage's own grades, so the filter can only ever offer a grade
+  // the catalog actually holds: a 文法 parent is never shown G9, and a 修辞
+  // parent never K. trackCourses() has already excluded the rest, so offering
+  // them would mean a choice that can only ever return nothing.
   function gradeFilterGroups(courses) {
-    var levelStages = state.level === "k8" ? K8_STAGES : HS_STAGES;
+    var inStage = stageGrades();
+    var covers = function (names) {
+      for (var i = 0; i < names.length; i++) if (inStage.indexOf(names[i]) !== -1) return true;
+      return false;
+    };
     var firstMember = function (v) { return (GRADE_FILTER_MEMBERS[v] || [v])[0]; };
     var out = (window.GRADE_STAGES || []).filter(function (s) {
-      return !!levelStages[s.key];
+      return covers(s.members);
     }).map(function (s) {
       var items = [], grouped = {};
       (s.groups || []).forEach(function (g) {
@@ -368,6 +418,7 @@
       });
       (s.hidden || []).forEach(function (m) { grouped[m] = 1; }); // offered nowhere; see `hidden` in i18n.js
       s.members.forEach(function (m) { if (!grouped[m]) items.push({ value: m, label: m }); });
+      items = items.filter(function (it) { return covers(GRADE_FILTER_MEMBERS[it.value] || [it.value]); });
       items.sort(function (a, b) { return gradeRank(firstMember(a.value)) - gradeRank(firstMember(b.value)); });
       // A stage holding a single unnamed grade shows the stage's own name
       // instead: "Associate of Arts Degree" is the raw row name in Airtable,
@@ -572,67 +623,55 @@
   }
   function classTypeRank(v) { return dashNorm(v).toLowerCase(); }
 
-  // Which grade stages belong to which school level.
-  var K8_STAGES = { preschool: 1, elementary: 1, middle: 1 };
-  var HS_STAGES = { high: 1, "college-prep": 1 };
-
-  // Level inferred from the course code's middle segment. Every code in the base
-  // carries one (KG/EL/MS/HS/CLP) and it never contradicts the grades, so it is
-  // a safe fallback for the handful of courses with no grade tagged — without it
-  // those courses would belong to no level and disappear from both catalogs.
-  function levelFromCode(code) {
-    var m = dashNorm(code).toUpperCase().match(/-(KG|EL|MS|HS|CLP)-/);
-    if (!m) return null;
-    return m[1] === "HS" || m[1] === "CLP" ? "hs" : "k8";
-  }
-
-  // Each catalog shows only courses for the level the parent picked: K-8 never
-  // shows high-school courses and vice versa. Grades decide, falling back to the
-  // course code when a course has none. A course genuinely spanning the boundary
-  // (e.g. tagged G8 and G9) legitimately appears in both.
+  // Which learning stage a course belongs to. Grades decide: a course is in a
+  // stage when its own grades intersect that stage's grade set. One rule,
+  // rather than the two stage maps the old K-8/high-school split needed — and
+  // a course genuinely spanning a boundary (tagged G6 and G7, or G8 and G9)
+  // legitimately shows up in both stages, which is what the data says.
   //
-  // Level was previously inferred from a 7th "N/A" graduation track, which was
-  // deleted from the base on 2026-08-27, silently emptying the whole K-8
-  // catalog; the old track tag is still honoured in case it ever returns.
-  function courseInLevel(c, level) {
-    if (level === "k8") {
-      var k8Track = state.data && state.data.k8TrackId;
-      if (k8Track && c.trackIds && c.trackIds.indexOf(k8Track) !== -1) return true;
+  // Fallback for a course with no grades at all: the level segment in its code.
+  // Every code in the base carries one and it has never contradicted the
+  // grades. Without it an untagged course would belong to no stage and vanish
+  // from every catalog.
+  var CODE_STAGE = { KG: "grammar", EL: "grammar", MS: "dialectic", HS: "rhetoric", CLP: "rhetoric" };
+  function stageFromCode(code) {
+    var m = dashNorm(code).toUpperCase().match(/-(KG|EL|MS|HS|CLP)-/);
+    return m ? CODE_STAGE[m[1]] : null;
+  }
+  function courseInStage(c, key) {
+    var want = stageGrades(key);
+    var have = c.grades || [];
+    if (have.length) {
+      for (var i = 0; i < have.length; i++) if (want.indexOf(have[i]) !== -1) return true;
+      return false;
     }
-    var stages = level === "k8" ? K8_STAGES : HS_STAGES;
-    var grades = c.grades || [];
-    if (grades.length) {
-      return grades.some(function (g) { return stages[gradeStageOf(g)]; });
-    }
-    return levelFromCode(c.code) === level;
+    return stageFromCode(c.code) === (key || state.stage);
   }
 
+  // The courses the catalog may show: everything in the chosen stage, narrowed
+  // by the graduation track in the rhetoric stage and by pedagogy elsewhere.
   function trackCourses() {
-    if (!state.data) return [];
-    var list;
-    if (state.level === "k8") {
-      list = state.data.courses.filter(function (c) { return courseInLevel(c, "k8"); });
-      // HS pedagogy is baked into which of the 6 tracks was picked; K-8 has no
-      // track dimension, so it filters on the per-course "Classical" checkbox.
-      // That Airtable field does not exist yet, so every course currently reads
-      // as Non-Classical — the correct default. Guard against it wiping the
-      // catalog: if nothing at all is tagged Classical, the checkbox isn't in
-      // use yet and pedagogy simply doesn't narrow anything.
-      var anyClassical = state.data.courses.some(function (c) { return !!c.pedagogy; });
-      if (anyClassical) {
-        var wantClassical = state.pedagogy === "classical";
-        list = list.filter(function (c) { return !!c.pedagogy === wantClassical; });
-      }
-      return list;
+    if (!state.data || !state.stage) return [];
+    var list = state.data.courses.filter(function (c) { return courseInStage(c, state.stage); });
+    if (isTrackStage()) {
+      // Track tags alone are not enough — every course in the base is tagged to
+      // the hybrid tracks, middle-school ones included — so the stage test
+      // above does the grade work and the track narrows within it.
+      var id = trackId();
+      if (!id) return [];
+      return list.filter(function (c) { return c.trackIds && c.trackIds.indexOf(id) !== -1; });
     }
-    var id = trackId();
-    if (!id) return [];
-    // The track tags alone are not enough: every course in the base is tagged to
-    // the hybrid tracks, elementary ones included, so the high-school catalog
-    // also requires a high-school grade.
-    return state.data.courses.filter(function (c) {
-      return c.trackIds && c.trackIds.indexOf(id) !== -1 && courseInLevel(c, "hs");
-    });
+    // Grammar and dialectic have no track: pedagogy is expressed per course by
+    // the "Classical" checkbox. That Airtable field does not exist yet, so every
+    // course reads as Non-Classical — the correct default. Guard against it
+    // emptying the catalog: if nothing at all is tagged Classical, the checkbox
+    // is not in use and pedagogy simply does not narrow anything.
+    var anyClassical = state.data.courses.some(function (c) { return !!c.pedagogy; });
+    if (anyClassical) {
+      var wantClassical = state.pedagogy === "classical";
+      list = list.filter(function (c) { return !!c.pedagogy === wantClassical; });
+    }
+    return list;
   }
 
   function haystack(c) {
@@ -732,8 +771,10 @@
     // [label array, list of internal steps]
     // K-8 reuses the same internal Pedagogy step (2) as HS — it has no
     // Graduation Track (1) or Requirements (3) step, since those are HS-only.
-    if (state.level === "k8") return { labels: t().stepsK8, map: [0, 2, 4, 5] };
-    return { labels: t().steps, map: [0, 1, 2, 3, 4, 5] };
+    // Pedagogy (2) first, then the stage (0). Only the rhetoric stage adds the
+    // graduation track (1) and its credit requirements (3).
+    if (isTrackStage()) return { labels: t().steps, map: [2, 0, 1, 3, 4, 5] };
+    return { labels: t().stepsShort, map: [2, 0, 4, 5] };
   }
 
   function renderStepper() {
@@ -774,23 +815,36 @@
     el.innerHTML = html;
   }
 
-  function choiceCard(key, name, desc, selected) {
+  // `nameIsHtml` is for the stage cards alone, whose name carries a grade-range
+  // badge ("文法阶段 <span>K-G6</span>"). Everything else passes plain text and
+  // is escaped as before — the flag never applies to a value from Airtable.
+  function choiceCard(key, name, desc, selected, nameIsHtml) {
     return (
       '<button class="choice-card' + (selected ? " selected" : "") + '" data-key="' + key + '" type="button">' +
       '<div class="hex"><svg width="26" height="26" viewBox="0 0 32 32"><polygon points="16,2 28,9 28,23 16,30 4,23 4,9" fill="currentColor"></polygon></svg></div>' +
-      "<h3>" + esc(name) + "</h3><p>" + esc(desc) + "</p></button>"
+      "<h3>" + (nameIsHtml ? name : esc(name)) + "</h3><p>" + esc(desc) + "</p></button>"
     );
   }
 
   function renderStep0() {
-    var l = t().levels;
+    if (!state.pedagogy) return '<div class="notice">' + esc(t().stageNeedPedagogy) + "</div>";
+    // The grade range is printed on every card in BOTH vocabularies, because a
+    // family new to classical education should not have to know what "Dialectic"
+    // covers in order to pick correctly.
+    var cards = STAGES.map(function (d) {
+      return choiceCard(
+        d.key,
+        esc(stageName(d.key)) + ' <span class="stage-range">' + esc(d.range) + "</span>",
+        pickLang(d.descEn, d.descZh),
+        state.stage === d.key,
+        true // name already contains markup
+      );
+    }).join("");
     return (
       '<section class="panel panel-short"><h2>' + esc(t().step0Title) + '</h2><p class="hint">' + esc(t().step0Hint) + "</p>" +
-      '<div class="choice-grid choice-grid-2" id="levelGrid">' +
-      choiceCard("k8", l.k8.name, l.k8.desc, state.level === "k8") +
-      choiceCard("hs", l.hs.name, l.hs.desc, state.level === "hs") +
-      "</div>" +
-      '<div class="nav-row"><span></span><button class="btn btn-primary" id="next0" ' + (state.level ? "" : "disabled") + ">" + esc(t().nextStep) + "</button></div></section>"
+      '<div class="choice-grid" id="stageGrid">' + cards + "</div>" +
+      '<div class="nav-row"><button class="btn btn-ghost" id="back0">' + esc(t().back) + "</button>" +
+      '<button class="btn btn-primary" id="next0" ' + (state.stage ? "" : "disabled") + ">" + esc(t().nextStep) + "</button></div></section>"
     );
   }
 
@@ -816,7 +870,7 @@
       choiceCard("classical", p.classical.name, p.classical.desc, state.pedagogy === "classical") +
       choiceCard("nonclassical", p.nonclassical.name, p.nonclassical.desc, state.pedagogy === "nonclassical") +
       "</div>" +
-      '<div class="nav-row"><button class="btn btn-ghost" id="back2">' + esc(t().back) + '</button>' +
+      '<div class="nav-row"><span></span>' +
       '<button class="btn btn-primary" id="next2" ' + (state.pedagogy ? "" : "disabled") + ">" + esc(t().nextStep) + "</button></div></section>"
     );
   }
@@ -1053,7 +1107,7 @@
 
   function renderStep4() {
     var all = trackCourses();
-    var hint = state.level === "k8" ? t().step4HintK8 : t().step4Hint;
+    var hint = isTrackStage() ? t().step4Hint : t().step4HintShort;
     if (all.length === 0) {
       return (
         '<section class="panel"><h2>' + esc(t().step4Title) + '</h2>' +
@@ -1578,13 +1632,15 @@
   }
 
   function bind() {
-    var levelGrid = document.getElementById("levelGrid");
-    if (levelGrid) levelGrid.addEventListener("click", function (e) {
+    var stageGrid = document.getElementById("stageGrid");
+    if (stageGrid) stageGrid.addEventListener("click", function (e) {
       var card = e.target.closest(".choice-card");
       if (!card) return;
       var lv = card.getAttribute("data-key");
-      if (state.level !== lv) { state.cart = {}; state.pedagogy = null; resetCatalogFilters(); } // switching level clears the cart + pedagogy + stale catalog filters
-      state.level = lv;
+      // A different stage is a different catalog, so anything chosen from the
+      // old one has to go: the cart, and the filters scoped to its grades.
+      if (state.stage !== lv) { state.cart = {}; resetCatalogFilters(); }
+      state.stage = lv;
       render();
     });
     var modeGrid = document.getElementById("modeGrid");
@@ -1605,18 +1661,19 @@
       state.pedagogy = p;
       render();
     });
+    on("back0", "click", function () { state.step = FIRST_STEP; render(); });
     on("next0", "click", function () {
-      if (!state.level) return;
-      state.step = state.level === "k8" ? 2 : 1;
+      if (!state.stage) return;
+      state.step = isTrackStage() ? 1 : 4;   // track+requirements, or straight to the catalog
       render();
     });
-    on("back1", "click", function () { state.step = 0; render(); });
-    on("next1", "click", function () { if (state.mode) { state.step = 2; render(); } });
-    on("back2", "click", function () { state.step = state.level === "k8" ? 0 : 1; render(); });
-    on("next2", "click", function () { if (state.pedagogy) { state.step = state.level === "k8" ? 4 : 3; render(); } });
-    on("back3", "click", function () { state.step = 2; render(); });
+    on("back1", "click", function () { state.step = 0; render(); });   // back to the stage
+    on("next1", "click", function () { if (state.mode) { state.step = 3; render(); } });  // track -> requirements
+    // Pedagogy is the first page now, so it has no Back; Next goes to the stage.
+    on("next2", "click", function () { if (state.pedagogy) { state.step = 0; render(); } });
+    on("back3", "click", function () { state.step = 1; render(); });   // back to the track
     on("next3", "click", function () { state.step = 4; render(); });
-    on("back4", "click", function () { state.step = state.level === "k8" ? 2 : 3; render(); });
+    on("back4", "click", function () { state.step = isTrackStage() ? 3 : 0; render(); });
     on("back5", "click", function () { state.step = 4; render(); });
 
     ["fSubject", "fLang", "fType"].forEach(function (id) {
@@ -1700,8 +1757,8 @@
     on("teams", "input", function (e) { state.teams = e.target.value; persistWizard(); });
     on("submitBtn", "click", submitOrder);
     on("againBtn", "click", function () {
-      state.done = null; state.cart = {}; state.step = 0;
-      state.level = null; state.mode = null; state.pedagogy = null;
+      state.done = null; state.cart = {}; state.step = FIRST_STEP;
+      state.stage = null; state.mode = null; state.pedagogy = null;
       state.filters = { subject: "", grade: "", language: "", classType: "", q: "" };
       render();
     });

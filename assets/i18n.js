@@ -6,23 +6,23 @@ window.I18N = {
     menuLabel: "菜单",
     comingSoon: "即将上线",
     langBtn: "EN",
-    steps: ["学段", "毕业路径", "教育理念", "毕业学分要求", "选择课程", "提交订单"],
-    stepsK8: ["学段", "教育理念", "选择课程", "提交订单"],
-    step0Title: "第一步：请选择学段",
-    step0Hint: "请选择孩子所处的学段。小学与初中课程可直接浏览选课；高中课程需先选择毕业路径。",
-    levels: {
-      k8: { name: "小学 · 初中（K–G8）", desc: "幼儿园至八年级课程：中文母语课、科学系列、英语等，直接进入课程列表。" },
-      hs: { name: "高中（G9–G12）", desc: "九至十二年级课程：先选择毕业路径与教育理念，查看毕业学分要求后选课。" },
-    },
+    // Two step sequences, because the stage decides the shape of the flow:
+    // 修辞/高中 adds the graduation track and its credit requirements, the other
+    // two stages go straight from 学段 to the catalog.
+    steps: ["教育理念", "学段", "毕业路径", "毕业学分要求", "选择课程", "提交订单"],
+    stepsShort: ["教育理念", "学段", "选择课程", "提交订单"],
+    step0Title: "第二步：请选择学段",
+    step0Hint: "请选择孩子所处的学段。名称随所选教育理念显示；每张卡片都标注对应年级。",
+    stageNeedPedagogy: "请先选择教育理念。",
     step1Title: "请选择毕业路径",
-    step1Hint: "三种路径只能选择一种。点击卡片查看说明并选择。",
+    step1Hint: "仅高中（修辞阶段）需要选择毕业路径。三种路径只能选择一种，点击卡片查看说明。",
     modes: {
       international: { name: "国际路径", desc: "以英文课程为主的国际方向，面向海外大学申请。" },
       domestic: { name: "国内路径", desc: "以中文课程为主的国内方向。" },
       hybrid: { name: "混合 2+2 路径", desc: "高中与社区大学双学分（Dual-Enrollment）结合的 2+2 方向。" },
     },
-    step2Title: "请选择教育理念",
-    step2Hint: "请选择您为孩子采用的教育方式。",
+    step2Title: "第一步：请选择教育理念",
+    step2Hint: "请选择您为孩子采用的教育方式。这一选择决定后续学段的称呼与课程范围。",
     pedagogies: {
       classical: { name: "古典教育", desc: "包含神学与修辞（Theology & Rhetoric）课程的古典基督教教育传统。" },
       nonclassical: { name: "非古典教育", desc: "以圣经（Bible）课程为核心的常规课程体系。" },
@@ -42,7 +42,7 @@ window.I18N = {
     policyTitle: "毕业政策说明",
     step4Title: "选择课程",
     step4Hint: "点击卡片查看课程详情；点击“选择”按钮加入订单。可组合筛选，价格从低到高排列。",
-    step4HintK8: "以下为小学与初中（K–G8）课程。点击卡片查看详情；点击“选择”按钮加入订单。",
+    step4HintShort: "以下为该学段的课程。点击卡片查看详情；点击“选择”按钮加入订单。",
     filters: { subject: "学科", grade: "年级", language: "授课语言", classType: "课程类型", teacher: "授课老师", all: "全部" },
     clearGrades: "清除所选",
     searchLabel: "快速搜索",
@@ -54,7 +54,7 @@ window.I18N = {
     cardTeacher: "授课老师",
     cardTime: "上课时间",
     noCourses: "没有符合筛选条件的课程。",
-    noCoursesTrack: "该学段/路径的课程即将上线，敬请期待。",
+    noCoursesTrack: "该学段的课程即将上线，敬请期待。",
     priceTBD: "价格待定",
     scheduleTBD: "时间待定",
     classes: "课时",
@@ -134,23 +134,20 @@ window.I18N = {
     menuLabel: "Menu",
     comingSoon: "Coming soon",
     langBtn: "中文",
-    steps: ["Learning Stage", "Track", "Pedagogy", "Credit Requirements", "Courses", "Submit"],
-    stepsK8: ["Learning Stage", "Pedagogy", "Courses", "Submit"],
-    step0Title: "Step 1: Choose a learning stage",
-    step0Hint: "Elementary and middle school courses can be browsed directly; high school starts with a graduation track.",
-    levels: {
-      k8: { name: "Elementary & Middle (K–G8)", desc: "Kindergarten through Grade 8: Chinese language arts, science series, English and more — go straight to the catalog." },
-      hs: { name: "High School (G9–G12)", desc: "Grades 9–12: choose a graduation track and pedagogy, review credit requirements, then pick courses." },
-    },
+    steps: ["Pedagogy", "Learning Stage", "Track", "Credit Requirements", "Courses", "Submit"],
+    stepsShort: ["Pedagogy", "Learning Stage", "Courses", "Submit"],
+    step0Title: "Step 2: Choose a learning stage",
+    step0Hint: "Stage names follow the pedagogy you chose; every card shows the grades it covers.",
+    stageNeedPedagogy: "Choose a pedagogy first.",
     step1Title: "Choose a graduation track",
-    step1Hint: "Only one track can be selected. Click a card to see details and choose.",
+    step1Hint: "Only high school (the Rhetoric stage) chooses a graduation track. Pick one; click a card for details.",
     modes: {
       international: { name: "International Track", desc: "English-language curriculum aimed at overseas university admission." },
       domestic: { name: "Domestic Track", desc: "Primarily Chinese-language curriculum." },
       hybrid: { name: "Hybrid 2+2 Track", desc: "High school combined with community-college dual-enrollment credits (2+2)." },
     },
-    step2Title: "Choose your pedagogy",
-    step2Hint: "Which approach do you use to educate your child?",
+    step2Title: "Step 1: Choose your pedagogy",
+    step2Hint: "Which approach do you use to educate your child? This decides what the stages are called and which courses follow.",
     pedagogies: {
       classical: { name: "Classical", desc: "Classical Christian tradition, including Theology & Rhetoric courses." },
       nonclassical: { name: "Non-Classical", desc: "Conventional curriculum centered on Bible courses." },
@@ -167,7 +164,7 @@ window.I18N = {
     policyTitle: "Graduation policy notes",
     step4Title: "Choose courses",
     step4Hint: "Click a card for full details; use the Select button to add it to your order. Combine filters as needed; sorted by price (low to high).",
-    step4HintK8: "Elementary & middle school (K–G8) courses. Click a card for details; use the Select button to add it to your order.",
+    step4HintShort: "Courses for this stage. Click a card for details; use the Select button to add it to your order.",
     filters: { subject: "Subject", grade: "Grade", language: "Language", classType: "Class type", teacher: "Teacher", all: "All" },
     clearGrades: "Clear",
     searchLabel: "Quick search",
@@ -179,7 +176,7 @@ window.I18N = {
     cardTeacher: "Teacher",
     cardTime: "Schedule",
     noCourses: "No courses match the current filters.",
-    noCoursesTrack: "Courses for this level/track are coming soon.",
+    noCoursesTrack: "Courses for this stage are coming soon.",
     priceTBD: "Price TBD",
     scheduleTBD: "Time TBD",
     classes: "classes",
@@ -285,6 +282,56 @@ window.I18N = {
 // are the case that prompted it: a parent thinks "K", not "K2". A grade that is
 // in no group is offered on its own. A group's `key` is the stored filter value,
 // so it must not collide with a real grade name or a stage key.
+// The three learning stages a parent chooses between, in order. This is the
+// site's top-level division of the curriculum and it decides the shape of the
+// rest of the wizard: only `rhetoric` has graduation tracks and credit
+// requirements, because G9 is where tracks begin. The boundaries were chosen so
+// the stage a parent picks lines up exactly with that seam (decided 2026-09-11).
+//
+// Each stage carries TWO name sets. Classical families read the trivium
+// (文法 / 逻辑 / 修辞); everyone else reads the conventional school names
+// (小学 / 初中 / 高中). They are alternative vocabularies for the same division,
+// not translations of each other — which is the evidence the division is right:
+// both systems land on it independently. `range` is shown on every card in both
+// vocabularies, so a parent who does not know the trivium still cannot pick the
+// wrong one.
+//
+// `grades` is the authoritative grade set for the stage: it scopes the catalog,
+// the grade filter and (later) the curriculum map. A course belongs to a stage
+// when its own grades intersect this set.
+window.LEARNING_STAGES = [
+  {
+    key: "grammar",
+    range: "K–G6",
+    grades: ["Pre-K", "K1", "K2", "K3", "G1", "G2", "G3", "G4", "G5", "G6"],
+    classical:   { zh: "文法阶段", en: "Grammar Stage" },
+    standard:    { zh: "小学",     en: "Elementary" },
+    descZh: "幼儿园至六年级：中文母语课、科学启蒙、英语基础等，直接浏览选课。",
+    descEn: "Kindergarten through Grade 6: Chinese language arts, early science, English foundations — browse the catalog directly.",
+  },
+  {
+    key: "dialectic",
+    range: "G7–G8",
+    grades: ["G7", "G8"],
+    classical:   { zh: "逻辑阶段", en: "Dialectic Stage" },
+    standard:    { zh: "初中",     en: "Middle School" },
+    // Deliberately free of either vocabulary: this card is read by classical
+    // and non-classical families alike, and "builds on the Grammar stage"
+    // means nothing to a family reading 小学 / 初中 / 高中.
+    descZh: "七至八年级：逻辑思辨与论证训练，直接浏览选课。",
+    descEn: "Grades 7–8: reasoning, argument and analysis — browse the catalog directly.",
+  },
+  {
+    key: "rhetoric",
+    range: "G9–G12",
+    grades: ["G9", "G10", "G11", "G12", "Associate of Arts Degree"],
+    classical:   { zh: "修辞阶段", en: "Rhetoric Stage" },
+    standard:    { zh: "高中",     en: "High School" },
+    descZh: "九至十二年级：先选择毕业路径，查看毕业学分要求后选课。",
+    descEn: "Grades 9–12: choose a graduation track and review its credit requirements, then pick courses.",
+  },
+];
+
 window.GRADE_STAGES = [
   {
     key: "preschool", zh: "幼儿", en: "Preschool",

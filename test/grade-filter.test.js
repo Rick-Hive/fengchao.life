@@ -26,6 +26,8 @@ const subj = (id, code, en, zh, subject, bucket) => ({
   subjects: [{ nameEn: subject, nameZh: subject, filterKey: bucket, filterNameEn: bucket, filterNameZh: bucket }],
 });
 
+const MATH = { nameEn: "Math", nameZh: "数学", filterKey: "Math", filterNameEn: "Math", filterNameZh: "数学" };
+
 const snapshot = {
   generatedAt: "2026-09-05T00:00:00Z",
   k8TrackId: 7,
@@ -45,6 +47,7 @@ const snapshot = {
     { id: "c4", code: "MTH-EL-102", nameEn: "Math G2",     nameZh: "数学二年级", grades: ["G2"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c5", code: "CHL-KG-101", nameEn: "Kinder Chin", nameZh: "幼儿中文",   grades: ["K1","K2"],       trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c6", code: "CHL-KG-100", nameEn: "Pre-K Chin",  nameZh: "学前中文",   grades: ["Pre-K"],         trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "d1", code: "MTH-MS-107", nameEn: "Pre-Algebra", nameZh: "预备代数", grades: ["G7","G8"], trackIds: [1,2,3,4,5,6], price: 100, subjects: [MATH], teachers: [] },
     { id: "c7", code: "MTH-HS-201", nameEn: "Algebra II",  nameZh: "代数二",     grades: ["G9","G10"],      trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c8", code: "MTH-HS-301", nameEn: "Calculus",    nameZh: "微积分",     grades: ["G11","G12"],     trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c9", code: "CLP-CLP-101",nameEn: "AA Seminar",  nameZh: "大学预科",   grades: ["Associate of Arts Degree"], trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
@@ -98,32 +101,43 @@ const check = (label, actual, expected) => {
 };
 
 const pick = (sel) => { const el = doc.querySelector(sel); if (!el) throw new Error("missing " + sel); return el; };
-const goToCatalog = (level) => {
-  click(pick('#levelGrid .choice-card[data-key="' + level + '"]'));
-  click(pick("#next0"));
-  if (level === "hs") { click(pick('#modeGrid .choice-card[data-key="international"]')); click(pick("#next1")); }
-  click(pick('#pedGrid .choice-card[data-key="' + (level === "hs" ? "classical" : "nonclassical") + '"]'));
-  click(pick("#next2"));
-  if (level === "hs") {
-    if (!doc.getElementById("next3")) {
-      console.log("   [debug] expected the requirements step; stepper says:",
-        Array.from(doc.querySelectorAll("#stepper .step-item")).map(e => e.className + ":" + e.textContent.trim()).join(" | "));
-      console.log("   [debug] panel html:", (doc.getElementById("app") || {}).innerHTML?.slice(0, 400));
-    }
-    click(pick("#next3"));
+// Pedagogy -> stage -> (rhetoric only: track -> requirements) -> catalog.
+const goToCatalog = (stage, pedagogy) => {
+  if (doc.getElementById("pedGrid")) {
+    click(pick('#pedGrid .choice-card[data-key="' +
+      (pedagogy || (stage === "rhetoric" ? "classical" : "nonclassical")) + '"]'));
+    click(pick("#next2"));
   }
+  click(pick('#stageGrid .choice-card[data-key="' + stage + '"]'));
+  click(pick("#next0"));
+  if (stage === "rhetoric") {
+    click(pick('#modeGrid .choice-card[data-key="international"]'));
+    click(pick("#next1"));   // track -> requirements
+    click(pick("#next3"));   // requirements -> catalog
+  }
+};
+// Walk Back from wherever we are until the pedagogy page is showing. (Setting
+// location.hash would work in a browser, but jsdom dispatches hashchange
+// asynchronously, so the assertions would run against the previous page.)
+const backToStart = () => {
+  for (let i = 0; i < 8 && !doc.getElementById("pedGrid"); i++) {
+    const b = ["back5", "back4", "back3", "back1", "back0"].map(id => doc.getElementById(id)).find(Boolean);
+    if (!b) break;
+    b.click();
+  }
+  if (!doc.getElementById("pedGrid")) throw new Error("could not get back to the pedagogy page");
 };
 const box = (v) => pick('#fGradePanel input[data-grade="' + v + '"]');
 
 setTimeout(() => {
-  goToCatalog("k8");
+  goToCatalog("grammar");
 
-  check("K-8 lists bare grade codes only, kindergarten merged into K",
+  check("grammar stage lists K and G1-G6 only — no G7/G8, which is now its own stage",
     rows(),
-    ["K", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8"]);
+    ["K", "G1", "G2", "G3", "G4", "G5", "G6"]);
   check("no stage rows anywhere", doc.querySelectorAll("#fGradePanel input[data-stage]").length, 0);
-  check("K-8 offers no high-school grade", rows().some(r => /高中|大学预科|G9|G1[012]/.test(r)), false);
-  check("no filter -> whole K-8 catalog, Pre-K course included", count(), 6);
+  check("grammar stage offers no high-school grade", rows().some(r => /高中|大学预科|G9|G1[012]/.test(r)), false);
+  check("no filter -> the whole grammar-stage catalog, Pre-K course included", count(), 6);
   check("the Pre-K course is still in the catalog, just not filterable",
     names().indexOf("学前中文") !== -1, true);
 
@@ -151,15 +165,14 @@ setTimeout(() => {
   check("ticking every elementary grade is still one OR", names().sort(),
     ["数学一年级", "数学二年级", "数学三年级", "数学五年级"].sort());
 
-  // ---- high school -------------------------------------------------------
-  click(pick("#back4"));
-  click(pick("#back2"));
-  goToCatalog("hs");
-  check("HS lists G9-G12 plus 大学预科, no stage rows",
+  // ---- rhetoric stage ----------------------------------------------------
+  backToStart();
+  goToCatalog("rhetoric");
+  check("rhetoric stage lists G9-G12 plus 大学预科",
     rows(),
     ["G9", "G10", "G11", "G12", "大学预科"]);
-  check("HS offers no K-8 grade", rows().some(r => /^(K|Pre-K|G[1-8])$/.test(r)), false);
-  check("switching level cleared the K-8 grade selection", doc.querySelector(".ms-btn-txt").textContent, "全部");
+  check("rhetoric stage offers no K-G8 grade", rows().some(r => /^(K|Pre-K|G[1-8])$/.test(r)), false);
+  check("switching stage cleared the previous grade selection", doc.querySelector(".ms-btn-txt").textContent, "全部");
 
   tick(box("G9"));
   check("G9 matches the course tagged G9+G10", names(), ["代数二"]);
@@ -257,6 +270,59 @@ setTimeout(() => {
   } else {
     check("modal offered a Select button", !!selectBtn, true);
   }
+
+  // ---- the three-stage, pedagogy-first flow -------------------------------
+  backToStart();
+  check("pedagogy is the first page and has no Back",
+    [!!doc.getElementById("pedGrid"), !!doc.getElementById("back2")], [true, false]);
+  check("the stage page cannot be reached before a pedagogy is chosen",
+    (() => { window.location.hash = "#/level"; return !!doc.getElementById("pedGrid"); })(), true);
+
+  // Classical reads the trivium...
+  click(pick('#pedGrid .choice-card[data-key="classical"]')); click(pick("#next2"));
+  check("classical stage cards: trivium names",
+    Array.from(doc.querySelectorAll("#stageGrid .choice-card h3")).map(h => h.firstChild.textContent.trim()),
+    ["文法阶段", "逻辑阶段", "修辞阶段"]);
+  check("...each card shows the grades it covers",
+    Array.from(doc.querySelectorAll("#stageGrid .stage-range")).map(e => e.textContent),
+    ["K–G6", "G7–G8", "G9–G12"]);
+  // The stepper reflects the stage currently selected, so check it after a
+  // stage is picked rather than while the previous one is still in state.
+  click(pick('#stageGrid .choice-card[data-key="grammar"]'));
+  check("stepper is pedagogy-first, four steps for grammar",
+    Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
+    ["教育理念", "学段", "选择课程", "提交订单"]);
+  check("picking a stage does not leave the previous one selected",
+    Array.from(doc.querySelectorAll("#stageGrid .choice-card.selected")).map(c => c.getAttribute("data-key")),
+    ["grammar"]);
+
+  // ...non-classical reads the conventional school names, same three divisions
+  click(pick("#back0"));
+  click(pick('#pedGrid .choice-card[data-key="nonclassical"]')); click(pick("#next2"));
+  check("non-classical stage cards: conventional names",
+    Array.from(doc.querySelectorAll("#stageGrid .choice-card h3")).map(h => h.firstChild.textContent.trim()),
+    ["小学", "初中", "高中"]);
+
+  // The dialectic stage: its own catalog, no track, no requirements
+  click(pick('#stageGrid .choice-card[data-key="dialectic"]')); click(pick("#next0"));
+  check("dialectic goes straight to the catalog — no track step", !!doc.getElementById("gridWrap"), true);
+  check("dialectic grade filter offers G7 and G8 only", rows(), ["G7", "G8"]);
+  check("dialectic catalog holds the G7-G8 course", names(), ["预备代数"]);
+  check("dialectic stepper has four steps", Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
+    ["教育理念", "学段", "选择课程", "提交订单"]);
+
+  // Rhetoric keeps the track + requirements steps
+  backToStart();
+  click(pick('#pedGrid .choice-card[data-key="classical"]')); click(pick("#next2"));
+  click(pick('#stageGrid .choice-card[data-key="rhetoric"]')); click(pick("#next0"));
+  check("rhetoric asks for a graduation track", !!doc.getElementById("modeGrid"), true);
+  check("rhetoric stepper has six steps", Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
+    ["教育理念", "学段", "毕业路径", "毕业学分要求", "选择课程", "提交订单"]);
+  click(pick('#modeGrid .choice-card[data-key="international"]')); click(pick("#next1"));
+  check("...then its credit requirements", doc.querySelector(".panel h2").textContent, "毕业学分要求");
+  check("the track is still mode x pedagogy",
+    JSON.parse(window.localStorage.getItem("fc-wizard-v1")).mode + "/" +
+    JSON.parse(window.localStorage.getItem("fc-wizard-v1")).pedagogy, "international/classical");
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);

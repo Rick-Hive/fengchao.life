@@ -238,6 +238,10 @@ div.step-item:not(.active) { cursor: not-allowed; }
   background: var(--card); border: 2px solid var(--line); border-radius: var(--radius);
   padding: 28px 26px; cursor: pointer; box-shadow: var(--shadow);
   transition: border-color 0.15s, transform 0.15s; text-align: left;
+  /* Top-aligned: with three stage cards whose descriptions run to different
+     lengths, centred content made the icons and titles sit at three different
+     heights and the row read as ragged. */
+  display: flex; flex-direction: column; align-items: flex-start;
 }
 .choice-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 .choice-card.selected { border-color: var(--accent); background: var(--accent-soft); }
@@ -316,6 +320,15 @@ div.step-item:not(.active) { cursor: not-allowed; }
 .filter-group select {
   border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; font-size: 0.88rem;
   background: #fff; color: var(--ink); width: 100%;
+}
+
+/* Grade range on a learning-stage card: quieter than the stage name, so the
+   card reads "文法阶段 K-G6" as one line with the range as a qualifier. It is
+   what a parent unfamiliar with the trivium actually navigates by. */
+.choice-card h3 .stage-range {
+  font-size: 0.82rem; font-weight: 500; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 999px; padding: 1px 8px; margin-left: 6px; white-space: nowrap;
 }
 
 /* Grade multi-select: a select-looking button over a checkbox panel, so a
