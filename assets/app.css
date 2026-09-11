@@ -1,4 +1,21 @@
 /* fengchao.life — Hive course ordering. Self-hosted styles, no external assets. */
+
+/* Latin UI face. Google Sans is proprietary, so Inter stands in for it — the
+   closest open face by measured overlap with it. One self-hosted 48 KB file
+   (Google Fonts is unreachable in mainland China); the variable axis covers
+   every weight used below. `unicode-range` keeps it to Latin so 中文 still
+   comes from PingFang SC / YaHei. SIL OFL 1.1, see fonts/Inter-OFL.txt. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/inter-latin-var.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   /* Palette matched to the EquipMe materials site: a cool light gray-blue
      ground (their actual page background, not the warm-white card behind the
@@ -32,16 +49,12 @@ html { font-size: 17px; }
 body {
   background: var(--bg);
   color: var(--ink);
-  /* Latin fonts FIRST, CJK after. Font fallback is per-character, so Latin
-     glyphs come from Segoe UI (Windows) or the platform UI font, while Chinese
-     falls through to PingFang/YaHei/Noto. The CJK fonts used to lead this list,
-     and because PingFang SC and Microsoft YaHei both carry Latin glyphs,
-     English was being rendered in a Chinese font's Latin and never reached
-     Segoe UI at all. Requested 2026-09-04: match Segoe UI for English.
-     No webfont is loaded -- these are all system fonts, which keeps the
-     self-hosted-assets-only rule (mainland-China reliability) intact. */
-  font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont,
-               Roboto, "Helvetica Neue", Arial,
+  /* Latin fonts FIRST, CJK after — do not reorder. Fallback is per-character,
+     so Latin comes from Inter and Chinese falls through to PingFang/YaHei.
+     When the CJK fonts led this list, English rendered in a Chinese font's
+     Latin glyphs instead. The system fonts stay as the first-paint fallback. */
+  font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", -apple-system,
+               BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial,
                "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   line-height: 1.6;
   /* body fills at least the viewport and lays out header/main as a column,
