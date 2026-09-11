@@ -15,7 +15,7 @@ window.I18N = {
     step0Hint: "请选择孩子所处的学段。名称随所选教育理念显示；每张卡片都标注对应年级。",
     stageNeedPedagogy: "请先选择教育理念。",
     step1Title: "请选择毕业路径",
-    step1Hint: "仅高中（修辞阶段）需要选择毕业路径。三种路径只能选择一种，点击卡片查看说明。",
+    step1Hint: "仅{stage}需要选择毕业路径。三种路径只能选择一种，点击卡片查看说明。",
     modes: {
       international: { name: "国际路径", desc: "以英文课程为主的国际方向，面向海外大学申请。" },
       domestic: { name: "国内路径", desc: "以中文课程为主的国内方向。" },
@@ -140,7 +140,7 @@ window.I18N = {
     step0Hint: "Stage names follow the pedagogy you chose; every card shows the grades it covers.",
     stageNeedPedagogy: "Choose a pedagogy first.",
     step1Title: "Choose a graduation track",
-    step1Hint: "Only high school (the Rhetoric stage) chooses a graduation track. Pick one; click a card for details.",
+    step1Hint: "Only {stage} chooses a graduation track. Pick one; click a card for details.",
     modes: {
       international: { name: "International Track", desc: "English-language curriculum aimed at overseas university admission." },
       domestic: { name: "Domestic Track", desc: "Primarily Chinese-language curriculum." },
@@ -299,36 +299,58 @@ window.I18N = {
 // `grades` is the authoritative grade set for the stage: it scopes the catalog,
 // the grade filter and (later) the curriculum map. A course belongs to a stage
 // when its own grades intersect this set.
+//
+// The DESCRIPTION belongs to the name set, not to the stage (Rick, 2026-09-11).
+// The trivium is not just three labels — it is a claim about how a child learns
+// at each age, so "逻辑思辨与论证训练" describes 逻辑阶段, not 初中. A family
+// reading 小学 / 初中 / 高中 has not signed up for that pedagogy and must not be
+// told their child's middle-school years are for dialectic training. One shared
+// description cannot serve both; each vocabulary carries its own.
 window.LEARNING_STAGES = [
   {
     key: "grammar",
     range: "K–G6",
     grades: ["Pre-K", "K1", "K2", "K3", "G1", "G2", "G3", "G4", "G5", "G6"],
-    classical:   { zh: "文法阶段", en: "Grammar Stage" },
-    standard:    { zh: "小学",     en: "Elementary" },
-    descZh: "幼儿园至六年级：中文母语课、科学启蒙、英语基础等，直接浏览选课。",
-    descEn: "Kindergarten through Grade 6: Chinese language arts, early science, English foundations — browse the catalog directly.",
+    classical: {
+      zh: "文法阶段", en: "Grammar Stage",
+      descZh: "幼儿园至六年级：文法阶段重在记诵与基本功——中文母语课、科学启蒙、英语基础等，直接浏览选课。",
+      descEn: "Kindergarten through Grade 6: the Grammar stage builds memory and fundamentals — Chinese language arts, early science, English foundations. Browse the catalog directly.",
+    },
+    standard: {
+      zh: "小学", en: "Elementary",
+      descZh: "幼儿园至六年级：中文母语课、科学启蒙、英语基础等，直接浏览选课。",
+      descEn: "Kindergarten through Grade 6: Chinese language arts, early science, English foundations — browse the catalog directly.",
+    },
   },
   {
     key: "dialectic",
     range: "G7–G8",
     grades: ["G7", "G8"],
-    classical:   { zh: "逻辑阶段", en: "Dialectic Stage" },
-    standard:    { zh: "初中",     en: "Middle School" },
-    // Deliberately free of either vocabulary: this card is read by classical
-    // and non-classical families alike, and "builds on the Grammar stage"
-    // means nothing to a family reading 小学 / 初中 / 高中.
-    descZh: "七至八年级：逻辑思辨与论证训练，直接浏览选课。",
-    descEn: "Grades 7–8: reasoning, argument and analysis — browse the catalog directly.",
+    classical: {
+      zh: "逻辑阶段", en: "Dialectic Stage",
+      descZh: "七至八年级：逻辑思辨与论证训练，直接浏览选课。",
+      descEn: "Grades 7–8: reasoning, argument and analysis — browse the catalog directly.",
+    },
+    standard: {
+      zh: "初中", en: "Middle School",
+      descZh: "七至八年级：初中各科课程，直接浏览选课。",
+      descEn: "Grades 7–8: the middle-school subjects — browse the catalog directly.",
+    },
   },
   {
     key: "rhetoric",
     range: "G9–G12",
     grades: ["G9", "G10", "G11", "G12", "Associate of Arts Degree"],
-    classical:   { zh: "修辞阶段", en: "Rhetoric Stage" },
-    standard:    { zh: "高中",     en: "High School" },
-    descZh: "九至十二年级：先选择毕业路径，查看毕业学分要求后选课。",
-    descEn: "Grades 9–12: choose a graduation track and review its credit requirements, then pick courses.",
+    classical: {
+      zh: "修辞阶段", en: "Rhetoric Stage",
+      descZh: "九至十二年级：先选择毕业路径，查看毕业学分要求后选课。",
+      descEn: "Grades 9–12: choose a graduation track and review its credit requirements, then pick courses.",
+    },
+    standard: {
+      zh: "高中", en: "High School",
+      descZh: "九至十二年级：先选择毕业路径，查看毕业学分要求后选课。",
+      descEn: "Grades 9–12: choose a graduation track and review its credit requirements, then pick courses.",
+    },
   },
 ];
 

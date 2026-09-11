@@ -126,6 +126,16 @@
     var set = state.pedagogy === "classical" ? d.classical : d.standard;
     return pickLang(set.en, set.zh);
   }
+  // The stage card's blurb, likewise per-vocabulary. The trivium names a theory
+  // of how a child learns at each age; "逻辑思辨与论证训练" is a claim about
+  // 逻辑阶段, not a fact about 初中, so a family reading the conventional names
+  // gets the conventional blurb (Rick, 2026-09-11).
+  function stageDesc(key) {
+    var d = stageDef(key);
+    if (!d) return "";
+    var set = state.pedagogy === "classical" ? d.classical : d.standard;
+    return pickLang(set.descEn, set.descZh);
+  }
   function stageGrades(key) {
     var d = stageDef(key);
     return d ? d.grades : [];
@@ -835,7 +845,7 @@
       return choiceCard(
         d.key,
         esc(stageName(d.key)) + ' <span class="stage-range">' + esc(d.range) + "</span>",
-        pickLang(d.descEn, d.descZh),
+        stageDesc(d.key),
         state.stage === d.key,
         true // name already contains markup
       );
@@ -851,7 +861,9 @@
   function renderStep1() {
     var m = t().modes;
     return (
-      '<section class="panel panel-short"><h2>' + esc(t().step1Title) + '</h2><p class="hint">' + esc(t().step1Hint) + "</p>" +
+      // {stage} so the hint names the stage in the parent's own vocabulary —
+      // it used to read "仅高中（修辞阶段）", showing both at once.
+      '<section class="panel panel-short"><h2>' + esc(t().step1Title) + '</h2><p class="hint">' + esc(t().step1Hint.replace("{stage}", stageName("rhetoric"))) + "</p>" +
       '<div class="choice-grid" id="modeGrid">' +
       choiceCard("international", m.international.name, m.international.desc, state.mode === "international") +
       choiceCard("domestic", m.domestic.name, m.domestic.desc, state.mode === "domestic") +

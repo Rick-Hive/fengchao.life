@@ -286,6 +286,8 @@ setTimeout(() => {
   check("...each card shows the grades it covers",
     Array.from(doc.querySelectorAll("#stageGrid .stage-range")).map(e => e.textContent),
     ["K–G6", "G7–G8", "G9–G12"]);
+  check("classical descriptions may use the trivium",
+    /文法阶段/.test(pick('#stageGrid .choice-card[data-key="grammar"] p').textContent), true);
   // The stepper reflects the stage currently selected, so check it after a
   // stage is picked rather than while the previous one is still in state.
   click(pick('#stageGrid .choice-card[data-key="grammar"]'));
@@ -302,6 +304,11 @@ setTimeout(() => {
   check("non-classical stage cards: conventional names",
     Array.from(doc.querySelectorAll("#stageGrid .choice-card h3")).map(h => h.firstChild.textContent.trim()),
     ["小学", "初中", "高中"]);
+  // A non-classical family has not adopted the trivium's theory of how a child
+  // learns, so no trivium vocabulary may reach them — neither the stage names
+  // nor the blurbs beneath them. 逻辑思辨/论证训练 describes 逻辑阶段, not 初中.
+  check("no trivium vocabulary anywhere on the non-classical stage page",
+    (doc.getElementById("stageGrid").textContent.match(/文法|逻辑|修辞|思辨|论证/g) || []), []);
 
   // The dialectic stage: its own catalog, no track, no requirements
   click(pick('#stageGrid .choice-card[data-key="dialectic"]')); click(pick("#next0"));
@@ -316,6 +323,9 @@ setTimeout(() => {
   click(pick('#pedGrid .choice-card[data-key="classical"]')); click(pick("#next2"));
   click(pick('#stageGrid .choice-card[data-key="rhetoric"]')); click(pick("#next0"));
   check("rhetoric asks for a graduation track", !!doc.getElementById("modeGrid"), true);
+  check("classical track hint says 修辞阶段 and never 高中",
+    (function () { var h = pick("#modeGrid").parentNode.querySelector(".hint").textContent;
+      return [h.indexOf("修辞阶段") >= 0, /高中/.test(h)]; })(), [true, false]);
   check("rhetoric stepper has six steps", Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
     ["教育理念", "学段", "毕业路径", "毕业学分要求", "选择课程", "提交订单"]);
   click(pick('#modeGrid .choice-card[data-key="international"]')); click(pick("#next1"));
@@ -323,6 +333,15 @@ setTimeout(() => {
   check("the track is still mode x pedagogy",
     JSON.parse(window.localStorage.getItem("fc-wizard-v1")).mode + "/" +
     JSON.parse(window.localStorage.getItem("fc-wizard-v1")).pedagogy, "international/classical");
+
+  // The track page's hint used to read "仅高中（修辞阶段）" — both vocabularies
+  // in one sentence. It must now name only the one the family chose.
+  backToStart();
+  click(pick('#pedGrid .choice-card[data-key="nonclassical"]')); click(pick("#next2"));
+  click(pick('#stageGrid .choice-card[data-key="rhetoric"]')); click(pick("#next0"));
+  check("non-classical track hint says 高中 and never 修辞",
+    (function () { var h = pick("#modeGrid").parentNode.querySelector(".hint").textContent;
+      return [h.indexOf("高中") >= 0, /修辞/.test(h)]; })(), [true, false]);
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);
