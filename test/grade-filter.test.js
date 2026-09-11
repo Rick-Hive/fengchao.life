@@ -41,7 +41,7 @@ const snapshot = {
   }],
   subjects: [{ nameEn: "Math", nameZh: "数学", filterKey: "Math", filterNameEn: "Math", filterNameZh: "数学" }],
   courses: [
-    { id: "c1", code: "MTH-EL-101", nameEn: "Math G1",     nameZh: "数学一年级", grades: ["G1"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c1", code: "MTH-EL-101", nameEn: "Math G1",     nameZh: "数学一年级", grades: ["G1"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [MATH], teachers: [] },
     { id: "c2", code: "MTH-EL-103", nameEn: "Math G3",     nameZh: "数学三年级", grades: ["G3"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c3", code: "MTH-EL-105", nameEn: "Math G5",     nameZh: "数学五年级", grades: ["G5"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c4", code: "MTH-EL-102", nameEn: "Math G2",     nameZh: "数学二年级", grades: ["G2"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
@@ -61,6 +61,33 @@ const snapshot = {
     subj("x1", "ELE-HS-101",  "Yearbook",       "年鉴",        "Electives",       "Electives"),
   ],
   teachers: [], messages: {},
+  // Curriculum map fixtures: grammar and rhetoric have a table, dialectic does
+  // not — so the step must appear for the first two and vanish for the third.
+  curriculumMap: {
+    grammar: {
+      grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"],
+      rows: [
+        { id: "r1", order: 1, subjects: [{ nameEn: "Math", nameZh: "数学" }], trackIds: [], pedagogy: null, spanAll: false,
+          cells: { K: [{ en: "Montessori", zh: "蒙特梭利教具" }], G1: [{ en: "ACSI Math G1", zh: "ACSI数学 G1" }, { en: null, zh: "沪教版数学 G1" }],
+                   G2: [], G3: [{ en: "ACSI Math G3", zh: "ACSI数学 G3" }], G4: [], G5: [], G6: [] } },
+        { id: "r2", order: 2, subjects: [{ nameEn: "Chinese Literature", nameZh: "中文文学" }], trackIds: [], pedagogy: null, spanAll: false,
+          cells: { K: [], G1: [1, 2, 3, 4, 5].map(n => ({ en: "Book " + n, zh: "书" + n })), G2: [], G3: [], G4: [], G5: [], G6: [] } },
+        { id: "r3", order: 3, subjects: [{ nameEn: "Elective", nameZh: "选修" }], trackIds: [], pedagogy: null, spanAll: true,
+          cells: { K: [{ en: "Music", zh: "音乐" }, { en: "Art", zh: "艺术" }, { en: "PE", zh: "体育" }], G1: [], G2: [], G3: [], G4: [], G5: [], G6: [] } },
+      ],
+    },
+    rhetoric: {
+      grades: ["G9", "G10", "G11", "G12"],
+      rows: [
+        { id: "h1", order: 1, subjects: [{ nameEn: "Bible", nameZh: "圣经" }],   trackIds: [2, 4, 6], pedagogy: null, spanAll: false,
+          cells: { G9: [{ en: "Spiritual Disciplines", zh: "属灵操练" }], G10: [], G11: [], G12: [] } },
+        { id: "h2", order: 2, subjects: [{ nameEn: "Theology", nameZh: "神学" }], trackIds: [1, 3, 5], pedagogy: null, spanAll: false,
+          cells: { G9: [{ en: "Omnibus III", zh: "Omnibus III 教义" }], G10: [], G11: [], G12: [] } },
+        { id: "h3", order: 3, subjects: [{ nameEn: "Math", nameZh: "数学" }],     trackIds: [1, 2, 3, 4, 5, 6], pedagogy: null, spanAll: false,
+          cells: { G9: [{ en: "Geometry", zh: "几何" }], G10: [{ en: "Algebra 2", zh: "代数2" }], G11: [], G12: [] } },
+      ],
+    },
+  },
 };
 
 const { VirtualConsole } = require("jsdom");
@@ -113,15 +140,16 @@ const goToCatalog = (stage, pedagogy) => {
   if (stage === "rhetoric") {
     click(pick('#modeGrid .choice-card[data-key="international"]'));
     click(pick("#next1"));   // track -> requirements
-    click(pick("#next3"));   // requirements -> catalog
+    click(pick("#next3"));   // requirements -> map (or catalog)
   }
+  if (doc.getElementById("next6")) click(pick("#next6"));   // map -> catalog
 };
 // Walk Back from wherever we are until the pedagogy page is showing. (Setting
 // location.hash would work in a browser, but jsdom dispatches hashchange
 // asynchronously, so the assertions would run against the previous page.)
 const backToStart = () => {
   for (let i = 0; i < 8 && !doc.getElementById("pedGrid"); i++) {
-    const b = ["back5", "back4", "back3", "back1", "back0"].map(id => doc.getElementById(id)).find(Boolean);
+    const b = ["back5", "back4", "back6", "back3", "back1", "back0"].map(id => doc.getElementById(id)).find(Boolean);
     if (!b) break;
     b.click();
   }
@@ -190,7 +218,8 @@ setTimeout(() => {
   check("ZH: back to 大学预科", rows(), ["G9", "G10", "G11", "G12", "大学预科"]);
 
   // ---- graduation requirements page: subject decides the row, never bucket --
-  click(pick("#back4"));            // back to the requirements step
+  click(pick("#back4"));            // back to the map
+  if (doc.getElementById("back6")) click(pick("#back6"));   // ...then the requirements step
   // Expanding a row re-renders the step, so re-query the DOM after each click
   // rather than holding on to the button that triggered it.
   const reqToggle = label => Array.from(doc.querySelectorAll(".req-toggle"))
@@ -246,7 +275,7 @@ setTimeout(() => {
 
   // Expanding/collapsing a row must not scroll the page: render() jumps to the
   // top, which threw the parent away from the row they had just opened.
-  const before = scrollCalls;
+  let before = scrollCalls;
   reqToggle("艺术").click();                       // expand
   check("expanding a row does not scroll the page", scrollCalls, before);
   check("...and the row really is open",
@@ -291,9 +320,9 @@ setTimeout(() => {
   // The stepper reflects the stage currently selected, so check it after a
   // stage is picked rather than while the previous one is still in state.
   click(pick('#stageGrid .choice-card[data-key="grammar"]'));
-  check("stepper is pedagogy-first, four steps for grammar",
+  check("stepper is pedagogy-first, five steps for grammar (it has a map)",
     Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
-    ["教育理念", "学段", "选择课程", "提交订单"]);
+    ["教育理念", "学段", "课程地图", "选择课程", "提交订单"]);
   check("picking a stage does not leave the previous one selected",
     Array.from(doc.querySelectorAll("#stageGrid .choice-card.selected")).map(c => c.getAttribute("data-key")),
     ["grammar"]);
@@ -326,8 +355,8 @@ setTimeout(() => {
   check("classical track hint says 修辞阶段 and never 高中",
     (function () { var h = pick("#modeGrid").parentNode.querySelector(".hint").textContent;
       return [h.indexOf("修辞阶段") >= 0, /高中/.test(h)]; })(), [true, false]);
-  check("rhetoric stepper has six steps", Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
-    ["教育理念", "学段", "毕业路径", "毕业学分要求", "选择课程", "提交订单"]);
+  check("rhetoric stepper has seven steps (track, requirements, map)", Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
+    ["教育理念", "学段", "毕业路径", "毕业学分要求", "课程地图", "选择课程", "提交订单"]);
   click(pick('#modeGrid .choice-card[data-key="international"]')); click(pick("#next1"));
   check("...then its credit requirements", doc.querySelector(".panel h2").textContent, "毕业学分要求");
   check("the track is still mode x pedagogy",
@@ -342,6 +371,89 @@ setTimeout(() => {
   check("non-classical track hint says 高中 and never 修辞",
     (function () { var h = pick("#modeGrid").parentNode.querySelector(".hint").textContent;
       return [h.indexOf("高中") >= 0, /修辞/.test(h)]; })(), [true, false]);
+
+  // ---- curriculum map ------------------------------------------------------
+  backToStart();
+  click(pick('#pedGrid .choice-card[data-key="nonclassical"]')); click(pick("#next2"));
+  click(pick('#stageGrid .choice-card[data-key="grammar"]')); click(pick("#next0"));
+  check("grammar: Next from the stage lands on the map", !!doc.getElementById("mapCard"), true);
+  check("map hash", window.location.hash, "#/map");
+  check("stepper lists the map before the courses",
+    Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent), ["教育理念", "学段", "课程地图", "选择课程", "提交订单"]);
+  check("stage step shows as done, map as active",
+    Array.from(doc.querySelectorAll("#stepper .step-item")).map(e => e.className.replace("step-item", "").trim()),
+    ["done", "done", "active", "ready", ""]);
+  check("grid columns are the stage's grades",
+    Array.from(doc.querySelectorAll(".cm-table thead th")).map(e => e.textContent).slice(1), ["K", "G1", "G2", "G3", "G4", "G5", "G6"]);
+  check("rows in table order", Array.from(doc.querySelectorAll(".cm-row")).map(e => e.textContent), ["数学", "中文文学", "选修"]);
+  const mathRow = doc.querySelectorAll(".cm-table tbody tr")[0];
+  check("a cell shows only the page language and falls back when one side is blank",
+    Array.from(mathRow.children[2].querySelectorAll(".cm-item")).map(e => e.textContent), ["ACSI数学 G1", "沪教版数学 G1"]);
+  check("...and counts the catalog courses that fit it", mathRow.children[2].querySelector(".cm-avail").textContent, "1 门可选");
+  check("an empty cell is hatched and not clickable", mathRow.children[3].className, "cm-none");
+  const litCell = doc.querySelectorAll(".cm-table tbody tr")[1].children[2];
+  check("long cells show three items and a +N pill",
+    [litCell.querySelectorAll(".cm-item").length, litCell.querySelector(".cm-more").textContent], [3, "+2"]);
+  const span = doc.querySelectorAll(".cm-table tbody tr")[2].children[1];
+  check("a not-by-grade row spans every column with one merged list",
+    [span.getAttribute("colspan"), span.textContent.replace(/\s+/g, "")], ["7", "音乐艺术体育"]);
+
+  // tapping a cell opens the sheet with everything in it, without scrolling
+  before = scrollCalls;
+  click(litCell);
+  const sheet = doc.querySelector(".cm-sheet");
+  check("tapping a cell opens its sheet, page does not scroll",
+    [!!sheet, scrollCalls === before], [true, true]);
+  check("the sheet lists all five items", sheet.querySelectorAll(".cm-sheet-items li").length, 5);
+  check("...and says when no course fits", !!sheet.querySelector(".cm-sheet-none"), true);
+  click(sheet.querySelector("[data-close]"));
+  click(mathRow.children[2]);
+  const sheet2 = doc.querySelectorAll(".cm-sheet")[doc.querySelectorAll(".cm-sheet").length - 1];
+  const selBtn = sheet2.querySelector("[data-select]");
+  check("the math cell's sheet offers the fitting course with a Select button", !!selBtn, true);
+  before = scrollCalls;
+  click(selBtn);
+  check("selecting from the sheet repaints in place and does not scroll",
+    [scrollCalls === before, !!doc.querySelector("#mapCard .cm-avail")], [true, true]);
+  check("...and the cart has it", JSON.parse(window.localStorage.getItem("fc-wizard-v1")).cart.c1, true);
+  click(sheet2.querySelector("[data-close]"));
+
+  // phone view: one grade at a time
+  check("phone view defaults to the first grade", doc.querySelector(".cm-tab.on").textContent, "K");
+  click(doc.querySelector('.cm-tab[data-tab="G1"]'));
+  check("switching the grade tab repaints the list in place",
+    [doc.querySelector(".cm-tab.on").textContent, Array.from(doc.querySelectorAll(".cm-mrow h4")).map(e => e.textContent)],
+    ["G1", ["数学", "中文文学", "选修"]]);
+
+  // English shows the other half of each item
+  click(pick("#langBtn"));
+  check("English view shows the English half",
+    Array.from(doc.querySelectorAll(".cm-table tbody tr")[0].children[2].querySelectorAll(".cm-item")).map(e => e.textContent), ["ACSI Math G1", "沪教版数学 G1"]);
+  click(pick("#langBtn"));
+
+  click(pick("#next6"));
+  check("Next from the map is the catalog", !!doc.getElementById("gridWrap"), true);
+  click(pick("#back4"));
+  check("Back from the catalog returns to the map", !!doc.getElementById("mapCard"), true);
+
+  // rhetoric: rows narrowed to the chosen track; dialectic: no table, no step
+  backToStart();
+  click(pick('#pedGrid .choice-card[data-key="classical"]')); click(pick("#next2"));
+  click(pick('#stageGrid .choice-card[data-key="rhetoric"]')); click(pick("#next0"));
+  click(pick('#modeGrid .choice-card[data-key="international"]')); click(pick("#next1")); click(pick("#next3"));
+  check("rhetoric: requirements -> map", !!doc.getElementById("mapCard"), true);
+  check("rhetoric rows are narrowed to track 1 (Theology yes, Bible no)",
+    Array.from(doc.querySelectorAll(".cm-row")).map(e => e.textContent), ["神学", "数学"]);
+  check("the map is titled with the track", doc.querySelector(".cm-scope").textContent, "国际·古典");
+  check("rhetoric stepper has seven steps",
+    Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent),
+    ["教育理念", "学段", "毕业路径", "毕业学分要求", "课程地图", "选择课程", "提交订单"]);
+  backToStart();
+  click(pick('#pedGrid .choice-card[data-key="classical"]')); click(pick("#next2"));
+  click(pick('#stageGrid .choice-card[data-key="dialectic"]')); click(pick("#next0"));
+  check("dialectic has no table yet: the step is skipped and the stepper omits it",
+    [!!doc.getElementById("gridWrap"), Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent)],
+    [true, ["教育理念", "学段", "选择课程", "提交订单"]]);
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);

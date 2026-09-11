@@ -91,14 +91,20 @@ async function listBaseTables(pat) {
   }
 }
 
+// Find a table by any of several names. Used for tables that are addressed by
+// name rather than id (message templates, the curriculum maps): the metadata
+// API gives the real list when the PAT allows it; otherwise each candidate is
+// tried as an address in turn. `tables` may be passed in so several lookups in
+// one sync share a single metadata call.
 // -> { records, found, via, tableNames }
-async function findTemplateRecords(pat, context) {
-  const candidates = templateTableCandidates();
-  const wanted = new Set(candidates.map(norm));
+async function findTableRecords(candidates, pat, context, label, tables) {
+  const wanted = candidates.map(norm);
 
-  const tables = await listBaseTables(pat);
+  if (tables === undefined) tables = await listBaseTables(pat);
   if (tables) {
-    const hit = tables.find((t) => wanted.has(norm(t.name)));
+    // First candidate that exists wins, so the order in the list is a priority.
+    let hit = null;
+    for (const w of wanted) { hit = tables.find((t) => norm(t.name) === w); if (hit) break; }
     if (hit) {
       try {
         return {
@@ -108,7 +114,7 @@ async function findTemplateRecords(pat, context) {
           tableNames: tables.map((t) => t.name),
         };
       } catch (e) {
-        context.log.warn(`Message templates: found "${hit.name}" but could not read it: ${String(e.message || e).slice(0, 160)}`);
+        context.log.warn(`${label}: found "${hit.name}" but could not read it: ${String(e.message || e).slice(0, 160)}`);
       }
     }
     return { records: [], found: false, via: "metadata (no matching table)", tableNames: tables.map((t) => t.name) };
@@ -128,6 +134,45 @@ async function findTemplateRecords(pat, context) {
     }
   }
   return { records: [], found: false, via: "no candidate name matched", tableNames: null };
+}
+
+async function findTemplateRecords(pat, context, tables) {
+  return findTableRecords(templateTableCandidates(), pat, context, "Message templates", tables);
+}
+
+// ---- curriculum map cells --------------------------------------------------
+// A cell holds one or more planned items, each written "English / 中文". Items
+// are separated by ";" (either width) or a line break. The split between the
+// languages is the FIRST slash: English titles in this base never contain one,
+// Chinese ones do ("《好奇的历史学家》1A / 《好奇的历史学家》3B" is a data error
+// the second half absorbs rather than a reason to lose the item). An item with
+// no slash is single-language — which one is decided by whether it contains
+// CJK — and the other side is left null so the page falls back to it.
+const CJK_RE = /[　-〿㐀-䶿一-鿿豈-﫿＀-￯]/;
+function parseMapCell(raw) {
+  const text = asText(raw);
+  if (!text.trim()) return [];
+  return text
+    .split(/[;；\n\r]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const i = item.indexOf("/");
+      if (i === -1) return CJK_RE.test(item) ? { en: null, zh: item } : { en: item, zh: null };
+      const en = item.slice(0, i).trim();
+      const zh = item.slice(i + 1).trim();
+      return { en: en || null, zh: zh || null };
+    });
+}
+
+// Grade columns are looked up by exact (normalized) name only — never through
+// f()'s substring fallbacks, because a one-letter column like "K" would match
+// almost anything.
+function mapGradeField(fields, grade) {
+  if (Object.prototype.hasOwnProperty.call(fields, grade)) return fields[grade];
+  const want = norm(grade);
+  for (const k of Object.keys(fields)) if (norm(k) === want) return fields[k];
+  return undefined;
 }
 
 function isRecordIdArray(v) {
@@ -228,7 +273,8 @@ module.exports = async function (context, req) {
     // try each candidate name in turn. The names actually present in the base
     // are reported in the warning, which turns "not readable" from a dead end
     // into a one-glance fix.
-    const templateResult = await findTemplateRecords(pat, context);
+    const baseTables = await listBaseTables(pat); // null without schema scope
+    const templateResult = await findTemplateRecords(pat, context, baseTables);
     const templateRecs = templateResult.records;
     const templatesTableMissing = !templateResult.found;
 
@@ -262,6 +308,7 @@ module.exports = async function (context, req) {
       const filterEn = String(f(r.fields, sjf.filterEn) || "").trim() || nameEn;
       const filterZh = String(f(r.fields, sjf.filterZh) || "").trim() || nameZh;
       subjectByRec.set(r.id, {
+        id: r.id,
         nameEn,
         nameZh,
         abbr: String(f(r.fields, sjf.abbr) || "").trim(),
@@ -562,6 +609,86 @@ module.exports = async function (context, req) {
     // site's subject filter. A category appears the moment a course uses it.
     const usedSubjectIds = new Set();
     for (const c of courses) for (const s of c.subjects) if (s && s.nameEn) usedSubjectIds.add(s.nameEn);
+    /* ---- curriculum maps (one per learning stage) ---- */
+    // Published as-is, per stage: the grade columns, and one row per subject
+    // carrying the subject record(s), the rows' track / pedagogy scope, and the
+    // parsed cells. The page does the filtering (by the parent's track or
+    // pedagogy) and the course matching (by subject id × grade), so the
+    // snapshot stays a plain copy of the table.
+    const mf = cfg.curriculumMapFields;
+    const subjectByName = new Map();
+    for (const sub of subjectByRec.values()) {
+      subjectByName.set(norm(sub.nameEn), sub);
+      subjectByName.set(norm(sub.nameZh), sub);
+    }
+    const curriculumMap = {};
+    for (const spec of cfg.curriculumMaps || []) {
+      const found = await findTableRecords(spec.names, pat, context, `Curriculum map (${spec.stage})`, baseTables);
+      if (!found.found) {
+        warnings.push(
+          `Curriculum map for the ${spec.stage} stage: no table named ${spec.names.map((n) => `"${n}"`).join(" or ")} ` +
+          `was found${found.tableNames ? ` (tables in the base: ${found.tableNames.join(", ")})` : ""} — that stage shows no map step.`
+        );
+        continue;
+      }
+      const unresolved = [];
+      const rows = [];
+      for (const r of found.records) {
+        const fields = r.fields || {};
+        // Subject: a link to Course Subject normally; plain names tolerated.
+        const rawSubject = f(fields, mf.subject);
+        let subjectsHere = linkedIds(rawSubject).map((id) => subjectByRec.get(id)).filter(Boolean);
+        if (!subjectsHere.length) {
+          const names = asArray(rawSubject).flatMap((v) => asText(v).split(/[,，]/)).map((v) => v.trim()).filter(Boolean);
+          subjectsHere = names.map((n) => subjectByName.get(norm(n))).filter(Boolean);
+          if (names.length && !subjectsHere.length) unresolved.push(names.join(","));
+        }
+        // Track scope (G9-G12): linked track records, or a text list "2,4,6".
+        const rawTracks = f(fields, mf.tracks);
+        let trackIds = linkedIds(rawTracks).map((id) => trackIdByRec.get(id)).filter((n) => typeof n === "number");
+        if (!trackIds.length) {
+          trackIds = asArray(rawTracks).flatMap((v) => asText(v).split(/[,，\s]+/)).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+        }
+        // Pedagogy scope (G7-G8): "Classical" / "Non-Classical" / anything else = both.
+        const ped = norm(asText(f(fields, mf.pedagogy)));
+        const pedagogy = !ped || ped.includes("both") ? null : ped.includes("non") ? "nonclassical" : ped.includes("classical") ? "classical" : null;
+        const cells = {};
+        let any = false;
+        for (const g of spec.grades) {
+          const items = parseMapCell(mapGradeField(fields, g));
+          if (items.length) any = true;
+          cells[g] = items;
+        }
+        if (!subjectsHere.length && !any) continue; // blank row
+        // A row that is one list for all grades (electives: Music, Art, PE, …)
+        // rather than a year-by-year progression. Explicit via the checkbox, or
+        // implied when every filled column carries the identical list.
+        const filled = spec.grades.map((g) => cells[g]).filter((items) => items.length);
+        const sig = (items) => items.map((it) => `${it.en || ""}|${it.zh || ""}`).join("\n");
+        const spanAll = !!f(fields, mf.spanAll) || (filled.length >= 2 && filled.every((items) => sig(items) === sig(filled[0])));
+        const order = f(fields, mf.order);
+        rows.push({
+          id: r.id,
+          order: typeof order === "number" ? order : null,
+          subjects: subjectsHere.map((sub) => ({ id: sub.id, nameEn: sub.nameEn, nameZh: sub.nameZh })),
+          trackIds,
+          pedagogy,
+          spanAll,
+          cells,
+        });
+      }
+      rows.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9));
+      curriculumMap[spec.stage] = { grades: spec.grades, rows };
+      context.log(`Curriculum map (${spec.stage}) loaded via ${found.via}: ${rows.length} rows`);
+      if (unresolved.length) {
+        warnings.push(
+          `Curriculum map (${spec.stage}): ${unresolved.length} row(s) name a subject that is not in Course Subject — ` +
+          `${unresolved.slice(0, 5).map((n) => `"${n}"`).join(", ")}${unresolved.length > 5 ? ", …" : ""}. ` +
+          `Those rows display, but no courses can attach to them.`
+        );
+      }
+    }
+
     const subjects = [];
     for (const s of subjectByRec.values()) {
       if (usedSubjectIds.has(s.nameEn) && !subjects.some((x) => x.nameEn === s.nameEn)) subjects.push(s);
@@ -778,6 +905,7 @@ module.exports = async function (context, req) {
       teacherProfiles,
       courses,
       messageTemplates,
+      curriculumMap,
       // PRIVATE — stripped by /api/data before the snapshot reaches a browser.
       // Anything secret or internal belongs under this key and nowhere else.
       private: { schoolRouting },

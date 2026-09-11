@@ -628,3 +628,59 @@ span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(-
   .modal-body { padding: 14px 18px; }
   .modal-foot { padding: 12px 18px; }
 }
+
+/* ---------- curriculum map (step 6) ---------- */
+/* Subjects down, grades across; the parent's own table from Airtable. Cells
+   are buttons into a detail sheet, so the grid itself stays short: three
+   planned items, a "+N" pill for the rest, and a green count of the catalog
+   courses that fit. Two renderings live in the DOM — the table for wide
+   screens, a grade-tab list for phones — and the media query picks one. */
+.cm-scope { font-size: 0.8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 3px 12px; vertical-align: middle; margin-left: 8px; }
+.cm-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.cm-scroll { overflow-x: auto; }
+.cm-table { width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 0.86rem; }
+.cm-table th, .cm-table td { border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+.cm-table tbody tr:last-child th, .cm-table tbody tr:last-child td { border-bottom: none; }
+.cm-table thead th { position: sticky; top: 0; z-index: 2; background: var(--card); padding: 12px 12px 10px; color: var(--accent); font-weight: 700; font-size: 0.9rem; border-bottom: 2px solid var(--line); }
+.cm-table thead th:not(.cm-corner)::after { content: ""; display: block; height: 3px; margin-top: 8px; border-radius: 2px; background: var(--accent); }
+.cm-corner, .cm-row { width: 150px; }
+.cm-row { position: sticky; left: 0; z-index: 1; background: var(--card); padding: 12px; font-weight: 700; font-size: 0.9rem; border-right: 1px solid var(--line); }
+.cm-table td { padding: 10px 10px 12px; line-height: 1.45; }
+.cm-cell { cursor: pointer; transition: background 0.12s; }
+.cm-cell:hover, .cm-cell:focus-visible { background: var(--accent-soft); outline: none; }
+.cm-none { background: repeating-linear-gradient(135deg, transparent 0 6px, #f1f3f7 6px 7px); }
+.cm-span { background: #fafbfd; }
+.cm-span .cm-item { display: inline; margin: 0; }
+.cm-span .cm-item + .cm-item::before { content: " · "; color: var(--muted); }
+.cm-item { margin: 0 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cm-more { display: inline-block; margin: 2px 6px 0 0; border: 1px solid var(--line); border-radius: 999px; padding: 0 9px; font-size: 0.78rem; font-weight: 600; color: var(--accent); background: var(--card); }
+.cm-avail { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; border-radius: 999px; padding: 2px 10px 2px 8px; font-size: 0.78rem; font-weight: 600; color: var(--ok); background: #eaf6ee; white-space: nowrap; }
+.cm-avail::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+/* phone view */
+.cm-mobile { display: none; }
+.cm-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 12px 12px 10px; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+.cm-tabs::-webkit-scrollbar { display: none; }
+.cm-tab { flex: 0 0 auto; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font: inherit; font-weight: 600; font-size: 0.9rem; color: var(--muted); cursor: pointer; }
+.cm-tab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cm-mrow { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.cm-mrow:last-child { border-bottom: none; }
+.cm-mrow h4 { margin: 0 0 4px; font-size: 0.95rem; }
+.cm-mrow .cm-item { font-size: 0.9rem; -webkit-line-clamp: 3; }
+.cm-none-msg { padding: 18px 14px; color: var(--muted); }
+@media (max-width: 720px) {
+  .cm-scroll { display: none; }
+  .cm-mobile { display: block; }
+}
+/* the cell's detail sheet */
+.cm-sheet { max-width: 640px; }
+.cm-sheet-h { margin: 0 0 8px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.cm-sheet-h + .cm-sheet-h, .cm-sheet-items + .cm-sheet-h, .cm-sheet-none + .cm-sheet-h { margin-top: 22px; }
+.cm-sheet-items { margin: 0; padding-left: 2.4em; line-height: 1.55; }
+.cm-sheet-items li { margin-bottom: 4px; }
+.cm-sheet-none { margin: 0; color: var(--muted); }
+.cm-sheet-courses { display: flex; flex-direction: column; gap: 8px; }
+.cm-sheet-course { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.cm-sheet-name { border: none; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--ink); text-align: left; cursor: pointer; }
+.cm-sheet-name:hover { color: var(--accent); }
+.cm-sheet-code { display: block; font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+.btn-select.sm { padding: 6px 14px; font-size: 0.85rem; flex: 0 0 auto; }

@@ -50,6 +50,35 @@ module.exports = {
     body: /^(Body|正文|内容)/i,
   },
 
+  // Curriculum map — one table per learning stage (Rick, 2026-09-11): a wide
+  // grid, one row per subject, one column per grade, each cell "English / 中文"
+  // items separated by ";" or line breaks. Addressed BY NAME like the templates
+  // table, since the tables are new and were created after this code; every
+  // name a stage's table might carry is tried in order, and when the stage's
+  // own table does not exist yet the wider G7-G12 table is sliced to the
+  // stage's columns instead. A stage with no table at all simply has no map
+  // step — the sync says so in its warnings.
+  curriculumMaps: [
+    { stage: "grammar",   grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"],
+      names: ["K-G6 Curriculum Map/ K-G6 课程地图", "K-G6 Curriculum Map/K-G6 课程地图", "K-G6 Curriculum Map"] },
+    { stage: "dialectic", grades: ["G7", "G8"],
+      names: ["G7-G8 Curriculum Map/G7-G8 课程地图", "G7-G8 Curriculum Map",
+              "G7-G12 Curriculum Map/G7-G12 课程地图", "G7-G12 Curriculum Map"] },
+    { stage: "rhetoric",  grades: ["G9", "G10", "G11", "G12"],
+      names: ["G9-G12 Curriculum Map/G9-G12 课程地图", "G9-G12 Curriculum Map",
+              "G7-G12 Curriculum Map/G7-G12 课程地图", "G7-G12 Curriculum Map"] },
+  ],
+  curriculumMapFields: {
+    subject:  "Subject",                       // link → Course Subject (or plain names)
+    tracks:   /^\s*Graduation\s*Track/i,       // G9-G12: link → track, or "2,4,6"
+    pedagogy: /^\s*Pedagogy/i,                 // G7-G8: Classical / Non-Classical / Both
+    order:    /^\s*Record\s*Number/i,
+    // Checkbox: the row is one list that applies to every grade (electives),
+    // not a progression — the page merges its cells into one spanning cell.
+    // Rows whose filled columns all hold the identical list are merged too.
+    spanAll:  /^\s*(All\s*grades|Not\s*by\s*grade|Same\s*for\s*all|不分年级|各年级相同)/i,
+  },
+
   trackFields: {
     trackId: "Track ID",
     // "毕业路径" (added 2026-09-02) is the Chinese name of the track, alongside

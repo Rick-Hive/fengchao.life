@@ -152,8 +152,13 @@
   // position. A hash pointing past its prerequisites (typed by hand, stale
   // bookmark, cart emptied since) is clamped back to the furthest step that
   // is actually reachable.
-  var STEP_HASHES = ["level", "track", "pedagogy", "requirements", "courses", "order"];
+  // "map" (6) is APPENDED, not slotted between requirements and courses: these
+  // indexes are the internal step ids used everywhere (state.step, clampStep,
+  // data-goto-step, saved hashes), so renumbering would silently change every
+  // bookmark. Where the map sits in the flow is visibleSteps()' business.
+  var STEP_HASHES = ["level", "track", "pedagogy", "requirements", "courses", "order", "map"];
   var COURSES_STEP = STEP_HASHES.indexOf("courses");
+  var MAP_STEP = STEP_HASHES.indexOf("map");
   var HASH_SUPPRESS = false;
   // Tracks which step the last render() actually painted, so render() can
   // tell a fresh arrival at the course list (from any direction — forward,
@@ -168,17 +173,19 @@
   var FIRST_STEP = STEP_HASHES.indexOf("pedagogy");
   function clampStep(n) {
     if (typeof n !== "number" || isNaN(n)) return FIRST_STEP;
-    n = Math.max(0, Math.min(5, Math.floor(n)));
+    n = Math.max(0, Math.min(MAP_STEP, Math.floor(n)));
     // Nothing is reachable before a pedagogy: it decides what the stages are
     // called, so even the stage page cannot be rendered honestly without it.
     if (!state.pedagogy) return FIRST_STEP;
     if (!state.stage) return n === FIRST_STEP ? FIRST_STEP : 0;
     if (!isTrackStage()) {
       // Grammar and dialectic have no graduation track (1) or requirements (3).
-      if (n === 1 || n === 3) n = 4;
+      if (n === 1 || n === 3) n = hasMap() ? MAP_STEP : 4;
     } else if (!state.mode) {
       n = Math.min(n, 1);
     }
+    // A stage whose table has not been synced yet has no map page to show.
+    if (n === MAP_STEP && !hasMap()) n = 4;
     if (n === 5 && !cartIds().length) n = 4;
     return n;
   }
@@ -783,8 +790,16 @@
     // Graduation Track (1) or Requirements (3) step, since those are HS-only.
     // Pedagogy (2) first, then the stage (0). Only the rhetoric stage adds the
     // graduation track (1) and its credit requirements (3).
-    if (isTrackStage()) return { labels: t().steps, map: [2, 0, 1, 3, 4, 5] };
-    return { labels: t().stepsShort, map: [2, 0, 4, 5] };
+    // The curriculum map (6) sits right before the catalog on both paths, and
+    // drops out of the stepper entirely when the stage has no map yet.
+    var vs = isTrackStage()
+      ? { labels: t().steps.slice(), map: [2, 0, 1, 3, MAP_STEP, 4, 5] }
+      : { labels: t().stepsShort.slice(), map: [2, 0, MAP_STEP, 4, 5] };
+    if (!hasMap()) {
+      var i = vs.map.indexOf(MAP_STEP);
+      vs.map.splice(i, 1); vs.labels.splice(i, 1);
+    }
+    return vs;
   }
 
   function renderStepper() {
@@ -800,7 +815,10 @@
       // `internal < state.step`, the whole stepper renders as inert text, and the
       // only way out is the done button — which throws the cart away.
       var finished = !!state.done;
-      var isDone = finished || internal < state.step;
+      // "Done" is decided by position in the visible sequence, not by the
+      // internal number: the map is step 6 but comes before the catalog (4).
+      var cur = vs.map.indexOf(state.step);
+      var isDone = finished || (cur !== -1 ? i < cur : internal < state.step);
       var isCurrent = !finished && internal === state.step;
       // Forward jumps are allowed as far as they actually work. clampStep() is
       // the authority on that: it returns the furthest step reachable with the
@@ -1115,6 +1133,204 @@
       (sched ? '<div class="card-line sched-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 5.5V10l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> ' + esc(sched) + "</div>" : "") +
       '<div class="course-bottom"><span class="more-hint">' + esc(t().details) + " ›</span>" + selectBtn(c) + "</div></article>"
     );
+  }
+
+  // ---- curriculum map (internal step 6) ------------------------------------
+  // One table per learning stage, straight from Airtable via the snapshot:
+  // subjects down, grades across, each cell the planned curriculum for that
+  // year ("Algebra 1 / 代数1", a reading list, …). Shown right before the
+  // catalog so a parent sees the whole path before picking courses from it.
+  // Rows are scoped to the parent — by graduation track in the rhetoric stage,
+  // by pedagogy in the dialectic stage, not at all for K–G6 — and each cell
+  // also reports how many catalog courses fit it (same subject, same grade,
+  // same track/pedagogy narrowing as the catalog), so "available now" and
+  // "planned but not offered yet" are visible side by side without the grid
+  // filling up with course chips. Tapping a cell opens everything in it.
+
+  var MAP_CELL_ITEMS = 3;          // planned items shown before the "+N" pill
+  var mapGradeTab = null;          // phone view: the grade currently shown
+
+  function mapDataFor(key) {
+    var cm = state.data && state.data.curriculumMap;
+    var d = cm && cm[key || state.stage];
+    return d && d.rows && d.rows.length ? d : null;
+  }
+  function hasMap() { return !!mapDataFor(); }
+  // Where "Next" from the stage (or the requirements) lands: the map when the
+  // stage has one, else straight into the catalog.
+  function stepBeforeCatalog() { return hasMap() ? MAP_STEP : 4; }
+
+  // A row's pedagogy: its own Pedagogy column when the table has one; otherwise
+  // read off its graduation tracks, since each track is one pedagogy (the
+  // G7-G12 table sliced for the dialectic stage has tracks, not a pedagogy).
+  // Tracks of both pedagogies, or none, mean the row is for everyone.
+  function rowPedagogy(r) {
+    if (r.pedagogy) return r.pedagogy;
+    var ids = r.trackIds || [];
+    if (!ids.length) return null;
+    var ped = null;
+    for (var mode in TRACK_MAP) for (var p in TRACK_MAP[mode]) {
+      if (ids.indexOf(TRACK_MAP[mode][p]) !== -1) { if (ped && ped !== p) return null; ped = p; }
+    }
+    return ped;
+  }
+  // Rows that apply to THIS parent.
+  function mapRows() {
+    var d = mapDataFor();
+    if (!d) return [];
+    var tid = isTrackStage() ? trackId() : null;
+    return d.rows.filter(function (r) {
+      if (isTrackStage()) return !(r.trackIds || []).length || (r.trackIds || []).indexOf(tid) !== -1;
+      if (state.stage === "dialectic") { var p = rowPedagogy(r); return !p || p === state.pedagogy; }
+      return true;
+    });
+  }
+  function itemText(it) { return pickLang(it.en, it.zh); }
+  // A spanning row's list is the union of its columns — the table may carry
+  // the list once (in the first column) or repeated in every column.
+  function mapRowItems(row, grade) {
+    if (!row.spanAll) return row.cells[grade] || [];
+    var seen = {}, out = [];
+    Object.keys(row.cells).forEach(function (g) {
+      (row.cells[g] || []).forEach(function (it) {
+        var k = (it.en || "") + "|" + (it.zh || "");
+        if (!seen[k]) { seen[k] = 1; out.push(it); }
+      });
+    });
+    return out;
+  }
+  function mapRowLabel(row) {
+    return row.subjects.map(subjectLabel).filter(Boolean).join(" · ") || "—";
+  }
+  // Courses that fit a cell: the catalog's own course set for this parent
+  // (stage + track/pedagogy), narrowed to the row's subject(s) and the column's
+  // grade. K covers K1–K3 exactly as the grade filter does. Matched by subject
+  // record id when both sides carry one, by English name for older snapshots.
+  function mapCellCourses(row, grade) {
+    var members = grade ? (GRADE_FILTER_MEMBERS[grade] || [grade]) : null;
+    return trackCourses().filter(function (c) {
+      var subjOk = (c.subjects || []).some(function (s) {
+        return row.subjects.some(function (r) { return r.id && s.id ? r.id === s.id : r.nameEn === s.nameEn; });
+      });
+      if (!subjOk) return false;
+      if (!members) return true; // spanning row: any grade in the stage
+      return (c.grades || []).some(function (g) { return members.indexOf(g) !== -1; });
+    });
+  }
+  function mapPill(n) {
+    return n ? '<span class="cm-avail">' + esc(t().mapAvail.replace("{n}", n)) + "</span>" : "";
+  }
+  // One cell's inner HTML: up to MAP_CELL_ITEMS planned items, a "+N" pill for
+  // the rest, and the available-course count. Empty string for an empty cell.
+  function mapCellInner(row, grade) {
+    var items = mapRowItems(row, grade);
+    var courses = mapCellCourses(row, row.spanAll ? null : grade);
+    if (!items.length && !courses.length) return "";
+    var html = items.slice(0, MAP_CELL_ITEMS).map(function (it) {
+      return '<p class="cm-item">' + esc(itemText(it)) + "</p>";
+    }).join("");
+    if (items.length > MAP_CELL_ITEMS) html += '<span class="cm-more">' + esc(t().mapMore.replace("{n}", items.length - MAP_CELL_ITEMS)) + "</span>";
+    return html + mapPill(courses.length);
+  }
+  function mapHtml() {
+    var d = mapDataFor();
+    if (!d) return '<div class="notice">' + esc(t().mapEmpty) + "</div>";
+    var rows = mapRows();
+    var grades = d.grades;
+    if (grades.indexOf(mapGradeTab) === -1) mapGradeTab = grades[0];
+
+    // Desktop: the grid. Every cell with content is a button into the detail sheet.
+    var head = "<tr><th class=\"cm-corner\"></th>" + grades.map(function (g) { return "<th>" + esc(g) + "</th>"; }).join("") + "</tr>";
+    var body = rows.map(function (r, i) {
+      var cells;
+      if (r.spanAll) {
+        var inner = mapCellInner(r, null);
+        cells = '<td colspan="' + grades.length + '" class="cm-span' + (inner ? ' cm-cell" tabindex="0" role="button" data-r="' + i + '" data-g=""' : '"') + ">" + inner + "</td>";
+      } else {
+        cells = grades.map(function (g) {
+          var inner = mapCellInner(r, g);
+          return inner
+            ? '<td class="cm-cell" tabindex="0" role="button" data-r="' + i + '" data-g="' + esc(g) + '">' + inner + "</td>"
+            : '<td class="cm-none"></td>';
+        }).join("");
+      }
+      return '<tr><th class="cm-row">' + esc(mapRowLabel(r)) + "</th>" + cells + "</tr>";
+    }).join("");
+    var grid = '<div class="cm-scroll"><table class="cm-table"><thead>' + head + "</thead><tbody>" + body + "</tbody></table></div>";
+
+    // Phone: one grade at a time, chosen from a tab row; spanning rows show
+    // under every grade because they apply to every grade.
+    var tabs = '<div class="cm-tabs" role="tablist">' + grades.map(function (g) {
+      return '<button type="button" class="cm-tab' + (g === mapGradeTab ? " on" : "") + '" role="tab" data-tab="' + esc(g) + '">' + esc(g) + "</button>";
+    }).join("") + "</div>";
+    var list = rows.map(function (r, i) {
+      var inner = mapCellInner(r, r.spanAll ? null : mapGradeTab);
+      if (!inner) return "";
+      return '<div class="cm-mrow cm-cell" tabindex="0" role="button" data-r="' + i + '" data-g="' + (r.spanAll ? "" : esc(mapGradeTab)) + '">' +
+        '<h4>' + esc(mapRowLabel(r)) + "</h4>" + inner + "</div>";
+    }).join("");
+    var mobile = '<div class="cm-mobile">' + tabs + '<div class="cm-mlist">' + (list || '<div class="cm-none-msg">' + esc(t().noCoursesTrack) + "</div>") + "</div></div>";
+    return grid + mobile;
+  }
+  function renderMap() {
+    var tr = isTrackStage() ? track() : null;
+    var scope = tr && trackName(tr) ? trackName(tr) : stageName();
+    return (
+      '<section class="panel"><h2>' + esc(t().mapTitle) +
+      (scope ? ' <span class="cm-scope">' + esc(scope) + "</span>" : "") + "</h2>" +
+      '<p class="hint">' + esc(t().mapHint) + "</p>" +
+      '<div class="cm-card" id="mapCard">' + mapHtml() + "</div>" +
+      '<div class="nav-row"><button class="btn btn-ghost" id="back6">' + esc(t().back) + "</button>" +
+      '<button class="btn btn-primary" id="next6">' + esc(t().nextStep) + "</button></div></section>"
+    );
+  }
+  // The detail sheet for one cell: every planned item, then every course that
+  // fits, each with the same Select button as the catalog (bindModal handles
+  // data-select) and a link into the full course detail.
+  function openMapCellModal(rowIndex, grade) {
+    var row = mapRows()[rowIndex];
+    if (!row) return;
+    var items = mapRowItems(row, grade);
+    var courses = mapCellCourses(row, row.spanAll ? null : grade);
+    var title = mapRowLabel(row) + (grade ? " · " + grade : "");
+    var html =
+      '<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button>' +
+      '<div class="modal-head"><h3>' + esc(title) + "</h3></div>" +
+      '<div class="modal-body">' +
+      '<h3 class="cm-sheet-h">' + esc(t().mapPlanned) + "</h3>" +
+      (items.length
+        ? '<ol class="cm-sheet-items">' + items.map(function (it) { return "<li>" + esc(itemText(it)) + "</li>"; }).join("") + "</ol>"
+        : '<p class="cm-sheet-none">—</p>') +
+      '<h3 class="cm-sheet-h">' + esc(t().mapCourses) + "</h3>" +
+      (courses.length
+        ? '<div class="cm-sheet-courses">' + courses.map(function (c) {
+            return '<div class="cm-sheet-course">' +
+              '<button type="button" class="cm-sheet-name" data-course="' + esc(c.id) + '">' + esc(courseName(c) || c.code) +
+              (c.code ? ' <span class="cm-sheet-code">' + esc(c.code) + "</span>" : "") + "</button>" +
+              selectBtn(c, "sm") + "</div>";
+          }).join("") + "</div>"
+        : '<p class="cm-sheet-none">' + esc(t().mapNoCourses) + "</p>") +
+      "</div>";
+    var overlay = openModal(html, "cm-sheet");
+    overlay.addEventListener("click", function (e) {
+      var b = e.target.closest("[data-course]");
+      if (b) openCourseModal(b.getAttribute("data-course"));
+    });
+  }
+  function bindMap() {
+    var card = document.getElementById("mapCard");
+    if (!card) return;
+    card.addEventListener("click", function (e) {
+      var tab = e.target.closest(".cm-tab");
+      if (tab) { mapGradeTab = tab.getAttribute("data-tab"); card.innerHTML = mapHtml(); return; }
+      var cell = e.target.closest(".cm-cell");
+      if (cell) openMapCellModal(Number(cell.getAttribute("data-r")), cell.getAttribute("data-g") || null);
+    });
+    card.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var cell = e.target.closest(".cm-cell");
+      if (cell) { e.preventDefault(); openMapCellModal(Number(cell.getAttribute("data-r")), cell.getAttribute("data-g") || null); }
+    });
   }
 
   function renderStep4() {
@@ -1558,6 +1774,7 @@
     else if (state.step === 2) html = renderStep2();
     else if (state.step === 3) html = renderStep3();
     else if (state.step === 4) html = renderStep4();
+    else if (state.step === MAP_STEP) html = renderMap();
     else html = renderStep5();
     app.innerHTML = html;
     bind();
@@ -1676,7 +1893,7 @@
     on("back0", "click", function () { state.step = FIRST_STEP; render(); });
     on("next0", "click", function () {
       if (!state.stage) return;
-      state.step = isTrackStage() ? 1 : 4;   // track+requirements, or straight to the catalog
+      state.step = isTrackStage() ? 1 : stepBeforeCatalog();   // track+requirements, or the map / catalog
       render();
     });
     on("back1", "click", function () { state.step = 0; render(); });   // back to the stage
@@ -1684,8 +1901,10 @@
     // Pedagogy is the first page now, so it has no Back; Next goes to the stage.
     on("next2", "click", function () { if (state.pedagogy) { state.step = 0; render(); } });
     on("back3", "click", function () { state.step = 1; render(); });   // back to the track
-    on("next3", "click", function () { state.step = 4; render(); });
-    on("back4", "click", function () { state.step = isTrackStage() ? 3 : 0; render(); });
+    on("next3", "click", function () { state.step = stepBeforeCatalog(); render(); });
+    on("back4", "click", function () { state.step = hasMap() ? MAP_STEP : isTrackStage() ? 3 : 0; render(); });
+    on("back6", "click", function () { state.step = isTrackStage() ? 3 : 0; render(); });
+    on("next6", "click", function () { state.step = 4; render(); });
     on("back5", "click", function () { state.step = 4; render(); });
 
     ["fSubject", "fLang", "fType"].forEach(function (id) {
@@ -1698,6 +1917,7 @@
       });
     });
     bindGradeFilter();
+    bindMap();
 
     // Smart quick search: filters the grid live as the user types.
     on("fSearch", "input", function (e) {
@@ -1792,6 +2012,10 @@
       persistWizard(); // this path skips render(), so persist explicitly
     } else if (reqCard) {
       reqCard.innerHTML = reqTableHtml(); // repaints the chip's selected state
+      renderCartBar();
+      persistWizard();
+    } else if (document.getElementById("mapCard")) {
+      document.getElementById("mapCard").innerHTML = mapHtml(); // repaints the cells' counts
       renderCartBar();
       persistWizard();
     } else {
