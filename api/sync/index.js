@@ -742,6 +742,17 @@ module.exports = async function (context, req) {
     if (teacherProfiles.length && !teacherProfiles.some((p) => p.name)) {
       warnings.push('No teacher has a value for "Name" — check the Teachers table field names.');
     }
+    // A credit column that resolves on NO track has almost certainly been
+    // renamed (2026-09-11: "Bible & Theology & Rhetoric Credits" lost its
+    // "Rhetoric" and the requirements page quietly dropped from 27 to 23).
+    // Blank-on-some-tracks is legitimate (Chinese credits on an international
+    // track); blank-on-all is not.
+    for (const c of tf.credits) {
+      if (tracks.length && !tracks.some((tr) => tr.credits[c.key] != null)) {
+        const name = c.label || (c.field instanceof RegExp ? String(c.field) : c.field);
+        warnings.push(`No graduation track has a value for "${name}" — that requirement row is missing from the site; check the column's name in Airtable.`);
+      }
+    }
     if (unresolvedOrgIds.size) {
       warnings.push(
         "Some teachers' \"Organization / 所属机构\" links point at records that " +

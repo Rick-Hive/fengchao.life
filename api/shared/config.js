@@ -103,7 +103,11 @@ module.exports = {
       { field: "English Credits", key: "english" },
       { field: "Chinese Credits", key: "chinese" },
       { field: "Social Studies Credits", key: "social" },
-      { field: "Bible & Theology & Rhetoric Credits", key: "bible" },
+      // Renamed in Airtable 2026-09-11 from "Bible & Theology & Rhetoric
+      // Credits" to "Bible & Theology Credits" — silently, so the row vanished
+      // and the total read 23 instead of 27. A regex matches either name; the
+      // anchor keeps "Available Bible & Theology Courses" out.
+      { field: /^\s*Bible\s*&\s*Theology.*Credits/i, key: "bible", label: "Bible & Theology Credits" },
       { field: "Public Speaking Credits", key: "speaking" },
       { field: "Second Foreign Languages", key: "secondLang" },
       { field: "Fine Arts", key: "fineArts" },

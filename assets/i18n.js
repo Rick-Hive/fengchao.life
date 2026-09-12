@@ -496,8 +496,8 @@ window.REQ_LABELS = {
   chinese: { zh: "中文", en: "Chinese" },
   social: { zh: "社会学", en: "Social Studies" },
   // 修辞/Rhetoric was deleted from the base 2026-09-03, so it is no longer
-  // named here. The Track table's column is still "Bible & Theology & Rhetoric
-  // Credits" — that is the data source's name, not what parents are shown.
+  // named here. The Track table's column was renamed to match on 2026-09-11
+  // ("Bible & Theology Credits"); the config matches either spelling.
   bible: { zh: "圣经 / 神学", en: "Bible / Theology" },
   speaking: { zh: "公众演讲", en: "Public Speaking" },
   secondLang: { zh: "第二外语", en: "Second Foreign Language" },
@@ -553,7 +553,7 @@ window.REQ_SUBJECTS = {
   // if that course is tagged English Writing rather than Public Speaking it
   // will surface under the English requirement instead -- worth checking.
   speaking:   ["Public Speaking", "公众演讲", "演讲"],
-  // The Track column is "Bible & Theology & Rhetoric Credits". Rhetoric exists
+  // The Track column is "Bible & Theology Credits" (2026-09-11). Rhetoric exists
   // again as a subject row (with no courses yet), so it is named here: listing
   // a subject nothing is tagged with costs nothing, and the row would otherwise
   // silently miss the first Rhetoric course added.
