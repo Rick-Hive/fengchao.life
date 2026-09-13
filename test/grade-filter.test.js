@@ -59,6 +59,17 @@ const snapshot = {
     subj("m1", "MUS-HS-101",  "Choir",          "合唱",        "Music",           "Specials"),
     subj("p1", "PE-HS-101",   "Team Sports",    "团队运动",     "PE",              "Specials"),
     subj("x1", "ELE-HS-101",  "Yearbook",       "年鉴",        "Electives",       "Electives"),
+    // 圣经/神学 is the one row that also matches on the Subject FILTER bucket.
+    // b1 is in the bucket by name, b2 only by bucket (its subject is Theology,
+    // which the split left out of every list), b3 is neither and must not show.
+    subj("b1", "BIB-HS-101",  "Biblical Theo I", "圣经神学一",   "Bible",           "Bible"),
+    subj("b2", "THE-HS-101",  "Doctrine I",      "教义学一",     "Theology",        "Bible"),
+    subj("b3", "SCI-HS-900",  "Bible-ish Sci",   "伪圣经科学",   "Science",         "Science"),
+    // Public Speaking's own bucket is "English" — proof that buckets stay off
+    // every other row, or this one course would drag the English row with it.
+    subj("s1", "PUB-HS-301",  "Public Speaking", "公众演讲入门", "Public Speaking", "English"),
+    // Latin moved to its own subject; it must still satisfy 第二外语.
+    subj("l1", "THL-HS-103",  "Latin I",        "拉丁语一",     "Classical Language", "Classical Language"),
   ],
   teachers: [], messages: {},
   // Curriculum map fixtures: grammar and rhetoric have a table, dialectic does
@@ -241,8 +252,21 @@ setTimeout(() => {
   check("a Music course sits under 艺术, not 选修 (bucket says Specials)",
     reqRow("艺术"), ["MUS-HS-101"]);
   check("a Third Languages course sits under 第二外语 (bucket says Electives)",
-    reqRow("第二外语"), ["THL-HS-101"]);
+    reqRow("第二外语").sort(), ["THL-HS-101", "THL-HS-103"]);
   check("PE has its own row now", reqRow("体育"), ["PE-HS-101"]);
+  // The bucket-matched row, and the proof buckets are not used anywhere else.
+  check("圣经/神学 matches by subject name AND by the Bible filter bucket",
+    reqRow("圣经").sort(), ["BIB-HS-101", "THE-HS-101"]);
+  check("...and does not pull in a course that is merely about the Bible",
+    reqRow("圣经").indexOf("SCI-HS-900"), -1);
+  check("公众演讲 gets the Public Speaking course",
+    reqRow("公众演讲"), ["PUB-HS-301"]);
+  // No fixture course has an English subject, so with buckets correctly off the
+  // 英语 row stays bare. If buckets leaked, PUB-HS-301 would give it a list.
+  check("...and its 'English' bucket does NOT drag it into the 英语 row",
+    [plainRow("英语"), reqRow("英语")], [true, null]);
+  check("Latin counts toward 第二外语 now that it is its own subject",
+    reqRow("第二外语").sort(), ["THL-HS-101", "THL-HS-103"]);
   check("社会学 stays empty — no HS social-studies course in this fixture",
     plainRow("社会学"), true);
 

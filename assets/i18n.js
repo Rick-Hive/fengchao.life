@@ -540,7 +540,9 @@ window.REQ_LABELS = {
 window.REQ_SUBJECTS = {
   math:       ["Math", "数学"],
   science:    ["Science", "科学"],
-  english:    ["English Foundations", "English Writing", "English Literature",
+  // "English Foundations" was renamed "English Language Art" 2026-09-07; both
+  // are listed so a snapshot from either side of the rename resolves.
+  english:    ["English Language Art", "English Foundations", "English Writing", "English Literature",
                "英文基础", "英文写作", "英文文学"],
   chinese:    ["Chinese Language Art", "Chinese Writing", "Chinese Literature",
                "中文基础", "中文写作", "中文文学"],
@@ -553,16 +555,27 @@ window.REQ_SUBJECTS = {
   // if that course is tagged English Writing rather than Public Speaking it
   // will surface under the English requirement instead -- worth checking.
   speaking:   ["Public Speaking", "公众演讲", "演讲"],
-  // The Track column is "Bible & Theology Credits" (2026-09-11). Rhetoric exists
-  // again as a subject row (with no courses yet), so it is named here: listing
-  // a subject nothing is tagged with costs nothing, and the row would otherwise
-  // silently miss the first Rhetoric course added.
-  bible:      ["Bible/Theology", "圣经/神学", "Rhetoric", "修辞学"],
+  // The one row matched by Subject FILTER as well as by subject name (Rick,
+  // 2026-09-13). The combined "Bible/Theology" subject was split into separate
+  // Bible / Theology rows, which left this list matching nothing at all and the
+  // row showing no available courses even though three Bible courses exist —
+  // the third silent rename to break this page. The "Bible" bucket is the
+  // durable key: whatever Rick tags into it counts toward the credit, and the
+  // names below keep working whether or not Theology and Rhetoric are moved
+  // into that bucket too. The old combined spellings stay for an old snapshot.
+  bible:      { buckets:  ["Bible", "圣经"],
+                subjects: ["Bible", "Theology", "Rhetoric", "圣经", "神学", "修辞学",
+                           "Bible/Theology", "圣经/神学"] },
   // The subject is "Third Languages" (plural) / 第二外语 — the singular
   // spellings that used to be here matched nothing, so the four Third Languages
   // courses appeared under no requirement row at all. Old spellings kept as
   // tolerance in case the row is renamed back.
-  secondLang: ["Third Languages", "第二外语", "Third Language", "第三语言", "第三外语"],
+  // Latin moved out of Third Languages into its own "Classical Language" subject
+  // (2026-09-11), which left Latin I/II under no requirement row at all. A
+  // classical track's 2 second-language credits are exactly what Latin is for,
+  // so the subject is listed here; the trailing-L typo spelling is tolerated.
+  secondLang: ["Third Languages", "第二外语", "Classical Language", "Classical LanguageL", "拉丁语",
+               "Third Language", "第三语言", "第三外语"],
   fineArts:   ["Music", "Art", "音乐", "艺术", "美术"],
   pe:         ["PE", "体育"],
   // Only courses whose SUBJECT is Electives. ESL used to be listed here, which
@@ -571,5 +584,7 @@ window.REQ_SUBJECTS = {
   // appears on no requirement row (the catalog is unaffected). If ESL should
   // count toward electives, tag those courses Electives in Airtable rather than
   // re-adding the mapping here.
-  elective:   ["Electives", "选修课"],
+  // Singular "Elective/选修" is the subject's name today; the plural spellings
+  // are kept as tolerance, exactly as with Third Language(s) before it.
+  elective:   ["Elective", "选修", "Electives", "选修课"],
 };

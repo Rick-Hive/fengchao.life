@@ -505,14 +505,29 @@
   // track and to high school by trackCourses(). Returns [] when the row has no
   // subjects mapped or nothing available matches — the caller then renders no
   // list at all rather than an empty-state message.
+  // An entry is either an array of SUBJECT NAMES (the default, and the rule for
+  // every row: subject is what a course *is*, and so what credit it can satisfy)
+  // or {subjects, buckets} to also accept a course by its Subject-filter BUCKET.
+  // Buckets are deliberately opt-in per row and used by 圣经/神学 alone (Rick,
+  // 2026-09-13): most buckets are far too coarse for a credit row — Public
+  // Speaking's bucket is "English", and Music / Art / PE / Third Languages all
+  // share "Electives", so bucket matching there would drop six English courses
+  // under 公众演讲 and Japanese under 艺术. "Bible" is a bucket that happens to
+  // mean exactly what the credit means.
   function reqCourses(key) {
-    var names = (window.REQ_SUBJECTS || {})[key] || [];
-    if (!names.length) return [];
-    var want = {};
-    names.forEach(function (n) { want[normSubj(n)] = true; });
+    var spec = (window.REQ_SUBJECTS || {})[key];
+    if (!spec) return [];
+    var names = spec.subjects || spec;
+    var buckets = spec.buckets || [];
+    if (!names.length && !buckets.length) return [];
+    var wantName = {}, wantBucket = {};
+    names.forEach(function (n) { wantName[normSubj(n)] = true; });
+    buckets.forEach(function (n) { wantBucket[normSubj(n)] = true; });
     return trackCourses().filter(function (c) {
       return (c.subjects || []).some(function (s) {
-        return s && (want[normSubj(s.nameEn)] || want[normSubj(s.nameZh)]);
+        if (!s) return false;
+        if (wantName[normSubj(s.nameEn)] || wantName[normSubj(s.nameZh)]) return true;
+        return !!(wantBucket[normSubj(s.filterNameEn || s.filterKey)] || wantBucket[normSubj(s.filterNameZh)]);
       });
     });
   }
