@@ -118,9 +118,10 @@
 
     // The template: eight semesters (Grade 9 Fall … Grade 12 Spring), the
     // year's courses in each at half their credit, as a transcript lists a
-    // year-long course graded twice.
+    // year-long course graded twice. Appended after whatever is already there
+    // — a start never clears a sheet (Rick, 2026-09-16: "为什么要清除？").
     function applyPreset() {
-      var out = [];
+      var out = S.periods ? S.periods.slice() : [];
       (window.GPA_PRESET || []).forEach(function (p) {
         ["s1", "s2"].forEach(function (term) {
           out.push({ id: uid(), grade: p.grade, term: term, seq: null, name: "", rows: p.rows.map(function (r) {
@@ -132,11 +133,13 @@
       S.periods = out;
     }
 
-    // Blank start: "Semester 1" with five empty rows, as calculator.net opens.
+    // Blank start: "Semester 1" with five empty rows, as calculator.net opens
+    // — or, with a sheet already there, one more empty semester after it.
     function applyBlank() {
       var rows = [];
       for (var i = 0; i < 5; i++) rows.push(blankRow());
-      S.periods = [{ id: uid(), grade: null, term: null, seq: 1, name: "", rows: rows }];
+      if (!S.periods) S.periods = [];
+      S.periods.push({ id: uid(), grade: null, term: null, seq: S.periods.length + 1, name: "", rows: rows });
     }
 
     function findRow(id) {
@@ -177,18 +180,20 @@
       return { cp: num(sc.cp), lvl: num(sc[colFor(row.lvl)]) };
     }
 
-    // Totals over a list of rows: weight of every graded row (P included),
-    // graded weight and points for the three GPAs, and in-progress weight.
+    // Totals over a list of rows: weight of every graded row (P and
+    // non-academic included), graded weight and points for the two GPAs, and
+    // in-progress weight. Non-academic courses (Bible, art, PE, music…) are
+    // usually assessed formatively, so they earn credit but no grade points —
+    // the same treatment as P (Rick, 2026-09-16).
     function agg(rows) {
-      var a = { w: 0, wG: 0, cp: 0, lvl: 0, acW: 0, acCp: 0, inProg: 0, n: rows.length, hasNonAc: false };
+      var a = { w: 0, wG: 0, cp: 0, lvl: 0, inProg: 0, n: rows.length };
       rows.forEach(function (r) {
         var w = num(r.w);
         var pts = pointsFor(r);
         if (pts === null) { if (w > 0) a.inProg += w; return; }
         a.w += w;
-        if (pts === "P") return;
+        if (pts === "P" || r.ac === false) return;
         a.wG += w; a.cp += pts.cp * w; a.lvl += pts.lvl * w;
-        if (r.ac !== false) { a.acW += w; a.acCp += pts.cp * w; } else a.hasNonAc = true;
       });
       return a;
     }
@@ -200,7 +205,7 @@
       var a = agg(allRows());
       var pg = parseFloat(S.prior.gpa), pw = parseFloat(S.prior.w);
       if (isFinite(pg) && isFinite(pw) && pw > 0) {
-        a.w += pw; a.wG += pw; a.cp += pg * pw; a.lvl += pg * pw; a.acW += pw; a.acCp += pg * pw;
+        a.w += pw; a.wG += pw; a.cp += pg * pw; a.lvl += pg * pw;
       }
       return a;
     }
@@ -261,26 +266,24 @@
       return m === null ? "" : String(m);
     }
 
-    function settingsHtml() {
+    // The two settings live where they act: the column heads of the sheet are
+    // the switches — 学分 | 课时 over the weight column, 字母 | 百分 over the
+    // grade column (Rick, 2026-09-16). The active side is the column's label.
+    function headSwitch(key, a, b) {
       var t = T();
-      return (
-        '<div class="gpa-set"><span>' + esc(t.settingGrade) + '</span><span class="gpa-seg">' +
-        '<button type="button" class="' + (S.gradeMode === "letter" ? "on" : "") + '" data-set="gradeMode" data-val="letter">' + esc(t.settingLetter) + "</button>" +
-        '<button type="button" class="' + (S.gradeMode === "percent" ? "on" : "") + '" data-set="gradeMode" data-val="percent">' + esc(t.settingPercent) + "</button></span></div>" +
-        '<div class="gpa-set"><span>' + esc(t.settingUnit) + '</span><span class="gpa-seg">' +
-        '<button type="button" class="' + (S.unit === "credits" ? "on" : "") + '" data-set="unit" data-val="credits">' + esc(t.settingCredits) + "</button>" +
-        '<button type="button" class="' + (S.unit === "periods" ? "on" : "") + '" data-set="unit" data-val="periods">' + esc(t.settingPeriods) + "</button></span></div>"
-      );
+      var cur = S[key];
+      return '<span class="gpa-seg gpa-head-seg" role="group">' +
+        '<button type="button" class="' + (cur === a.val ? "on" : "") + '" data-set="' + key + '" data-val="' + a.val + '" title="' + esc(a.title) + '">' + esc(a.label) + "</button>" +
+        '<button type="button" class="' + (cur === b.val ? "on" : "") + '" data-set="' + key + '" data-val="' + b.val + '" title="' + esc(b.title) + '">' + esc(b.label) + "</button></span>";
     }
 
-    // The sidebar card on the sheet: table, note + edit link, the two settings.
+    // The sidebar card on the sheet: table, note + edit link.
     function scaleCardInner() {
       var t = T();
       return (
         '<summary><span class="req-caret" aria-hidden="true"><svg viewBox="0 0 20 20" width="14" height="14"><path d="M7 4l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' + esc(t.scaleTitle) + "</summary>" +
         scaleTableHtml() +
-        '<div class="wt"><span>' + esc(t.scaleNote) + '</span><button type="button" class="gpa-link" data-scale-edit>' + esc(t.scaleEdit) + " ›</button></div>" +
-        settingsHtml()
+        '<div class="wt"><span>' + esc(t.scaleNote) + '</span><button type="button" class="gpa-link" data-scale-edit>' + esc(t.scaleEdit) + " ›</button></div>"
       );
     }
 
@@ -307,7 +310,7 @@
       return (
         '<div class="gpa-start">' +
         '<p class="gpa-start-hint">' + esc(t.startStep2Hint) + "</p>" +
-        (started() ? '<p class="gpa-replace">' + esc(t.startReplaceNote) + "</p>" : "") +
+        (started() ? '<p class="gpa-append">' + esc(t.startAppendNote) + "</p>" : "") +
         // Blank first: gpacalculator.net and calculator.net both open with one
         // semester and grow one at a time; the eight-semester plan is our
         // optional shortcut.
@@ -344,6 +347,7 @@
       var pts = pointsFor(r);
       if (pts === null) return '<span class="gpa-pts">—</span>';
       if (pts === "P") return '<span class="gpa-pts pf">P</span>';
+      if (r.ac === false) return '<span class="gpa-pts pf" title="' + esc(T().nonAcademic) + '">—</span>';
       var up = r.lvl !== "CP" && pts.lvl !== pts.cp;
       return '<span class="gpa-pts' + (up ? " up" : "") + '">' + esc(pts.lvl.toFixed(1)) + "</span>";
     }
@@ -372,8 +376,8 @@
       var t = T();
       return '<thead><tr>' +
         "<th>" + esc(t.colCourse) + "</th>" +
-        '<th class="gpa-col-cr">' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + "</th>" +
-        '<th class="gpa-col-gr">' + esc(t.colGrade) + "</th>" +
+        '<th class="gpa-col-cr">' + headSwitch("unit", { val: "credits", label: t.settingCredits, title: t.colWeight }, { val: "periods", label: t.settingPeriods, title: t.colPeriods }) + "</th>" +
+        '<th class="gpa-col-gr">' + headSwitch("gradeMode", { val: "letter", label: t.settingLetter, title: t.colGrade }, { val: "percent", label: t.settingPercent, title: t.colGrade }) + "</th>" +
         '<th class="gpa-col-lv">' + esc(t.colLevel) + "</th>" +
         '<th class="gpa-col-ac">' + esc(t.colType) + "</th>" +
         '<th class="gpa-col-pt">' + esc(t.colPoints) + "</th><th></th>" +
@@ -408,13 +412,10 @@
     function resultInner() {
       var t = T();
       var a = cumulative();
-      var un = gpaOf(a.cp, a.wG), we = gpaOf(a.lvl, a.wG), ac = gpaOf(a.acCp, a.acW);
+      var un = gpaOf(a.cp, a.wG), we = gpaOf(a.lvl, a.wG);
       var tiles = "";
       if (we !== null && un !== null && Math.abs(we - un) > 0.0005) {
         tiles += '<div><div class="k">' + esc(t.weighted) + '</div><div class="v" id="gpaWeighted">' + esc(f2(we)) + "</div></div>";
-      }
-      if (a.hasNonAc && ac !== null) {
-        tiles += '<div><div class="k">' + esc(t.academicGpa) + '</div><div class="v" id="gpaAcademic">' + esc(f2(ac)) + "</div></div>";
       }
       tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w)) + "</div></div>";
       var bars = (S.periods || []).map(function (p) {
@@ -530,6 +531,7 @@
       }
       var narrow = window.matchMedia && window.matchMedia("(max-width: 860px)").matches;
       return (
+        '<p class="gpa-sheet-note">' + esc(t.sheetHint) + "</p>" +
         '<div class="gpa-layout">' +
         '<div class="gpa-main" id="gpaMainCol">' +
         S.periods.map(periodHtml).join("") +
@@ -689,6 +691,22 @@
       if (m) m.innerHTML = scaleEditorHtml();
     }
 
+    // A confirmation in the site's own modal — the browser's "fengchao.life
+    // says" box is not ours to style (Rick, 2026-09-16: "太梦幻").
+    function confirmModal(text, onOk) {
+      var t = T();
+      var ov = ctx.openModal(
+        '<button type="button" class="modal-x" data-close aria-label="' + esc(ctx.t().dClose) + '">✕</button>' +
+        '<div class="modal-body gpa-confirm"><p>' + esc(text) + "</p></div>" +
+        '<div class="modal-foot"><button type="button" class="btn btn-ghost" data-close>' + esc(t.confirmCancel) + "</button>" +
+        '<button type="button" class="btn btn-primary" data-confirm-ok>' + esc(t.confirmOk) + "</button></div>",
+        "gpa-confirm-modal"
+      );
+      ov.addEventListener("click", function (e) {
+        if (e.target.closest("[data-confirm-ok]")) { ctx.closeModal(ov); onOk(); }
+      });
+    }
+
     /* ---------- events ---------- */
 
     function repaint() { render(root.parentNode, view); }
@@ -764,7 +782,6 @@
         if (goBtn) { go(goBtn.getAttribute("data-gpa-go")); return; }
         var start = e.target.closest("[data-gpa-start]");
         if (start) {
-          if (started() && !window.confirm(t.startReplaceConfirm)) return;
           if (start.getAttribute("data-gpa-start") === "preset") applyPreset(); else applyBlank();
           save(); go("sheet"); return;
         }
@@ -809,10 +826,13 @@
           var pp = findPeriod(rmP.getAttribute("data-rm-period"));
           if (!pp) return;
           var filled = pp.rows.filter(function (r) { return rowName(r) || r.grade; }).length;
-          if (filled && !window.confirm(fill(t.removePeriodConfirm, { n: filled }))) return;
-          S.periods = S.periods.filter(function (x) { return x !== pp; });
-          if (!S.periods.length) S.periods = null;
-          save(); repaint(); return;
+          var dropPeriod = function () {
+            S.periods = S.periods.filter(function (x) { return x !== pp; });
+            if (!S.periods.length) S.periods = null;
+            save(); repaint();
+          };
+          if (filled) confirmModal(fill(t.removePeriodConfirm, { n: filled }), dropPeriod); else dropPeriod();
+          return;
         }
         // "Add semester": continues the pattern of the last block — Grade 9 Fall
         // → Grade 9 Spring → Grade 10 Fall …, or Semester N → Semester N+1.
@@ -832,15 +852,25 @@
         }
         if (e.target.closest("#gpaPrint")) { window.print(); return; }
         if (e.target.closest("#gpaClear")) {
-          if (!window.confirm(t.clearConfirm)) return;
-          S.periods = null; S.prior = { gpa: "", w: "" }; S.plan = { target: "", remain: "" };
-          save(); go("start"); repaint(); return;
+          confirmModal(t.clearConfirm, function () {
+            S.periods = null; S.prior = { gpa: "", w: "" }; S.plan = { target: "", remain: "" };
+            save(); go("start"); repaint();
+          });
+          return;
         }
         var set = e.target.closest("[data-set]");
         if (set) {
           var k = set.getAttribute("data-set"), v = set.getAttribute("data-val");
           if (k === "gradeMode" && (v === "letter" || v === "percent")) S.gradeMode = v;
-          if (k === "unit" && (v === "credits" || v === "periods")) S.unit = v;
+          if (k === "unit" && (v === "credits" || v === "periods") && v !== S.unit) {
+            // One credit ≈ five periods a week, so the numbers follow the
+            // switch (1.0 credit → 5 periods) and the GPA does not move.
+            var f = v === "periods" ? 5 : 1 / 5;
+            var conv = function (x) { var n = parseFloat(x); if (!isFinite(n)) return x; return v === "periods" ? String(Math.round(n * f * 100) / 100) : (Math.round(n * f * 100) / 100).toFixed(2).replace(/0$/, ""); };
+            allRows().forEach(function (r) { r.w = conv(r.w); });
+            S.prior.w = conv(S.prior.w); S.plan.remain = conv(S.plan.remain);
+            S.unit = v;
+          }
           save(); repaint();
         }
       });

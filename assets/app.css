@@ -775,7 +775,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-table td { padding: 5px 4px; border-top: 1px solid #edf0f5; vertical-align: middle; }
 .gpa-table td:first-child, .gpa-table th:first-child { padding-left: 16px; }
 .gpa-table td:last-child { padding-right: 10px; width: 36px; }
-.gpa-col-cr { width: 72px; } .gpa-col-gr { width: 88px; } .gpa-col-lv { width: 104px; } .gpa-col-ac { width: 112px; } .gpa-col-pt { width: 52px; text-align: right !important; }
+.gpa-col-lv { width: 104px; } .gpa-col-ac { width: 112px; } .gpa-col-pt { width: 52px; text-align: right !important; }
 .gpa-in, .gpa-sel {
   width: 100%; font: inherit; font-size: 0.92rem; color: var(--ink); background: #fff;
   border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0;
@@ -876,16 +876,25 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-tab.dim { opacity: 0.6; }
 .gpa-tab-sep { color: var(--line); }
 /* Tab 1 and 2 */
-/* Tabs 1 and 2 sit centred in the page (Rick, 2026-09-16). */
-.gpa-start { max-width: 760px; margin: 0 auto; }
+/* Tabs 1 and 2: left-aligned with the page text (Rick, 2026-09-16, after a
+   centred version was tried and rejected). */
+.gpa-start { max-width: 760px; }
 .gpa-start-hint { color: var(--muted); font-size: 0.92rem; margin: 0 0 14px; line-height: 1.6; }
-.gpa-scale-start { max-width: 640px; margin: 0 auto; }
+.gpa-scale-start { max-width: 640px; }
 .gpa-scale-start th { white-space: nowrap; }
-.gpa-start-actions { margin: 18px 0 0; text-align: center; }
+.gpa-start-actions { margin: 18px 0 0; }
 .gpa-levels { color: var(--muted); font-size: 0.8rem; line-height: 1.6; margin: 12px 2px 0; }
-.gpa-start .gpa-levels { max-width: 640px; margin: 12px auto 0; }
-.gpa-start .gpa-start-hint, .gpa-start .gpa-replace, .gpa-start .gpa-start-grid, .gpa-start .gpa-note { max-width: 640px; margin-left: auto; margin-right: auto; }
-.gpa-replace { color: var(--err); font-size: 0.88rem; margin: 0 0 14px; }
+.gpa-start .gpa-levels { max-width: 640px; }
+.gpa-append { color: var(--muted); font-size: 0.88rem; margin: 0 0 14px; }
+/* The sheet's one-line reminder about non-academic courses. */
+.gpa-sheet-note { color: var(--muted); font-size: 0.88rem; margin: -8px 0 16px; line-height: 1.6; }
+/* Column heads that are switches. */
+.gpa-head-seg { font-weight: 600; }
+.gpa-head-seg > button { padding: 3px 7px; font-size: 0.76rem; }
+.gpa-col-cr { width: 92px; } .gpa-col-gr { width: 104px; }
+.gpa-table th.gpa-col-cr, .gpa-table th.gpa-col-gr { padding-top: 5px; padding-bottom: 3px; }
+.gpa-confirm p { margin: 0; font-size: 1rem; line-height: 1.6; }
+.modal.gpa-confirm-modal { max-width: 440px; }
 
 .gpa-start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .gpa-start .gpa-scale .wt { border-top: 1px solid var(--line); }
