@@ -206,9 +206,11 @@
     var pm = /^([a-z]+)(?:\/([a-z]+))?$/.exec(h);
     if (pm && PAGES.indexOf(pm[1]) !== -1) {
       state.page = pm[1]; state.sub = pm[2] || "";
-      // A bare #/gpa resolves to a concrete tab so history holds the tab the
-      // parent actually saw: the sheet when one exists, else the scale.
-      if (state.page === "gpa" && !state.sub) state.sub = gpaTool().hasData() ? "sheet" : "scale";
+      // A bare #/gpa (the menu link) always opens step 1, the scale, and is
+      // rewritten to #/gpa/scale so history holds the tab actually shown. It
+      // used to jump to a saved sheet, which read as the first step missing
+      // (Rick, 2026-09-16); the sheet is one tab click away.
+      if (state.page === "gpa" && !state.sub) state.sub = "scale";
       return;
     }
     state.page = null; state.sub = "";

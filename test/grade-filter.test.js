@@ -692,8 +692,12 @@ setTimeout(() => {
       window.location.hash = "#/gpa";
     });
     await after(() => {
-      check("coming back to a bare #/gpa restores the sheet from the browser, and the URL names the tab",
-        [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length, window.location.hash], ["sheet", 54, "#/gpa/sheet"]);
+      check("the menu link (a bare #/gpa) always opens step 1, even with a saved sheet",
+        [doc.getElementById("gpaPage").getAttribute("data-view"), window.location.hash], ["scale", "#/gpa/scale"]);
+      click(pick('[data-gpa-tab="sheet"]'));
+    });
+    await after(() => {
+      check("...and the saved sheet is one tab click away", [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length], ["sheet", 54]);
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
     });

@@ -19,7 +19,7 @@
 //
 // Three tabs, three URLs — #/gpa (scale), #/gpa/start, #/gpa/sheet — so the
 // browser's Back button walks them (Rick, 2026-09-16: "Can't go back to step
-// 1"). A bare #/gpa lands on the sheet when one exists, on the scale when not.
+// 1"). A bare #/gpa — the menu link — always opens the scale, step 1.
 // Periods are flat semester blocks, the way gpacalculator.net and
 // calculator.net do it (Rick, 2026-09-16: "just follow their ways that have
 // been well accepted and tested"): renamable, each with its own GPA, one
@@ -848,11 +848,10 @@
 
     /* ---------- public ---------- */
 
-    // sub: "" | "start" | "sheet" from the URL. A bare #/gpa shows the sheet
-    // when one exists, otherwise the scale (step one).
+    // sub: "scale" | "start" | "sheet" from the URL; anything else is step 1.
     function render(container, sub) {
       load();
-      view = sub === "start" ? "start" : sub === "sheet" ? "sheet" : sub === "scale" ? "scale" : (started() ? "sheet" : "scale");
+      view = sub === "start" ? "start" : sub === "sheet" ? "sheet" : "scale";
       container.innerHTML = pageHtml();
       root = container.querySelector("#gpaPage");
       bind(root);
