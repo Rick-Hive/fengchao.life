@@ -192,7 +192,17 @@ a.menu-item:hover { background: #eef1f6; }
 .lang-btn {
   border: 1px solid var(--line); background: var(--card); color: var(--ink);
   border-radius: 999px; padding: 6px 16px; font-size: 0.85rem; cursor: pointer;
+  white-space: nowrap; flex: none;   /* 中文 was breaking into two lines when squeezed */
 }
+/* English runs ~60% longer than Chinese in the nav, and the header is one
+   flex row, so the brand lockup paid for it: at 1080px the English tagline
+   broke into three lines under a values line that had already dropped below
+   the wordmark. Three small English-only adjustments (menu labels were also
+   shortened in SITE_MENUS) give the lockup the ~310px the two-line Chinese
+   layout has, so both languages render the same shape. */
+html[lang="en"] .header-inner { gap: 10px; }
+html[lang="en"] .menu-btn { padding: 7px 9px; font-size: 0.86rem; }
+html[lang="en"] .brand-tag { font-size: 0.76rem; letter-spacing: 0; }
 .lang-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
 /* The cart lives in the header, top right, and is ALWAYS there — a parent
    learns where it is before they need it, and one glance at the number on the

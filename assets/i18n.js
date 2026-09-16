@@ -236,7 +236,10 @@ window.I18N = {
     },
   },
   en: {
-    brandTag: "Rebuilding the C-education ecosystem through online resources",
+    // Short enough to sit on one line beside the English nav; the Chinese
+    // tagline is the full statement (Rick, 2026-09-16: the three-line English
+    // lockup "make[s] it into three lines").
+    brandTag: "Rebuilding C-education through online resources",
     brandValues: ["Open", "Autonomous", "Collaborative"],
     menuLabel: "Menu",
     comingSoon: "Coming soon",
@@ -621,7 +624,7 @@ window.WEEKDAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Satu
 window.SITE_MENUS = [
   { zh: "教材", en: "Textbooks", url: "https://www.equipme.cloud/product-types/" },
   {
-    zh: "教育工具", en: "Educational Tools",
+    zh: "教育工具", en: "Tools",
     items: [
       { zh: "微软教育版 Teams", en: "Microsoft Teams for Education", url: "https://forms.cloud.microsoft/r/TeG4ZH4U4E" },
       { zh: "学生信息系统",     en: "Student Information System",     url: "https://bridge.opensis.com/" },
@@ -635,7 +638,7 @@ window.SITE_MENUS = [
     ],
   },
   {
-    zh: "教育服务", en: "Educational Services",
+    zh: "教育服务", en: "Services",
     items: [
       { zh: "大学项目",       en: "College Programs" },
       { zh: "国际C学校",      en: "International C-Schools" },
