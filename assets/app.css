@@ -179,9 +179,14 @@ a.menu-item:hover { background: #eef1f6; }
   .menu-panel .menu-item { font-size: 0.86rem; }
 }
 @media (max-width: 560px) {
+  .header-inner { padding: 10px 14px; gap: 8px; }
   .logo-mark { width: 56px; height: 56px; }
   .brand-name { font-size: 1.14rem; letter-spacing: 0.1em; text-indent: 0.1em; }
-  .brand-tag { font-size: 0.7rem; padding-left: 8px; }
+  /* With the menu, cart and language buttons all in the bar, a phone leaves
+     the lockup ~30px: the tagline broke into one character per line. The mark
+     and wordmark are the brand on a phone; values and tagline return on wider
+     screens. */
+  .brand-tag, .brand-values { display: none; }
 }
 .header-spacer { flex: 1; }
 .lang-btn {
@@ -731,3 +736,150 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .cart-sheet .rm:hover { color: var(--ink); }
 .cart-total { font-size: 0.95rem; }
 .cart-total b { font-size: 1.05rem; }
+
+/* ---------- G.P.A. calculator (#/gpa, assets/gpa.js) ---------- */
+/* A standalone page: the stepper is hidden while it shows. `.stepper` sets
+   display:flex, which would beat the hidden attribute without this rule. */
+.stepper[hidden] { display: none; }
+.gpa-print-head { display: none; }
+.gpa-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+.gpa-year { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin: 0 0 16px; overflow: hidden; }
+.gpa-year-head { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; background: #eef1f6; border-bottom: 1px solid var(--line); }
+/* The period title is an input so a family can rename "9 年级" to "2026 秋"
+   in place; styled as a heading until focused. */
+.gpa-period-name {
+  font: inherit; font-weight: 700; font-size: 1rem; color: var(--ink);
+  border: 1px solid transparent; border-radius: 8px; background: none; padding: 4px 6px; margin-left: -6px;
+  width: 11em; max-width: 45%; min-width: 0;
+}
+.gpa-period-name:hover { border-color: #c3d2e0; }
+.gpa-period-name:focus { outline: none; border-color: var(--accent); background: #fff; }
+.gpa-year-meta { color: var(--muted); font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.gpa-year-gpa { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); white-space: nowrap; }
+.gpa-rm-period { color: #b0b8c4; }
+.gpa-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.gpa-table th { text-align: left; font-weight: 600; color: var(--muted); font-size: 0.78rem; padding: 8px 8px 4px; }
+.gpa-table td { padding: 5px 4px; border-top: 1px solid #edf0f5; vertical-align: middle; }
+.gpa-table td:first-child, .gpa-table th:first-child { padding-left: 16px; }
+.gpa-table td:last-child { padding-right: 10px; width: 36px; }
+.gpa-col-cr { width: 72px; } .gpa-col-gr { width: 88px; } .gpa-col-lv { width: 104px; } .gpa-col-ac { width: 112px; } .gpa-col-pt { width: 52px; text-align: right !important; }
+.gpa-in, .gpa-sel {
+  width: 100%; font: inherit; font-size: 0.92rem; color: var(--ink); background: #fff;
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0;
+}
+.gpa-in:focus, .gpa-sel:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+.gpa-in::placeholder { color: #9aa3b0; }
+.gpa-in[type="number"] { -moz-appearance: textfield; }
+.gpa-in[type="number"]::-webkit-outer-spin-button, .gpa-in[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.gpa-sel {
+  appearance: none; -webkit-appearance: none; padding-right: 26px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' width='14' height='14'><path d='M5 8l5 5 5-5' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+.gpa-c-pts { text-align: right; padding-right: 8px !important; }
+.gpa-pts { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.88rem; }
+.gpa-pts.up { color: var(--accent); font-weight: 600; }
+.gpa-pts.pf { color: #9aa3b0; }
+.gpa-rm { border: none; background: none; color: #9aa3b0; font-size: 1.1rem; line-height: 1; cursor: pointer; border-radius: 6px; width: 28px; height: 28px; flex: none; }
+.gpa-rm:hover { background: #eef1f6; color: var(--ink); }
+/* Two-state toggle (学术/非学术; 字母/百分; 学分/课时). A button holding two
+   spans in the rows, a span holding two buttons in the settings — same look. */
+.gpa-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; padding: 0; font: inherit; cursor: pointer; vertical-align: middle; }
+.gpa-seg > span, .gpa-seg > button { padding: 6px 8px; font: inherit; font-size: 0.8rem; color: var(--muted); border: none; background: none; cursor: pointer; white-space: nowrap; line-height: 1.3; }
+.gpa-seg > .on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.gpa-add { display: block; width: 100%; text-align: left; border: none; border-top: 1px solid #edf0f5; background: none; color: var(--accent); font: inherit; font-size: 0.9rem; font-weight: 600; padding: 10px 16px; cursor: pointer; }
+.gpa-add:hover { background: #f7f9fc; }
+.gpa-add-year { width: 100%; border: 1px dashed #c3d2e0; background: none; color: var(--muted); font: inherit; font-size: 0.92rem; border-radius: var(--radius); padding: 12px; cursor: pointer; }
+.gpa-add-year:hover { color: var(--accent); border-color: var(--accent); }
+.gpa-side { position: sticky; top: 16px; }
+.gpa-result { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px 16px; margin: 0 0 14px; }
+.gpa-result h3 { margin: 0 0 10px; font-size: 0.82rem; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
+.gpa-big { display: flex; align-items: baseline; gap: 10px; }
+.gpa-big .n { font-size: 3.2rem; font-weight: 800; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--accent); }
+.gpa-big .d { color: var(--muted); font-size: 0.9rem; }
+.gpa-math { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; margin: 6px 0 0; }
+.gpa-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 10px; margin: 16px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); }
+.gpa-two .k { color: var(--muted); font-size: 0.78rem; }
+.gpa-two .v { font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.gpa-sub { color: var(--muted); font-size: 0.78rem; margin: 4px 0 0; }
+.gpa-prior { display: grid; grid-template-columns: 1fr 64px 64px; gap: 6px; align-items: center; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); }
+.gpa-prior .gpa-in { padding: 5px 8px; font-size: 0.85rem; text-align: right; }
+.gpa-years { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 7px; }
+.gpa-yr { display: grid; grid-template-columns: minmax(54px, auto) 1fr 40px; gap: 10px; align-items: center; font-size: 0.84rem; }
+.gpa-yr .lbl { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9em; }
+.gpa-yr .bar { height: 6px; background: #eef1f6; border-radius: 999px; overflow: hidden; }
+.gpa-yr .bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.gpa-yr .val { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gpa-actions { display: flex; gap: 8px; margin: 16px 0 0; }
+.gpa-actions .btn { flex: 1; padding: 9px 12px; font-size: 0.9rem; }
+.gpa-plan { padding: 14px 20px 12px; }
+.gpa-plan-row { display: grid; grid-template-columns: auto 70px auto 70px; gap: 8px; align-items: center; font-size: 0.82rem; color: var(--muted); }
+.gpa-plan-row .gpa-in { padding: 5px 8px; font-size: 0.9rem; text-align: right; }
+.gpa-plan-out { margin: 10px 0 0; font-size: 0.86rem; }
+.gpa-plan-out b { color: var(--accent); font-size: 1rem; }
+.gpa-scale { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.gpa-scale summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 0.9rem; list-style: none; display: flex; align-items: center; gap: 8px; }
+.gpa-scale summary::-webkit-details-marker { display: none; }
+.gpa-scale summary .req-caret { width: 20px; height: 20px; }
+.gpa-scale[open] summary .req-caret { transform: rotate(90deg); }
+.gpa-scale table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.gpa-scale th { text-align: right; font-weight: 600; color: var(--muted); font-size: 0.74rem; padding: 8px 12px 4px; }
+.gpa-scale td { text-align: right; padding: 5px 12px; border-top: 1px solid #edf0f5; font-variant-numeric: tabular-nums; }
+.gpa-scale th:first-child, .gpa-scale td:first-child { text-align: left; padding-left: 16px; }
+.gpa-scale td:last-child, .gpa-scale th:last-child { padding-right: 16px; }
+.gpa-scale td.cp { font-weight: 600; }
+.gpa-scale .wt { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 16px 12px; color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--line); background: #f7f9fc; }
+.gpa-link { border: none; background: none; color: var(--accent); font: inherit; font-size: 0.84rem; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
+.gpa-link:hover { text-decoration: underline; }
+.gpa-set { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 0.84rem; color: var(--muted); }
+.gpa-note { color: var(--muted); font-size: 0.8rem; margin: 12px 2px 0; }
+/* First visit: the scale, then the two starting points. */
+.gpa-start { max-width: 760px; }
+.gpa-start-step { margin: 22px 0 6px; font-size: 1rem; font-weight: 700; }
+.gpa-start-step:first-child { margin-top: 0; }
+.gpa-start-hint { color: var(--muted); font-size: 0.9rem; margin: 0 0 12px; }
+.gpa-scale-start { max-width: 520px; }
+.gpa-start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.gpa-start-card { padding: 22px 22px; font: inherit; color: var(--ink); }
+.gpa-start-card .choice-title { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
+.gpa-start-card .choice-desc { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+/* The scale editor modal */
+.gpa-sheet-hint { margin: 6px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.5; }
+.gpa-edit-body { padding: 8px 12px 4px; }
+.gpa-edit { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.gpa-edit th { text-align: left; font-size: 0.76rem; color: var(--muted); font-weight: 600; padding: 8px 6px 4px; }
+.gpa-edit td { padding: 4px 6px; }
+.gpa-edit .gpa-in { text-align: right; padding: 6px 8px; }
+.gpa-edit .gpa-in.l { text-align: left; }
+.gpa-edit-body .gpa-add { border-top: none; padding-left: 6px; }
+
+@media (max-width: 860px) {
+  .gpa-layout { grid-template-columns: 1fr; }
+  .gpa-side { position: static; order: -1; }
+  .gpa-big .n { font-size: 2.6rem; }
+}
+@media (max-width: 640px) {
+  .gpa-table thead { display: none; }
+  .gpa-table, .gpa-table tbody, .gpa-table tr, .gpa-table td { display: block; }
+  .gpa-table tr { position: relative; padding: 10px 44px 10px 16px; border-top: 1px solid #edf0f5; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .gpa-table tr:first-child { border-top: none; }
+  .gpa-table td { border: none; padding: 0 !important; width: auto; }
+  .gpa-table td.gpa-c-name { grid-column: 1 / -1; }
+  .gpa-table td.gpa-c-pts { display: none; }
+  .gpa-table td:last-child { position: absolute; right: 8px; top: 8px; }
+  .gpa-period-name { max-width: 40%; }
+  .gpa-year-meta { display: none; }
+  .gpa-plan-row { grid-template-columns: auto 1fr; }
+}
+/* Print: the sheet and the results, nothing else. */
+@media print {
+  .site-header, .stepper, .cart-bar, .gpa-actions, .gpa-add, .gpa-add-year, .gpa-rm, .gpa-set, .gpa-scale .wt, .gpa-prior, .gpa-plan, .hint { display: none !important; }
+  .gpa-print-head { display: block; font-size: 0.85rem; color: #333; margin: 0 0 10px; }
+  .gpa-layout { grid-template-columns: 1fr; }
+  .gpa-year, .gpa-result, .gpa-scale { box-shadow: none; break-inside: avoid; }
+  .gpa-in, .gpa-sel { border-color: transparent; background: none; padding-left: 0; }
+  .gpa-sel { background-image: none; }
+  .gpa-seg > span:not(.on) { display: none; }
+  .gpa-seg { border: none; }
+  body { background: #fff; }
+}

@@ -23,6 +23,10 @@
 
     lang: "zh",
     step: 0,
+    // A standalone page shown INSTEAD of the wizard: "gpa" (#/gpa, the G.P.A.
+    // calculator in assets/gpa.js) or null. Pages are outside the step flow —
+    // no stepper, no cart bar — and reachable from the site menu.
+    page: null,
     // grammar (K-G6) | dialectic (G7-G8) | rhetoric (G9-G12). Replaced the old
     // binary `level` on 2026-09-11: the parent now picks one of three learning
     // stages, and only `rhetoric` carries a graduation track and requirements.
@@ -164,6 +168,7 @@
   var STEP_HASHES = ["level", "track", "pedagogy", "requirements", "courses", "order", "map"];
   var COURSES_STEP = STEP_HASHES.indexOf("courses");
   var MAP_STEP = STEP_HASHES.indexOf("map");
+  var PAGES = ["gpa"];
   var HASH_SUPPRESS = false;
   // Tracks which step the last render() actually painted, so render() can
   // tell a fresh arrival at the course list (from any direction — forward,
@@ -195,6 +200,8 @@
     return n;
   }
   function applyHash(h) {
+    if (PAGES.indexOf(h) !== -1) { state.page = h; return; }
+    state.page = null;
     if (h === "done") {
       if (!state.done) { state.step = 0; }
       return;
@@ -206,7 +213,7 @@
   // Boot: the URL decides the page. No hash = home page, by design.
   (function () {
     var h = location.hash.replace(/^#\/?/, "");
-    if (!h) { state.step = FIRST_STEP; state.done = null; return; }
+    if (!h) { state.step = FIRST_STEP; state.done = null; state.page = null; return; }
     applyHash(h);
   })();
   // Keep the URL in step with the state. Assigning location.hash creates a
@@ -214,7 +221,7 @@
   // first normalization on a bare URL uses replaceState instead so the home
   // page doesn't become two history entries.
   function syncHash() {
-    var want = "#/" + (state.done ? "done" : STEP_HASHES[state.step]);
+    var want = "#/" + (state.page ? state.page : state.done ? "done" : STEP_HASHES[state.step]);
     if (location.hash === want) return;
     if (!location.hash) {
       try { history.replaceState(null, "", want); } catch (e) { location.hash = want; }
@@ -857,6 +864,8 @@
 
   function renderStepper() {
     var el = document.getElementById("stepper");
+    if (state.page) { el.innerHTML = ""; el.hidden = true; return; }
+    el.hidden = false;
     var vs = visibleSteps();
     var html = "";
     for (var i = 0; i < vs.map.length; i++) {
@@ -1525,7 +1534,7 @@
   function renderCartBar() {
     var bar = document.getElementById("cartBar");
     var n = cartIds().length;
-    if (CART_BAR_STEPS.indexOf(state.step) !== -1 && n > 0 && !state.done) {
+    if (!state.page && CART_BAR_STEPS.indexOf(state.step) !== -1 && n > 0 && !state.done) {
       bar.classList.add("visible");
       document.getElementById("cartInfo").innerHTML =
         esc(t().selected) + " <b>" + n + "</b> " + esc(t().coursesUnit) + " · " + esc(t().total) + " <b>" + esc(fmtPrice(cartTotal()) || "—") + "</b>" +
@@ -1575,10 +1584,29 @@
         return;
       }
       var go = e.target.closest("[data-goto-order]");
-      if (go) { closeAllModals(); state.step = 5; render(); return; }
+      if (go) { closeAllModals(); state.page = null; state.step = 5; render(); return; }
       var name = e.target.closest("[data-course]");
       if (name) openCourseModal(name.getAttribute("data-course"));
     });
+  }
+
+  /* ---------- G.P.A. calculator page (assets/gpa.js) ---------- */
+  // Created on first use; the tool keeps its own state and storage and only
+  // borrows the site's helpers. High-school course names from the snapshot
+  // feed its typing suggestions — names only, nothing from the tracks.
+  var gpaToolInst = null;
+  function gpaTool() {
+    if (gpaToolInst) return gpaToolInst;
+    gpaToolInst = window.createGpaTool({
+      t: t, esc: esc, pickLang: pickLang, openModal: openModal, closeModal: closeModal,
+      courseNames: function () {
+        if (!state.data) return [];
+        return (state.data.courses || []).filter(function (c) {
+          return (c.grades || []).some(function (g) { return /^G(9|1[0-2])$/.test(g); });
+        }).map(courseName).filter(Boolean);
+      },
+    });
+    return gpaToolInst;
   }
 
   /* ---------- modals ---------- */
@@ -1762,7 +1790,7 @@
       // dropdown: same .menu-btn pill so it sits flush with the dropdowns,
       // minus the caret and panel.
       if (m.url && !m.items) {
-        var mExternal = m.url.indexOf("mailto:") !== 0;
+        var mExternal = /^https?:/i.test(m.url);
         return '<a class="menu-btn menu-link" href="' + esc(m.url) + '"' +
                (mExternal ? ' target="_blank" rel="noopener noreferrer"' : "") + ">" +
                esc(pickLang(m.en, m.zh)) +
@@ -1774,7 +1802,8 @@
           return '<span class="menu-item is-soon" aria-disabled="true">' + esc(label) +
                  '<span class="soon-tag">' + esc(t().comingSoon) + "</span></span>";
         }
-        var external = it.url.indexOf("mailto:") !== 0;
+        // Only http(s) opens a new tab; mailto: and in-site #/ links stay here.
+        var external = /^https?:/i.test(it.url);
         return '<a class="menu-item" href="' + esc(it.url) + '"' +
                (external ? ' target="_blank" rel="noopener noreferrer"' : "") + ">" +
                esc(label) + (external ? '<span class="ext-ic" aria-hidden="true">↗</span>' : "") + "</a>";
@@ -1862,7 +1891,9 @@
     if (state.step === COURSES_STEP && lastRenderedStep !== COURSES_STEP) {
       state.filters = { subject: "", grade: "", language: "", classType: "", q: "" };
     }
-    lastRenderedStep = state.step;
+    // A standalone page is not a step: coming back from it counts as a fresh
+    // arrival, so the course list starts clean again.
+    lastRenderedStep = state.page ? null : state.step;
     persistWizard();
     syncHash();
     document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
@@ -1872,6 +1903,14 @@
     if (bv) bv.textContent = (t().brandValues || []).join(state.lang === "zh" ? " · " : " · ");
     renderNav();
     renderStepper();
+
+    // Standalone pages need no snapshot, so they paint before /api/data lands.
+    if (state.page === "gpa") {
+      gpaTool().render(app);
+      renderCartBar();
+      window.scrollTo({ top: 0 });
+      return;
+    }
 
     if (state.done) { app.innerHTML = renderDone(); bind(); renderCartBar(); return; }
     if (!state.data) { renderCartBar(); return; }
@@ -2230,7 +2269,7 @@
     on("cartInfo", "click", openCartModal);
     on("cartNext", "click", function () {
       if (cartIds().length === 0) return;
-      state.step = 5; state.formErr = ""; render();
+      state.page = null; state.step = 5; state.formErr = ""; render();
     });
   }
 

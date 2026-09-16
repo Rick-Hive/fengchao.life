@@ -116,6 +116,7 @@ window.cancelAnimationFrame = id => clearTimeout(id);
 window.matchMedia = () => ({ matches: false, addEventListener(){}, removeEventListener(){} });
 
 window.eval(fs.readFileSync(ROOT + "i18n.js", "utf8"));
+window.eval(fs.readFileSync(ROOT + "gpa.js", "utf8"));
 window.eval(fs.readFileSync(ROOT + "app.js", "utf8"));
 
 const doc = window.document;
@@ -539,6 +540,91 @@ setTimeout(() => {
              const en = doc.getElementById("cartLbl").textContent; click(pick("#langBtn")); return [zh, en]; })(),
     ["购物车", "Cart"]);
 
-  console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
-  process.exit(failures ? 1 : 0);
+  // ---- G.P.A. calculator (#/gpa) — a standalone page beside the wizard ----
+  // jsdom fires hashchange asynchronously, so the page is entered the way the
+  // menu does it: a hash link click, then a tick.
+  const setVal = (el, v) => { el.value = v; el.dispatchEvent(new window.Event("input", { bubbles: true })); el.dispatchEvent(new window.Event("change", { bubbles: true })); };
+  const gpaLink = doc.querySelector('a.menu-item[href="#/gpa"]');
+  check("the menu links to the calculator in the same tab (no ↗, no new window)",
+    [!!gpaLink, gpaLink && gpaLink.getAttribute("target"), gpaLink && !!gpaLink.querySelector(".ext-ic")], [true, null, false]);
+  window.location.hash = "#/gpa";
+  setTimeout(() => {
+    check("#/gpa shows the calculator and hides the stepper and cart bar",
+      [!!doc.getElementById("gpaPage"), doc.getElementById("stepper").hidden, doc.getElementById("cartBar").classList.contains("visible")],
+      [true, true, false]);
+    check("first visit: the scale comes first, then the two starting points",
+      [!!doc.querySelector("#gpaPage .gpa-scale-start"), doc.querySelectorAll("[data-gpa-start]").length], [true, 2]);
+    click(pick('[data-gpa-start="preset"]'));
+    check("the standard plan fills four years", doc.querySelectorAll(".gpa-year").length, 4);
+    check("...30 rows, Bible flagged non-academic",
+      [doc.querySelectorAll("tr[data-row]").length,
+       Array.from(doc.querySelectorAll('.gpa-year:first-child tr[data-row]')).filter(r => r.querySelector('[data-f="ac"] span:last-child').className === "on").length],
+      [30, 3]);
+    const g9 = Array.from(doc.querySelectorAll('.gpa-year:first-child tr[data-row]'));
+    setVal(g9[0].querySelector('[data-f="grade"]'), "A-"); setVal(g9[0].querySelector('[data-f="lvl"]'), "H");
+    setVal(g9[1].querySelector('[data-f="grade"]'), "B+");
+    setVal(g9[5].querySelector('[data-f="grade"]'), "A");     // Bible, non-academic
+    setVal(g9[6].querySelector('[data-f="grade"]'), "P");     // PE, pass/fail
+    check("GPA = Σ(points × credits) ÷ Σ credits over graded rows: (3.7+3.3+4.0)/3",
+      doc.getElementById("gpaMain").textContent, "3.67");
+    check("weighted reads the Honors column for the Honors row: (4.2+3.3+4.0)/3",
+      doc.getElementById("gpaWeighted").textContent, "3.83");
+    check("academic GPA leaves Bible out: (3.7+3.3)/2", doc.getElementById("gpaAcademic").textContent, "3.50");
+    check("P earns its 0.5 credit but no points; ungraded rows are not counted", doc.getElementById("gpaCredits").textContent, "3.5");
+    check("the points column shows the level's points, P and — as such",
+      g9.slice(0, 7).map(r => r.querySelector(".gpa-c-pts").textContent), ["4.2", "3.3", "—", "—", "—", "4.0", "P"]);
+    click(pick('[data-set="gradeMode"][data-val="percent"]'));
+    const g9p = Array.from(doc.querySelectorAll('.gpa-year:first-child tr[data-row]'));
+    check("percent entry swaps the dropdown for a text box and keeps the grades",
+      [g9p[0].querySelector('[data-f="grade"]').tagName, g9p[0].querySelector('[data-f="grade"]').value], ["INPUT", "A-"]);
+    setVal(g9p[2].querySelector('[data-f="grade"]'), "91");
+    check("a percentage is read against the breakoffs (91 → A- → 3.7)",
+      [g9p[2].querySelector(".gpa-c-pts").textContent, doc.getElementById("gpaMain").textContent], ["3.7", "3.68"]);
+    click(pick('[data-set="gradeMode"][data-val="letter"]'));
+    check("back under letters, the 91 is kept and shown as its own option",
+      doc.querySelectorAll('.gpa-year:first-child tr[data-row]')[2].querySelector('[data-f="grade"]').value, "91");
+    setVal(pick('[data-plan="target"]'), "3.7"); setVal(pick('[data-plan="remain"]'), "7");
+    check("planning: (3.7 × (4+7) − 14.7) / 7", /3\.71/.test(doc.querySelector(".gpa-plan-out").textContent), true);
+    click(pick("#gpaScaleEdit"));
+    const ed = Array.from(doc.querySelectorAll(".modal-overlay")).pop();
+    check("the scale editor lists the ten default rows", ed.querySelectorAll("[data-sc]").length, 10);
+    setVal(ed.querySelector('[data-sc="1"] [data-sc-f="h"]'), "4.0");
+    check("editing the Honors value of A- recalculates the weighted GPA live: (4.0+3.3+3.7+4.0)/4",
+      doc.getElementById("gpaWeighted").textContent, "3.75");
+    click(ed.querySelector("#gpaScaleReset"));
+    check("restore defaults puts it back", doc.getElementById("gpaWeighted").textContent, "3.80");
+    click(ed.querySelector(".modal-foot [data-close]"));
+    const saved = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
+    check("everything is saved in the browser, under its own key, not the wizard's",
+      [saved.periods.length, saved.periods[0].rows[0].grade, saved.periods[0].rows[0].lvl, "cart" in saved], [4, "A-", "H", false]);
+    click(pick("#langBtn"));
+    check("the page follows the language switch, preset names included",
+      [doc.querySelector("#gpaPage h2").textContent, doc.querySelector('tr[data-row] [data-f="name"]').value], ["G.P.A. Calculator", "English 9"]);
+    click(pick("#langBtn"));
+    setVal(doc.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
+    click(pick("#langBtn"));
+    check("a name the family typed stays as typed in either language", doc.querySelector('tr[data-row] [data-f="name"]').value, "荣誉英语 9");
+    click(pick("#langBtn"));
+    click(pick('.gpa-year:first-child [data-add-row]'));
+    check("add course appends a blank row to that year", doc.querySelectorAll('.gpa-year:first-child tr[data-row]').length, 9);
+    click(doc.querySelector('.gpa-year:first-child tr[data-row]:last-child [data-rm-row]'));
+    check("...and × removes it", doc.querySelectorAll('.gpa-year:first-child tr[data-row]').length, 8);
+    click(pick('[data-set="unit"][data-val="periods"]'));
+    check("switching the unit relabels without changing the formula",
+      [doc.querySelector(".gpa-table th.gpa-col-cr").textContent, doc.getElementById("gpaMain").textContent], ["课时", "3.68"]);
+    click(pick('[data-set="unit"][data-val="credits"]'));
+    // Back to the wizard: the calculator left nothing behind in it.
+    window.location.hash = "#/pedagogy";
+    setTimeout(() => {
+      check("leaving #/gpa brings the wizard and its stepper back",
+        [!!doc.getElementById("pedGrid"), doc.getElementById("stepper").hidden, !!doc.getElementById("gpaPage")], [true, false, false]);
+      check("the wizard's own storage was not touched", "cart" in JSON.parse(window.localStorage.getItem("fc-wizard-v1")), true);
+      window.location.hash = "#/gpa";
+      setTimeout(() => {
+        check("coming back restores the sheet from the browser", doc.querySelectorAll("tr[data-row]").length, 30);
+        console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
+        process.exit(failures ? 1 : 0);
+      }, 30);
+    }, 30);
+  }, 30);
 }, 300);
