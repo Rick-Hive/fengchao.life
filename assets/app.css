@@ -189,21 +189,28 @@ a.menu-item:hover { background: #eef1f6; }
   border-radius: 999px; padding: 6px 16px; font-size: 0.85rem; cursor: pointer;
 }
 .lang-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
-/* The cart lives in the header so a parent returning days later can see, and
-   reach, what they picked from any page — the bottom bar only ever appears on
-   the pages where courses are chosen. Hidden entirely while the cart is empty. */
+/* The cart lives in the header, top right, and is ALWAYS there — a parent
+   learns where it is before they need it, and one glance at the number on the
+   basket answers "did I pick anything?" without opening it (Rick, after
+   Amazon's, 2026-09-16). The word beside the icon is deliberate: a basket on
+   its own is ambiguous, and doubly so in Chinese. The count is honey gold —
+   the logo's colour — so it reads as brand, not as an alert. */
 .cart-btn {
-  display: inline-flex; align-items: center; gap: 7px; flex: none;
-  border: 1px solid var(--line); background: var(--card); color: var(--ink);
-  border-radius: 999px; padding: 6px 13px 6px 11px; font: inherit; font-size: 0.85rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  border: none; background: none; color: var(--ink);
+  border-radius: 10px; padding: 3px 8px 3px 6px; font: inherit; cursor: pointer;
 }
-.cart-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
-.cart-btn[hidden] { display: none; }
+.cart-btn:hover { background: #eef1f6; }
+.cart-ic { position: relative; width: 34px; height: 30px; display: block; }
+.cart-ic svg { display: block; }
 .cart-btn-n {
-  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
-  background: var(--accent); color: #fff; font-size: 0.74rem; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center;
+  position: absolute; left: 62%; top: -3px; transform: translateX(-50%);
+  min-width: 14px; text-align: center; line-height: 1;
+  font-size: 1rem; font-weight: 800; color: #b8811a; letter-spacing: -0.02em;
 }
+.cart-btn-n.zero { color: #9aa3b0; }
+.cart-lbl { font-weight: 700; font-size: 0.95rem; line-height: 1; padding-top: 6px; }
+@media (max-width: 560px) { .cart-lbl { display: none; } }
 .cart-when { color: var(--muted); font-size: 0.82rem; margin: 2px 0 0; }
 .cart-dropped { color: var(--err); font-size: 0.84rem; margin: 8px 0 0; }
 

@@ -84,6 +84,7 @@ window.I18N = {
     confirmSelection: "确认所选课程",
     // the cart sheet, opened from the bottom bar's summary or the header cart
     cartTitle: "已选课程",
+    cartLabel: "购物车",
     cartView: "查看",
     cartEmpty: "尚未选择课程。",
     // Shown when a parent comes back to a selection made on an earlier visit.
@@ -222,6 +223,7 @@ window.I18N = {
     back: "Back",
     confirmSelection: "Confirm selection",
     cartTitle: "Selected courses",
+    cartLabel: "Cart",
     cartView: "View",
     cartEmpty: "No courses selected yet.",
     cartSavedToday: "chosen today",

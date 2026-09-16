@@ -515,12 +515,12 @@ setTimeout(() => {
   backToStart();
   goToCatalog("grammar", "classical");
   click(doc.querySelector(".course-card .btn-select"));
-  check("the header cart appears with the selection and shows the count",
-    [doc.getElementById("cartBtn").hidden, doc.getElementById("cartBtnN").textContent], [false, "1"]);
+  check("the header cart shows the count on the basket",
+    [doc.getElementById("cartBtnN").textContent, doc.getElementById("cartBtnN").classList.contains("zero")], ["1", false]);
   backToStart();
   check("...and is still there on the first page, where the bottom bar is not",
-    [doc.getElementById("cartBtn").hidden, doc.getElementById("cartBar").classList.contains("visible")],
-    [false, false]);
+    [doc.getElementById("cartBtnN").textContent, doc.getElementById("cartBar").classList.contains("visible")],
+    ["1", false]);
   // backdate the selection so the sheet has an age to report
   window.eval('(function(){ for (var k in window) {} })()');
   const beforeSheets = doc.querySelectorAll(".cart-sheet").length;
@@ -530,9 +530,14 @@ setTimeout(() => {
   const hdrCart = Array.from(doc.querySelectorAll(".cart-sheet")).pop();
   check("the sheet lists the selection", hdrCart.querySelectorAll(".cart-row").length, 1);
   click(hdrCart.querySelector("[data-remove]"));
-  check("emptying it from the header hides the cart button again",
-    [doc.getElementById("cartBtn").hidden, Object.keys(JSON.parse(window.localStorage.getItem("fc-wizard-v1")).cart).length],
-    [true, 0]);
+  check("emptying it from the header leaves the cart in place, showing a quiet 0",
+    [doc.getElementById("cartBtnN").textContent, doc.getElementById("cartBtnN").classList.contains("zero"),
+     Object.keys(JSON.parse(window.localStorage.getItem("fc-wizard-v1")).cart).length],
+    ["0", true, 0]);
+  check("...and the label follows the page language",
+    (() => { const zh = doc.getElementById("cartLbl").textContent; click(pick("#langBtn"));
+             const en = doc.getElementById("cartLbl").textContent; click(pick("#langBtn")); return [zh, en]; })(),
+    ["购物车", "Cart"]);
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);

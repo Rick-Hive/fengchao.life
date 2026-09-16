@@ -818,10 +818,11 @@
     var btn = document.getElementById("cartBtn");
     if (!btn) return;
     var n = cartIds().length;
-    btn.hidden = !n || !!state.done;
     btn.setAttribute("aria-label", t().cartTitle + " (" + n + ")");
     var el = document.getElementById("cartBtnN");
-    if (el) el.textContent = String(n);
+    if (el) { el.textContent = String(n); el.classList.toggle("zero", !n); }
+    var lbl = document.getElementById("cartLbl");
+    if (lbl) lbl.textContent = t().cartLabel;
   }
   function cartCourses() {
     return cartIds().map(courseById).filter(Boolean);
