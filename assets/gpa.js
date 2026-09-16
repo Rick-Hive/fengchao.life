@@ -497,10 +497,10 @@
         suggestFor = input;
       }
       suggestIdx = -1;
+      // One language only, the page's (Rick, 2026-09-16); both names are still
+      // stored, so the pick follows the language toggle.
       suggestBox.innerHTML = items.map(function (sub, i) {
-        var other = ctx.pickLang(sub.zh, sub.en);
-        return '<button type="button" role="option" data-suggest="' + i + '">' + esc(sub.label) +
-          (other && other !== sub.label ? '<span class="gpa-suggest-alt">' + esc(other) + "</span>" : "") + "</button>";
+        return '<button type="button" role="option" data-suggest="' + i + '">' + esc(sub.label) + "</button>";
       }).join("");
       suggestBox.items = items;
     }

@@ -660,7 +660,7 @@ setTimeout(() => {
         [doc.querySelectorAll(".gpa-suggest").length, sug().some(v => v.indexOf("数学") === 0), sug().some(v => /Algebra|English 9|荣誉课程/.test(v)), doc.querySelectorAll("datalist").length],
         [1, true, false, 0]);
       setVal(nameIn, "数");
-      check("typing filters it", sug(), ["数学Math"]);
+      check("typing filters it, and the list shows the page language only", sug(), ["数学"]);
       doc.querySelector(".gpa-suggest [data-suggest]").dispatchEvent(new window.MouseEvent("mousedown", { bubbles: true }));
       check("picking fills the field, saves both names, and closes the list",
         [nameIn.value, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[0].rows[0].name, doc.querySelectorAll(".gpa-suggest").length], ["数学", { en: "Math", zh: "数学" }, 0]);
