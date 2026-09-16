@@ -19,6 +19,8 @@
 
   // Internal steps: 0 level · 1 mode · 2 pedagogy · 3 requirements · 4 catalog · 5 order
   var state = {
+    cartAt: 0,   // when the cart last changed (ms); see persistWizard
+
     lang: "zh",
     step: 0,
     // grammar (K-G6) | dialectic (G7-G8) | rhetoric (G9-G12). Replaced the old
@@ -75,7 +77,7 @@
     try {
       localStorage.setItem(WIZARD_KEY, JSON.stringify({
         stage: state.stage, mode: state.mode, pedagogy: state.pedagogy,
-        cart: state.cart, filters: state.filters,
+        cart: state.cart, cartAt: state.cartAt, filters: state.filters,
         done: state.done,
       }));
     } catch (e) {}
@@ -97,6 +99,9 @@
     if (r.mode === "international" || r.mode === "domestic" || r.mode === "hybrid") state.mode = r.mode;
     if (r.pedagogy === "classical" || r.pedagogy === "nonclassical") state.pedagogy = r.pedagogy;
     if (r.cart && typeof r.cart === "object" && !Array.isArray(r.cart)) state.cart = r.cart;
+    // When the selection was last touched, so a parent returning after a while
+    // is told how old it is rather than left guessing.
+    if (typeof r.cartAt === "number") state.cartAt = r.cartAt;
     if (r.filters && typeof r.filters === "object") {
       for (var k in state.filters) if (typeof r.filters[k] === "string") state.filters[k] = r.filters[k];
     }
@@ -785,6 +790,38 @@
     var cs = state.data ? state.data.courses : [];
     for (var i = 0; i < cs.length; i++) if (cs[i].id === id) return cs[i];
     return null;
+  }
+  // How old the selection is, in the parent's words. Only shown once the cart
+  // predates today — on the visit that made it, it would be noise.
+  function cartAgeLabel() {
+    if (!state.cartAt) return "";
+    var days = Math.floor((Date.now() - state.cartAt) / 86400000);
+    if (days <= 0) return t().cartSavedToday;
+    if (days === 1) return t().cartSavedYesterday;
+    return t().cartSavedDays.replace("{n}", days);
+  }
+  // A cart kept across visits can outlive the courses in it: the catalog is
+  // replaced whole on every sync, so a course can simply stop existing. Drop
+  // those rather than carrying an id the order endpoint would reject, and tell
+  // the parent in the cart sheet how many went.
+  function pruneCart() {
+    if (!state.data) return;
+    var gone = cartIds().filter(function (id) { return !courseById(id); });
+    if (!gone.length) return;
+    gone.forEach(function (id) { delete state.cart[id]; });
+    state.cartDropped = gone.length;
+    persistWizard();
+  }
+  // The header cart: the only way back to a selection from a page that has no
+  // course list on it, which is exactly where a returning parent lands.
+  function renderCartButton() {
+    var btn = document.getElementById("cartBtn");
+    if (!btn) return;
+    var n = cartIds().length;
+    btn.hidden = !n || !!state.done;
+    btn.setAttribute("aria-label", t().cartTitle + " (" + n + ")");
+    var el = document.getElementById("cartBtnN");
+    if (el) el.textContent = String(n);
   }
   function cartCourses() {
     return cartIds().map(courseById).filter(Boolean);
@@ -1496,6 +1533,7 @@
     } else {
       bar.classList.remove("visible");
     }
+    renderCartButton();
   }
 
   // The cart sheet: the bar's summary opened up — every selected course with
@@ -1515,7 +1553,10 @@
     }).join("");
     return (
       '<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button>' +
-      '<div class="modal-head"><h3>' + esc(t().cartTitle) + " (" + items.length + ")</h3></div>" +
+      '<div class="modal-head"><h3>' + esc(t().cartTitle) + " (" + items.length + ")</h3>" +
+      (items.length && cartAgeLabel() ? '<p class="cart-when">' + esc(cartAgeLabel()) + "</p>" : "") +
+      (state.cartDropped ? '<p class="cart-dropped">' + esc(t().cartDropped.replace("{n}", state.cartDropped)) + "</p>" : "") +
+      "</div>" +
       '<div class="modal-body">' + (rows || '<p class="cm-sheet-none">' + esc(t().cartEmpty) + "</p>") + "</div>" +
       '<div class="modal-foot"><span class="cart-total">' + esc(t().total) + " <b>" + esc(fmtPrice(cartTotal()) || "—") + "</b></span>" +
       '<button type="button" class="btn btn-primary" data-goto-order' + (items.length ? "" : " disabled") + ">" + esc(t().confirmSelection) + "</button></div>"
@@ -1523,6 +1564,7 @@
   }
   function openCartModal() {
     var overlay = openModal(cartSheetHtml(), "cart-sheet");
+    state.cartDropped = 0;   // said once; not on every later opening
     overlay.addEventListener("click", function (e) {
       var rm = e.target.closest("[data-remove]");
       if (rm) {
@@ -2036,17 +2078,13 @@
       });
     }
 
-    on("cartInfo", "click", openCartModal);
-    on("cartNext", "click", function () {
-      if (cartIds().length === 0) return;
-      state.step = 5; state.formErr = ""; render();
-    });
 
     var summary = app.querySelector(".summary-card");
     if (summary) summary.addEventListener("click", function (e) {
       var rm = e.target.closest(".rm");
       if (!rm) return;
       delete state.cart[rm.getAttribute("data-id")];
+      state.cartAt = Date.now();
       if (cartIds().length === 0) state.step = 4;
       render();
     });
@@ -2066,6 +2104,7 @@
     if (!id) return;
     if (state.cart[id]) delete state.cart[id];
     else state.cart[id] = true;
+    state.cartAt = Date.now();
     // Update in place wherever the course is shown — the catalog grid, or the
     // requirements table when a course was picked from a requirement row's
     // chip. Both avoid render(), which scrolls the page back to the top (and on
@@ -2181,6 +2220,19 @@
   // bound once on the container itself (renderStepper only replaces its
   // innerHTML on every render, never the #stepper element), same pattern as
   // bindNavOnce below.
+  // #cartBtn, #cartInfo and #cartNext are part of index.html rather than of
+  // #app, so they survive every render — binding them from bind() added one
+  // more listener each time and a single click ended up opening a stack of
+  // modals. They are bound once, at boot.
+  function bindCartOnce() {
+    on("cartBtn", "click", openCartModal);
+    on("cartInfo", "click", openCartModal);
+    on("cartNext", "click", function () {
+      if (cartIds().length === 0) return;
+      state.step = 5; state.formErr = ""; render();
+    });
+  }
+
   function bindStepperOnce() {
     var el = document.getElementById("stepper");
     if (!el) return;
@@ -2207,6 +2259,7 @@
   // only replaces the markup inside #siteNav, never the element itself.
   bindNavOnce();
   bindStepperOnce();
+  bindCartOnce();
   render();
   fetch("/api/data")
     .then(function (res) {
@@ -2217,6 +2270,7 @@
       (data.courses || []).forEach(normalizeCourse);
       (data.teacherProfiles || []).forEach(normalizeTeacher);
       state.data = data;
+      pruneCart();
       var n = document.getElementById("loadingNotice");
       if (n) n.remove();
       render();

@@ -82,10 +82,15 @@ window.I18N = {
     nextStep: "下一步",
     back: "上一步",
     confirmSelection: "确认所选课程",
-    // the cart sheet, opened from the bottom bar's summary
+    // the cart sheet, opened from the bottom bar's summary or the header cart
     cartTitle: "已选课程",
     cartView: "查看",
     cartEmpty: "尚未选择课程。",
+    // Shown when a parent comes back to a selection made on an earlier visit.
+    cartSavedToday: "今天所选",
+    cartSavedYesterday: "昨天所选",
+    cartSavedDays: "{n} 天前所选",
+    cartDropped: "其中 {n} 门课程已下架，已自动移除。",
     // course detail modal
     dCode: "课程编号",
     dSubject: "学科",
@@ -219,6 +224,10 @@ window.I18N = {
     cartTitle: "Selected courses",
     cartView: "View",
     cartEmpty: "No courses selected yet.",
+    cartSavedToday: "chosen today",
+    cartSavedYesterday: "chosen yesterday",
+    cartSavedDays: "chosen {n} days ago",
+    cartDropped: "{n} of them are no longer offered and have been removed.",
     dCode: "Course ID",
     dSubject: "Subject",
     dGrades: "Grades",

@@ -446,6 +446,9 @@ setTimeout(() => {
   // summary opens the cart sheet, where a course can be reviewed and removed
   check("cart bar is visible on the map once something is selected",
     doc.getElementById("cartBar").classList.contains("visible"), true);
+  // backdate the selection so the "chosen N days ago" line has something to say
+  window.localStorage.setItem("fc-wizard-v1", JSON.stringify(Object.assign(
+    JSON.parse(window.localStorage.getItem("fc-wizard-v1")), { cartAt: Date.now() - 3 * 86400000 })));
   click(pick("#cartInfo"));
   const cart = doc.querySelector(".cart-sheet");
   check("the bar's summary opens the cart sheet listing the selection",
@@ -463,6 +466,7 @@ setTimeout(() => {
   click(pick("#cartInfo"));
   click(doc.querySelector(".cart-sheet [data-goto-order]"));
   check("Confirm in the cart sheet goes to the order page", !!doc.getElementById("email"), true);
+
   click(pick("#back5"));
   check("...and Back from the order page returns to the catalog", !!doc.getElementById("gridWrap"), true);
   click(pick("#back4"));
@@ -503,6 +507,32 @@ setTimeout(() => {
   check("dialectic has no table yet: the step is skipped and the stepper omits it",
     [!!doc.getElementById("gridWrap"), Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent)],
     [true, ["教育理念", "学段", "选择课程", "提交订单"]]);
+
+  // ---- the header cart -----------------------------------------------------
+  // The bottom bar only appears on the pages where courses are chosen, so it is
+  // no help to someone returning days later and landing on the first page. The
+  // header cart is, and it must not stack listeners across renders.
+  backToStart();
+  goToCatalog("grammar", "classical");
+  click(doc.querySelector(".course-card .btn-select"));
+  check("the header cart appears with the selection and shows the count",
+    [doc.getElementById("cartBtn").hidden, doc.getElementById("cartBtnN").textContent], [false, "1"]);
+  backToStart();
+  check("...and is still there on the first page, where the bottom bar is not",
+    [doc.getElementById("cartBtn").hidden, doc.getElementById("cartBar").classList.contains("visible")],
+    [false, false]);
+  // backdate the selection so the sheet has an age to report
+  window.eval('(function(){ for (var k in window) {} })()');
+  const beforeSheets = doc.querySelectorAll(".cart-sheet").length;
+  click(pick("#cartBtn"));
+  check("one click opens exactly one sheet — listeners are bound once, not per render",
+    doc.querySelectorAll(".cart-sheet").length - beforeSheets, 1);
+  const hdrCart = Array.from(doc.querySelectorAll(".cart-sheet")).pop();
+  check("the sheet lists the selection", hdrCart.querySelectorAll(".cart-row").length, 1);
+  click(hdrCart.querySelector("[data-remove]"));
+  check("emptying it from the header hides the cart button again",
+    [doc.getElementById("cartBtn").hidden, Object.keys(JSON.parse(window.localStorage.getItem("fc-wizard-v1")).cart).length],
+    [true, 0]);
 
   console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
   process.exit(failures ? 1 : 0);
