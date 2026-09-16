@@ -308,9 +308,12 @@
         '<div class="gpa-start">' +
         '<p class="gpa-start-hint">' + esc(t.startStep2Hint) + "</p>" +
         (started() ? '<p class="gpa-replace">' + esc(t.startReplaceNote) + "</p>" : "") +
+        // Blank first: gpacalculator.net and calculator.net both open with one
+        // semester and grow one at a time; the eight-semester plan is our
+        // optional shortcut.
         '<div class="gpa-start-grid">' +
-        '<button type="button" class="choice-card gpa-start-card" data-gpa-start="preset"><span class="choice-title">' + esc(t.startPreset) + '</span><span class="choice-desc">' + esc(t.startPresetDesc) + "</span></button>" +
         '<button type="button" class="choice-card gpa-start-card" data-gpa-start="blank"><span class="choice-title">' + esc(t.startBlank) + '</span><span class="choice-desc">' + esc(t.startBlankDesc) + "</span></button>" +
+        '<button type="button" class="choice-card gpa-start-card" data-gpa-start="preset"><span class="choice-title">' + esc(t.startPreset) + '</span><span class="choice-desc">' + esc(t.startPresetDesc) + "</span></button>" +
         "</div>" +
         '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
         "</div>"
@@ -352,7 +355,7 @@
       }).join("");
       return (
         '<tr data-row="' + esc(r.id) + '">' +
-        '<td class="gpa-c-name"><input class="gpa-in" type="text" data-f="name" list="gpaNames" value="' + esc(rowName(r)) + '" aria-label="' + esc(t.colCourse) + '" /></td>' +
+        '<td class="gpa-c-name"><input class="gpa-in" type="text" data-f="name" autocomplete="off" value="' + esc(rowName(r)) + '" aria-label="' + esc(t.colCourse) + '" /></td>' +
         '<td><input class="gpa-in gpa-w" type="number" min="0" step="' + (S.unit === "periods" ? "1" : "0.25") + '" data-f="w" value="' + esc(r.w) + '" aria-label="' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + '" /></td>' +
         "<td>" + gradeControl(r) + "</td>" +
         '<td><select class="gpa-sel" data-f="lvl" aria-label="' + esc(t.colLevel) + '" title="' + esc(t.levelsNote) + '">' + lv + "</select></td>" +
@@ -458,14 +461,65 @@
     // Typing suggestions on the course field: the subject list from Airtable
     // (Course Subject table, in the page language), nothing else. An earlier
     // list mixed common US course names with the catalog's long course titles
-    // and read as noise (Rick, 2026-09-16). Anything typed is still accepted.
-    function namesDatalist() {
+    // and read as noise (Rick, 2026-09-16). Drawn by the page, not a
+    // <datalist>: the browser's native popup follows the OS theme and came out
+    // black on Rick's machine. Anything typed is still accepted.
+    // Each entry keeps both names: a picked subject is stored as {en, zh} and
+    // follows the language toggle, like the template's courses. A name the
+    // family types stays a plain string (Rick, 2026-09-16: "selected in the
+    // default list, or could be edited. Bilingual is required").
+    function subjectList() {
       var seen = {}, out = [];
-      (ctx.subjectNames ? ctx.subjectNames() : []).forEach(function (n) {
-        n = String(n || "").trim();
-        if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); }
+      (ctx.subjects ? ctx.subjects() : []).forEach(function (sub) {
+        var label = ctx.pickLang(sub.en, sub.zh);
+        var k = String(label || "").trim().toLowerCase();
+        if (k && !seen[k]) { seen[k] = 1; out.push({ label: label, en: sub.en, zh: sub.zh }); }
       });
-      return '<datalist id="gpaNames">' + out.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join("") + "</datalist>";
+      return out;
+    }
+    var suggestBox = null, suggestFor = null, suggestIdx = -1;
+    function closeSuggest() {
+      if (suggestBox) suggestBox.remove();
+      suggestBox = null; suggestFor = null; suggestIdx = -1;
+    }
+    function openSuggest(input) {
+      var q = input.value.trim().toLowerCase();
+      var items = subjectList().filter(function (sub) {
+        return !q || sub.label.toLowerCase().indexOf(q) !== -1 || String(sub.en).toLowerCase().indexOf(q) !== -1 || String(sub.zh).toLowerCase().indexOf(q) !== -1;
+      }).slice(0, 40);
+      if (!items.length) { closeSuggest(); return; }
+      if (!suggestBox || suggestFor !== input) {
+        closeSuggest();
+        suggestBox = document.createElement("div");
+        suggestBox.className = "gpa-suggest";
+        suggestBox.setAttribute("role", "listbox");
+        input.parentNode.appendChild(suggestBox);
+        suggestFor = input;
+      }
+      suggestIdx = -1;
+      suggestBox.innerHTML = items.map(function (sub, i) {
+        var other = ctx.pickLang(sub.zh, sub.en);
+        return '<button type="button" role="option" data-suggest="' + i + '">' + esc(sub.label) +
+          (other && other !== sub.label ? '<span class="gpa-suggest-alt">' + esc(other) + "</span>" : "") + "</button>";
+      }).join("");
+      suggestBox.items = items;
+    }
+    function pickSuggest(input, idx) {
+      var sub = suggestBox && suggestBox.items && suggestBox.items[idx];
+      if (!sub) { closeSuggest(); return; }
+      var tr = input.closest("[data-row]");
+      var found = tr && findRow(tr.getAttribute("data-row"));
+      if (found) { found.r.name = { en: sub.en, zh: sub.zh }; save(); }
+      input.value = sub.label;
+      closeSuggest();
+    }
+    function moveSuggest(dir) {
+      if (!suggestBox) return;
+      var opts = Array.prototype.slice.call(suggestBox.querySelectorAll("[data-suggest]"));
+      if (!opts.length) return;
+      suggestIdx = (suggestIdx + dir + opts.length) % opts.length;
+      opts.forEach(function (o, i) { o.classList.toggle("on", i === suggestIdx); });
+      opts[suggestIdx].scrollIntoView({ block: "nearest" });
     }
 
     // Tab 3 — the sheet.
@@ -487,7 +541,7 @@
         '<details class="gpa-scale" id="gpaScaleCard"' + (narrow ? "" : " open") + ">" + scaleCardInner() + "</details>" +
         '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
         '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
-        "</aside></div>" + namesDatalist()
+        "</aside></div>"
       );
     }
 
@@ -640,9 +694,32 @@
     function repaint() { render(root.parentNode, view); }
 
     function bind(section) {
+      // The suggestion list: opens on focus or typing in a course field,
+      // arrows move, Enter picks, Escape or leaving the field closes.
+      section.addEventListener("focusin", function (e) {
+        var el = e.target;
+        if (el.getAttribute && el.getAttribute("data-f") === "name") openSuggest(el);
+      });
+      section.addEventListener("focusout", function (e) {
+        var el = e.target;
+        if (el.getAttribute && el.getAttribute("data-f") === "name") setTimeout(function () { if (suggestFor === el) closeSuggest(); }, 120);
+      });
+      section.addEventListener("keydown", function (e) {
+        var el = e.target;
+        if (!(el.getAttribute && el.getAttribute("data-f") === "name") || !suggestBox) return;
+        if (e.key === "ArrowDown") { e.preventDefault(); moveSuggest(1); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); moveSuggest(-1); }
+        else if (e.key === "Enter" && suggestIdx >= 0) { e.preventDefault(); pickSuggest(el, suggestIdx); }
+        else if (e.key === "Escape") closeSuggest();
+      });
+      section.addEventListener("mousedown", function (e) {
+        var opt = e.target.closest && e.target.closest("[data-suggest]");
+        if (opt && suggestFor) { e.preventDefault(); pickSuggest(suggestFor, parseInt(opt.getAttribute("data-suggest"), 10)); }
+      });
       section.addEventListener("input", function (e) {
         var el = e.target;
         var f = el.getAttribute && el.getAttribute("data-f");
+        if (f === "name" && suggestFor === el) openSuggest(el);
         if (f) {
           var tr = el.closest("[data-row]");
           var found = tr && findRow(tr.getAttribute("data-row"));

@@ -41,6 +41,9 @@
   --shadow: 0 1px 3px rgba(30, 41, 59, 0.07), 0 4px 14px rgba(30, 41, 59, 0.06);
 }
 * { box-sizing: border-box; }
+/* The site is light-only; without this a browser in dark mode paints native
+   <select> option lists and scrollbars black over the white page. */
+:root { color-scheme: light; }
 html, body { margin: 0; padding: 0; }
 /* Nearly every size in this file is in rem, so bumping the root size scales
    body copy, buttons, chips, and headings together — a straightforward fix
@@ -787,6 +790,22 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
   background-repeat: no-repeat; background-position: right 8px center;
 }
 .gpa-c-pts { text-align: right; padding-right: 8px !important; }
+/* The course field's suggestion list — the site's own, not the browser's. */
+.gpa-c-name { position: relative; }
+.gpa-suggest {
+  position: absolute; left: 4px; top: calc(100% - 2px); z-index: 30;
+  min-width: calc(100% - 8px); width: max-content; max-width: min(520px, 90vw);
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 32px -10px rgba(15, 32, 60, 0.3); padding: 4px;
+  max-height: 260px; overflow-y: auto;
+}
+.gpa-suggest button {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%; text-align: left;
+  border: none; background: none; font: inherit; font-size: 0.9rem; color: var(--ink); padding: 7px 10px; border-radius: 6px; cursor: pointer;
+}
+.gpa-suggest button:hover, .gpa-suggest button.on { background: var(--accent-soft); color: var(--accent); }
+.gpa-suggest-alt { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+.gpa-suggest button:hover .gpa-suggest-alt, .gpa-suggest button.on .gpa-suggest-alt { color: var(--accent); opacity: 0.8; }
 .gpa-pts { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.88rem; }
 .gpa-pts.up { color: var(--accent); font-weight: 600; }
 .gpa-pts.pf { color: #9aa3b0; }

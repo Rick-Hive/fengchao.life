@@ -1617,11 +1617,13 @@
         if (location.hash === want) return;
         location.hash = want;   // the hashchange listener applies it and renders
       },
-      // Subject names from the snapshot feed the course field's suggestions —
-      // subjects only, in the page language, never the tracks.
-      subjectNames: function () {
+      // Subjects from the snapshot feed the course field's suggestions — both
+      // names, so a picked subject follows the language toggle; nothing from
+      // the tracks.
+      subjects: function () {
         if (!state.data) return [];
-        return (state.data.subjects || []).map(function (s) { return pickLang(s.nameEn, s.nameZh); }).filter(Boolean);
+        return (state.data.subjects || []).map(function (s) { return { en: s.nameEn || s.nameZh || "", zh: s.nameZh || s.nameEn || "" }; })
+          .filter(function (s) { return s.en || s.zh; });
       },
     });
     return gpaToolInst;

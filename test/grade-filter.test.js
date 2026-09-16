@@ -651,15 +651,30 @@ setTimeout(() => {
       check("switching the unit relabels without changing the formula",
         [doc.querySelector(".gpa-table th.gpa-col-cr").textContent, doc.getElementById("gpaMain").textContent], ["课时", "3.68"]);
       click(pick('[data-set="unit"][data-val="credits"]'));
-      const dl = Array.from(doc.querySelectorAll("#gpaNames option")).map(o => o.value);
-      check("course suggestions are the Airtable subjects in the page language, nothing else",
-        [dl.indexOf("数学") !== -1, dl.some(v => /Algebra|English 9|荣誉课程/.test(v))], [true, false]);
+      // The course field's suggestions: the page's own list of Airtable subjects.
+      const nameIn = doc.querySelector('tr[data-row] [data-f="name"]');
+      setVal(nameIn, "");   // an empty field lists every subject; text filters it
+      nameIn.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }));
+      const sug = () => Array.from(doc.querySelectorAll(".gpa-suggest [data-suggest]")).map(b => b.textContent);
+      check("focusing a course field opens the site's own suggestion list of Airtable subjects (no <datalist>)",
+        [doc.querySelectorAll(".gpa-suggest").length, sug().some(v => v.indexOf("数学") === 0), sug().some(v => /Algebra|English 9|荣誉课程/.test(v)), doc.querySelectorAll("datalist").length],
+        [1, true, false, 0]);
+      setVal(nameIn, "数");
+      check("typing filters it", sug(), ["数学Math"]);
+      doc.querySelector(".gpa-suggest [data-suggest]").dispatchEvent(new window.MouseEvent("mousedown", { bubbles: true }));
+      check("picking fills the field, saves both names, and closes the list",
+        [nameIn.value, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[0].rows[0].name, doc.querySelectorAll(".gpa-suggest").length], ["数学", { en: "Math", zh: "数学" }, 0]);
+      click(pick("#langBtn"));
+      check("...so a picked subject follows the language toggle", doc.querySelector('tr[data-row] [data-f="name"]').value, "Math");
+      click(pick("#langBtn"));
       // Back walks the tabs: sheet -> start -> scale
       window.history.back();
     });
     await after(() => {
       check("browser Back from the sheet returns to the starting point", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view")], ["#/gpa/start", "start"]);
       check("...which warns that choosing again replaces the sheet", !!doc.querySelector(".gpa-replace"), true);
+      check("the starting-point tab offers the blank start first, the plan second (the tools open with one semester)",
+        Array.from(doc.querySelectorAll("[data-gpa-start]")).map(b => b.getAttribute("data-gpa-start")), ["blank", "preset"]);
       window.history.back();
     });
     await after(() => {
