@@ -560,7 +560,7 @@ setTimeout(() => {
         [!!doc.getElementById("gpaPage"), doc.getElementById("stepper").hidden, doc.getElementById("cartBar").classList.contains("visible")],
         [true, true, false]);
       check("first visit lands on tab 1, the scale — no settings and no start cards here",
-        [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll(".gpa-tab").length, doc.querySelectorAll("#gpaPage [data-set]").length, doc.querySelectorAll("[data-gpa-start]").length],
+        [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll(".gpa-tab").length, doc.querySelectorAll("#gpaPage [data-toggle]").length, doc.querySelectorAll("[data-gpa-start]").length],
         ["scale", 3, 0, 0]);
       check("the level note explains CP / Honors / AP / Dual Enrollment, and IB is gone",
         [/Dual Enrollment/.test(doc.querySelector(".gpa-levels").textContent), /IB/.test(doc.getElementById("gpaPage").textContent)], [true, false]);
@@ -600,14 +600,14 @@ setTimeout(() => {
       setVal(dual, "DE");
       check("Dual Enrollment reads the AP column: B+ → 4.3", g9[1].querySelector(".gpa-c-pts").textContent, "4.3");
       setVal(dual, "CP");
-      click(pick('[data-set="gradeMode"][data-val="percent"]'));
+      click(pick('[data-toggle="gradeMode"]'));   // letters -> percent
       const g9p = Array.from(Y1().querySelectorAll('tr[data-row]'));
       check("percent entry swaps the dropdown for a text box and keeps the grades",
         [g9p[0].querySelector('[data-f="grade"]').tagName, g9p[0].querySelector('[data-f="grade"]').value], ["INPUT", "A-"]);
       setVal(g9p[2].querySelector('[data-f="grade"]'), "91");
       check("a percentage is read against the breakoffs (91 → A- → 3.7): (3.7+3.3+3.7)/3",
         [g9p[2].querySelector(".gpa-c-pts").textContent, doc.getElementById("gpaMain").textContent, g9p[2].querySelector('[data-f="grade"]').placeholder], ["3.7", "3.57", "如 91"]);
-      click(pick('[data-set="gradeMode"][data-val="letter"]'));
+      click(pick('[data-toggle="gradeMode"]'));   // -> letters
       check("back under letters, the 91 is kept and shown as its own option",
         Y1().querySelectorAll('tr[data-row]')[2].querySelector('[data-f="grade"]').value, "91");
       setVal(pick('[data-plan="target"]'), "3.7"); setVal(pick('[data-plan="remain"]'), "7");
@@ -651,12 +651,12 @@ setTimeout(() => {
       click(pick(".gpa-confirm-modal [data-confirm-ok]"));
       click(pick("#gpaAddPeriod"));
       check("Add semester continues the Fall → Spring → next grade pattern", Y5().querySelector(".gpa-period-name").value, "12 年级 · 下学期");
-      click(pick('[data-set="unit"][data-val="periods"]'));
-      check("the column head is the switch: 课时 becomes active, 1 credit turns into 5 periods, the GPA does not move",
-        [doc.querySelector(".gpa-table th.gpa-col-cr .on").textContent, Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaMain").textContent], ["课时", "2.5", "3.57"]);
-      click(pick('[data-set="unit"][data-val="credits"]'));
+      click(pick('[data-toggle="unit"]'));
+      check("the column head is a switch: flipped to 课时, 0.5 credit turns into 2.5 periods, the GPA does not move",
+        [doc.querySelector(".gpa-table th.gpa-col-cr .gpa-switch").getAttribute("aria-checked"), doc.querySelector(".gpa-table th.gpa-col-cr .lab.on").textContent, Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaMain").textContent], ["true", "课时", "2.5", "3.57"]);
+      click(pick('[data-toggle="unit"]'));
       check("...and back: 2.5 periods → 0.5 credit", Y1().querySelector('tr[data-row] [data-f="w"]').value, "0.5");
-      check("no settings left in the sidebar scale card", doc.querySelectorAll("#gpaScaleCard [data-set]").length, 0);
+      check("no settings left in the sidebar scale card", doc.querySelectorAll("#gpaScaleCard [data-toggle]").length, 0);
       // The course field's suggestions: the page's own list of Airtable subjects.
       const nameIn = doc.querySelector('tr[data-row] [data-f="name"]');
       setVal(nameIn, "");   // an empty field lists every subject; text filters it

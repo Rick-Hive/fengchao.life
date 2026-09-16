@@ -269,12 +269,12 @@
     // The two settings live where they act: the column heads of the sheet are
     // the switches — 学分 | 课时 over the weight column, 字母 | 百分 over the
     // grade column (Rick, 2026-09-16). The active side is the column's label.
+    // A real switch — label, sliding knob, label — so it reads as a choice
+    // at a glance (Rick, 2026-09-16). Off = the first option, on = the second.
     function headSwitch(key, a, b) {
-      var t = T();
-      var cur = S[key];
-      return '<span class="gpa-seg gpa-head-seg" role="group">' +
-        '<button type="button" class="' + (cur === a.val ? "on" : "") + '" data-set="' + key + '" data-val="' + a.val + '" title="' + esc(a.title) + '">' + esc(a.label) + "</button>" +
-        '<button type="button" class="' + (cur === b.val ? "on" : "") + '" data-set="' + key + '" data-val="' + b.val + '" title="' + esc(b.title) + '">' + esc(b.label) + "</button></span>";
+      var on = S[key] === b.val;
+      return '<button type="button" class="gpa-switch" role="switch" aria-checked="' + (on ? "true" : "false") + '" data-toggle="' + key + '" data-off="' + a.val + '" data-on="' + b.val + '" title="' + esc(a.title) + '">' +
+        '<span class="lab' + (on ? "" : " on") + '">' + esc(a.label) + '</span><span class="track"><span class="knob"></span></span><span class="lab' + (on ? " on" : "") + '">' + esc(b.label) + "</span></button>";
     }
 
     // The sidebar card on the sheet: table, note + edit link.
@@ -858,9 +858,10 @@
           });
           return;
         }
-        var set = e.target.closest("[data-set]");
+        var set = e.target.closest("[data-toggle]");
         if (set) {
-          var k = set.getAttribute("data-set"), v = set.getAttribute("data-val");
+          var k = set.getAttribute("data-toggle");
+          var v = S[k] === set.getAttribute("data-on") ? set.getAttribute("data-off") : set.getAttribute("data-on");
           if (k === "gradeMode" && (v === "letter" || v === "percent")) S.gradeMode = v;
           if (k === "unit" && (v === "credits" || v === "periods") && v !== S.unit) {
             // One credit ≈ five periods a week, so the numbers follow the

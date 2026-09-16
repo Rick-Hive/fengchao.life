@@ -888,10 +888,24 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-append { color: var(--muted); font-size: 0.88rem; margin: 0 0 14px; }
 /* The sheet's one-line reminder about non-academic courses. */
 .gpa-sheet-note { color: var(--muted); font-size: 0.88rem; margin: -8px 0 16px; line-height: 1.6; }
-/* Column heads that are switches. */
-.gpa-head-seg { font-weight: 600; }
-.gpa-head-seg > button { padding: 3px 7px; font-size: 0.76rem; }
-.gpa-col-cr { width: 92px; } .gpa-col-gr { width: 104px; }
+/* Column heads that are switches: label · track with knob · label. */
+.gpa-switch {
+  display: inline-flex; align-items: center; gap: 5px; border: none; background: none; padding: 0;
+  font: inherit; font-size: 0.76rem; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.gpa-switch .lab.on { color: var(--accent); }
+.gpa-switch .track {
+  position: relative; width: 30px; height: 17px; border-radius: 999px; background: #c9d2df; flex: none;
+  transition: background 0.15s ease;
+}
+.gpa-switch .knob {
+  position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: left 0.15s ease;
+}
+.gpa-switch[aria-checked="true"] .track { background: var(--accent); }
+.gpa-switch[aria-checked="true"] .knob { left: 15px; }
+.gpa-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
+.gpa-col-cr { width: 100px; } .gpa-col-gr { width: 108px; }
 .gpa-table th.gpa-col-cr, .gpa-table th.gpa-col-gr { padding-top: 5px; padding-bottom: 3px; }
 .gpa-confirm p { margin: 0; font-size: 1rem; line-height: 1.6; }
 .modal.gpa-confirm-modal { max-width: 440px; }
