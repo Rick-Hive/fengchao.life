@@ -905,7 +905,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-switch[aria-checked="true"] .track { background: var(--accent); }
 .gpa-switch[aria-checked="true"] .knob { left: 15px; }
 .gpa-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
-.gpa-col-cr { width: 100px; } .gpa-col-gr { width: 108px; }
+.gpa-col-cr { width: 116px; } .gpa-col-gr { width: 108px; }
 .gpa-table th.gpa-col-cr, .gpa-table th.gpa-col-gr { padding-top: 5px; padding-bottom: 3px; }
 .gpa-confirm p { margin: 0; font-size: 1rem; line-height: 1.6; }
 .modal.gpa-confirm-modal { max-width: 440px; }

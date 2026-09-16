@@ -652,10 +652,10 @@ setTimeout(() => {
       click(pick("#gpaAddPeriod"));
       check("Add semester continues the Fall → Spring → next grade pattern", Y5().querySelector(".gpa-period-name").value, "12 年级 · 下学期");
       click(pick('[data-toggle="unit"]'));
-      check("the column head is a switch: flipped to 课时, 0.5 credit turns into 2.5 periods, the GPA does not move",
-        [doc.querySelector(".gpa-table th.gpa-col-cr .gpa-switch").getAttribute("aria-checked"), doc.querySelector(".gpa-table th.gpa-col-cr .lab.on").textContent, Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaMain").textContent], ["true", "课时", "2.5", "3.57"]);
+      check("the column head is a switch: flipped to 课时/周, a semester's 0.5 credit reads as 5 periods a week, the GPA does not move",
+        [doc.querySelector(".gpa-table th.gpa-col-cr .gpa-switch").getAttribute("aria-checked"), doc.querySelector(".gpa-table th.gpa-col-cr .lab.on").textContent, Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaMain").textContent], ["true", "课时/周", "5", "3.57"]);
       click(pick('[data-toggle="unit"]'));
-      check("...and back: 2.5 periods → 0.5 credit", Y1().querySelector('tr[data-row] [data-f="w"]').value, "0.5");
+      check("...and back: 5 periods/week → 0.5 credit", Y1().querySelector('tr[data-row] [data-f="w"]').value, "0.5");
       check("no settings left in the sidebar scale card", doc.querySelectorAll("#gpaScaleCard [data-toggle]").length, 0);
       // The course field's suggestions: the page's own list of Airtable subjects.
       const nameIn = doc.querySelector('tr[data-row] [data-f="name"]');

@@ -7,8 +7,9 @@
 // not become the place where they start.
 //
 // The maths, in one line: GPA = Σ(grade points × weight) ÷ Σ weight over the
-// graded rows. Weight is credits (0.5 / 1.0) or periods per week — the unit is
-// a setting, the formula does not change. Points come from ONE editable scale
+// graded rows. Weight is credits (0.5 / 1.0) or periods per week (5 for a
+// full course; within a semester block 5 periods/week ⇄ 0.5 credit) — the
+// unit is a switch, the formula does not change. Points come from ONE editable scale
 // (letter, breakoff, and a grade-point column per course level: CP / Honors /
 // AP·Dual Enrollment). The unweighted GPA always reads the CP column; the
 // weighted GPA reads the column of each row's level; the academic GPA is the
@@ -125,6 +126,7 @@
       (window.GPA_PRESET || []).forEach(function (p) {
         ["s1", "s2"].forEach(function (term) {
           out.push({ id: uid(), grade: p.grade, term: term, seq: null, name: "", rows: p.rows.map(function (r) {
+            // r[2] is the year's credit: half of it per semester, or ×5 periods/week.
             var w = S.unit === "periods" ? String(r[2] * 5) : (r[2] / 2).toFixed(r[2] / 2 < 0.5 ? 2 : 1);
             return { id: uid(), name: { en: r[0], zh: r[1] }, w: w, grade: "", lvl: "CP", ac: !!r[3] };
           }) });
@@ -864,9 +866,11 @@
           var v = S[k] === set.getAttribute("data-on") ? set.getAttribute("data-off") : set.getAttribute("data-on");
           if (k === "gradeMode" && (v === "letter" || v === "percent")) S.gradeMode = v;
           if (k === "unit" && (v === "credits" || v === "periods") && v !== S.unit) {
-            // One credit ≈ five periods a week, so the numbers follow the
-            // switch (1.0 credit → 5 periods) and the GPA does not move.
-            var f = v === "periods" ? 5 : 1 / 5;
+            // 课时 means periods per week. A course meeting five times a week
+            // for one semester earns half a credit, so within a semester block
+            // 5 periods/week ⇄ 0.5 credit (×10 / ÷10). The GPA does not move;
+            // only the weights' scale does (Rick, 2026-09-16: "应该填写5节").
+            var f = v === "periods" ? 10 : 1 / 10;
             var conv = function (x) { var n = parseFloat(x); if (!isFinite(n)) return x; return v === "periods" ? String(Math.round(n * f * 100) / 100) : (Math.round(n * f * 100) / 100).toFixed(2).replace(/0$/, ""); };
             allRows().forEach(function (r) { r.w = conv(r.w); });
             S.prior.w = conv(S.prior.w); S.plan.remain = conv(S.plan.remain);
