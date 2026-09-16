@@ -833,7 +833,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-scale summary .req-caret { width: 20px; height: 20px; }
 .gpa-scale[open] summary .req-caret { transform: rotate(90deg); }
 .gpa-scale table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-.gpa-scale th { text-align: right; font-weight: 600; color: var(--muted); font-size: 0.72rem; padding: 8px 10px 4px; white-space: nowrap; }
+.gpa-scale th { text-align: right; font-weight: 600; color: var(--muted); font-size: 0.72rem; padding: 8px 10px 4px; line-height: 1.3; vertical-align: bottom; }
 .gpa-scale td { text-align: right; padding: 5px 10px; border-top: 1px solid #edf0f5; font-variant-numeric: tabular-nums; }
 .gpa-scale th:first-child, .gpa-scale td:first-child { text-align: left; padding-left: 16px; }
 .gpa-scale td:last-child, .gpa-scale th:last-child { padding-right: 16px; }
@@ -858,18 +858,17 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-tab.dim { opacity: 0.6; }
 .gpa-tab-sep { color: var(--line); }
 /* Tab 1 and 2 */
-.gpa-start { max-width: 760px; }
+/* Tabs 1 and 2 sit centred in the page (Rick, 2026-09-16). */
+.gpa-start { max-width: 760px; margin: 0 auto; }
 .gpa-start-hint { color: var(--muted); font-size: 0.92rem; margin: 0 0 14px; line-height: 1.6; }
-.gpa-scale-start { max-width: 520px; }
-.gpa-start-actions { margin: 18px 0 0; }
+.gpa-scale-start { max-width: 640px; margin: 0 auto; }
+.gpa-scale-start th { white-space: nowrap; }
+.gpa-start-actions { margin: 18px 0 0; text-align: center; }
 .gpa-levels { color: var(--muted); font-size: 0.8rem; line-height: 1.6; margin: 12px 2px 0; }
+.gpa-start .gpa-levels { max-width: 640px; margin: 12px auto 0; }
+.gpa-start .gpa-start-hint, .gpa-start .gpa-replace, .gpa-start .gpa-start-grid, .gpa-start .gpa-note { max-width: 640px; margin-left: auto; margin-right: auto; }
 .gpa-replace { color: var(--err); font-size: 0.88rem; margin: 0 0 14px; }
-/* Semesters inside a year */
-.gpa-term-head { display: flex; align-items: baseline; gap: 12px; padding: 8px 16px 2px; }
-.gpa-term + .gpa-term .gpa-term-head { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; }
-.gpa-term-name { font-weight: 700; font-size: 0.9rem; }
-.gpa-term-gpa { margin-left: auto; font-size: 0.84rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
-.gpa-split { font-size: 0.8rem; font-weight: 600; }
+
 .gpa-start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .gpa-start .gpa-scale .wt { border-top: 1px solid var(--line); }
 .gpa-start-card { padding: 22px 22px; font: inherit; color: var(--ink); }
@@ -900,13 +899,13 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
   .gpa-table td.gpa-c-pts { display: none; }
   .gpa-table td:last-child { position: absolute; right: 8px; top: 8px; }
   .gpa-period-name { max-width: 40%; }
-  .gpa-year-meta, .gpa-split { display: none; }
+  .gpa-year-meta { display: none; }
   .gpa-tab { font-size: 0.84rem; }
   .gpa-plan-row { grid-template-columns: auto 1fr; }
 }
 /* Print: the sheet and the results, nothing else. */
 @media print {
-  .site-header, .stepper, .cart-bar, .gpa-tabs, .gpa-actions, .gpa-add, .gpa-add-year, .gpa-rm, .gpa-split, .gpa-set, .gpa-scale .wt, .gpa-prior, .gpa-plan, .hint { display: none !important; }
+  .site-header, .stepper, .cart-bar, .gpa-tabs, .gpa-actions, .gpa-add, .gpa-add-year, .gpa-rm, .gpa-set, .gpa-scale .wt, .gpa-prior, .gpa-plan, .hint { display: none !important; }
   .gpa-print-head { display: block; font-size: 0.85rem; color: #333; margin: 0 0 10px; }
   .gpa-layout { grid-template-columns: 1fr; }
   .gpa-year, .gpa-result, .gpa-scale { box-shadow: none; break-inside: avoid; }

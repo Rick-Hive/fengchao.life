@@ -20,8 +20,9 @@
 // Three tabs, three URLs — #/gpa (scale), #/gpa/start, #/gpa/sheet — so the
 // browser's Back button walks them (Rick, 2026-09-16: "Can't go back to step
 // 1"). A bare #/gpa lands on the sheet when one exists, on the scale when not.
-// Years hold one or two semesters (上学期 / 下学期): a semester-graded course
-// earns half its credit per semester, which is how US transcripts read.
+// Periods are flat blocks — a year by default, renamable to a semester — the
+// way calculator.net and gpacalculator.net do it; nesting semesters inside
+// years was built and taken out the same day (Rick, 2026-09-16).
 //
 // Wiring: app.js calls window.createGpaTool(ctx) once and .render(container,
 // sub) on every render() while the page is #/gpa. ctx supplies the site's
@@ -87,16 +88,10 @@
       }
       if (Array.isArray(r.periods)) {
         S.periods = r.periods.filter(function (p) { return p && typeof p === "object"; }).map(function (p) {
-          var terms;
-          if (Array.isArray(p.terms) && p.terms.length) {
-            terms = p.terms.map(function (tm) {
-              return { id: tm.id || uid(), key: tm.key === "s1" || tm.key === "s2" ? tm.key : null, rows: (Array.isArray(tm.rows) ? tm.rows : []).map(cleanRow) };
-            });
-          } else {
-            // A save from before semesters: one unnamed term holding the rows.
-            terms = [{ id: uid(), key: null, rows: (Array.isArray(p.rows) ? p.rows : []).map(cleanRow) }];
-          }
-          return { id: p.id || uid(), grade: typeof p.grade === "number" ? p.grade : null, name: typeof p.name === "string" ? p.name : "", terms: terms };
+          var rows = Array.isArray(p.rows) ? p.rows : [];
+          // A save from the short-lived semester layout: pool its terms' rows.
+          if (Array.isArray(p.terms)) p.terms.forEach(function (tm) { rows = rows.concat(Array.isArray(tm.rows) ? tm.rows : []); });
+          return { id: p.id || uid(), grade: typeof p.grade === "number" ? p.grade : null, name: typeof p.name === "string" ? p.name : "", rows: rows.map(cleanRow) };
         });
       }
       if (r.prior && typeof r.prior === "object") S.prior = { gpa: String(r.prior.gpa || ""), w: String(r.prior.w || "") };
@@ -109,36 +104,26 @@
     }
 
     function started() { return Array.isArray(S.periods) && S.periods.length > 0; }
-    function defaultW(full) { var w = full ? (S.unit === "periods" ? 5 : 1) : (S.unit === "periods" ? 5 : 0.5); return S.unit === "periods" ? String(w) : w.toFixed(1); }
-    function blankRow(full) { return { id: uid(), name: "", w: defaultW(full), grade: "", lvl: "CP", ac: true }; }
+    function blankRow() { return { id: uid(), name: "", w: S.unit === "periods" ? "5" : "1.0", grade: "", lvl: "CP", ac: true }; }
 
-    // The template comes split into semesters, half a credit each, the way a
-    // US transcript lists a year-long course graded twice.
     function applyPreset() {
       S.periods = (window.GPA_PRESET || []).map(function (p) {
-        var mk = function (key) {
-          return { id: uid(), key: key, rows: p.rows.map(function (r) {
-            var w = S.unit === "periods" ? String(r[2] * 5) : (r[2] / 2).toFixed(r[2] / 2 < 0.5 ? 2 : 1);
-            return { id: uid(), name: { en: r[0], zh: r[1] }, w: w, grade: "", lvl: "CP", ac: !!r[3] };
-          }) };
-        };
-        return { id: uid(), grade: p.grade, name: "", terms: [mk("s1"), mk("s2")] };
+        return { id: uid(), grade: p.grade, name: "", rows: p.rows.map(function (r) {
+          return { id: uid(), name: { en: r[0], zh: r[1] }, w: S.unit === "periods" ? String(r[2] * 5) : r[2].toFixed(1), grade: "", lvl: "CP", ac: !!r[3] };
+        }) };
       });
     }
 
     function applyBlank() {
       var rows = [];
-      for (var i = 0; i < 5; i++) rows.push(blankRow(true));
-      S.periods = [{ id: uid(), grade: 9, name: "", terms: [{ id: uid(), key: null, rows: rows }] }];
+      for (var i = 0; i < 5; i++) rows.push(blankRow());
+      S.periods = [{ id: uid(), grade: 9, name: "", rows: rows }];
     }
 
     function findRow(id) {
       for (var i = 0; i < (S.periods || []).length; i++) {
         var p = S.periods[i];
-        for (var k = 0; k < p.terms.length; k++) {
-          var tm = p.terms[k];
-          for (var j = 0; j < tm.rows.length; j++) if (tm.rows[j].id === id) return { p: p, tm: tm, r: tm.rows[j], i: j };
-        }
+        for (var j = 0; j < p.rows.length; j++) if (p.rows[j].id === id) return { p: p, r: p.rows[j], i: j };
       }
       return null;
     }
@@ -146,38 +131,7 @@
       for (var i = 0; i < (S.periods || []).length; i++) if (S.periods[i].id === id) return S.periods[i];
       return null;
     }
-    function findTerm(id) {
-      for (var i = 0; i < (S.periods || []).length; i++) {
-        for (var k = 0; k < S.periods[i].terms.length; k++) if (S.periods[i].terms[k].id === id) return { p: S.periods[i], tm: S.periods[i].terms[k] };
-      }
-      return null;
-    }
-    function periodRows(p) { var out = []; p.terms.forEach(function (tm) { out = out.concat(tm.rows); }); return out; }
-    function allRows() { var out = []; (S.periods || []).forEach(function (p) { out = out.concat(periodRows(p)); }); return out; }
-
-    // Split a one-table year into two semesters. If the table is already two
-    // copies of each course (a merged year being split again), the pairs go
-    // back to 上学期 / 下学期 as they were; otherwise the rows move to 上学期
-    // with half their weight and 下学期 gets the same courses, ungraded.
-    function splitPeriod(p) {
-      var rows = periodRows(p);
-      var byName = {}, paired = rows.length > 0;
-      rows.forEach(function (r) { var k = rowName(r).trim().toLowerCase(); (byName[k] = byName[k] || []).push(r); });
-      Object.keys(byName).forEach(function (k) { if (byName[k].length !== 2) paired = false; });
-      if (paired) {
-        var s1p = [], s2p = [], seen = {};
-        rows.forEach(function (r) { var k = rowName(r).trim().toLowerCase(); (seen[k] ? s2p : s1p).push(r); seen[k] = 1; });
-        p.terms = [{ id: uid(), key: "s1", rows: s1p }, { id: uid(), key: "s2", rows: s2p }];
-        return;
-      }
-      var half = function (w) { var n = num(w); if (S.unit === "periods" || !n) return w; return (n / 2).toFixed(n / 2 < 0.5 ? 2 : 1); };
-      var s1 = rows.map(function (r) { return { id: r.id, name: r.name, w: half(r.w), grade: r.grade, lvl: r.lvl, ac: r.ac }; });
-      var s2 = rows.map(function (r) { return { id: uid(), name: clone(r.name), w: half(r.w), grade: "", lvl: r.lvl, ac: r.ac }; });
-      p.terms = [{ id: uid(), key: "s1", rows: s1 }, { id: uid(), key: "s2", rows: s2 }];
-    }
-    function mergePeriod(p) {
-      p.terms = [{ id: uid(), key: null, rows: periodRows(p) }];
-    }
+    function allRows() { var out = []; (S.periods || []).forEach(function (p) { out = out.concat(p.rows); }); return out; }
 
     /* ---------- maths ---------- */
 
@@ -253,7 +207,6 @@
       if (typeof p.grade === "number") return fill(T().gradeN, { n: p.grade });
       return "";
     }
-    function termName(tm) { return tm.key === "s1" ? T().termFall : tm.key === "s2" ? T().termSpring : ""; }
     function levelLabel(l) {
       var t = T();
       return l === "H" ? t.levelHonors : l === "AP" ? t.levelAP : l === "DE" ? t.levelDual : t.levelCP;
@@ -400,44 +353,27 @@
         "</tr></thead>";
     }
 
-    function termHeadInner(tm) {
-      var a = agg(tm.rows);
-      return '<span class="gpa-term-name">' + esc(termName(tm)) + '</span><span class="gpa-term-gpa">GPA ' + esc(f2(gpaOf(a.cp, a.wG))) + "</span>";
-    }
-
-    function termHtml(tm) {
-      var t = T();
-      return (
-        '<div class="gpa-term" data-term="' + esc(tm.id) + '">' +
-        (tm.key ? '<div class="gpa-term-head">' + termHeadInner(tm) + "</div>" : "") +
-        '<table class="gpa-table">' + tableHead() + "<tbody>" + tm.rows.map(rowHtml).join("") + "</tbody></table>" +
-        '<button type="button" class="gpa-add" data-add-row="' + esc(tm.id) + '">＋ ' + esc(t.addCourse) + "</button>" +
-        "</div>"
-      );
-    }
-
     function periodHeadInner(p) {
       var t = T();
-      var rows = periodRows(p);
-      var a = agg(rows);
+      var a = agg(p.rows);
       var meta = a.w > 0
-        ? fill(t.periodMeta, { w: fw(a.w), unit: unitLabel(), n: rows.length })
+        ? fill(t.periodMeta, { w: fw(a.w), unit: unitLabel(), n: p.rows.length })
         : fill(t.periodNoGrades, { w: fw(a.inProg), unit: unitLabel() });
-      var split = p.terms.length > 1;
       return (
         '<input class="gpa-period-name" type="text" data-period-name="' + esc(p.id) + '" value="' + esc(periodName(p)) + '" placeholder="' + esc(t.periodNamePlaceholder) + '" />' +
         '<span class="gpa-year-meta">' + esc(meta) + "</span>" +
-        '<button type="button" class="gpa-link gpa-split" data-split="' + esc(p.id) + '">' + esc(split ? t.mergeTerms : t.splitTerms) + "</button>" +
         '<span class="gpa-year-gpa">GPA ' + esc(f2(gpaOf(a.cp, a.wG))) + "</span>" +
         '<button type="button" class="gpa-rm gpa-rm-period" data-rm-period="' + esc(p.id) + '" title="' + esc(t.removePeriod) + '" aria-label="' + esc(t.removePeriod) + '">×</button>'
       );
     }
 
     function periodHtml(p) {
+      var t = T();
       return (
         '<div class="gpa-year" data-period="' + esc(p.id) + '">' +
         '<div class="gpa-year-head">' + periodHeadInner(p) + "</div>" +
-        p.terms.map(termHtml).join("") +
+        '<table class="gpa-table">' + tableHead() + "<tbody>" + p.rows.map(rowHtml).join("") + "</tbody></table>" +
+        '<button type="button" class="gpa-add" data-add-row="' + esc(p.id) + '">＋ ' + esc(t.addCourse) + "</button>" +
         "</div>"
       );
     }
@@ -455,7 +391,7 @@
       }
       tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w)) + "</div></div>";
       var bars = (S.periods || []).map(function (p) {
-        var pa = agg(periodRows(p)), g = gpaOf(pa.cp, pa.wG);
+        var pa = agg(p.rows), g = gpaOf(pa.cp, pa.wG);
         var pct = g === null ? 0 : Math.max(0, Math.min(100, g / Math.max(scaleMax(), 4) * 100));
         return '<div class="gpa-yr"><span class="lbl">' + esc(periodName(p) || "—") + '</span><span class="bar"><i style="width:' + pct.toFixed(0) + '%"></i></span><span class="val">' + esc(f2(g)) + "</span></div>";
       }).join("");
@@ -582,10 +518,6 @@
             if (a && b) a.textContent = b.textContent;
           });
         }
-        p.terms.forEach(function (tm) {
-          var th = root.querySelector('.gpa-term[data-term="' + tm.id + '"] .gpa-term-head');
-          if (th) th.innerHTML = termHeadInner(tm);
-        });
       });
       if (rowId) {
         var f = findRow(rowId);
@@ -750,7 +682,7 @@
         if (rmRow) {
           var fr = findRow(rmRow.getAttribute("data-rm-row"));
           if (!fr) return;
-          fr.tm.rows.splice(fr.i, 1);
+          fr.p.rows.splice(fr.i, 1);
           save();
           var trEl = rmRow.closest("tr");
           if (trEl) trEl.remove();
@@ -758,12 +690,12 @@
         }
         var addRow = e.target.closest("[data-add-row]");
         if (addRow) {
-          var ft = findTerm(addRow.getAttribute("data-add-row"));
-          if (!ft) return;
-          var r = blankRow(!ft.tm.key);
-          ft.tm.rows.push(r);
+          var pa = findPeriod(addRow.getAttribute("data-add-row"));
+          if (!pa) return;
+          var r = blankRow();
+          pa.rows.push(r);
           save();
-          var tb = root.querySelector('.gpa-term[data-term="' + ft.tm.id + '"] tbody');
+          var tb = root.querySelector('.gpa-year[data-period="' + pa.id + '"] tbody');
           if (tb) {
             tb.insertAdjacentHTML("beforeend", rowHtml(r));
             var inp = tb.querySelector('tr[data-row="' + r.id + '"] input[data-f="name"]');
@@ -771,19 +703,11 @@
           }
           refresh(); return;
         }
-        var sp = e.target.closest("[data-split]");
-        if (sp) {
-          var psp = findPeriod(sp.getAttribute("data-split"));
-          if (!psp) return;
-          if (psp.terms.length > 1) { if (!window.confirm(t.mergeTermsConfirm)) return; mergePeriod(psp); }
-          else splitPeriod(psp);
-          save(); repaint(); return;
-        }
         var rmP = e.target.closest("[data-rm-period]");
         if (rmP) {
           var pp = findPeriod(rmP.getAttribute("data-rm-period"));
           if (!pp) return;
-          var filled = periodRows(pp).filter(function (r) { return rowName(r) || r.grade; }).length;
+          var filled = pp.rows.filter(function (r) { return rowName(r) || r.grade; }).length;
           if (filled && !window.confirm(fill(t.removePeriodConfirm, { n: filled }))) return;
           S.periods = S.periods.filter(function (x) { return x !== pp; });
           if (!S.periods.length) S.periods = null;
@@ -792,10 +716,7 @@
         if (e.target.closest("#gpaAddPeriod")) {
           var last = S.periods[S.periods.length - 1];
           var g = last && typeof last.grade === "number" && last.grade < 12 ? last.grade + 1 : null;
-          var splitLike = last && last.terms.length > 1;
-          S.periods.push({ id: uid(), grade: g, name: "", terms: splitLike
-            ? [{ id: uid(), key: "s1", rows: [blankRow(false)] }, { id: uid(), key: "s2", rows: [blankRow(false)] }]
-            : [{ id: uid(), key: null, rows: [blankRow(true)] }] });
+          S.periods.push({ id: uid(), grade: g, name: "", rows: [blankRow()] });
           save(); repaint();
           var nm = root.querySelector(".gpa-year:last-of-type .gpa-period-name");
           if (nm && g === null) nm.focus();
