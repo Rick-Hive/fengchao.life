@@ -572,12 +572,13 @@ setTimeout(() => {
     });
     await after(() => {
       check("choosing the plan opens the sheet at its own URL", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view")], ["#/gpa/sheet", "sheet"]);
-      check("the standard plan fills four years — flat, no semester layer (Rick, 2026-09-16)",
-        [doc.querySelectorAll(".gpa-year").length, doc.querySelectorAll(".gpa-term, [data-split]").length], [4, 0]);
-      check("...30 rows at a credit each, Bible flagged non-academic",
+      check("the standard plan is eight flat semester blocks, gpacalculator.net-style — no grouping above them (Rick, 2026-09-16)",
+        [doc.querySelectorAll(".gpa-year").length, Array.from(doc.querySelectorAll(".gpa-period-name")).slice(0, 3).map(i => i.value)],
+        [8, ["9 年级 · 上学期", "9 年级 · 下学期", "10 年级 · 上学期"]]);
+      check("...60 rows at half a credit, Bible flagged non-academic",
         [doc.querySelectorAll("tr[data-row]").length, doc.querySelector('tr[data-row] [data-f="w"]').value,
          Array.from(Y1().querySelectorAll('tr[data-row]')).filter(r => r.querySelector('[data-f="ac"] span:last-child').className === "on").length],
-        [30, "1.0", 3]);
+        [60, "0.5", 3]);
       check("the Chinese column heads name the course kinds in full",
         Array.from(doc.querySelectorAll("#gpaScaleCard th")).map(th => th.textContent), ["等级", "起始分", "常规课程", "荣誉课程", "大学先修课程 / 双学分课程"]);
       const g9 = Array.from(Y1().querySelectorAll('tr[data-row]'));
@@ -585,12 +586,12 @@ setTimeout(() => {
       setVal(g9[1].querySelector('[data-f="grade"]'), "B+");
       setVal(g9[5].querySelector('[data-f="grade"]'), "A");     // Bible, non-academic
       setVal(g9[6].querySelector('[data-f="grade"]'), "P");     // PE, pass/fail
-      check("GPA = Σ(points × credits) ÷ Σ credits over graded rows: (3.7+3.3+4.0)/3",
-        [doc.getElementById("gpaMain").textContent, doc.querySelector(".gpa-math").textContent], ["3.67", "11 绩点 ÷ 3 学分"]);
+      check("GPA = Σ(points × credits) ÷ Σ credits over graded rows: (3.7+3.3+4.0)/3, half a credit each",
+        [doc.getElementById("gpaMain").textContent, doc.querySelector(".gpa-math").textContent], ["3.67", "5.5 绩点 ÷ 1.5 学分"]);
       check("weighted reads the Honors column for the Honors row: (4.2+3.3+4.0)/3", doc.getElementById("gpaWeighted").textContent, "3.83");
       check("academic GPA leaves Bible out: (3.7+3.3)/2", doc.getElementById("gpaAcademic").textContent, "3.50");
-      check("P earns its 0.5 credit but no points; ungraded rows are not counted", doc.getElementById("gpaCredits").textContent, "3.5");
-      check("the year head shows the year's GPA", doc.querySelector(".gpa-year-gpa").textContent, "GPA 3.67");
+      check("P earns its 0.25 credit but no points; ungraded rows are not counted", doc.getElementById("gpaCredits").textContent, "1.75");
+      check("the semester head shows its own GPA", doc.querySelector(".gpa-year-gpa").textContent, "GPA 3.67");
       check("the points column shows the level's points, P and — as such",
         g9.slice(0, 7).map(r => r.querySelector(".gpa-c-pts").textContent), ["4.2", "3.3", "—", "—", "—", "4.0", "P"]);
       const dual = g9[1].querySelector('[data-f="lvl"]');
@@ -609,7 +610,7 @@ setTimeout(() => {
       check("back under letters, the 91 is kept and shown as its own option",
         Y1().querySelectorAll('tr[data-row]')[2].querySelector('[data-f="grade"]').value, "91");
       setVal(pick('[data-plan="target"]'), "3.7"); setVal(pick('[data-plan="remain"]'), "7");
-      check("planning: (3.7 × (4+7) − 14.7) / 7", /3\.71/.test(doc.querySelector(".gpa-plan-out").textContent), true);
+      check("planning: (3.7 × (2+7) − 7.35) / 7", /3\.71/.test(doc.querySelector(".gpa-plan-out").textContent), true);
       click(pick("#gpaScaleCard [data-scale-edit]"));
       const ed = Array.from(doc.querySelectorAll(".modal-overlay")).pop();
       check("the scale editor lists the ten default rows", ed.querySelectorAll("[data-sc]").length, 10);
@@ -621,27 +622,31 @@ setTimeout(() => {
       click(ed.querySelector(".modal-foot [data-close]"));
       const saved = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
       check("everything is saved in the browser, under its own key, not the wizard's",
-        [saved.periods.length, saved.periods[0].rows[0].grade, saved.periods[0].rows[0].lvl, "cart" in saved], [4, "A-", "H", false]);
+        [saved.periods.length, saved.periods[0].rows[0].grade, saved.periods[0].rows[0].lvl, "cart" in saved], [8, "A-", "H", false]);
       click(pick("#langBtn"));
-      check("the page follows the language switch, preset names included",
-        [doc.querySelector("#gpaPage h2").textContent, doc.querySelector('tr[data-row] [data-f="name"]').value], ["G.P.A. Calculator", "English 9"]);
+      check("the page follows the language switch, preset and semester names included",
+        [doc.querySelector("#gpaPage h2").textContent, doc.querySelector('tr[data-row] [data-f="name"]').value, doc.querySelector(".gpa-period-name").value], ["G.P.A. Calculator", "English 9", "Grade 9 · Fall"]);
       click(pick("#langBtn"));
       setVal(doc.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
       click(pick("#langBtn"));
       check("a name the family typed stays as typed in either language", doc.querySelector('tr[data-row] [data-f="name"]').value, "荣誉英语 9");
       click(pick("#langBtn"));
       click(Y1().querySelector('[data-add-row]'));
-      check("add course appends a blank one-credit row to that year",
+      check("add course appends a blank row at the tools' default of 1.0 credit",
         [Y1().querySelectorAll('tr[data-row]').length, Y1().querySelector('tr[data-row]:last-child [data-f="w"]').value], [9, "1.0"]);
       click(Y1().querySelector('tr[data-row]:last-child [data-rm-row]'));
       check("...and × removes it", Y1().querySelectorAll('tr[data-row]').length, 8);
       click(pick("#gpaAddPeriod"));
       const Y5 = () => Array.from(doc.querySelectorAll(".gpa-year")).pop();
-      check("a new period follows the last year (after Grade 12: unnamed, to be renamed, e.g. to a semester)",
-        [doc.querySelectorAll(".gpa-year").length, Y5().querySelector(".gpa-period-name").value, Y5().querySelectorAll("tr[data-row]").length], [5, "", 1]);
-      setVal(Y5().querySelector(".gpa-period-name"), "2027 春季学期");
-      check("a period can be named as a semester", JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[4].name, "2027 春季学期");
+      check("Add semester after Grade 12 Spring gives an unnamed block to fill in, one blank row",
+        [doc.querySelectorAll(".gpa-year").length, Y5().querySelector(".gpa-period-name").value, Y5().querySelectorAll("tr[data-row]").length], [9, "", 1]);
+      setVal(Y5().querySelector(".gpa-period-name"), "2027 秋");
+      check("a semester can be renamed freely, as on gpacalculator.net", JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[8].name, "2027 秋");
       Y5().querySelector("[data-rm-period]").click();
+      // Remove the last preset block and add again: the pattern continues (Grade 12 Fall -> Grade 12 Spring).
+      Array.from(doc.querySelectorAll(".gpa-year")).pop().querySelector("[data-rm-period]").click();
+      click(pick("#gpaAddPeriod"));
+      check("Add semester continues the Fall → Spring → next grade pattern", Y5().querySelector(".gpa-period-name").value, "12 年级 · 下学期");
       click(pick('[data-set="unit"][data-val="periods"]'));
       check("switching the unit relabels without changing the formula",
         [doc.querySelector(".gpa-table th.gpa-col-cr").textContent, doc.getElementById("gpaMain").textContent], ["课时", "3.68"]);
@@ -662,7 +667,7 @@ setTimeout(() => {
       click(pick('[data-gpa-tab="sheet"]'));
     });
     await after(() => {
-      check("the tab bar jumps straight to the sheet", [window.location.hash, doc.querySelectorAll("tr[data-row]").length], ["#/gpa/sheet", 30]);
+      check("the tab bar jumps straight to the sheet", [window.location.hash, doc.querySelectorAll("tr[data-row]").length], ["#/gpa/sheet", 54]);   // 60 − the removed Grade 12 Spring (7) + the re-added block (1)
       window.location.hash = "#/pedagogy";
     });
     await after(() => {
@@ -673,7 +678,7 @@ setTimeout(() => {
     });
     await after(() => {
       check("coming back to a bare #/gpa restores the sheet from the browser, and the URL names the tab",
-        [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length, window.location.hash], ["sheet", 30, "#/gpa/sheet"]);
+        [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length, window.location.hash], ["sheet", 54, "#/gpa/sheet"]);
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
     });

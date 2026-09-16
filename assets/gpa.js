@@ -20,9 +20,12 @@
 // Three tabs, three URLs — #/gpa (scale), #/gpa/start, #/gpa/sheet — so the
 // browser's Back button walks them (Rick, 2026-09-16: "Can't go back to step
 // 1"). A bare #/gpa lands on the sheet when one exists, on the scale when not.
-// Periods are flat blocks — a year by default, renamable to a semester — the
-// way calculator.net and gpacalculator.net do it; nesting semesters inside
-// years was built and taken out the same day (Rick, 2026-09-16).
+// Periods are flat semester blocks, the way gpacalculator.net and
+// calculator.net do it (Rick, 2026-09-16: "just follow their ways that have
+// been well accepted and tested"): renamable, each with its own GPA, one
+// "Add semester" button, a cumulative GPA across all of them, no grouping
+// above the semester. Nesting semesters inside years was built and taken out
+// the same day.
 //
 // Wiring: app.js calls window.createGpaTool(ctx) once and .render(container,
 // sub) on every render() while the page is #/gpa. ctx supplies the site's
@@ -91,7 +94,14 @@
           var rows = Array.isArray(p.rows) ? p.rows : [];
           // A save from the short-lived semester layout: pool its terms' rows.
           if (Array.isArray(p.terms)) p.terms.forEach(function (tm) { rows = rows.concat(Array.isArray(tm.rows) ? tm.rows : []); });
-          return { id: p.id || uid(), grade: typeof p.grade === "number" ? p.grade : null, name: typeof p.name === "string" ? p.name : "", rows: rows.map(cleanRow) };
+          return {
+            id: p.id || uid(),
+            grade: typeof p.grade === "number" ? p.grade : null,
+            term: p.term === "s1" || p.term === "s2" ? p.term : null,
+            seq: typeof p.seq === "number" ? p.seq : null,
+            name: typeof p.name === "string" ? p.name : "",
+            rows: rows.map(cleanRow),
+          };
         });
       }
       if (r.prior && typeof r.prior === "object") S.prior = { gpa: String(r.prior.gpa || ""), w: String(r.prior.w || "") };
@@ -106,18 +116,27 @@
     function started() { return Array.isArray(S.periods) && S.periods.length > 0; }
     function blankRow() { return { id: uid(), name: "", w: S.unit === "periods" ? "5" : "1.0", grade: "", lvl: "CP", ac: true }; }
 
+    // The template: eight semesters (Grade 9 Fall … Grade 12 Spring), the
+    // year's courses in each at half their credit, as a transcript lists a
+    // year-long course graded twice.
     function applyPreset() {
-      S.periods = (window.GPA_PRESET || []).map(function (p) {
-        return { id: uid(), grade: p.grade, name: "", rows: p.rows.map(function (r) {
-          return { id: uid(), name: { en: r[0], zh: r[1] }, w: S.unit === "periods" ? String(r[2] * 5) : r[2].toFixed(1), grade: "", lvl: "CP", ac: !!r[3] };
-        }) };
+      var out = [];
+      (window.GPA_PRESET || []).forEach(function (p) {
+        ["s1", "s2"].forEach(function (term) {
+          out.push({ id: uid(), grade: p.grade, term: term, seq: null, name: "", rows: p.rows.map(function (r) {
+            var w = S.unit === "periods" ? String(r[2] * 5) : (r[2] / 2).toFixed(r[2] / 2 < 0.5 ? 2 : 1);
+            return { id: uid(), name: { en: r[0], zh: r[1] }, w: w, grade: "", lvl: "CP", ac: !!r[3] };
+          }) });
+        });
       });
+      S.periods = out;
     }
 
+    // Blank start: "Semester 1" with five empty rows, as calculator.net opens.
     function applyBlank() {
       var rows = [];
       for (var i = 0; i < 5; i++) rows.push(blankRow());
-      S.periods = [{ id: uid(), grade: 9, name: "", rows: rows }];
+      S.periods = [{ id: uid(), grade: null, term: null, seq: 1, name: "", rows: rows }];
     }
 
     function findRow(id) {
@@ -203,8 +222,13 @@
     function unitLabel() { return S.unit === "periods" ? T().unitPeriods : T().unitCredits; }
     function rowName(r) { return typeof r.name === "string" ? r.name : ctx.pickLang(r.name.en, r.name.zh); }
     function periodName(p) {
+      var t = T();
       if (p.name) return p.name;
-      if (typeof p.grade === "number") return fill(T().gradeN, { n: p.grade });
+      if (typeof p.grade === "number") {
+        var g = fill(t.gradeN, { n: p.grade });
+        return p.term ? g + " · " + (p.term === "s1" ? t.termFall : t.termSpring) : g;
+      }
+      if (typeof p.seq === "number") return fill(t.semesterN, { n: p.seq });
       return "";
     }
     function levelLabel(l) {
@@ -713,13 +737,20 @@
           if (!S.periods.length) S.periods = null;
           save(); repaint(); return;
         }
+        // "Add semester": continues the pattern of the last block — Grade 9 Fall
+        // → Grade 9 Spring → Grade 10 Fall …, or Semester N → Semester N+1.
         if (e.target.closest("#gpaAddPeriod")) {
           var last = S.periods[S.periods.length - 1];
-          var g = last && typeof last.grade === "number" && last.grade < 12 ? last.grade + 1 : null;
-          S.periods.push({ id: uid(), grade: g, name: "", rows: [blankRow()] });
+          var nb = { id: uid(), grade: null, term: null, seq: null, name: "", rows: [blankRow()] };
+          if (last && typeof last.grade === "number") {
+            if (last.term === "s1") { nb.grade = last.grade; nb.term = "s2"; }
+            else if (last.grade < 12) { nb.grade = last.grade + 1; nb.term = last.term ? "s1" : null; }
+          } else if (last && typeof last.seq === "number") nb.seq = last.seq + 1;
+          else nb.seq = S.periods.length + 1;
+          S.periods.push(nb);
           save(); repaint();
           var nm = root.querySelector(".gpa-year:last-of-type .gpa-period-name");
-          if (nm && g === null) nm.focus();
+          if (nm && nb.grade === null && nb.seq === null) nm.focus();
           return;
         }
         if (e.target.closest("#gpaPrint")) { window.print(); return; }
