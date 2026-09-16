@@ -27,6 +27,7 @@
     // calculator in assets/gpa.js) or null. Pages are outside the step flow —
     // no stepper, no cart bar — and reachable from the site menu.
     page: null,
+    sub: "",          // the page's own sub-view (#/gpa/start -> "start")
     // grammar (K-G6) | dialectic (G7-G8) | rhetoric (G9-G12). Replaced the old
     // binary `level` on 2026-09-11: the parent now picks one of three learning
     // stages, and only `rhetoric` carries a graduation track and requirements.
@@ -200,8 +201,17 @@
     return n;
   }
   function applyHash(h) {
-    if (PAGES.indexOf(h) !== -1) { state.page = h; return; }
-    state.page = null;
+    // "#/gpa" or "#/gpa/<view>": the page owns whatever follows its name, so
+    // its tabs are ordinary history entries and Back/Forward walk them.
+    var pm = /^([a-z]+)(?:\/([a-z]+))?$/.exec(h);
+    if (pm && PAGES.indexOf(pm[1]) !== -1) {
+      state.page = pm[1]; state.sub = pm[2] || "";
+      // A bare #/gpa resolves to a concrete tab so history holds the tab the
+      // parent actually saw: the sheet when one exists, else the scale.
+      if (state.page === "gpa" && !state.sub) state.sub = gpaTool().hasData() ? "sheet" : "scale";
+      return;
+    }
+    state.page = null; state.sub = "";
     if (h === "done") {
       if (!state.done) { state.step = 0; }
       return;
@@ -213,7 +223,7 @@
   // Boot: the URL decides the page. No hash = home page, by design.
   (function () {
     var h = location.hash.replace(/^#\/?/, "");
-    if (!h) { state.step = FIRST_STEP; state.done = null; state.page = null; return; }
+    if (!h) { state.step = FIRST_STEP; state.done = null; state.page = null; state.sub = ""; return; }
     applyHash(h);
   })();
   // Keep the URL in step with the state. Assigning location.hash creates a
@@ -221,9 +231,12 @@
   // first normalization on a bare URL uses replaceState instead so the home
   // page doesn't become two history entries.
   function syncHash() {
-    var want = "#/" + (state.page ? state.page : state.done ? "done" : STEP_HASHES[state.step]);
+    var want = "#/" + (state.page ? state.page + (state.sub ? "/" + state.sub : "") : state.done ? "done" : STEP_HASHES[state.step]);
     if (location.hash === want) return;
-    if (!location.hash) {
+    // A bare URL, or a page's bare hash (#/gpa) that resolved to one of its
+    // tabs, is rewritten in place — pushing would leave an entry that Back
+    // keeps landing on and re-resolving.
+    if (!location.hash || (state.page && location.hash === "#/" + state.page)) {
       try { history.replaceState(null, "", want); } catch (e) { location.hash = want; }
       return;
     }
@@ -1592,18 +1605,23 @@
 
   /* ---------- G.P.A. calculator page (assets/gpa.js) ---------- */
   // Created on first use; the tool keeps its own state and storage and only
-  // borrows the site's helpers. High-school course names from the snapshot
-  // feed its typing suggestions — names only, nothing from the tracks.
+  // borrows the site's helpers.
   var gpaToolInst = null;
   function gpaTool() {
     if (gpaToolInst) return gpaToolInst;
     gpaToolInst = window.createGpaTool({
       t: t, esc: esc, pickLang: pickLang, openModal: openModal, closeModal: closeModal,
-      courseNames: function () {
+      // Moving between the page's tabs goes through the URL, so Back works.
+      go: function (sub) {
+        var want = "#/gpa" + (sub ? "/" + sub : "");
+        if (location.hash === want) return;
+        location.hash = want;   // the hashchange listener applies it and renders
+      },
+      // Subject names from the snapshot feed the course field's suggestions —
+      // subjects only, in the page language, never the tracks.
+      subjectNames: function () {
         if (!state.data) return [];
-        return (state.data.courses || []).filter(function (c) {
-          return (c.grades || []).some(function (g) { return /^G(9|1[0-2])$/.test(g); });
-        }).map(courseName).filter(Boolean);
+        return (state.data.subjects || []).map(function (s) { return pickLang(s.nameEn, s.nameZh); }).filter(Boolean);
       },
     });
     return gpaToolInst;
@@ -1906,7 +1924,7 @@
 
     // Standalone pages need no snapshot, so they paint before /api/data lands.
     if (state.page === "gpa") {
-      gpaTool().render(app);
+      gpaTool().render(app, state.sub);
       renderCartBar();
       window.scrollTo({ top: 0 });
       return;

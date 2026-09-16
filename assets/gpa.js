@@ -10,25 +10,33 @@
 // graded rows. Weight is credits (0.5 / 1.0) or periods per week — the unit is
 // a setting, the formula does not change. Points come from ONE editable scale
 // (letter, breakoff, and a grade-point column per course level: CP / Honors /
-// AP-IB). The unweighted GPA always reads the CP column; the weighted GPA reads
-// the column of each row's level; the academic GPA is the CP column over the
-// rows flagged academic. P (pass) earns weight but no points; an empty grade is
-// "in progress" and stays out of every number. Modelled on the two most-used
-// US calculators (calculator.net, gpacalculator.net) and CEFF's own SIS scale.
+// AP·Dual Enrollment). The unweighted GPA always reads the CP column; the
+// weighted GPA reads the column of each row's level; the academic GPA is the
+// CP column over the rows flagged academic. P (pass) earns weight but no
+// points; an empty grade is "in progress" and stays out of every number.
+// Modelled on the two most-used US calculators (calculator.net,
+// gpacalculator.net) and CEFF's own SIS scale.
 //
-// Wiring: app.js calls window.createGpaTool(ctx) once and .render(container)
-// on every render() while the page is #/gpa. ctx supplies the site's shared
-// helpers (t, esc, pickLang, openModal) so this file has no globals of its own
-// beyond the factory.
+// Three tabs, three URLs — #/gpa (scale), #/gpa/start, #/gpa/sheet — so the
+// browser's Back button walks them (Rick, 2026-09-16: "Can't go back to step
+// 1"). A bare #/gpa lands on the sheet when one exists, on the scale when not.
+// Years hold one or two semesters (上学期 / 下学期): a semester-graded course
+// earns half its credit per semester, which is how US transcripts read.
+//
+// Wiring: app.js calls window.createGpaTool(ctx) once and .render(container,
+// sub) on every render() while the page is #/gpa. ctx supplies the site's
+// shared helpers (t, esc, pickLang, openModal, go).
 (function () {
   "use strict";
 
   var KEY = "fc-gpa-v1";
-  var LEVELS = ["CP", "H", "AP", "IB"];
+  var LEVELS = ["CP", "H", "AP", "DE"];
+  var VIEWS = ["scale", "start", "sheet"];
 
   window.createGpaTool = function (ctx) {
     var S = null;              // state, loaded lazily so a bad save can't break boot
     var root = null;           // the <section> painted by the last render()
+    var view = "scale";        // which tab is showing
     var scaleOverlay = null;   // the open scale editor, if any
 
     /* ---------- state ---------- */
@@ -42,9 +50,22 @@
         unit: "credits",         // credits | periods
         gradeMode: "letter",     // letter | percent  (controls only; both are always parsed)
         scale: clone(window.GPA_SCALE_DEFAULT || []),
-        periods: null,           // null = nothing started yet -> the chooser
+        periods: null,           // null = nothing started yet
         prior: { gpa: "", w: "" },
         plan: { target: "", remain: "" },
+      };
+    }
+
+    function cleanRow(x) {
+      return {
+        id: x.id || uid(),
+        name: (x.name && typeof x.name === "object") ? { en: String(x.name.en || ""), zh: String(x.name.zh || "") } : String(x.name || ""),
+        w: x.w === "" || x.w == null ? "" : String(x.w),
+        grade: String(x.grade || ""),
+        // IB was a level until 2026-09-16 ("Don't need IB, it's for EU. Use
+        // dual enrollment"); an old save maps it to the same column.
+        lvl: x.lvl === "IB" ? "DE" : LEVELS.indexOf(x.lvl) !== -1 ? x.lvl : "CP",
+        ac: x.ac !== false,
       };
     }
 
@@ -66,21 +87,16 @@
       }
       if (Array.isArray(r.periods)) {
         S.periods = r.periods.filter(function (p) { return p && typeof p === "object"; }).map(function (p) {
-          return {
-            id: p.id || uid(),
-            grade: typeof p.grade === "number" ? p.grade : null,
-            name: typeof p.name === "string" ? p.name : "",
-            rows: (Array.isArray(p.rows) ? p.rows : []).map(function (x) {
-              return {
-                id: x.id || uid(),
-                name: (x.name && typeof x.name === "object") ? { en: String(x.name.en || ""), zh: String(x.name.zh || "") } : String(x.name || ""),
-                w: x.w === "" || x.w == null ? "" : String(x.w),
-                grade: String(x.grade || ""),
-                lvl: LEVELS.indexOf(x.lvl) !== -1 ? x.lvl : "CP",
-                ac: x.ac !== false,
-              };
-            }),
-          };
+          var terms;
+          if (Array.isArray(p.terms) && p.terms.length) {
+            terms = p.terms.map(function (tm) {
+              return { id: tm.id || uid(), key: tm.key === "s1" || tm.key === "s2" ? tm.key : null, rows: (Array.isArray(tm.rows) ? tm.rows : []).map(cleanRow) };
+            });
+          } else {
+            // A save from before semesters: one unnamed term holding the rows.
+            terms = [{ id: uid(), key: null, rows: (Array.isArray(p.rows) ? p.rows : []).map(cleanRow) }];
+          }
+          return { id: p.id || uid(), grade: typeof p.grade === "number" ? p.grade : null, name: typeof p.name === "string" ? p.name : "", terms: terms };
         });
       }
       if (r.prior && typeof r.prior === "object") S.prior = { gpa: String(r.prior.gpa || ""), w: String(r.prior.w || "") };
@@ -92,29 +108,37 @@
       try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
     }
 
-    function blankRow() { return { id: uid(), name: "", w: S.unit === "periods" ? "5" : "1.0", grade: "", lvl: "CP", ac: true }; }
+    function started() { return Array.isArray(S.periods) && S.periods.length > 0; }
+    function defaultW(full) { var w = full ? (S.unit === "periods" ? 5 : 1) : (S.unit === "periods" ? 5 : 0.5); return S.unit === "periods" ? String(w) : w.toFixed(1); }
+    function blankRow(full) { return { id: uid(), name: "", w: defaultW(full), grade: "", lvl: "CP", ac: true }; }
 
+    // The template comes split into semesters, half a credit each, the way a
+    // US transcript lists a year-long course graded twice.
     function applyPreset() {
       S.periods = (window.GPA_PRESET || []).map(function (p) {
-        return {
-          id: uid(), grade: p.grade, name: "",
-          rows: p.rows.map(function (r) {
-            return { id: uid(), name: { en: r[0], zh: r[1] }, w: S.unit === "periods" ? String(r[2] * 5) : r[2].toFixed(1), grade: "", lvl: "CP", ac: !!r[3] };
-          }),
+        var mk = function (key) {
+          return { id: uid(), key: key, rows: p.rows.map(function (r) {
+            var w = S.unit === "periods" ? String(r[2] * 5) : (r[2] / 2).toFixed(r[2] / 2 < 0.5 ? 2 : 1);
+            return { id: uid(), name: { en: r[0], zh: r[1] }, w: w, grade: "", lvl: "CP", ac: !!r[3] };
+          }) };
         };
+        return { id: uid(), grade: p.grade, name: "", terms: [mk("s1"), mk("s2")] };
       });
     }
 
     function applyBlank() {
       var rows = [];
-      for (var i = 0; i < 5; i++) rows.push(blankRow());
-      S.periods = [{ id: uid(), grade: 9, name: "", rows: rows }];
+      for (var i = 0; i < 5; i++) rows.push(blankRow(true));
+      S.periods = [{ id: uid(), grade: 9, name: "", terms: [{ id: uid(), key: null, rows: rows }] }];
     }
 
     function findRow(id) {
       for (var i = 0; i < (S.periods || []).length; i++) {
         var p = S.periods[i];
-        for (var j = 0; j < p.rows.length; j++) if (p.rows[j].id === id) return { p: p, r: p.rows[j], i: j };
+        for (var k = 0; k < p.terms.length; k++) {
+          var tm = p.terms[k];
+          for (var j = 0; j < tm.rows.length; j++) if (tm.rows[j].id === id) return { p: p, tm: tm, r: tm.rows[j], i: j };
+        }
       }
       return null;
     }
@@ -122,10 +146,42 @@
       for (var i = 0; i < (S.periods || []).length; i++) if (S.periods[i].id === id) return S.periods[i];
       return null;
     }
+    function findTerm(id) {
+      for (var i = 0; i < (S.periods || []).length; i++) {
+        for (var k = 0; k < S.periods[i].terms.length; k++) if (S.periods[i].terms[k].id === id) return { p: S.periods[i], tm: S.periods[i].terms[k] };
+      }
+      return null;
+    }
+    function periodRows(p) { var out = []; p.terms.forEach(function (tm) { out = out.concat(tm.rows); }); return out; }
+    function allRows() { var out = []; (S.periods || []).forEach(function (p) { out = out.concat(periodRows(p)); }); return out; }
+
+    // Split a one-table year into two semesters. If the table is already two
+    // copies of each course (a merged year being split again), the pairs go
+    // back to 上学期 / 下学期 as they were; otherwise the rows move to 上学期
+    // with half their weight and 下学期 gets the same courses, ungraded.
+    function splitPeriod(p) {
+      var rows = periodRows(p);
+      var byName = {}, paired = rows.length > 0;
+      rows.forEach(function (r) { var k = rowName(r).trim().toLowerCase(); (byName[k] = byName[k] || []).push(r); });
+      Object.keys(byName).forEach(function (k) { if (byName[k].length !== 2) paired = false; });
+      if (paired) {
+        var s1p = [], s2p = [], seen = {};
+        rows.forEach(function (r) { var k = rowName(r).trim().toLowerCase(); (seen[k] ? s2p : s1p).push(r); seen[k] = 1; });
+        p.terms = [{ id: uid(), key: "s1", rows: s1p }, { id: uid(), key: "s2", rows: s2p }];
+        return;
+      }
+      var half = function (w) { var n = num(w); if (S.unit === "periods" || !n) return w; return (n / 2).toFixed(n / 2 < 0.5 ? 2 : 1); };
+      var s1 = rows.map(function (r) { return { id: r.id, name: r.name, w: half(r.w), grade: r.grade, lvl: r.lvl, ac: r.ac }; });
+      var s2 = rows.map(function (r) { return { id: uid(), name: clone(r.name), w: half(r.w), grade: "", lvl: r.lvl, ac: r.ac }; });
+      p.terms = [{ id: uid(), key: "s1", rows: s1 }, { id: uid(), key: "s2", rows: s2 }];
+    }
+    function mergePeriod(p) {
+      p.terms = [{ id: uid(), key: null, rows: periodRows(p) }];
+    }
 
     /* ---------- maths ---------- */
 
-    function colFor(lvl) { return lvl === "H" ? "h" : (lvl === "AP" || lvl === "IB") ? "ap" : "cp"; }
+    function colFor(lvl) { return lvl === "H" ? "h" : (lvl === "AP" || lvl === "DE") ? "ap" : "cp"; }
 
     // Letter, percentage or P -> { cp, lvl } points, "P", or null (ungraded /
     // unrecognised). Percentages pick the highest breakoff at or below the
@@ -151,7 +207,7 @@
     // Totals over a list of rows: weight of every graded row (P included),
     // graded weight and points for the three GPAs, and in-progress weight.
     function agg(rows) {
-      var a = { w: 0, wG: 0, cp: 0, lvl: 0, acW: 0, acCp: 0, inProg: 0, n: rows.length, hasNonAc: false, hasLevel: false };
+      var a = { w: 0, wG: 0, cp: 0, lvl: 0, acW: 0, acCp: 0, inProg: 0, n: rows.length, hasNonAc: false };
       rows.forEach(function (r) {
         var w = num(r.w);
         var pts = pointsFor(r);
@@ -160,15 +216,8 @@
         if (pts === "P") return;
         a.wG += w; a.cp += pts.cp * w; a.lvl += pts.lvl * w;
         if (r.ac !== false) { a.acW += w; a.acCp += pts.cp * w; } else a.hasNonAc = true;
-        if (r.lvl !== "CP") a.hasLevel = true;
       });
       return a;
-    }
-
-    function allRows() {
-      var out = [];
-      (S.periods || []).forEach(function (p) { out = out.concat(p.rows); });
-      return out;
     }
 
     // Cumulative = every period, plus the optional prior record folded in as
@@ -204,24 +253,84 @@
       if (typeof p.grade === "number") return fill(T().gradeN, { n: p.grade });
       return "";
     }
+    function termName(tm) { return tm.key === "s1" ? T().termFall : tm.key === "s2" ? T().termSpring : ""; }
     function levelLabel(l) {
       var t = T();
-      return l === "H" ? t.levelHonors : l === "AP" ? t.levelAP : l === "IB" ? t.levelIB : t.levelCP;
+      return l === "H" ? t.levelHonors : l === "AP" ? t.levelAP : l === "DE" ? t.levelDual : t.levelCP;
+    }
+    function go(v) { if (ctx.go) ctx.go(v); }
+
+    /* ---------- markup: shared pieces ---------- */
+
+    function tabsHtml() {
+      var t = T();
+      return '<nav class="gpa-tabs" aria-label="steps">' + VIEWS.map(function (v, i) {
+        var cls = "gpa-tab" + (v === view ? " active" : "") + (v === "sheet" && !started() ? " dim" : "");
+        return '<button type="button" class="' + cls + '" data-gpa-tab="' + v + '" aria-current="' + (v === view ? "page" : "false") + '"><span class="n">' + (i + 1) + "</span>" + esc(t.tabs[i]) + "</button>";
+      }).join('<span class="gpa-tab-sep">›</span>') + "</nav>";
     }
 
-    /* ---------- markup ---------- */
+    function scaleTableHtml() {
+      var t = T();
+      var rows = S.scale.map(function (r) {
+        return "<tr><td>" + esc(r.g) + "</td><td>" + esc(r.min > 0 ? String(r.min) : "< " + minAbove(r)) + '</td><td class="cp">' + esc(num(r.cp).toFixed(1)) + "</td><td>" + esc(num(r.h).toFixed(1)) + "</td><td>" + esc(num(r.ap).toFixed(1)) + "</td></tr>";
+      }).join("");
+      return "<table><thead><tr><th>" + esc(t.scaleGrade) + "</th><th>" + esc(t.scaleMin) + "</th><th>" + esc(t.scaleCP) + "</th><th>" + esc(t.scaleHonors) + "</th><th>" + esc(t.scaleAP) + "</th></tr></thead><tbody>" + rows + "</tbody></table>";
+    }
+    // The F row's breakoff is 0; show it as "< (lowest non-zero breakoff)".
+    function minAbove(r) {
+      var m = null;
+      S.scale.forEach(function (x) { if (x.min > r.min && (m === null || x.min < m)) m = x.min; });
+      return m === null ? "" : String(m);
+    }
 
-    // First visit: the scale first (it decides every number), then the start
-    // choice. Rick, 2026-09-16: "Is it better to put grading scale at the
-    // first step?" — yes, families arrive from schools with different cutoffs.
-    function chooserHtml() {
+    function settingsHtml() {
+      var t = T();
+      return (
+        '<div class="gpa-set"><span>' + esc(t.settingGrade) + '</span><span class="gpa-seg">' +
+        '<button type="button" class="' + (S.gradeMode === "letter" ? "on" : "") + '" data-set="gradeMode" data-val="letter">' + esc(t.settingLetter) + "</button>" +
+        '<button type="button" class="' + (S.gradeMode === "percent" ? "on" : "") + '" data-set="gradeMode" data-val="percent">' + esc(t.settingPercent) + "</button></span></div>" +
+        '<div class="gpa-set"><span>' + esc(t.settingUnit) + '</span><span class="gpa-seg">' +
+        '<button type="button" class="' + (S.unit === "credits" ? "on" : "") + '" data-set="unit" data-val="credits">' + esc(t.settingCredits) + "</button>" +
+        '<button type="button" class="' + (S.unit === "periods" ? "on" : "") + '" data-set="unit" data-val="periods">' + esc(t.settingPeriods) + "</button></span></div>"
+      );
+    }
+
+    // The sidebar card on the sheet: table, note + edit link, the two settings.
+    function scaleCardInner() {
+      var t = T();
+      return (
+        '<summary><span class="req-caret" aria-hidden="true"><svg viewBox="0 0 20 20" width="14" height="14"><path d="M7 4l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' + esc(t.scaleTitle) + "</summary>" +
+        scaleTableHtml() +
+        '<div class="wt"><span>' + esc(t.scaleNote) + '</span><button type="button" class="gpa-link" data-scale-edit>' + esc(t.scaleEdit) + " ›</button></div>" +
+        settingsHtml()
+      );
+    }
+
+    /* ---------- markup: the three views ---------- */
+
+    // Tab 1 — the scale, on its own. No settings here (Rick, 2026-09-16); they
+    // sit with the sheet, where they act.
+    function scaleViewHtml() {
       var t = T();
       return (
         '<div class="gpa-start">' +
-        '<h3 class="gpa-start-step">' + esc(t.startStep1) + "</h3>" +
         '<p class="gpa-start-hint">' + esc(t.startStep1Hint) + "</p>" +
-        '<details class="gpa-scale gpa-scale-start" id="gpaScaleCard" open>' + scaleCardInner() + "</details>" +
-        '<h3 class="gpa-start-step">' + esc(t.startStep2) + "</h3>" +
+        '<div class="gpa-scale gpa-scale-start" id="gpaScaleCard">' + scaleTableHtml() +
+        '<div class="wt"><span>' + esc(t.scaleNote) + '</span><button type="button" class="gpa-link" data-scale-edit>' + esc(t.scaleEdit) + " ›</button></div></div>" +
+        '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
+        '<div class="gpa-start-actions"><button type="button" class="btn btn-primary" data-gpa-go="start">' + esc(t.next) + " ›</button></div>" +
+        "</div>"
+      );
+    }
+
+    // Tab 2 — the two starting points.
+    function startViewHtml() {
+      var t = T();
+      return (
+        '<div class="gpa-start">' +
+        '<p class="gpa-start-hint">' + esc(t.startStep2Hint) + "</p>" +
+        (started() ? '<p class="gpa-replace">' + esc(t.startReplaceNote) + "</p>" : "") +
         '<div class="gpa-start-grid">' +
         '<button type="button" class="choice-card gpa-start-card" data-gpa-start="preset"><span class="choice-title">' + esc(t.startPreset) + '</span><span class="choice-desc">' + esc(t.startPresetDesc) + "</span></button>" +
         '<button type="button" class="choice-card gpa-start-card" data-gpa-start="blank"><span class="choice-title">' + esc(t.startBlank) + '</span><span class="choice-desc">' + esc(t.startBlankDesc) + "</span></button>" +
@@ -267,9 +376,9 @@
       return (
         '<tr data-row="' + esc(r.id) + '">' +
         '<td class="gpa-c-name"><input class="gpa-in" type="text" data-f="name" list="gpaNames" value="' + esc(rowName(r)) + '" aria-label="' + esc(t.colCourse) + '" /></td>' +
-        '<td><input class="gpa-in gpa-w" type="number" min="0" step="' + (S.unit === "periods" ? "1" : "0.5") + '" data-f="w" value="' + esc(r.w) + '" aria-label="' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + '" /></td>' +
+        '<td><input class="gpa-in gpa-w" type="number" min="0" step="' + (S.unit === "periods" ? "1" : "0.25") + '" data-f="w" value="' + esc(r.w) + '" aria-label="' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + '" /></td>' +
         "<td>" + gradeControl(r) + "</td>" +
-        '<td><select class="gpa-sel" data-f="lvl" aria-label="' + esc(t.colLevel) + '">' + lv + "</select></td>" +
+        '<td><select class="gpa-sel" data-f="lvl" aria-label="' + esc(t.colLevel) + '" title="' + esc(t.levelsNote) + '">' + lv + "</select></td>" +
         '<td><button type="button" class="gpa-seg" data-f="ac" aria-label="' + esc(t.colType) + '">' +
         '<span class="' + (r.ac !== false ? "on" : "") + '">' + esc(t.academic) + "</span>" +
         '<span class="' + (r.ac === false ? "on" : "") + '">' + esc(t.nonAcademic) + "</span></button></td>" +
@@ -279,34 +388,56 @@
       );
     }
 
-    function periodHeadInner(p) {
+    function tableHead() {
       var t = T();
-      var a = agg(p.rows);
-      var meta = a.wG > 0 || a.w > 0
-        ? fill(t.periodMeta, { w: fw(a.w), unit: unitLabel(), n: p.rows.length })
-        : fill(t.periodNoGrades, { w: fw(a.inProg), unit: unitLabel() });
-      return (
-        '<input class="gpa-period-name" type="text" data-period-name="' + esc(p.id) + '" value="' + esc(periodName(p)) + '" placeholder="' + esc(t.periodNamePlaceholder) + '" />' +
-        '<span class="gpa-year-meta">' + esc(meta) + "</span>" +
-        '<span class="gpa-year-gpa">GPA ' + esc(f2(gpaOf(a.cp, a.wG))) + "</span>" +
-        '<button type="button" class="gpa-rm gpa-rm-period" data-rm-period="' + esc(p.id) + '" title="' + esc(t.removePeriod) + '" aria-label="' + esc(t.removePeriod) + '">×</button>'
-      );
-    }
-
-    function periodHtml(p) {
-      var t = T();
-      return (
-        '<div class="gpa-year" data-period="' + esc(p.id) + '">' +
-        '<div class="gpa-year-head">' + periodHeadInner(p) + "</div>" +
-        '<table class="gpa-table"><thead><tr>' +
+      return '<thead><tr>' +
         "<th>" + esc(t.colCourse) + "</th>" +
         '<th class="gpa-col-cr">' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + "</th>" +
         '<th class="gpa-col-gr">' + esc(t.colGrade) + "</th>" +
         '<th class="gpa-col-lv">' + esc(t.colLevel) + "</th>" +
         '<th class="gpa-col-ac">' + esc(t.colType) + "</th>" +
         '<th class="gpa-col-pt">' + esc(t.colPoints) + "</th><th></th>" +
-        "</tr></thead><tbody>" + p.rows.map(rowHtml).join("") + "</tbody></table>" +
-        '<button type="button" class="gpa-add" data-add-row="' + esc(p.id) + '">＋ ' + esc(t.addCourse) + "</button>" +
+        "</tr></thead>";
+    }
+
+    function termHeadInner(tm) {
+      var a = agg(tm.rows);
+      return '<span class="gpa-term-name">' + esc(termName(tm)) + '</span><span class="gpa-term-gpa">GPA ' + esc(f2(gpaOf(a.cp, a.wG))) + "</span>";
+    }
+
+    function termHtml(tm) {
+      var t = T();
+      return (
+        '<div class="gpa-term" data-term="' + esc(tm.id) + '">' +
+        (tm.key ? '<div class="gpa-term-head">' + termHeadInner(tm) + "</div>" : "") +
+        '<table class="gpa-table">' + tableHead() + "<tbody>" + tm.rows.map(rowHtml).join("") + "</tbody></table>" +
+        '<button type="button" class="gpa-add" data-add-row="' + esc(tm.id) + '">＋ ' + esc(t.addCourse) + "</button>" +
+        "</div>"
+      );
+    }
+
+    function periodHeadInner(p) {
+      var t = T();
+      var rows = periodRows(p);
+      var a = agg(rows);
+      var meta = a.w > 0
+        ? fill(t.periodMeta, { w: fw(a.w), unit: unitLabel(), n: rows.length })
+        : fill(t.periodNoGrades, { w: fw(a.inProg), unit: unitLabel() });
+      var split = p.terms.length > 1;
+      return (
+        '<input class="gpa-period-name" type="text" data-period-name="' + esc(p.id) + '" value="' + esc(periodName(p)) + '" placeholder="' + esc(t.periodNamePlaceholder) + '" />' +
+        '<span class="gpa-year-meta">' + esc(meta) + "</span>" +
+        '<button type="button" class="gpa-link gpa-split" data-split="' + esc(p.id) + '">' + esc(split ? t.mergeTerms : t.splitTerms) + "</button>" +
+        '<span class="gpa-year-gpa">GPA ' + esc(f2(gpaOf(a.cp, a.wG))) + "</span>" +
+        '<button type="button" class="gpa-rm gpa-rm-period" data-rm-period="' + esc(p.id) + '" title="' + esc(t.removePeriod) + '" aria-label="' + esc(t.removePeriod) + '">×</button>'
+      );
+    }
+
+    function periodHtml(p) {
+      return (
+        '<div class="gpa-year" data-period="' + esc(p.id) + '">' +
+        '<div class="gpa-year-head">' + periodHeadInner(p) + "</div>" +
+        p.terms.map(termHtml).join("") +
         "</div>"
       );
     }
@@ -317,14 +448,14 @@
       var un = gpaOf(a.cp, a.wG), we = gpaOf(a.lvl, a.wG), ac = gpaOf(a.acCp, a.acW);
       var tiles = "";
       if (we !== null && un !== null && Math.abs(we - un) > 0.0005) {
-        tiles += "<div><div class=\"k\">" + esc(t.weighted) + '</div><div class="v" id="gpaWeighted">' + esc(f2(we)) + "</div></div>";
+        tiles += '<div><div class="k">' + esc(t.weighted) + '</div><div class="v" id="gpaWeighted">' + esc(f2(we)) + "</div></div>";
       }
       if (a.hasNonAc && ac !== null) {
-        tiles += "<div><div class=\"k\">" + esc(t.academicGpa) + '</div><div class="v" id="gpaAcademic">' + esc(f2(ac)) + "</div></div>";
+        tiles += '<div><div class="k">' + esc(t.academicGpa) + '</div><div class="v" id="gpaAcademic">' + esc(f2(ac)) + "</div></div>";
       }
-      tiles += "<div><div class=\"k\">" + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w)) + "</div></div>";
+      tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w)) + "</div></div>";
       var bars = (S.periods || []).map(function (p) {
-        var pa = agg(p.rows), g = gpaOf(pa.cp, pa.wG);
+        var pa = agg(periodRows(p)), g = gpaOf(pa.cp, pa.wG);
         var pct = g === null ? 0 : Math.max(0, Math.min(100, g / Math.max(scaleMax(), 4) * 100));
         return '<div class="gpa-yr"><span class="lbl">' + esc(periodName(p) || "—") + '</span><span class="bar"><i style="width:' + pct.toFixed(0) + '%"></i></span><span class="val">' + esc(f2(g)) + "</span></div>";
       }).join("");
@@ -352,7 +483,7 @@
         var need = (target * (a.wG + remain) - a.cp) / remain;
         if (need <= 0) outHtml = esc(t.planDone);
         else if (need > scaleMax()) outHtml = esc(fill(t.planOver, { p: need.toFixed(2), max: scaleMax().toFixed(1) }));
-        else outHtml = esc(fill(t.planOut, { p: "\u0000" })).replace("\u0000", "<b>" + esc(need.toFixed(2)) + "</b>");
+        else outHtml = esc(fill(t.planOut, { p: " " })).replace(" ", "<b>" + esc(need.toFixed(2)) + "</b>");
       }
       return (
         "<h3>" + esc(t.planTitle) + "</h3>" +
@@ -364,62 +495,51 @@
       );
     }
 
-    function scaleCardInner() {
-      var t = T();
-      var rows = S.scale.map(function (r) {
-        return "<tr><td>" + esc(r.g) + "</td><td>" + esc(r.min > 0 ? String(r.min) : "< " + minAbove(r)) + '</td><td class="cp">' + esc(num(r.cp).toFixed(1)) + "</td><td>" + esc(num(r.h).toFixed(1)) + "</td><td>" + esc(num(r.ap).toFixed(1)) + "</td></tr>";
-      }).join("");
-      return (
-        '<summary><span class="req-caret" aria-hidden="true"><svg viewBox="0 0 20 20" width="14" height="14"><path d="M7 4l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' + esc(t.scaleTitle) + "</summary>" +
-        "<table><thead><tr><th>" + esc(t.scaleGrade) + "</th><th>" + esc(t.scaleMin) + "</th><th>" + esc(t.scaleCP) + "</th><th>" + esc(t.scaleHonors) + "</th><th>" + esc(t.scaleAP) + "</th></tr></thead><tbody>" + rows + "</tbody></table>" +
-        '<div class="wt"><span>' + esc(t.scaleNote) + '</span><button type="button" class="gpa-link" id="gpaScaleEdit">' + esc(t.scaleEdit) + " ›</button></div>" +
-        '<div class="gpa-set"><span>' + esc(t.settingGrade) + '</span><span class="gpa-seg">' +
-        '<button type="button" class="' + (S.gradeMode === "letter" ? "on" : "") + '" data-set="gradeMode" data-val="letter">' + esc(t.settingLetter) + "</button>" +
-        '<button type="button" class="' + (S.gradeMode === "percent" ? "on" : "") + '" data-set="gradeMode" data-val="percent">' + esc(t.settingPercent) + "</button></span></div>" +
-        '<div class="gpa-set"><span>' + esc(t.settingUnit) + '</span><span class="gpa-seg">' +
-        '<button type="button" class="' + (S.unit === "credits" ? "on" : "") + '" data-set="unit" data-val="credits">' + esc(t.settingCredits) + "</button>" +
-        '<button type="button" class="' + (S.unit === "periods" ? "on" : "") + '" data-set="unit" data-val="periods">' + esc(t.settingPeriods) + "</button></span></div>"
-      );
-    }
-    // The F row's breakoff is 0; show it as "< (lowest non-zero breakoff)".
-    function minAbove(r) {
-      var m = null;
-      S.scale.forEach(function (x) { if (x.min > r.min && (m === null || x.min < m)) m = x.min; });
-      return m === null ? "" : String(m);
-    }
-
+    // Typing suggestions on the course field: the subject list from Airtable
+    // (Course Subject table, in the page language), nothing else. An earlier
+    // list mixed common US course names with the catalog's long course titles
+    // and read as noise (Rick, 2026-09-16). Anything typed is still accepted.
     function namesDatalist() {
       var seen = {}, out = [];
-      var add = function (n) { n = String(n || "").trim(); if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); } };
-      (window.GPA_COMMON_COURSES || []).forEach(function (c) { add(ctx.pickLang(c[0], c[1])); });
-      (ctx.courseNames ? ctx.courseNames() : []).forEach(add);
+      (ctx.subjectNames ? ctx.subjectNames() : []).forEach(function (n) {
+        n = String(n || "").trim();
+        if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); }
+      });
       return '<datalist id="gpaNames">' + out.map(function (n) { return '<option value="' + esc(n) + '"></option>'; }).join("") + "</datalist>";
+    }
+
+    // Tab 3 — the sheet.
+    function sheetViewHtml() {
+      var t = T();
+      if (!started()) {
+        return '<div class="gpa-start"><p class="gpa-start-hint">' + esc(t.needStart) + '</p><div class="gpa-start-actions"><button type="button" class="btn btn-primary" data-gpa-go="start">' + esc(t.tabs[1]) + " ›</button></div></div>";
+      }
+      var narrow = window.matchMedia && window.matchMedia("(max-width: 860px)").matches;
+      return (
+        '<div class="gpa-layout">' +
+        '<div class="gpa-main" id="gpaMainCol">' +
+        S.periods.map(periodHtml).join("") +
+        '<button type="button" class="gpa-add-year" id="gpaAddPeriod">＋ ' + esc(t.addPeriod) + "</button>" +
+        "</div>" +
+        '<aside class="gpa-side">' +
+        '<div class="gpa-result" id="gpaResult">' + resultInner() + "</div>" +
+        '<div class="gpa-result gpa-plan" id="gpaPlan">' + planInner() + "</div>" +
+        '<details class="gpa-scale" id="gpaScaleCard"' + (narrow ? "" : " open") + ">" + scaleCardInner() + "</details>" +
+        '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
+        '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
+        "</aside></div>" + namesDatalist()
+      );
     }
 
     function pageHtml() {
       var t = T();
-      var started = Array.isArray(S.periods) && S.periods.length > 0;
-      var body;
-      if (!started) body = chooserHtml();
-      else {
-        body =
-          '<div class="gpa-layout">' +
-          '<div class="gpa-main" id="gpaMainCol">' +
-          S.periods.map(periodHtml).join("") +
-          '<button type="button" class="gpa-add-year" id="gpaAddPeriod">＋ ' + esc(t.addPeriod) + "</button>" +
-          "</div>" +
-          '<aside class="gpa-side">' +
-          '<div class="gpa-result" id="gpaResult">' + resultInner() + "</div>" +
-          '<div class="gpa-result gpa-plan" id="gpaPlan">' + planInner() + "</div>" +
-          '<details class="gpa-scale" id="gpaScaleCard"' + (window.matchMedia && window.matchMedia("(max-width: 860px)").matches ? "" : " open") + ">" + scaleCardInner() + "</details>" +
-          '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
-          "</aside></div>" + namesDatalist();
-      }
+      var body = view === "scale" ? scaleViewHtml() : view === "start" ? startViewHtml() : sheetViewHtml();
       return (
-        '<section class="panel gpa-page" id="gpaPage">' +
+        '<section class="panel gpa-page" id="gpaPage" data-view="' + view + '">' +
         '<div class="gpa-print-head"><b>' + esc(t.printTitle) + "</b> · " + esc(t.printedOn) + " " + esc(new Date().toISOString().slice(0, 10)) + " · " + esc(t.footnote) + "</div>" +
         "<h2>" + esc(t.title) + "</h2>" +
         '<p class="hint">' + esc(t.hint) + "</p>" +
+        tabsHtml() +
         body +
         "</section>"
       );
@@ -455,11 +575,17 @@
       }
       (S.periods || []).forEach(function (p) {
         var head = root.querySelector('.gpa-year[data-period="' + p.id + '"] .gpa-year-head');
-        if (!head) return;
-        var meta = head.querySelector(".gpa-year-meta"), g = head.querySelector(".gpa-year-gpa");
-        var tmp3 = document.createElement("div"); tmp3.innerHTML = periodHeadInner(p);
-        if (meta) meta.textContent = tmp3.querySelector(".gpa-year-meta").textContent;
-        if (g) g.textContent = tmp3.querySelector(".gpa-year-gpa").textContent;
+        if (head) {
+          var tmp3 = document.createElement("div"); tmp3.innerHTML = periodHeadInner(p);
+          ["gpa-year-meta", "gpa-year-gpa"].forEach(function (c) {
+            var a = head.querySelector("." + c), b = tmp3.querySelector("." + c);
+            if (a && b) a.textContent = b.textContent;
+          });
+        }
+        p.terms.forEach(function (tm) {
+          var th = root.querySelector('.gpa-term[data-term="' + tm.id + '"] .gpa-term-head');
+          if (th) th.innerHTML = termHeadInner(tm);
+        });
       });
       if (rowId) {
         var f = findRow(rowId);
@@ -503,7 +629,7 @@
 
     function repaintScaleCard() {
       var card = root && root.querySelector("#gpaScaleCard");
-      if (card) card.innerHTML = scaleCardInner();
+      if (card) card.innerHTML = view === "sheet" ? scaleCardInner() : scaleTableHtml() + card.querySelector(".wt").outerHTML;
       // Letter dropdowns list the scale's letters, so they follow it too.
       if (S.gradeMode === "letter") {
         allRows().forEach(function (r) {
@@ -555,6 +681,8 @@
 
     /* ---------- events ---------- */
 
+    function repaint() { render(root.parentNode, view); }
+
     function bind(section) {
       section.addEventListener("input", function (e) {
         var el = e.target;
@@ -597,11 +725,17 @@
 
       section.addEventListener("click", function (e) {
         var t = T();
+        var tab = e.target.closest("[data-gpa-tab]");
+        if (tab) { go(tab.getAttribute("data-gpa-tab")); return; }
+        var goBtn = e.target.closest("[data-gpa-go]");
+        if (goBtn) { go(goBtn.getAttribute("data-gpa-go")); return; }
         var start = e.target.closest("[data-gpa-start]");
         if (start) {
+          if (started() && !window.confirm(t.startReplaceConfirm)) return;
           if (start.getAttribute("data-gpa-start") === "preset") applyPreset(); else applyBlank();
-          save(); render(root.parentNode); return;
+          save(); go("sheet"); return;
         }
+        if (e.target.closest("[data-scale-edit]")) { openScaleEditor(); return; }
         var ac = e.target.closest('[data-f="ac"]');
         if (ac) {
           var tr = ac.closest("[data-row]");
@@ -616,7 +750,7 @@
         if (rmRow) {
           var fr = findRow(rmRow.getAttribute("data-rm-row"));
           if (!fr) return;
-          fr.p.rows.splice(fr.i, 1);
+          fr.tm.rows.splice(fr.i, 1);
           save();
           var trEl = rmRow.closest("tr");
           if (trEl) trEl.remove();
@@ -624,12 +758,12 @@
         }
         var addRow = e.target.closest("[data-add-row]");
         if (addRow) {
-          var p = findPeriod(addRow.getAttribute("data-add-row"));
-          if (!p) return;
-          var r = blankRow();
-          p.rows.push(r);
+          var ft = findTerm(addRow.getAttribute("data-add-row"));
+          if (!ft) return;
+          var r = blankRow(!ft.tm.key);
+          ft.tm.rows.push(r);
           save();
-          var tb = root.querySelector('.gpa-year[data-period="' + p.id + '"] tbody');
+          var tb = root.querySelector('.gpa-term[data-term="' + ft.tm.id + '"] tbody');
           if (tb) {
             tb.insertAdjacentHTML("beforeend", rowHtml(r));
             var inp = tb.querySelector('tr[data-row="' + r.id + '"] input[data-f="name"]');
@@ -637,21 +771,32 @@
           }
           refresh(); return;
         }
+        var sp = e.target.closest("[data-split]");
+        if (sp) {
+          var psp = findPeriod(sp.getAttribute("data-split"));
+          if (!psp) return;
+          if (psp.terms.length > 1) { if (!window.confirm(t.mergeTermsConfirm)) return; mergePeriod(psp); }
+          else splitPeriod(psp);
+          save(); repaint(); return;
+        }
         var rmP = e.target.closest("[data-rm-period]");
         if (rmP) {
           var pp = findPeriod(rmP.getAttribute("data-rm-period"));
           if (!pp) return;
-          var filled = pp.rows.filter(function (r) { return rowName(r) || r.grade; }).length;
+          var filled = periodRows(pp).filter(function (r) { return rowName(r) || r.grade; }).length;
           if (filled && !window.confirm(fill(t.removePeriodConfirm, { n: filled }))) return;
           S.periods = S.periods.filter(function (x) { return x !== pp; });
           if (!S.periods.length) S.periods = null;
-          save(); render(root.parentNode); return;
+          save(); repaint(); return;
         }
         if (e.target.closest("#gpaAddPeriod")) {
           var last = S.periods[S.periods.length - 1];
           var g = last && typeof last.grade === "number" && last.grade < 12 ? last.grade + 1 : null;
-          S.periods.push({ id: uid(), grade: g, name: "", rows: [blankRow()] });
-          save(); render(root.parentNode);
+          var splitLike = last && last.terms.length > 1;
+          S.periods.push({ id: uid(), grade: g, name: "", terms: splitLike
+            ? [{ id: uid(), key: "s1", rows: [blankRow(false)] }, { id: uid(), key: "s2", rows: [blankRow(false)] }]
+            : [{ id: uid(), key: null, rows: [blankRow(true)] }] });
+          save(); repaint();
           var nm = root.querySelector(".gpa-year:last-of-type .gpa-period-name");
           if (nm && g === null) nm.focus();
           return;
@@ -660,23 +805,25 @@
         if (e.target.closest("#gpaClear")) {
           if (!window.confirm(t.clearConfirm)) return;
           S.periods = null; S.prior = { gpa: "", w: "" }; S.plan = { target: "", remain: "" };
-          save(); render(root.parentNode); return;
+          save(); go("start"); repaint(); return;
         }
-        if (e.target.closest("#gpaScaleEdit")) { openScaleEditor(); return; }
         var set = e.target.closest("[data-set]");
         if (set) {
           var k = set.getAttribute("data-set"), v = set.getAttribute("data-val");
           if (k === "gradeMode" && (v === "letter" || v === "percent")) S.gradeMode = v;
           if (k === "unit" && (v === "credits" || v === "periods")) S.unit = v;
-          save(); render(root.parentNode);
+          save(); repaint();
         }
       });
     }
 
     /* ---------- public ---------- */
 
-    function render(container) {
+    // sub: "" | "start" | "sheet" from the URL. A bare #/gpa shows the sheet
+    // when one exists, otherwise the scale (step one).
+    function render(container, sub) {
       load();
+      view = sub === "start" ? "start" : sub === "sheet" ? "sheet" : sub === "scale" ? "scale" : (started() ? "sheet" : "scale");
       container.innerHTML = pageHtml();
       root = container.querySelector("#gpaPage");
       bind(root);
@@ -684,8 +831,7 @@
 
     return {
       render: render,
-      // For tests and the app: whether the tool has anything saved.
-      hasData: function () { load(); return Array.isArray(S.periods) && S.periods.length > 0; },
+      hasData: function () { load(); return started(); },
     };
   };
 })();

@@ -833,8 +833,8 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-scale summary .req-caret { width: 20px; height: 20px; }
 .gpa-scale[open] summary .req-caret { transform: rotate(90deg); }
 .gpa-scale table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-.gpa-scale th { text-align: right; font-weight: 600; color: var(--muted); font-size: 0.74rem; padding: 8px 12px 4px; }
-.gpa-scale td { text-align: right; padding: 5px 12px; border-top: 1px solid #edf0f5; font-variant-numeric: tabular-nums; }
+.gpa-scale th { text-align: right; font-weight: 600; color: var(--muted); font-size: 0.72rem; padding: 8px 10px 4px; white-space: nowrap; }
+.gpa-scale td { text-align: right; padding: 5px 10px; border-top: 1px solid #edf0f5; font-variant-numeric: tabular-nums; }
 .gpa-scale th:first-child, .gpa-scale td:first-child { text-align: left; padding-left: 16px; }
 .gpa-scale td:last-child, .gpa-scale th:last-child { padding-right: 16px; }
 .gpa-scale td.cp { font-weight: 600; }
@@ -843,13 +843,35 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-link:hover { text-decoration: underline; }
 .gpa-set { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 0.84rem; color: var(--muted); }
 .gpa-note { color: var(--muted); font-size: 0.8rem; margin: 12px 2px 0; }
-/* First visit: the scale, then the two starting points. */
+/* The page's three tabs — scale, starting point, sheet — each its own URL so
+   Back walks them. Same look as the wizard stepper, reduced. */
+.gpa-tabs { display: flex; align-items: center; gap: 4px; margin: -12px 0 22px; flex-wrap: wrap; }
+.gpa-tab {
+  display: inline-flex; align-items: center; gap: 8px; border: none; background: none;
+  color: var(--muted); font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  padding: 6px 10px 6px 6px; border-radius: 999px;
+}
+.gpa-tab .n { width: 24px; height: 24px; border-radius: 50%; background: #e3e8f0; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
+.gpa-tab:hover { color: var(--accent-dark); background: var(--accent-soft); }
+.gpa-tab.active { color: var(--accent); }
+.gpa-tab.active .n { background: var(--accent); color: #fff; }
+.gpa-tab.dim { opacity: 0.6; }
+.gpa-tab-sep { color: var(--line); }
+/* Tab 1 and 2 */
 .gpa-start { max-width: 760px; }
-.gpa-start-step { margin: 22px 0 6px; font-size: 1rem; font-weight: 700; }
-.gpa-start-step:first-child { margin-top: 0; }
-.gpa-start-hint { color: var(--muted); font-size: 0.9rem; margin: 0 0 12px; }
+.gpa-start-hint { color: var(--muted); font-size: 0.92rem; margin: 0 0 14px; line-height: 1.6; }
 .gpa-scale-start { max-width: 520px; }
+.gpa-start-actions { margin: 18px 0 0; }
+.gpa-levels { color: var(--muted); font-size: 0.8rem; line-height: 1.6; margin: 12px 2px 0; }
+.gpa-replace { color: var(--err); font-size: 0.88rem; margin: 0 0 14px; }
+/* Semesters inside a year */
+.gpa-term-head { display: flex; align-items: baseline; gap: 12px; padding: 8px 16px 2px; }
+.gpa-term + .gpa-term .gpa-term-head { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 2px; }
+.gpa-term-name { font-weight: 700; font-size: 0.9rem; }
+.gpa-term-gpa { margin-left: auto; font-size: 0.84rem; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+.gpa-split { font-size: 0.8rem; font-weight: 600; }
 .gpa-start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.gpa-start .gpa-scale .wt { border-top: 1px solid var(--line); }
 .gpa-start-card { padding: 22px 22px; font: inherit; color: var(--ink); }
 .gpa-start-card .choice-title { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
 .gpa-start-card .choice-desc { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
@@ -878,12 +900,13 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
   .gpa-table td.gpa-c-pts { display: none; }
   .gpa-table td:last-child { position: absolute; right: 8px; top: 8px; }
   .gpa-period-name { max-width: 40%; }
-  .gpa-year-meta { display: none; }
+  .gpa-year-meta, .gpa-split { display: none; }
+  .gpa-tab { font-size: 0.84rem; }
   .gpa-plan-row { grid-template-columns: auto 1fr; }
 }
 /* Print: the sheet and the results, nothing else. */
 @media print {
-  .site-header, .stepper, .cart-bar, .gpa-actions, .gpa-add, .gpa-add-year, .gpa-rm, .gpa-set, .gpa-scale .wt, .gpa-prior, .gpa-plan, .hint { display: none !important; }
+  .site-header, .stepper, .cart-bar, .gpa-tabs, .gpa-actions, .gpa-add, .gpa-add-year, .gpa-rm, .gpa-split, .gpa-set, .gpa-scale .wt, .gpa-prior, .gpa-plan, .hint { display: none !important; }
   .gpa-print-head { display: block; font-size: 0.85rem; color: #333; margin: 0 0 10px; }
   .gpa-layout { grid-template-columns: 1fr; }
   .gpa-year, .gpa-result, .gpa-scale { box-shadow: none; break-inside: avoid; }
