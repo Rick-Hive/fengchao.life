@@ -442,12 +442,13 @@
       // The total counts every course on the sheet, graded or not, and says
       // nothing more — a "still ungraded" line beneath it confused (Rick,
       // 2026-09-17); the arithmetic under the GPA already shows the graded weight.
-      // Under 课时/周 the tile still reports CREDITS, converted (÷10): weekly
-      // periods only mean something within one semester, and summing them
-      // across eight gave "每周总课时 285" (Rick, 2026-09-17: "definitely
-      // incorrect"). The semester head keeps the real weekly load.
-      var total = a.w + a.inProg;
-      tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalCreditsConv : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(S.unit === "periods" ? total / 10 : total)) + "</div></div>";
+      // Under 课时/周 there is no total tile at all: weekly periods only mean
+      // something within one semester (the block head shows them), and a sum
+      // across eight — "每周总课时 285" — is not a figure anyone uses (Rick,
+      // 2026-09-17: "definitely incorrect", then "not necessary to display").
+      if (S.unit !== "periods") {
+        tiles += '<div><div class="k">' + esc(t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w + a.inProg)) + "</div></div>";
+      }
       var bars = (S.periods || []).map(function (p) {
         var pa = agg(p.rows), g = gpaOf(pa.cp, pa.wG);
         var pct = g === null ? 0 : Math.max(0, Math.min(100, g / Math.max(scaleMax(), 4) * 100));

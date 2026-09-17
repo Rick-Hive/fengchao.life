@@ -672,12 +672,10 @@ setTimeout(() => {
       click(pick('[data-toggle="unit"]'));
       check("the column head is a switch: flipped to 课时/周, a semester's 0.5 credit reads as 5 periods a week, the GPA does not move",
         [doc.querySelector(".gpa-table th.gpa-col-cr .gpa-switch").getAttribute("aria-checked"), doc.querySelector(".gpa-table th.gpa-col-cr .lab.on").textContent, Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaMain").textContent], ["true", "课时/周", "5", "3.57"]);
-      const creditsBefore = doc.getElementById("gpaCredits").textContent;
-      check("under 课时/周 the total tile still reports credits, converted — weekly periods summed over eight semesters (\"每周总课时 285\") meant nothing (Rick, 2026-09-17)",
-        [doc.getElementById("gpaCredits").previousElementSibling.textContent, /折算/.test(doc.getElementById("gpaCredits").previousElementSibling.textContent), doc.querySelector(".gpa-year-meta").textContent.indexOf("课时/周") !== -1],
-        ["总学分（按课时折算）", true, true]);
+      check("under 课时/周 there is no total tile — weekly periods summed over eight semesters (\"每周总课时 285\") is not a figure anyone uses (Rick, 2026-09-17); the semester head keeps its weekly load",
+        [doc.getElementById("gpaCredits"), doc.querySelector(".gpa-year-meta").textContent.indexOf("课时/周") !== -1], [null, true]);
       click(pick('[data-toggle="unit"]'));
-      check("...and back: 5 periods/week → 0.5 credit, the same credit total either way", [Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaCredits").textContent === creditsBefore], ["0.5", true]);
+      check("...and back: 5 periods/week → 0.5 credit, and the 总学分 tile returns", [Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaCredits").textContent], ["0.5", "24.25"]);   // 27 − the removed 12 下 (3.25) + the added blank row (0.5)
       check("no settings left in the sidebar scale card", doc.querySelectorAll("#gpaScaleCard [data-toggle]").length, 0);
       check("the credit ⇄ periods rule sits under the table it explains, not in the sidebar (Rick, 2026-09-17)",
         [/5 节.*0\.5 学分.*4 节 = 0\.4/.test(doc.querySelector(".gpa-main .gpa-unit-note").textContent),
