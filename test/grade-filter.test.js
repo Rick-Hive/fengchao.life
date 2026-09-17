@@ -657,6 +657,8 @@ setTimeout(() => {
       click(pick('[data-toggle="unit"]'));
       check("...and back: 5 periods/week → 0.5 credit", Y1().querySelector('tr[data-row] [data-f="w"]').value, "0.5");
       check("no settings left in the sidebar scale card", doc.querySelectorAll("#gpaScaleCard [data-toggle]").length, 0);
+      check("the sidebar explains the credit ⇄ periods rule as our default, not a school policy",
+        Array.from(doc.querySelectorAll(".gpa-side .gpa-levels")).some(p => /5 节.*0\.5 学分.*4 节 = 0\.4/.test(p.textContent)), true);
       // The course field's suggestions: the page's own list of Airtable subjects.
       const nameIn = doc.querySelector('tr[data-row] [data-f="name"]');
       setVal(nameIn, "");   // an empty field lists every subject; text filters it

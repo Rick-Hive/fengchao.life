@@ -166,6 +166,11 @@ window.I18N = {
       needStart: "还没有课表。请先选择起点。",
       next: "下一步",
       levelsNote: "CP = College Prep 大学预备（常规）课程；荣誉 = Honors 荣誉课程；AP = Advanced Placement 大学先修课程；双学分 = Dual Enrollment 高中与大学双学分课程。",
+      // Our own rule, not the common calculators' (they weight by credits only):
+      // one course, five periods a week, one semester = 0.5 credit; other
+      // period counts in proportion. An estimate for the credit total; the GPA
+      // itself is unaffected by the unit.
+      unitNote: "学分与每周课时的默认换算：一门课每周上 5 节、持续一学期，计 0.5 学分；其他节数按比例折算（如 4 节 = 0.4 学分）。这只影响学分合计，不影响 GPA；学校的学分规定若不同，请直接按学分输入。",
       startPreset: "标准四年课表",
       startPresetDesc: "美国大学预备的常见四年课程序列，9–12 年级共 8 个学期，每学期 6–8 门、各计半学分。课程名称、学分、级别都可以改。",
       startBlank: "空白开始",
@@ -391,6 +396,7 @@ window.I18N = {
       needStart: "No sheet yet — choose a starting point first.",
       next: "Next",
       levelsNote: "CP = College Prep (regular); Honors; AP = Advanced Placement; Dual Enrollment = high-school courses earning college credit.",
+      unitNote: "Default conversion between credits and periods per week: a course meeting five times a week for one semester earns 0.5 credit; other counts in proportion (4 periods = 0.4). This affects only the credit total, never the GPA; if your school awards credit differently, enter credits directly.",
       startPreset: "Standard four-year plan",
       startPresetDesc: "The common US college-prep sequence: eight semesters for grades 9–12, 6–8 courses each at half a credit. Names, credits and levels are all editable.",
       startBlank: "Start blank",

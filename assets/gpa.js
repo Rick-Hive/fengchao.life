@@ -544,6 +544,7 @@
         '<div class="gpa-result gpa-plan" id="gpaPlan">' + planInner() + "</div>" +
         '<details class="gpa-scale" id="gpaScaleCard"' + (narrow ? "" : " open") + ">" + scaleCardInner() + "</details>" +
         '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
+        '<p class="gpa-levels">' + esc(t.unitNote) + "</p>" +
         '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
         "</aside></div>"
       );
