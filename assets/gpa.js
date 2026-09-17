@@ -445,8 +445,6 @@
         '<input class="gpa-in" type="text" inputmode="decimal" data-prior="gpa" value="' + esc(S.prior.gpa) + '" placeholder="' + esc(t.priorGpa) + '" aria-label="' + esc(t.prior + " " + t.priorGpa) + '" />' +
         '<input class="gpa-in" type="text" inputmode="decimal" data-prior="w" value="' + esc(S.prior.w) + '" placeholder="' + esc(t.priorCredits) + '" aria-label="' + esc(t.prior + " " + t.priorCredits) + '" /></div>' +
         (bars ? '<div class="gpa-years">' + bars + "</div>" : "") +
-        '<div class="gpa-student"><label for="gpaSchool">' + esc(t.schoolLabel) + '</label><input class="gpa-in" id="gpaSchool" type="text" maxlength="120" data-student="school" value="' + esc(S.school || "") + '" />' +
-        '<label for="gpaStudent">' + esc(t.studentLabel) + '</label><input class="gpa-in" id="gpaStudent" type="text" maxlength="80" data-student="student" value="' + esc(S.student || "") + '" /></div>' +
         '<div class="gpa-actions"><button type="button" class="btn btn-ghost" id="gpaPrint">' + esc(t.print) + "</button>" +
         '<button type="button" class="btn btn-ghost" id="gpaClear">' + esc(t.clear) + "</button></div>"
       );
@@ -527,6 +525,12 @@
         '<p class="gpa-sheet-note">' + esc(t.sheetHint) + "</p>" +
         '<div class="gpa-layout">' +
         '<div class="gpa-main" id="gpaMainCol">' +
+        // Who the sheet is for: school / institution and student, typed here,
+        // printed in the header. Editable in place (Rick, 2026-09-17).
+        '<div class="gpa-who">' +
+        '<label><span>' + esc(t.printSchool) + '</span><input class="gpa-in" id="gpaSchool" type="text" maxlength="120" data-student="school" value="' + esc(S.school || "") + '" placeholder="' + esc(t.schoolLabel) + '" /></label>' +
+        '<label><span>' + esc(t.printStudent) + '</span><input class="gpa-in" id="gpaStudent" type="text" maxlength="80" data-student="student" value="' + esc(S.student || "") + '" placeholder="' + esc(t.studentLabel) + '" /></label>' +
+        "</div>" +
         S.periods.map(periodHtml).join("") +
         '<button type="button" class="gpa-add-year" id="gpaAddPeriod">＋ ' + esc(t.addPeriod) + "</button>" +
         "</div>" +
@@ -548,7 +552,7 @@
       return (
         '<img src="/assets/logo-mark.png" alt="" width="64" height="64" />' +
         '<div class="gpa-print-brand"><b>蜂巢</b><span>fengchao.life</span></div>' +
-        '<div class="gpa-print-title"><h1>' + esc(t.printTitle) + "</h1><div>" + esc(t.printUnofficial) + "</div></div>" +
+        '<div class="gpa-print-title"><h1>' + esc(t.printTitle) + "</h1></div>" +
         '<div class="gpa-print-meta">' +
         (S.school ? "<div>" + esc(t.printSchool) + "：" + esc(S.school) + "</div>" : "") +
         (S.student ? "<div>" + esc(t.printStudent) + "：" + esc(S.student) + "</div>" : "") +
