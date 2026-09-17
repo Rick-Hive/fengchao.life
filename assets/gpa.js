@@ -57,7 +57,7 @@
         scale: clone(window.GPA_SCALE_DEFAULT || []),
         periods: null,           // null = nothing started yet
         prior: { gpa: "", w: "" },
-        plan: { target: "", remain: "" },
+        student: "",             // optional, printed on the sheet
       };
     }
 
@@ -106,7 +106,7 @@
         });
       }
       if (r.prior && typeof r.prior === "object") S.prior = { gpa: String(r.prior.gpa || ""), w: String(r.prior.w || "") };
-      if (r.plan && typeof r.plan === "object") S.plan = { target: String(r.plan.target || ""), remain: String(r.plan.remain || "") };
+      if (typeof r.student === "string") S.student = r.student.slice(0, 80);
       return S;
     }
 
@@ -200,12 +200,15 @@
       return a;
     }
 
-    // Cumulative = every period, plus the optional prior record folded in as
-    // one block of weight at its own GPA (it has no level or subject, so it
-    // enters all three GPAs alike).
+    // Cumulative = every period, plus the optional prior record (a previous
+    // school's GPA over so many credits, e.g. a transfer) folded in as one
+    // block of weight at its own GPA. A transcript's total is always in
+    // credits, so the box is credits whatever the sheet's unit; under 课时/周
+    // it is scaled the same way as the rows (0.5 credit = 5 periods).
     function cumulative() {
       var a = agg(allRows());
       var pg = parseFloat(S.prior.gpa), pw = parseFloat(S.prior.w);
+      if (S.unit === "periods") pw = pw * 10;
       if (isFinite(pg) && isFinite(pw) && pw > 0) {
         a.w += pw; a.wG += pw; a.cp += pg * pw; a.lvl += pg * pw;
       }
@@ -378,8 +381,10 @@
       var t = T();
       return '<thead><tr>' +
         "<th>" + esc(t.colCourse) + "</th>" +
-        '<th class="gpa-col-cr">' + headSwitch("unit", { val: "credits", label: t.settingCredits, title: t.colWeight }, { val: "periods", label: t.settingPeriods, title: t.colPeriods }) + "</th>" +
-        '<th class="gpa-col-gr">' + headSwitch("gradeMode", { val: "letter", label: t.settingLetter, title: t.colGrade }, { val: "percent", label: t.settingPercent, title: t.colGrade }) + "</th>" +
+        '<th class="gpa-col-cr">' + headSwitch("unit", { val: "credits", label: t.settingCredits, title: t.colWeight }, { val: "periods", label: t.settingPeriods, title: t.colPeriods }) +
+          '<span class="gpa-print-only">' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + "</span></th>" +
+        '<th class="gpa-col-gr">' + headSwitch("gradeMode", { val: "letter", label: t.settingLetter, title: t.colGrade }, { val: "percent", label: t.settingPercent, title: t.colGrade }) +
+          '<span class="gpa-print-only">' + esc(t.colGrade) + "</span></th>" +
         '<th class="gpa-col-lv">' + esc(t.colLevel) + "</th>" +
         '<th class="gpa-col-ac">' + esc(t.colType) + "</th>" +
         '<th class="gpa-col-pt">' + esc(t.colPoints) + "</th><th></th>" +
@@ -390,7 +395,7 @@
       var t = T();
       var a = agg(p.rows);
       var meta = a.w > 0
-        ? fill(t.periodMeta, { w: fw(a.w), unit: unitLabel(), n: p.rows.length })
+        ? fill(t.periodMeta, { w: fw(a.w + a.inProg), unit: unitLabel(), n: p.rows.length })
         : fill(t.periodNoGrades, { w: fw(a.inProg), unit: unitLabel() });
       return (
         '<input class="gpa-period-name" type="text" data-period-name="' + esc(p.id) + '" value="' + esc(periodName(p)) + '" placeholder="' + esc(t.periodNamePlaceholder) + '" />' +
@@ -419,7 +424,10 @@
       if (we !== null && un !== null && Math.abs(we - un) > 0.0005) {
         tiles += '<div><div class="k">' + esc(t.weighted) + '</div><div class="v" id="gpaWeighted">' + esc(f2(we)) + "</div></div>";
       }
-      tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w)) + "</div></div>";
+      // The total counts every course on the sheet, graded or not — "0 credits,
+      // 10 in progress" read as a contradiction (Rick, 2026-09-17); the line
+      // beneath says how much of it still has no grade.
+      tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w + a.inProg)) + "</div></div>";
       var bars = (S.periods || []).map(function (p) {
         var pa = agg(p.rows), g = gpaOf(pa.cp, pa.wG);
         var pct = g === null ? 0 : Math.max(0, Math.min(100, g / Math.max(scaleMax(), 4) * 100));
@@ -433,31 +441,11 @@
         (a.inProg > 0 ? '<p class="gpa-sub">' + esc(fill(t.inProgress, { w: fw(a.inProg), unit: unitLabel() })) + "</p>" : "") +
         '<div class="gpa-prior"><span>' + esc(t.prior) + "</span>" +
         '<input class="gpa-in" type="text" inputmode="decimal" data-prior="gpa" value="' + esc(S.prior.gpa) + '" placeholder="' + esc(t.priorGpa) + '" aria-label="' + esc(t.prior + " " + t.priorGpa) + '" />' +
-        '<input class="gpa-in" type="text" inputmode="decimal" data-prior="w" value="' + esc(S.prior.w) + '" placeholder="' + esc(unitLabel()) + '" aria-label="' + esc(t.prior + " " + unitLabel()) + '" /></div>' +
+        '<input class="gpa-in" type="text" inputmode="decimal" data-prior="w" value="' + esc(S.prior.w) + '" placeholder="' + esc(t.priorCredits) + '" aria-label="' + esc(t.prior + " " + t.priorCredits) + '" /></div>' +
         (bars ? '<div class="gpa-years">' + bars + "</div>" : "") +
+        '<div class="gpa-student"><label for="gpaStudent">' + esc(t.studentLabel) + '</label><input class="gpa-in" id="gpaStudent" type="text" maxlength="80" data-student="1" value="' + esc(S.student || "") + '" /></div>' +
         '<div class="gpa-actions"><button type="button" class="btn btn-ghost" id="gpaPrint">' + esc(t.print) + "</button>" +
         '<button type="button" class="btn btn-ghost" id="gpaClear">' + esc(t.clear) + "</button></div>"
-      );
-    }
-
-    function planInner() {
-      var t = T();
-      var a = cumulative();
-      var target = parseFloat(S.plan.target), remain = parseFloat(S.plan.remain);
-      var outHtml = "";
-      if (isFinite(target) && isFinite(remain) && remain > 0) {
-        var need = (target * (a.wG + remain) - a.cp) / remain;
-        if (need <= 0) outHtml = esc(t.planDone);
-        else if (need > scaleMax()) outHtml = esc(fill(t.planOver, { p: need.toFixed(2), max: scaleMax().toFixed(1) }));
-        else outHtml = esc(fill(t.planOut, { p: " " })).replace(" ", "<b>" + esc(need.toFixed(2)) + "</b>");
-      }
-      return (
-        "<h3>" + esc(t.planTitle) + "</h3>" +
-        '<div class="gpa-plan-row"><label for="gpaPlanTarget">' + esc(t.planTarget) + "</label>" +
-        '<input class="gpa-in" id="gpaPlanTarget" type="text" inputmode="decimal" data-plan="target" value="' + esc(S.plan.target) + '" />' +
-        '<label for="gpaPlanRemain">' + esc(fill(t.planRemain, { unit: unitLabel() })) + "</label>" +
-        '<input class="gpa-in" id="gpaPlanRemain" type="text" inputmode="decimal" data-plan="remain" value="' + esc(S.plan.remain) + '" /></div>' +
-        (outHtml ? '<p class="gpa-plan-out">' + outHtml + "</p>" : "")
       );
     }
 
@@ -541,12 +529,26 @@
         "</div>" +
         '<aside class="gpa-side">' +
         '<div class="gpa-result" id="gpaResult">' + resultInner() + "</div>" +
-        '<div class="gpa-result gpa-plan" id="gpaPlan">' + planInner() + "</div>" +
         '<details class="gpa-scale" id="gpaScaleCard"' + (narrow ? "" : " open") + ">" + scaleCardInner() + "</details>" +
         '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
         '<p class="gpa-levels">' + esc(t.unitNote) + "</p>" +
         '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
+        '<p class="gpa-print-only gpa-print-foot">' + esc(t.printSource) + "</p>" +
         "</aside></div>"
+      );
+    }
+
+    // Print header: the mark, the wordmark, the sheet's title, the student
+    // and the date — a formal top for a page that is otherwise the sheet.
+    function printHeadInner() {
+      var t = T();
+      return (
+        '<img src="/assets/logo-mark.png" alt="" width="64" height="64" />' +
+        '<div class="gpa-print-brand"><b>蜂巢</b><span>fengchao.life</span></div>' +
+        '<div class="gpa-print-title"><h1>' + esc(t.printTitle) + "</h1><div>" + esc(t.printUnofficial) + "</div></div>" +
+        '<div class="gpa-print-meta">' +
+        (S.student ? "<div>" + esc(t.printStudent) + "：" + esc(S.student) + "</div>" : "") +
+        "<div>" + esc(t.printedOn) + "：" + esc(new Date().toISOString().slice(0, 10)) + "</div></div>"
       );
     }
 
@@ -555,7 +557,7 @@
       var body = view === "scale" ? scaleViewHtml() : view === "start" ? startViewHtml() : sheetViewHtml();
       return (
         '<section class="panel gpa-page" id="gpaPage" data-view="' + view + '">' +
-        '<div class="gpa-print-head"><b>' + esc(t.printTitle) + "</b> · " + esc(t.printedOn) + " " + esc(new Date().toISOString().slice(0, 10)) + " · " + esc(t.footnote) + "</div>" +
+        '<div class="gpa-print-head">' + printHeadInner() + "</div>" +
         "<h2>" + esc(t.title) + "</h2>" +
         '<p class="hint">' + esc(t.hint) + "</p>" +
         tabsHtml() +
@@ -582,15 +584,6 @@
             if (a && b) a.innerHTML = b.innerHTML;
           });
         }
-      }
-      var plan = root.querySelector("#gpaPlan");
-      if (plan) {
-        var out = plan.querySelector(".gpa-plan-out");
-        var tmp2 = document.createElement("div"); tmp2.innerHTML = planInner();
-        var out2 = tmp2.querySelector(".gpa-plan-out");
-        if (out && out2) out.innerHTML = out2.innerHTML;
-        else if (out && !out2) out.remove();
-        else if (!out && out2) plan.appendChild(out2);
       }
       (S.periods || []).forEach(function (p) {
         var head = root.querySelector('.gpa-year[data-period="' + p.id + '"] .gpa-year-head');
@@ -760,8 +753,12 @@
         }
         var pr = el.getAttribute && el.getAttribute("data-prior");
         if (pr) { S.prior[pr] = el.value; save(); refresh(); return; }
-        var pl = el.getAttribute && el.getAttribute("data-plan");
-        if (pl) { S.plan[pl] = el.value; save(); refresh(); }
+        var st = el.getAttribute && el.getAttribute("data-student");
+        if (st) {
+          S.student = el.value.slice(0, 80); save();
+          var ph = root.querySelector(".gpa-print-head");
+          if (ph) ph.innerHTML = printHeadInner();
+        }
       });
 
       section.addEventListener("change", function (e) {
@@ -856,7 +853,7 @@
         if (e.target.closest("#gpaPrint")) { window.print(); return; }
         if (e.target.closest("#gpaClear")) {
           confirmModal(t.clearConfirm, function () {
-            S.periods = null; S.prior = { gpa: "", w: "" }; S.plan = { target: "", remain: "" };
+            S.periods = null; S.prior = { gpa: "", w: "" };
             save(); go("start"); repaint();
           });
           return;
@@ -874,7 +871,6 @@
             var f = v === "periods" ? 10 : 1 / 10;
             var conv = function (x) { var n = parseFloat(x); if (!isFinite(n)) return x; return v === "periods" ? String(Math.round(n * f * 100) / 100) : (Math.round(n * f * 100) / 100).toFixed(2).replace(/0$/, ""); };
             allRows().forEach(function (r) { r.w = conv(r.w); });
-            S.prior.w = conv(S.prior.w); S.plan.remain = conv(S.plan.remain);
             S.unit = v;
           }
           save(); repaint();
