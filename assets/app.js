@@ -216,6 +216,9 @@
       // used to jump to a saved sheet, which read as the first step missing
       // (Rick, 2026-09-16); the sheet is one tab click away.
       if (state.page === "gpa" && !state.sub) state.sub = "scale";
+      // The middle step (/gpa/start, 选择起点) was retired on 2026-09-17; an
+      // old link to it opens the sheet, and the address follows.
+      if (state.page === "gpa" && state.sub === "start") state.sub = "sheet";
       return;
     }
     state.page = null; state.sub = "";

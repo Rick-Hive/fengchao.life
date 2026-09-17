@@ -159,15 +159,9 @@ window.I18N = {
       // Terse on purpose, Rick's wording (2026-09-16), after gpacalculator.net.
       hint: "成绩可按字母等级或百分制输入；评分标准可自行修改；非学术类课程不参与 GPA 计算；数据可打印，不会上传存档。",
       sheetHint: "非学术课程（如圣经、艺术、体育、音乐）一般采用形成性评估，不参与 G.P.A. 计算 —— 在“类别”中标为非学术即可，其学分仍计入总学分。",
-      tabs: ["评分标准", "选择起点", "课程与成绩"],
+      tabs: ["评分标准", "课程与成绩"],
       startStep1Hint: "默认为常见的美国高中标准（A 从 93 分起，荣誉课 +0.5，双学分课 / 大学先修课 +1.0）。如学校采用不同标准，请先点“编辑”。确认后进入下一步。",
-      startStep2Hint: "选择一个起点。课程名称、学分、级别之后都可以改。",
-      startStep2HintAgain: "已有一张课表，所填内容都在。",
-      continueSheet: "继续填写当前课表",
-      continueSheetMeta: "{p} 个学期 · {n} 门课程",
-      restartNote: "如需重新开始，请在课表页点击「清空」，再回到这里选择起点。",
       scope: "仅供高中课程",
-      needStart: "还没有课表。请先选择起点。",
       next: "下一步",
       levelsNote: "普通课 = CP（College Prep）大学预备课；荣誉课 = Honors；双学分课 = Dual Enrollment 高中与大学双学分课；大学先修课 = AP（Advanced Placement）。",
       // Our own rule, not the common calculators' (they weight by credits only):
@@ -175,10 +169,6 @@ window.I18N = {
       // period counts in proportion. An estimate for the credit total; the GPA
       // itself is unaffected by the unit.
       unitNote: "学分与每周课时的默认换算：一门课每周上 5 节、持续一学期，计 0.5 学分；其他节数按比例折算（如 4 节 = 0.4 学分）。这只影响学分合计，不影响 GPA；学校的学分规定若不同，请直接按学分输入。",
-      startPreset: "标准四年课表",
-      startPresetDesc: "面向中国家庭的常见四年课表：中英文文学与写作、数学、科学、历史与社科、圣经、体育与艺术，9–12 年级共 8 个学期，每学期 9 门、各计半学分。课程名称、学分、级别都可以改。",
-      startBlank: "空白开始",
-      startBlankDesc: "从第 1 学期开始，自己逐门添加课程。",
       gradeN: "{n} 年级",
       termFall: "上学期",
       termSpring: "下学期",
@@ -391,22 +381,12 @@ window.I18N = {
       title: "G.P.A. Calculator",
       hint: "Grades as letters or percentages; the grading scale is editable; non-academic courses are left out of the GPA; printable, nothing is uploaded.",
       sheetHint: "Non-academic courses (Bible, art, PE, music…) are usually assessed formatively and left out of the G.P.A. — mark them Other under Type; their credits still count in the total.",
-      tabs: ["Grading scale", "Starting point", "Courses & grades"],
+      tabs: ["Grading scale", "Courses & grades"],
       startStep1Hint: "The default is the common US high-school scale (A from 93, Honors +0.5, AP / Dual Enrollment +1.0). If your school uses different cutoffs, edit it first, then continue.",
-      startStep2Hint: "Pick a starting point. Names, credits and levels can all be changed later.",
-      startStep2HintAgain: "You already have a sheet, with everything you entered.",
-      continueSheet: "Continue the current sheet",
-      continueSheetMeta: "{p} semesters · {n} courses",
-      restartNote: "To start over, use Clear on the sheet, then come back here to pick a starting point.",
       scope: "High-school courses only",
-      needStart: "No sheet yet — choose a starting point first.",
       next: "Next",
       levelsNote: "CP = College Prep (regular); Honors; AP = Advanced Placement; Dual Enrollment = high-school courses earning college credit.",
       unitNote: "Default conversion between credits and periods per week: a course meeting five times a week for one semester earns 0.5 credit; other counts in proportion (4 periods = 0.4). This affects only the credit total, never the GPA; if your school awards credit differently, enter credits directly.",
-      startPreset: "Standard four-year plan",
-      startPresetDesc: "A common four-year plan for Chinese families: Chinese and English literature and writing, maths, science, history and social studies, Bible, PE and arts — eight semesters for grades 9–12, nine courses each at half a credit. Names, credits and levels are all editable.",
-      startBlank: "Start blank",
-      startBlankDesc: "Start with Semester 1 and add courses one by one.",
       gradeN: "Grade {n}",
       termFall: "Fall",
       termSpring: "Spring",
@@ -808,62 +788,4 @@ window.GPA_SCALE_DEFAULT = [
   { g: "C-", min: 70, cp: 1.7, h: 2.2, ap: 2.7 },
   { g: "D",  min: 65, cp: 1.0, h: 1.0, ap: 1.0 },
   { g: "F",  min: 0,  cp: 0,   h: 0,   ap: 0 },
-];
-
-// The "standard four-year plan" template: the mainstream US college-prep
-// sequence, 27–28 credits over G9–G12. A starting point families overwrite,
-// NOT a CEFF requirement — the tool reads nothing from the graduation tracks.
-// ac:false marks non-academic rows (left out of the academic GPA, still in the
-// cumulative). Bible is non-academic by CEFF's decision (Rick, 2026-09-16).
-// Each row: [en, zh, credits, academic]
-window.GPA_PRESET = [
-  // For Chinese families, not a copy of a US transcript (Rick, 2026-09-17:
-  // "这是面向中国学校的，所以不能完全照搬美国的学科"): Chinese literature and
-  // writing every year beside English, world → Chinese history → government,
-  // a second language, public speaking, Bible. Names follow the Airtable
-  // subjects so a picked suggestion and a template row read alike.
-  { grade: 9, rows: [
-    ["English Literature 9", "英文文学 9", 1, true],
-    ["English Writing 9", "英文写作 9", 0.5, true],
-    ["Chinese Literature 9", "中文文学 9", 1, true],
-    ["Chinese Writing 9", "中文写作 9", 0.5, true],
-    ["Algebra I", "代数 I", 1, true],
-    ["Biology", "生物", 1, true],
-    ["World Geography", "世界地理", 1, true],
-    ["Bible", "圣经", 1, false],
-    ["PE / Health", "体育 / 健康", 0.5, false],
-  ] },
-  { grade: 10, rows: [
-    ["English Literature 10", "英文文学 10", 1, true],
-    ["English Writing 10", "英文写作 10", 0.5, true],
-    ["Chinese Literature 10", "中文文学 10", 1, true],
-    ["Chinese Writing 10", "中文写作 10", 0.5, true],
-    ["Geometry", "几何", 1, true],
-    ["Chemistry", "化学", 1, true],
-    ["World History", "世界历史", 1, true],
-    ["Bible", "圣经", 1, false],
-    ["Art / Music", "艺术 / 音乐", 0.5, false],
-  ] },
-  { grade: 11, rows: [
-    ["English Literature 11", "英文文学 11", 1, true],
-    ["English Writing 11", "英文写作 11", 0.5, true],
-    ["Chinese Literature 11", "中文文学 11", 1, true],
-    ["Chinese Writing 11", "中文写作 11", 0.5, true],
-    ["Algebra II", "代数 II", 1, true],
-    ["Physics", "物理", 1, true],
-    ["Chinese History", "中国历史", 1, true],
-    ["Third Language I", "第二外语 I", 1, true],
-    ["Bible", "圣经", 1, false],
-  ] },
-  { grade: 12, rows: [
-    ["English Literature 12", "英文文学 12", 1, true],
-    ["English Writing 12", "英文写作 12", 0.5, true],
-    ["Chinese Literature 12", "中文文学 12", 1, true],
-    ["Chinese Writing 12", "中文写作 12", 0.5, true],
-    ["Pre-Calculus", "预备微积分", 1, true],
-    ["Science Elective", "科学选修", 1, true],
-    ["Government & Economics", "政府与经济", 1, true],
-    ["Public Speaking", "公众演讲", 1, true],
-    ["Bible", "圣经", 1, false],
-  ] },
 ];

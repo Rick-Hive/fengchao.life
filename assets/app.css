@@ -874,7 +874,7 @@ body.page-gpa .wrap { max-width: 1200px; }
 .gpa-scale td { text-align: right; padding: 5px 10px; border-top: 1px solid #edf0f5; font-variant-numeric: tabular-nums; }
 .gpa-scale th:first-child, .gpa-scale td:first-child { text-align: left; padding-left: 16px; }
 .gpa-scale td:last-child, .gpa-scale th:last-child { padding-right: 16px; }
-.gpa-scale td.cp { font-weight: 600; }
+/* The 普通课 column used to be bold as "the column the unweighted GPA reads"; the hint decoded as an inconsistency (Rick, 2026-09-17), so all four columns read alike. */
 .gpa-scale .wt { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 16px 12px; color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--line); background: #f7f9fc; }
 .gpa-link { border: none; background: none; color: var(--accent); font: inherit; font-size: 0.84rem; font-weight: 600; cursor: pointer; padding: 0; white-space: nowrap; }
 .gpa-link:hover { text-decoration: underline; }
@@ -907,8 +907,6 @@ body.page-gpa .wrap { max-width: 1200px; }
 /* Under the sheet, the unit rule reads as a footnote to the table above it. */
 .gpa-unit-note { max-width: 760px; margin: -4px 2px 16px; }
 /* Tab 2 with a sheet already there: the way back first, the start cards after. */
-.gpa-continue { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 18px; }
-.gpa-continue-meta { color: var(--muted); font-size: 0.88rem; }
 .gpa-scope { display: inline-block; vertical-align: 3px; margin-left: 10px; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; }
 /* The sheet's one-line reminder about non-academic courses. */
 .gpa-sheet-note { color: var(--muted); font-size: 0.88rem; margin: -8px 0 16px; line-height: 1.6; }
@@ -936,11 +934,7 @@ body.page-gpa .wrap { max-width: 1200px; }
 .gpa-confirm p { margin: 0; padding-right: 36px; font-size: 1rem; line-height: 1.6; }   /* clear of the ✕ */
 .modal.gpa-confirm-modal { max-width: 440px; }
 
-.gpa-start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .gpa-start .gpa-scale .wt { border-top: 1px solid var(--line); }
-.gpa-start-card { padding: 22px 22px; font: inherit; color: var(--ink); }
-.gpa-start-card .choice-title { font-weight: 700; font-size: 1rem; margin-bottom: 6px; }
-.gpa-start-card .choice-desc { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
 /* The scale editor modal */
 .gpa-sheet-hint { margin: 6px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.5; }
 .gpa-edit-body { padding: 8px 12px 4px; }

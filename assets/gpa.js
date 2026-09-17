@@ -36,7 +36,7 @@
 
   var KEY = "fc-gpa-v1";
   var LEVELS = ["CP", "H", "DE", "AP"];   // dropdown order: AP last (Rick, 2026-09-17)
-  var VIEWS = ["scale", "start", "sheet"];
+  var VIEWS = ["scale", "sheet"];   // two steps since 2026-09-17 (Rick: "直接两步就够了")
 
   window.createGpaTool = function (ctx) {
     var S = null;              // state, loaded lazily so a bad save can't break boot
@@ -127,26 +127,10 @@
     // periods a week — the same course under either unit (the ×10 rule).
     function blankRow() { return { id: uid(), name: "", w: S.unit === "periods" ? "5" : "0.5", grade: "", lvl: "CP", ac: true }; }
 
-    // The template: eight semesters (Grade 9 Fall … Grade 12 Spring), the
-    // year's courses in each at half their credit, as a transcript lists a
-    // year-long course graded twice. A start builds the sheet afresh: choosing
-    // the preset twice must not stack sixteen semesters (Rick, 2026-09-17:
-    // "这个设计太冗余了"). Whether to ask first is decided in the click handler.
-    function applyPreset() {
-      var out = [];
-      (window.GPA_PRESET || []).forEach(function (p) {
-        ["s1", "s2"].forEach(function (term) {
-          out.push({ id: uid(), grade: p.grade, term: term, seq: null, name: "", rows: p.rows.map(function (r) {
-            // r[2] is the year's credit: half of it per semester, or ×5 periods/week.
-            var w = S.unit === "periods" ? String(r[2] * 5) : (r[2] / 2).toFixed(r[2] / 2 < 0.5 ? 2 : 1);
-            return { id: uid(), name: { en: r[0], zh: r[1] }, w: w, grade: "", lvl: "CP", ac: !!r[3] };
-          }) });
-        });
-      });
-      S.periods = out;
-    }
-
-    // Blank start: "Semester 1" with five empty rows, as calculator.net opens.
+    // The sheet opens as "第 1 学期" with five empty rows, as calculator.net
+    // and gpacalculator.net open, and grows by 添加学期. There is no template
+    // and no "choose a starting point" step any more (Rick, 2026-09-17: "既然
+    // 可以添加学期，就不用先预置 G9–G11 的表单了吧？").
     function applyBlank() {
       var rows = [];
       for (var i = 0; i < 5; i++) rows.push(blankRow());
@@ -307,46 +291,12 @@
         '<div class="gpa-scale gpa-scale-start" id="gpaScaleCard">' + scaleTableHtml() +
         '<div class="wt"><span>' + esc(t.scaleNote) + '</span><button type="button" class="gpa-link" data-scale-edit>' + esc(t.scaleEdit) + " ›</button></div></div>" +
         '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
-        '<div class="gpa-start-actions"><button type="button" class="btn btn-primary" data-gpa-go="start">' + esc(t.next) + " ›</button></div>" +
+        '<div class="gpa-start-actions"><button type="button" class="btn btn-primary" data-gpa-go="sheet">' + esc(t.next) + " ›</button></div>" +
         "</div>"
       );
     }
 
     // Tab 2 — the two starting points.
-    function startViewHtml() {
-      var t = T();
-      // With a sheet already there this tab has ONE job: lead back to it. A
-      // family that pressed Back and then clicked a start card to "return"
-      // lost its sheet (Rick, 2026-09-17: "数据也会变成空白 … 严重bug"); no
-      // confirmation dialog either — "just restore the data". The start
-      // cards appear only while there is no sheet; starting over is 清空 on
-      // the sheet, which asks.
-      if (started()) {
-        return (
-          '<div class="gpa-start">' +
-          '<p class="gpa-start-hint">' + esc(t.startStep2HintAgain) + "</p>" +
-          '<div class="gpa-continue">' +
-          '<button type="button" class="btn btn-primary" data-gpa-go="sheet">' + esc(t.continueSheet) + " ›</button>" +
-          '<span class="gpa-continue-meta">' + esc(fill(t.continueSheetMeta, { p: S.periods.length, n: allRows().length })) + "</span></div>" +
-          '<p class="gpa-note">' + esc(t.restartNote) + "</p>" +
-          "</div>"
-        );
-      }
-      return (
-        '<div class="gpa-start">' +
-        '<p class="gpa-start-hint">' + esc(t.startStep2Hint) + "</p>" +
-        // Blank first: gpacalculator.net and calculator.net both open with one
-        // semester and grow one at a time; the eight-semester plan is our
-        // optional shortcut.
-        '<div class="gpa-start-grid">' +
-        '<button type="button" class="choice-card gpa-start-card" data-gpa-start="blank"><span class="choice-title">' + esc(t.startBlank) + '</span><span class="choice-desc">' + esc(t.startBlankDesc) + "</span></button>" +
-        '<button type="button" class="choice-card gpa-start-card" data-gpa-start="preset"><span class="choice-title">' + esc(t.startPreset) + '</span><span class="choice-desc">' + esc(t.startPresetDesc) + "</span></button>" +
-        "</div>" +
-        '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
-        "</div>"
-      );
-    }
-
     function gradeControl(r) {
       var t = T();
       if (S.gradeMode === "percent") {
@@ -555,9 +505,7 @@
     // Tab 3 — the sheet.
     function sheetViewHtml() {
       var t = T();
-      if (!started()) {
-        return '<div class="gpa-start"><p class="gpa-start-hint">' + esc(t.needStart) + '</p><div class="gpa-start-actions"><button type="button" class="btn btn-primary" data-gpa-go="start">' + esc(t.tabs[1]) + " ›</button></div></div>";
-      }
+      if (!started()) { applyBlank(); save(); }
       var narrow = window.matchMedia && window.matchMedia("(max-width: 860px)").matches;
       return (
         '<p class="gpa-sheet-note">' + esc(t.sheetHint) + "</p>" +
@@ -603,7 +551,7 @@
 
     function pageHtml() {
       var t = T();
-      var body = view === "scale" ? scaleViewHtml() : view === "start" ? startViewHtml() : sheetViewHtml();
+      var body = view === "scale" ? scaleViewHtml() : sheetViewHtml();
       return (
         '<section class="panel gpa-page" id="gpaPage" data-view="' + view + '">' +
         '<div class="gpa-print-head">' + printHeadInner() + "</div>" +
@@ -824,18 +772,6 @@
         if (tab) { go(tab.getAttribute("data-gpa-tab")); return; }
         var goBtn = e.target.closest("[data-gpa-go]");
         if (goBtn) { go(goBtn.getAttribute("data-gpa-go")); return; }
-        var start = e.target.closest("[data-gpa-start]");
-        if (start) {
-          var kind = start.getAttribute("data-gpa-start");
-          // A start card never touches an existing sheet: the family's data is
-          // what they came back for (Rick, 2026-09-17: "just restore the data
-          // that user has input"). The cards are not rendered while a sheet
-          // exists; this guard covers a stale page. Starting over is 清空.
-          if (started()) { go("sheet"); return; }
-          if (kind === "preset") applyPreset(); else applyBlank();
-          save(); go("sheet");
-          return;
-        }
         if (e.target.closest("[data-scale-edit]")) { openScaleEditor(); return; }
         var ac = e.target.closest('[data-f="ac"]');
         if (ac) {
@@ -904,8 +840,8 @@
         if (e.target.closest("#gpaPrint")) { window.print(); return; }
         if (e.target.closest("#gpaClear")) {
           confirmModal(t.clearConfirm, function () {
-            S.periods = null;
-            save(); go("start"); repaint();
+            applyBlank();   // back to one empty 第 1 学期
+            save(); repaint();
           });
           return;
         }
@@ -931,10 +867,11 @@
 
     /* ---------- public ---------- */
 
-    // sub: "scale" | "start" | "sheet" from the URL; anything else is step 1.
+    // sub: "scale" | "sheet" from the URL; anything else is step 1. "start"
+    // (the retired middle step) opens the sheet, so old links still land.
     function render(container, sub) {
       load();
-      view = sub === "start" ? "start" : sub === "sheet" ? "sheet" : "scale";
+      view = sub === "sheet" || sub === "start" ? "sheet" : "scale";
       container.innerHTML = pageHtml();
       root = container.querySelector("#gpaPage");
       bind(root);

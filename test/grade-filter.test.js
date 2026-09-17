@@ -557,6 +557,23 @@ setTimeout(() => {
   const gpaLink = doc.querySelector('a.menu-item[href="/gpa"]');
   check("the menu links to the calculator in the same tab (no ↗, no new window)",
     [!!gpaLink, gpaLink && gpaLink.getAttribute("target"), gpaLink && !!gpaLink.querySelector(".ext-ic")], [true, null, false]);
+  // A saved sheet from an earlier visit: eight semesters, nine courses each at
+  // half a credit (the shape the retired four-year template produced). Entering
+  // the page over it exercises loading a save; the blank first open is tested
+  // on a fresh instance at the end.
+  const YEARS = {
+    9:  [["English Literature 9", "英文文学 9", 1, true], ["English Writing 9", "英文写作 9", 0.5, true], ["Chinese Literature 9", "中文文学 9", 1, true], ["Chinese Writing 9", "中文写作 9", 0.5, true], ["Algebra I", "代数 I", 1, true], ["Biology", "生物", 1, true], ["World Geography", "世界地理", 1, true], ["Bible", "圣经", 1, false], ["PE / Health", "体育 / 健康", 0.5, false]],
+    10: [["English Literature 10", "英文文学 10", 1, true], ["English Writing 10", "英文写作 10", 0.5, true], ["Chinese Literature 10", "中文文学 10", 1, true], ["Chinese Writing 10", "中文写作 10", 0.5, true], ["Geometry", "几何", 1, true], ["Chemistry", "化学", 1, true], ["World History", "世界历史", 1, true], ["Bible", "圣经", 1, false], ["Art / Music", "艺术 / 音乐", 0.5, false]],
+    11: [["English Literature 11", "英文文学 11", 1, true], ["English Writing 11", "英文写作 11", 0.5, true], ["Chinese Literature 11", "中文文学 11", 1, true], ["Chinese Writing 11", "中文写作 11", 0.5, true], ["Algebra II", "代数 II", 1, true], ["Physics", "物理", 1, true], ["Chinese History", "中国历史", 1, true], ["Third Language I", "第二外语 I", 1, true], ["Bible", "圣经", 1, false]],
+    12: [["English Literature 12", "英文文学 12", 1, true], ["English Writing 12", "英文写作 12", 0.5, true], ["Chinese Literature 12", "中文文学 12", 1, true], ["Chinese Writing 12", "中文写作 12", 0.5, true], ["Pre-Calculus", "预备微积分", 1, true], ["Science Elective", "科学选修", 1, true], ["Government & Economics", "政府与经济", 1, true], ["Public Speaking", "公众演讲", 1, true], ["Bible", "圣经", 1, false]],
+  };
+  let uidN = 0;
+  const seed = { unit: "credits", gradeMode: "letter", periods: [] };
+  [9, 10, 11, 12].forEach(g => ["s1", "s2"].forEach(term => seed.periods.push({
+    id: "p" + (++uidN), grade: g, term, seq: null, name: "",
+    rows: YEARS[g].map(r => ({ id: "r" + (++uidN), name: { en: r[0], zh: r[1] }, w: (r[2] / 2).toFixed(r[2] / 2 < 0.5 ? 2 : 1), grade: "", lvl: "CP", ac: r[3] })),
+  })));
+  window.localStorage.setItem("fc-gpa-v1", JSON.stringify(seed));
   window.location.hash = "#/gpa";
   // Each tab is its own history entry; hashchange and history.back() land on a
   // later tick, so the flow below is a chain of short waits.
@@ -568,23 +585,19 @@ setTimeout(() => {
       check("/gpa shows the calculator and hides the stepper and cart bar",
         [!!doc.getElementById("gpaPage"), doc.getElementById("stepper").hidden, doc.getElementById("cartBar").classList.contains("visible")],
         [true, true, false]);
-      check("first visit lands on tab 1, the scale — no settings and no start cards here",
-        [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll(".gpa-tab").length, doc.querySelectorAll("#gpaPage [data-toggle]").length, doc.querySelectorAll("[data-gpa-start]").length],
-        ["scale", 3, 0, 0]);
+      check("the page lands on tab 1, the scale; two tabs only since 2026-09-17 (Rick: \"直接两步就够了\"); no settings here",
+        [doc.getElementById("gpaPage").getAttribute("data-view"), Array.from(doc.querySelectorAll(".gpa-tab")).map(b => b.textContent.replace(/^\d/, "")), doc.querySelectorAll("#gpaPage [data-toggle]").length],
+        ["scale", ["评分标准", "课程与成绩"], 0]);
       check("the level note explains CP / Honors / AP / Dual Enrollment, and IB is gone",
         [/Dual Enrollment/.test(doc.querySelector(".gpa-levels").textContent), /IB/.test(doc.getElementById("gpaPage").textContent)], [true, false]);
-      click(pick('[data-gpa-go="start"]'));
+      click(pick('[data-gpa-go="sheet"]'));
     });
     await after(() => {
-      check("Next moves to tab 2 through the URL", [url(), doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("[data-gpa-start]").length], ["/gpa/start", "start", 2]);
-      click(pick('[data-gpa-start="preset"]'));
-    });
-    await after(() => {
-      check("choosing the plan opens the sheet at its own URL", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/sheet", "sheet"]);
-      check("the standard plan is eight flat semester blocks, gpacalculator.net-style — no grouping above them (Rick, 2026-09-16)",
+      check("Next goes straight to the sheet, at its own URL", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/sheet", "sheet"]);
+      check("the saved sheet is eight flat semester blocks, gpacalculator.net-style — no grouping above them (Rick, 2026-09-16)",
         [doc.querySelectorAll(".gpa-year").length, Array.from(doc.querySelectorAll(".gpa-period-name")).slice(0, 3).map(i => i.value)],
         [8, ["9 年级 · 上学期", "9 年级 · 下学期", "10 年级 · 上学期"]]);
-      check("...72 rows at half a credit; Chinese literature and writing beside English every year (Rick, 2026-09-17: not a copy of a US transcript); Bible and PE non-academic",
+      check("...72 rows at half a credit, names following the language toggle; Bible and PE non-academic; nothing on the page says 美国",
         [doc.querySelectorAll("tr[data-row]").length, doc.querySelector('tr[data-row] [data-f="w"]').value,
          Array.from(Y1().querySelectorAll('tr[data-row]')).slice(0, 4).map(r => r.querySelector('[data-f="name"]').value),
          Array.from(Y1().querySelectorAll('tr[data-row]')).filter(r => r.querySelector('[data-f="ac"] span:last-child').className === "on").length,
@@ -700,24 +713,21 @@ setTimeout(() => {
       click(pick("#langBtn"));
       check("...so a picked subject follows the language toggle", doc.querySelector('tr[data-row] [data-f="name"]').value, "Math");
       click(pick("#langBtn"));
-      // Back walks the tabs: sheet -> start -> scale
+      // Back walks the tabs: sheet -> scale. Nothing between them can touch
+      // the sheet (Rick, 2026-09-17: "数据也会变成空白 … 严重bug").
       window.history.back();
     });
     await after(() => {
-      check("browser Back from the sheet returns to the starting point", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/start", "start"]);
-      check("...with no note about appending (removed at Rick's request, 2026-09-17)", doc.querySelector(".gpa-append"), null);
+      check("browser Back from the sheet returns to the scale — step 1 is reachable again, and the sheet is untouched",
+        [url(), doc.getElementById("gpaPage").getAttribute("data-view"), JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], ["/gpa/scale", "scale", 8]);
       check("the title carries the scope tag 仅供高中课程", doc.querySelector("#gpaPage h2 .gpa-scope").textContent, "仅供高中课程");
-      // With a sheet there, tab 2 has one job: lead back to it. No start cards,
-      // so nothing on this tab can replace the family's data (Rick, 2026-09-17:
-      // "数据也会变成空白 … 严重bug", then "just restore the data").
-      check("Back from a sheet lands on a tab that only leads back to the sheet: 继续填写 with its size, a 清空 note, no start cards, no dialog",
-        [doc.querySelectorAll("[data-gpa-start]").length, doc.querySelector(".gpa-continue [data-gpa-go]").getAttribute("data-gpa-go"), doc.querySelector(".gpa-continue-meta").textContent,
-         /清空/.test(doc.querySelector(".gpa-start .gpa-note").textContent), doc.querySelectorAll(".gpa-confirm-modal").length, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length],
-        [0, "sheet", "8 个学期 · 64 门课程", true, 0, 8]);
+      nav("/gpa/start");
+    });
+    await after(() => {
+      check("an old link to the retired middle step (/gpa/start) opens the sheet, address rewritten", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/sheet", "sheet"]);
       window.history.back();
     });
     await after(() => {
-      check("...and once more to the scale — step 1 is reachable again", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/scale", "scale"]);
       click(pick('[data-gpa-tab="sheet"]'));
     });
     await after(() => {
@@ -765,29 +775,25 @@ setTimeout(() => {
       tool.render(box, "sheet");
       check("loading a legacy save drops ungraded whole-year blocks and keeps the graded one",
         [box.querySelectorAll(".gpa-year").length, box.querySelector(".gpa-period-name").value, box.querySelector(".gpa-year-gpa").textContent], [1, "10 年级", "GPA 4.00"]);
-      tool.render(box, "start");
-      check("with that sheet present, tab 2 shows no start cards at all — only the way back",
-        [box.querySelectorAll("[data-gpa-start]").length, box.querySelector(".gpa-continue [data-gpa-go]").getAttribute("data-gpa-go"), box.querySelector(".gpa-continue-meta").textContent], [0, "sheet", "1 个学期 · 1 门课程"]);
-      // Starting over is 清空 on the sheet (which asks); after it, the cards return
-      // and a start builds the sheet afresh — never stacked on the old one.
-      tool.render(box, "sheet");
+      // 清空 (which asks) leaves one empty 第 1 学期 on the sheet, as a first
+      // open does — there is no template and no middle step to fall back to.
       click(box.querySelector("#gpaClear"));
       click(doc.querySelector(".gpa-confirm-modal [data-confirm-ok]"));
-      tool.render(box, "start");
-      check("after 清空 the two cards are back", Array.from(box.querySelectorAll("[data-gpa-start]")).map(b => b.getAttribute("data-gpa-start")), ["blank", "preset"]);
-      click(box.querySelector('[data-gpa-start="preset"]'));
       let saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
-      check("...and the preset is the eight semesters alone — nothing stacked above them",
-        [saved2.periods.length, saved2.periods[0].grade, saved2.periods[0].term, saved2.periods.some(p => !p.term)], [8, 9, "s1", false]);
-      // A stale page could still show a card; clicking it must not replace anything.
-      tool.render(box, "sheet");
-      setVal(box.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
-      box.querySelector(".gpa-start-grid") || box.insertAdjacentHTML("beforeend", '<button data-gpa-start="blank" id="staleCard"></button>');
-      click(box.querySelector("#staleCard"));
-      saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
-      check("a stale start card over an existing sheet changes nothing (the renamed course and eight semesters stay)",
-        [saved2.periods.length, saved2.periods[0].rows[0].name, doc.querySelectorAll(".gpa-confirm-modal").length], [8, "荣誉英语 9", 0]);
-      box.remove();
+      check("清空 leaves one empty 第 1 学期 with five rows and stays on the sheet",
+        [box.querySelectorAll(".gpa-year").length, box.querySelector(".gpa-period-name").value, box.querySelectorAll("tr[data-row]").length, saved2.periods.length, saved2.periods[0].seq], [1, "第 1 学期", 5, 1, 1]);
+
+      // ---- first open, nothing saved: the sheet makes its own first semester --
+      window.localStorage.removeItem("fc-gpa-v1");
+      const box2 = doc.createElement("div"); doc.body.appendChild(box2);
+      const tool2 = window.createGpaTool({ t: () => window.I18N.zh, esc: (s) => String(s), pickLang: (en, zh) => zh || en, openModal: () => doc.createElement("div"), closeModal: () => {}, go: () => {}, subjects: () => [] });
+      tool2.render(box2, "sheet");
+      const saved3 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
+      check("a first open of the sheet is 第 1 学期 with five blank rows at 0.5 credit — as gpacalculator.net and calculator.net open — saved at once",
+        [box2.querySelectorAll(".gpa-year").length, box2.querySelector(".gpa-period-name").value, box2.querySelectorAll("tr[data-row]").length, box2.querySelector('tr[data-row] [data-f="w"]').value, saved3.periods.length],
+        [1, "第 1 学期", 5, "0.5", 1]);
+      check("no start cards, no template, no 选择起点 anywhere on the page", [box2.querySelectorAll("[data-gpa-start]").length, /选择起点/.test(box2.textContent), typeof window.GPA_PRESET], [0, false, "undefined"]);
+      box.remove(); box2.remove();
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
     });
