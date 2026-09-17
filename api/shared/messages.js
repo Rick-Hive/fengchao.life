@@ -93,7 +93,7 @@ const DEFAULT_TEMPLATES = {
           "your order number and we will follow up for you.",
         "",
         "Hive",
-        "Rebuilding the C-education ecosystem through online resources",
+        "Rebuilding the C-education ecosystem with online resources",
         "https://www.fengchao.life",
       ].join("\n"),
     },
