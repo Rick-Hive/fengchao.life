@@ -688,6 +688,8 @@ setTimeout(() => {
       check("focusing a course field opens the site's own suggestion list of Airtable subjects (no <datalist>)",
         [doc.querySelectorAll(".gpa-suggest").length, sug().some(v => v.indexOf("数学") === 0), sug().some(v => /Algebra|English 9|荣誉课程/.test(v)), doc.querySelectorAll("datalist").length],
         [1, true, false, 0]);
+      check("the list is drawn inside the course cell and opens downwards when there is room below it (it is no longer clipped by the card — Rick, 2026-09-17)",
+        [doc.querySelector(".gpa-suggest").parentNode.className, doc.querySelector(".gpa-suggest").classList.contains("up")], ["gpa-c-name", false]);
       setVal(nameIn, "数");
       check("typing filters it, and the list shows the page language only", sug(), ["数学"]);
       doc.querySelector(".gpa-suggest [data-suggest]").dispatchEvent(new window.MouseEvent("mousedown", { bubbles: true }));

@@ -764,8 +764,15 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
    so this page runs wider than the wizard's 1080px. */
 body.page-gpa .wrap { max-width: 1200px; }
 .gpa-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
-.gpa-year { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin: 0 0 16px; overflow: hidden; }
-.gpa-year-head { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; background: #eef1f6; border-bottom: 1px solid var(--line); }
+/* No overflow clipping: the course field's suggestion list hangs out of the
+   card, and `overflow: hidden` cut it off (Rick, 2026-09-17). The head keeps
+   the rounded top corners it used to get from the clip. */
+.gpa-year { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin: 0 0 16px; }
+.gpa-year-head {
+  display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px;
+  background: #eef1f6; border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+}
 /* The period title is an input so a family can rename "9 年级" to "2026 秋"
    in place; styled as a heading until focused. */
 .gpa-period-name {
@@ -801,12 +808,14 @@ body.page-gpa .wrap { max-width: 1200px; }
 /* The course field's suggestion list — the site's own, not the browser's. */
 .gpa-c-name { position: relative; }
 .gpa-suggest {
-  position: absolute; left: 4px; top: calc(100% - 2px); z-index: 30;
+  position: absolute; left: 4px; top: calc(100% - 2px); z-index: 60;
   right: 4px;
   background: var(--card); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 12px 32px -10px rgba(15, 32, 60, 0.3); padding: 4px;
   max-height: 260px; overflow-y: auto;
 }
+/* Near the bottom of the window the list opens upwards, as a select does. */
+.gpa-suggest.up { top: auto; bottom: calc(100% - 2px); }
 .gpa-suggest button {
   display: block; width: 100%; text-align: left;
   border: none; background: none; font: inherit; font-size: 0.9rem; color: var(--ink); padding: 7px 10px; border-radius: 6px; cursor: pointer;

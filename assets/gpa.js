@@ -481,7 +481,7 @@
       });
       return out;
     }
-    var suggestBox = null, suggestFor = null, suggestIdx = -1;
+    var suggestBox = null, suggestFor = null, suggestIdx = -1, scrollBound = false;
     function closeSuggest() {
       if (suggestBox) suggestBox.remove();
       suggestBox = null; suggestFor = null; suggestIdx = -1;
@@ -513,6 +513,19 @@
         return '<button type="button" role="option" data-suggest="' + i + '">' + esc(sub.label) + "</button>";
       }).join("");
       suggestBox.items = items;
+      suggestBox.scrollTop = 0;
+      placeSuggest();
+    }
+    // Open downwards unless the window's lower edge would cut the list and
+    // there is more room above — the last row of a long sheet otherwise drops
+    // its list off-screen.
+    function placeSuggest() {
+      if (!suggestBox || !suggestFor) return;
+      suggestBox.classList.remove("up");
+      var r = suggestFor.getBoundingClientRect();
+      var h = Math.min(suggestBox.scrollHeight + 2, 260);
+      var below = window.innerHeight - r.bottom;
+      if (below < h + 8 && r.top > below) suggestBox.classList.add("up");
     }
     function pickSuggest(input, idx) {
       var sub = suggestBox && suggestBox.items && suggestBox.items[idx];
@@ -737,6 +750,13 @@
     function repaint() { render(root.parentNode, view); }
 
     function bind(section) {
+      // Scrolling can move the open list past the window's edge; re-decide
+      // which way it opens. Bound once, on the window, since the page scrolls.
+      if (!scrollBound) {
+        scrollBound = true;
+        window.addEventListener("scroll", placeSuggest, true);
+        window.addEventListener("resize", placeSuggest);
+      }
       // The suggestion list: opens on focus or typing in a course field,
       // arrows move, Enter picks, Escape or leaving the field closes.
       section.addEventListener("focusin", function (e) {
