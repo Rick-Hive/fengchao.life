@@ -1875,10 +1875,20 @@
     });
     // Clicking a real link closes the menu behind it.
     nav.addEventListener("click", function (e) {
-      if (e.target.closest && e.target.closest("a.menu-item, a.menu-link")) {
-        closeMenus();
-        nav.classList.remove("expanded");
-        if (toggle) toggle.setAttribute("aria-expanded", "false");
+      var a = e.target.closest && e.target.closest("a.menu-item, a.menu-link");
+      if (!a) return;
+      closeMenus();
+      nav.classList.remove("expanded");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+      // An in-site link to the address already shown fires no hashchange (the
+      // browser treats a same-fragment click as a no-op), so the page seemed
+      // dead (Rick, 2026-09-17). Apply it by hand.
+      var href = a.getAttribute("href") || "";
+      if (href.charAt(0) === "#" && href === location.hash) {
+        e.preventDefault();
+        applyHash(href.replace(/^#\/?/, ""));
+        closeAllModals();
+        render();
       }
     });
     if (toggle) {

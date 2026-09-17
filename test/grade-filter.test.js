@@ -721,10 +721,16 @@ setTimeout(() => {
     await after(() => {
       check("the menu link (a bare #/gpa) always opens step 1, even with a saved sheet",
         [doc.getElementById("gpaPage").getAttribute("data-view"), window.location.hash], ["scale", "#/gpa/scale"]);
+      // A same-address menu click fires no hashchange; the nav applies it itself.
+      window.history.replaceState(null, "", "#/gpa");
       click(pick('[data-gpa-tab="sheet"]'));
     });
     await after(() => {
       check("...and the saved sheet is one tab click away", [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length], ["sheet", 54]);
+      window.history.replaceState(null, "", "#/gpa");   // same address as the menu link
+      pick('a.menu-item[href="#/gpa"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
+      check("clicking the menu link while already at its address still opens step 1 (no hashchange fires for a same fragment)",
+        [doc.getElementById("gpaPage").getAttribute("data-view"), window.location.hash], ["scale", "#/gpa/scale"]);
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
     });
