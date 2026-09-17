@@ -141,6 +141,11 @@ const check = (label, actual, expected) => {
 };
 
 const pick = (sel) => { const el = doc.querySelector(sel); if (!el) throw new Error("missing " + sel); return el; };
+// Routes are paths (/pedagogy, /gpa/sheet). The address as the bar shows it,
+// and a Back/Forward-style arrival at a path (pushState + popstate, which
+// jsdom delivers synchronously when dispatched by hand).
+const url = () => window.location.pathname + window.location.hash;
+const nav = (p) => { window.history.pushState(null, "", p); window.dispatchEvent(new window.PopStateEvent("popstate")); };
 // Pedagogy -> stage -> (rhetoric only: track -> requirements) -> catalog.
 const goToCatalog = (stage, pedagogy) => {
   if (doc.getElementById("pedGrid")) {
@@ -330,8 +335,11 @@ setTimeout(() => {
   backToStart();
   check("pedagogy is the first page and has no Back",
     [!!doc.getElementById("pedGrid"), !!doc.getElementById("back2")], [true, false]);
-  check("the stage page cannot be reached before a pedagogy is chosen",
-    (() => { window.location.hash = "#/level"; return !!doc.getElementById("pedGrid"); })(), true);
+  check("a typed /level opens the stage page directly (a pedagogy is already chosen)",
+    (() => { nav("/level"); return [!!doc.getElementById("stageGrid"), url()]; })(), [true, "/level"]);
+  check("a typed /done with no order placed is clamped back to the stage page, and the address rewritten in place — no dead entry for Back to land on",
+    (() => { nav("/done"); return [!!doc.getElementById("stageGrid"), url()]; })(), [true, "/level"]);
+  backToStart();
 
   // Classical reads the trivium...
   click(pick('#pedGrid .choice-card[data-key="classical"]')); click(pick("#next2"));
@@ -403,7 +411,7 @@ setTimeout(() => {
   click(pick('#pedGrid .choice-card[data-key="nonclassical"]')); click(pick("#next2"));
   click(pick('#stageGrid .choice-card[data-key="grammar"]')); click(pick("#next0"));
   check("grammar: Next from the stage lands on the map", !!doc.getElementById("mapCard"), true);
-  check("map hash", window.location.hash, "#/map");
+  check("map path", url(), "/map");
   check("stepper lists the map before the courses",
     Array.from(doc.querySelectorAll("#stepper .lbl")).map(e => e.textContent), ["教育理念", "学段", "课程地图", "选择课程", "提交订单"]);
   check("stage step shows as done, map as active",
@@ -541,22 +549,23 @@ setTimeout(() => {
              const en = doc.getElementById("cartLbl").textContent; click(pick("#langBtn")); return [zh, en]; })(),
     ["购物车", "Cart"]);
 
-  // ---- G.P.A. calculator (#/gpa) — a standalone page beside the wizard ----
-  // jsdom fires hashchange asynchronously, so the page is entered the way the
-  // menu does it: a hash link click, then a tick.
+  // ---- G.P.A. calculator (/gpa) — a standalone page beside the wizard ----
+  // Entered here through a LEGACY link (#/gpa, the address before paths), which
+  // jsdom delivers as an asynchronous hashchange — so this doubles as the test
+  // that old bookmarks still open the page, at its new address.
   const setVal = (el, v) => { el.value = v; el.dispatchEvent(new window.Event("input", { bubbles: true })); el.dispatchEvent(new window.Event("change", { bubbles: true })); };
-  const gpaLink = doc.querySelector('a.menu-item[href="#/gpa"]');
+  const gpaLink = doc.querySelector('a.menu-item[href="/gpa"]');
   check("the menu links to the calculator in the same tab (no ↗, no new window)",
     [!!gpaLink, gpaLink && gpaLink.getAttribute("target"), gpaLink && !!gpaLink.querySelector(".ext-ic")], [true, null, false]);
   window.location.hash = "#/gpa";
-  // Each tab is its own hash; jsdom delivers hashchange on a later tick, so
-  // the flow below is a chain of short waits.
+  // Each tab is its own history entry; hashchange and history.back() land on a
+  // later tick, so the flow below is a chain of short waits.
   const after = (fn) => new Promise((res) => setTimeout(() => { fn(); res(); }, 30));
   const Y1 = () => doc.querySelectorAll(".gpa-year")[0];
   (async () => {
     await after(() => {
-      check("a bare #/gpa resolves to the scale tab on a first visit", window.location.hash, "#/gpa/scale");
-      check("#/gpa shows the calculator and hides the stepper and cart bar",
+      check("a legacy #/gpa link opens the scale tab at its path, fragment gone", url(), "/gpa/scale");
+      check("/gpa shows the calculator and hides the stepper and cart bar",
         [!!doc.getElementById("gpaPage"), doc.getElementById("stepper").hidden, doc.getElementById("cartBar").classList.contains("visible")],
         [true, true, false]);
       check("first visit lands on tab 1, the scale — no settings and no start cards here",
@@ -567,11 +576,11 @@ setTimeout(() => {
       click(pick('[data-gpa-go="start"]'));
     });
     await after(() => {
-      check("Next moves to tab 2 through the URL", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("[data-gpa-start]").length], ["#/gpa/start", "start", 2]);
+      check("Next moves to tab 2 through the URL", [url(), doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("[data-gpa-start]").length], ["/gpa/start", "start", 2]);
       click(pick('[data-gpa-start="preset"]'));
     });
     await after(() => {
-      check("choosing the plan opens the sheet at its own URL", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view")], ["#/gpa/sheet", "sheet"]);
+      check("choosing the plan opens the sheet at its own URL", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/sheet", "sheet"]);
       check("the standard plan is eight flat semester blocks, gpacalculator.net-style — no grouping above them (Rick, 2026-09-16)",
         [doc.querySelectorAll(".gpa-year").length, Array.from(doc.querySelectorAll(".gpa-period-name")).slice(0, 3).map(i => i.value)],
         [8, ["9 年级 · 上学期", "9 年级 · 下学期", "10 年级 · 上学期"]]);
@@ -689,7 +698,7 @@ setTimeout(() => {
       window.history.back();
     });
     await after(() => {
-      check("browser Back from the sheet returns to the starting point", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view")], ["#/gpa/start", "start"]);
+      check("browser Back from the sheet returns to the starting point", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/start", "start"]);
       check("...with no note about appending (removed at Rick's request, 2026-09-17)", doc.querySelector(".gpa-append"), null);
       check("the title carries the scope tag 仅供高中课程", doc.querySelector("#gpaPage h2 .gpa-scope").textContent, "仅供高中课程");
       check("the starting-point tab offers the blank start first, the plan second (the tools open with one semester)",
@@ -698,38 +707,37 @@ setTimeout(() => {
       // a ninth semester under the eight (Rick, 2026-09-17: "这个设计太冗余了").
       click(pick('[data-gpa-start="blank"]'));
       check("a new start on a graded sheet asks before replacing it, and changes nothing yet",
-        [doc.querySelectorAll(".gpa-confirm-modal").length, window.location.hash, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], [1, "#/gpa/start", 8]);
+        [doc.querySelectorAll(".gpa-confirm-modal").length, url(), JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], [1, "/gpa/start", 8]);
       click(pick(".gpa-confirm-modal .modal-foot [data-close]"));
       check("...and cancelling keeps the eight semesters", [doc.body.classList.contains("modal-open"), JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], [false, 8]);
       window.history.back();
     });
     await after(() => {
-      check("...and once more to the scale — step 1 is reachable again", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view")], ["#/gpa/scale", "scale"]);
+      check("...and once more to the scale — step 1 is reachable again", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/scale", "scale"]);
       click(pick('[data-gpa-tab="sheet"]'));
     });
     await after(() => {
-      check("the tab bar jumps straight to the sheet", [window.location.hash, doc.querySelectorAll("tr[data-row]").length], ["#/gpa/sheet", 54]);   // 60 − the removed Grade 12 Spring (7) + the re-added block (1)
-      window.location.hash = "#/pedagogy";
+      check("the tab bar jumps straight to the sheet", [url(), doc.querySelectorAll("tr[data-row]").length], ["/gpa/sheet", 54]);   // 60 − the removed Grade 12 Spring (7) + the re-added block (1)
+      nav("/pedagogy");
     });
     await after(() => {
-      check("leaving #/gpa brings the wizard and its stepper back",
+      check("leaving /gpa brings the wizard and its stepper back",
         [!!doc.getElementById("pedGrid"), doc.getElementById("stepper").hidden, !!doc.getElementById("gpaPage")], [true, false, false]);
       check("the wizard's own storage was not touched", "cart" in JSON.parse(window.localStorage.getItem("fc-wizard-v1")), true);
-      window.location.hash = "#/gpa";
+      nav("/gpa");
     });
     await after(() => {
-      check("the menu link (a bare #/gpa) always opens step 1, even with a saved sheet",
-        [doc.getElementById("gpaPage").getAttribute("data-view"), window.location.hash], ["scale", "#/gpa/scale"]);
-      // A same-address menu click fires no hashchange; the nav applies it itself.
-      window.history.replaceState(null, "", "#/gpa");
+      check("the menu link (a bare /gpa) always opens step 1, even with a saved sheet, and is rewritten in place",
+        [doc.getElementById("gpaPage").getAttribute("data-view"), url()], ["scale", "/gpa/scale"]);
       click(pick('[data-gpa-tab="sheet"]'));
     });
     await after(() => {
       check("...and the saved sheet is one tab click away", [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length], ["sheet", 54]);
-      window.history.replaceState(null, "", "#/gpa");   // same address as the menu link
-      pick('a.menu-item[href="#/gpa"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
-      check("clicking the menu link while already at its address still opens step 1 (no hashchange fires for a same fragment)",
-        [doc.getElementById("gpaPage").getAttribute("data-view"), window.location.hash], ["scale", "#/gpa/scale"]);
+      window.history.replaceState(null, "", "/gpa");   // same address as the menu link
+      const ev = new window.MouseEvent("click", { bubbles: true, cancelable: true });
+      pick('a.menu-item[href="/gpa"]').dispatchEvent(ev);
+      check("clicking the menu link is a route, not a page load (default prevented), and while already at its address it still opens step 1",
+        [ev.defaultPrevented, doc.getElementById("gpaPage").getAttribute("data-view"), url()], [true, "scale", "/gpa/scale"]);
 
       // ---- a fresh tool instance over a legacy save -------------------------
       // The version before semesters saved whole-year blocks ("G9", no term).

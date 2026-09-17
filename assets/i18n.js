@@ -152,7 +152,7 @@ window.I18N = {
     errGeneric: "提交失败，请稍后重试。",
     loadErr: "课程数据尚未发布，请稍后访问。",
     loading: "正在加载…",
-    // G.P.A. calculator (#/gpa) — an independent tool: it reads nothing from
+    // G.P.A. calculator (/gpa) — an independent tool: it reads nothing from
     // the graduation tracks and uploads nothing; see assets/gpa.js.
     gpa: {
       title: "G.P.A. 计算器",
@@ -657,7 +657,7 @@ window.SITE_MENUS = [
       // Moved out of 教育服务 (Rick, 2026-08-29): it is a tool, not a service.
       // Live since 2026-09-16 as an in-site page (assets/gpa.js); a hash url
       // is an internal link, so renderNav() keeps it in the same tab.
-      { zh: "G.P.A. 计算器",    en: "G.P.A. Calculator",              url: "#/gpa" },
+      { zh: "G.P.A. 计算器",    en: "G.P.A. Calculator",              url: "/gpa" },
       { zh: "联系我们",         en: "Contact Us",                     url: "mailto:contact@fengchao.life" },
     ],
   },

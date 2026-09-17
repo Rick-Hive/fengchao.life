@@ -23,11 +23,11 @@
 
     lang: "zh",
     step: 0,
-    // A standalone page shown INSTEAD of the wizard: "gpa" (#/gpa, the G.P.A.
+    // A standalone page shown INSTEAD of the wizard: "gpa" (/gpa, the G.P.A.
     // calculator in assets/gpa.js) or null. Pages are outside the step flow —
     // no stepper, no cart bar — and reachable from the site menu.
     page: null,
-    sub: "",          // the page's own sub-view (#/gpa/start -> "start")
+    sub: "",          // the page's own sub-view (/gpa/start -> "start")
     // grammar (K-G6) | dialectic (G7-G8) | rhetoric (G9-G12). Replaced the old
     // binary `level` on 2026-09-11: the parent now picks one of three learning
     // stages, and only `rhetoric` carries a graduation track and requirements.
@@ -154,12 +154,12 @@
   restoreWizard();
 
   // ---- URL routing (back/forward + shareable step URLs) -------------------
-  // Each wizard page gets its own hash (#/level, #/courses, …), so the site
+  // Each wizard page gets its own path (/level, /courses, …), so the site
   // behaves like ordinary web pages: the browser Back/Forward buttons move
-  // between steps, refreshing keeps you on the page you were on (the hash is
-  // part of the URL), and typing the bare address always lands on the home
-  // page — selections and cart still restored from localStorage, just not the
-  // position. A hash pointing past its prerequisites (typed by hand, stale
+  // between steps, refreshing keeps you on the page you were on (Azure serves
+  // index.html for every route path), and typing the bare address always
+  // lands on the home page — selections and cart still restored from
+  // localStorage, just not the position. A path past its prerequisites (typed by hand, stale
   // bookmark, cart emptied since) is clamped back to the furthest step that
   // is actually reachable.
   // "map" (6) is APPENDED, not slotted between requirements and courses: these
@@ -170,12 +170,11 @@
   var COURSES_STEP = STEP_HASHES.indexOf("courses");
   var MAP_STEP = STEP_HASHES.indexOf("map");
   var PAGES = ["gpa"];
-  var HASH_SUPPRESS = false;
   // Tracks which step the last render() actually painted, so render() can
   // tell a fresh arrival at the course list (from any direction — forward,
   // back, a stepper jump, or browser Back/Forward) apart from a re-render
   // that happens while already there (toggling cart, opening a modal, …).
-  // Starts null so landing straight on #/courses via a bookmark/refresh also
+  // Starts null so landing straight on /courses via a bookmark/refresh also
   // resets, which is harmless since the filters start empty anyway.
   var lastRenderedStep = null;
   // Pedagogy (2) is the first page since 2026-09-11. The internal step ids did
@@ -200,14 +199,20 @@
     if (n === 5 && !cartIds().length) n = 4;
     return n;
   }
-  function applyHash(h) {
-    // "#/gpa" or "#/gpa/<view>": the page owns whatever follows its name, so
-    // its tabs are ordinary history entries and Back/Forward walk them.
+  // Routes are paths since 2026-09-17: /pedagogy, /courses, /gpa/sheet … (they
+  // were #/pedagogy … before). Azure's navigationFallback in
+  // staticwebapp.config.json serves index.html for every path that is not a
+  // real file, so a deep link, a refresh and Enter on the address bar all
+  // land here. Old #/… links are translated below, so nothing bookmarked or
+  // shared breaks.
+  function applyRoute(h) {
+    // "gpa" or "gpa/<view>": the page owns whatever follows its name, so its
+    // tabs are ordinary history entries and Back/Forward walk them.
     var pm = /^([a-z]+)(?:\/([a-z]+))?$/.exec(h);
     if (pm && PAGES.indexOf(pm[1]) !== -1) {
       state.page = pm[1]; state.sub = pm[2] || "";
-      // A bare #/gpa (the menu link) always opens step 1, the scale, and is
-      // rewritten to #/gpa/scale so history holds the tab actually shown. It
+      // A bare /gpa (the menu link) always opens step 1, the scale, and is
+      // rewritten to /gpa/scale so history holds the tab actually shown. It
       // used to jump to a saved sheet, which read as the first step missing
       // (Rick, 2026-09-16); the sheet is one tab click away.
       if (state.page === "gpa" && !state.sub) state.sub = "scale";
@@ -222,35 +227,61 @@
     var i = STEP_HASHES.indexOf(h);
     state.step = clampStep(i === -1 ? FIRST_STEP : i);
   }
-  // Boot: the URL decides the page. No hash = home page, by design.
-  (function () {
-    var h = location.hash.replace(/^#\/?/, "");
-    if (!h) { state.step = FIRST_STEP; state.done = null; state.page = null; state.sub = ""; return; }
-    applyHash(h);
-  })();
-  // Keep the URL in step with the state. Assigning location.hash creates a
-  // history entry, which is exactly what makes Back/Forward work; the very
-  // first normalization on a bare URL uses replaceState instead so the home
-  // page doesn't become two history entries.
-  function syncHash() {
-    var want = "#/" + (state.page ? state.page + (state.sub ? "/" + state.sub : "") : state.done ? "done" : STEP_HASHES[state.step]);
-    if (location.hash === want) return;
-    // A bare URL, or a page's bare hash (#/gpa) that resolved to one of its
-    // tabs, is rewritten in place — pushing would leave an entry that Back
-    // keeps landing on and re-resolving.
-    if (!location.hash || (state.page && location.hash === "#/" + state.page)) {
-      try { history.replaceState(null, "", want); } catch (e) { location.hash = want; }
-      return;
-    }
-    HASH_SUPPRESS = true; // our own assignment; the listener should ignore it
-    location.hash = want;
+  // The route named by the address bar: the path, or — for a link from before
+  // the change — a #/… fragment, which wins over the path it sits on.
+  function routeFromLocation() {
+    var frag = location.hash.replace(/^#\/?/, "");
+    if (/^#\//.test(location.hash) && frag) return frag;
+    return location.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
   }
-  window.addEventListener("hashchange", function () {
-    if (HASH_SUPPRESS) { HASH_SUPPRESS = false; return; }
-    applyHash(location.hash.replace(/^#\/?/, ""));
+  // The address the current state should show.
+  function wantedPath() {
+    return "/" + (state.page ? state.page + (state.sub ? "/" + state.sub : "") : state.done ? "done" : STEP_HASHES[state.step]);
+  }
+  // Boot: the URL decides the page. A bare URL is the home page, by design.
+  (function () {
+    var h = routeFromLocation();
+    if (!h) { state.step = FIRST_STEP; state.done = null; state.page = null; state.sub = ""; return; }
+    applyRoute(h);
+  })();
+  // Keep the URL in step with the state. pushState creates the history entry
+  // that makes Back/Forward work. The URL is rewritten in place instead when
+  // the entry we are on is only being normalized — the first sync after boot
+  // (a bare URL, a legacy #/… link, an unknown path, a bare /gpa), and a
+  // Back/Forward landing that clampStep resolved elsewhere — so Back never
+  // lands on an entry that re-resolves away from itself.
+  var URL_REPLACE_NEXT = true;
+  function syncUrl() {
+    var want = wantedPath();
+    var replace = URL_REPLACE_NEXT;
+    URL_REPLACE_NEXT = false;
+    if (location.pathname === want && !/^#\//.test(location.hash)) return;
+    try {
+      if (replace || (state.page && location.pathname.replace(/\/+$/, "") === "/" + state.page)) history.replaceState(null, "", want);
+      else history.pushState(null, "", want);
+    } catch (e) { /* file:// or a sandbox that forbids history: the page still renders */ }
+  }
+  window.addEventListener("popstate", function () {
+    applyRoute(routeFromLocation());
+    URL_REPLACE_NEXT = true;
     closeAllModals();
     render();
   });
+  // A legacy #/… link clicked while the site is open changes only the
+  // fragment; translate it to its path the same way.
+  window.addEventListener("hashchange", function () {
+    if (!/^#\//.test(location.hash)) return;
+    applyRoute(routeFromLocation());
+    URL_REPLACE_NEXT = true;
+    closeAllModals();
+    render();
+  });
+  // In-app navigation to a route: apply, render, and let the sync push it.
+  function navigate(route) {
+    applyRoute(route.replace(/^\/+/, ""));
+    closeAllModals();
+    render();
+  }
 
   function t() { return window.I18N[state.lang]; }
   function k8Id() { return (state.data && state.data.k8TrackId) || 7; }
@@ -1615,9 +1646,9 @@
       t: t, esc: esc, pickLang: pickLang, openModal: openModal, closeModal: closeModal,
       // Moving between the page's tabs goes through the URL, so Back works.
       go: function (sub) {
-        var want = "#/gpa" + (sub ? "/" + sub : "");
-        if (location.hash === want) return;
-        location.hash = want;   // the hashchange listener applies it and renders
+        var want = "/gpa" + (sub ? "/" + sub : "");
+        if (location.pathname === want) return;
+        navigate(want);   // renders; syncUrl pushes the history entry
       },
       // Subjects from the snapshot feed the course field's suggestions — both
       // names, so a picked subject follows the language toggle; nothing from
@@ -1824,7 +1855,7 @@
           return '<span class="menu-item is-soon" aria-disabled="true">' + esc(label) +
                  '<span class="soon-tag">' + esc(t().comingSoon) + "</span></span>";
         }
-        // Only http(s) opens a new tab; mailto: and in-site #/ links stay here.
+        // Only http(s) opens a new tab; mailto: and in-site / links stay here.
         var external = /^https?:/i.test(it.url);
         return '<a class="menu-item" href="' + esc(it.url) + '"' +
                (external ? ' target="_blank" rel="noopener noreferrer"' : "") + ">" +
@@ -1880,15 +1911,14 @@
       closeMenus();
       nav.classList.remove("expanded");
       if (toggle) toggle.setAttribute("aria-expanded", "false");
-      // An in-site link to the address already shown fires no hashchange (the
-      // browser treats a same-fragment click as a no-op), so the page seemed
-      // dead (Rick, 2026-09-17). Apply it by hand.
+      // An in-site link (/gpa) is a route, not a page load: apply it here so
+      // the site keeps its state and only the address changes. This also
+      // covers a click on the address already shown, which as a fragment
+      // link used to do nothing (Rick, 2026-09-17).
       var href = a.getAttribute("href") || "";
-      if (href.charAt(0) === "#" && href === location.hash) {
+      if (/^\/(?!\/)/.test(href) || /^#\//.test(href)) {
         e.preventDefault();
-        applyHash(href.replace(/^#\/?/, ""));
-        closeAllModals();
-        render();
+        navigate(href.replace(/^#/, ""));
       }
     });
     if (toggle) {
@@ -1927,7 +1957,7 @@
     // arrival, so the course list starts clean again.
     lastRenderedStep = state.page ? null : state.step;
     persistWizard();
-    syncHash();
+    syncUrl();
     document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
     document.getElementById("brandTag").textContent = t().brandTag;
     document.getElementById("langBtn").textContent = t().langBtn;
