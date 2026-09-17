@@ -472,11 +472,17 @@
       if (suggestBox) suggestBox.remove();
       suggestBox = null; suggestFor = null; suggestIdx = -1;
     }
-    function openSuggest(input) {
-      var q = input.value.trim().toLowerCase();
+    // On focus the whole list shows whatever the field says (a field holding
+    // "代数 I" would otherwise match nothing and show no list while "圣经"
+    // matched one — Rick, 2026-09-17); typing filters. A single item equal to
+    // the field's text is not offered.
+    function openSuggest(input, typed) {
+      var q = typed ? input.value.trim().toLowerCase() : "";
+      var cur = input.value.trim().toLowerCase();
       var items = subjectList().filter(function (sub) {
         return !q || sub.label.toLowerCase().indexOf(q) !== -1 || String(sub.en).toLowerCase().indexOf(q) !== -1 || String(sub.zh).toLowerCase().indexOf(q) !== -1;
       }).slice(0, 40);
+      if (items.length === 1 && items[0].label.toLowerCase() === cur) items = [];
       if (!items.length) { closeSuggest(); return; }
       if (!suggestBox || suggestFor !== input) {
         closeSuggest();
@@ -739,7 +745,7 @@
       section.addEventListener("input", function (e) {
         var el = e.target;
         var f = el.getAttribute && el.getAttribute("data-f");
-        if (f === "name" && suggestFor === el) openSuggest(el);
+        if (f === "name" && suggestFor === el) openSuggest(el, true);
         if (f) {
           var tr = el.closest("[data-row]");
           var found = tr && findRow(tr.getAttribute("data-row"));

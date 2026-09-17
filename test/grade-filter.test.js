@@ -670,8 +670,9 @@ setTimeout(() => {
         Array.from(doc.querySelectorAll(".gpa-side .gpa-levels")).some(p => /5 节.*0\.5 学分.*4 节 = 0\.4/.test(p.textContent)), true);
       // The course field's suggestions: the page's own list of Airtable subjects.
       const nameIn = doc.querySelector('tr[data-row] [data-f="name"]');
-      setVal(nameIn, "");   // an empty field lists every subject; text filters it
-      nameIn.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }));
+      nameIn.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }));   // field holds a course name; the full list still shows
+      check("focus shows the whole subject list whatever the field already says", doc.querySelectorAll(".gpa-suggest [data-suggest]").length > 0, true);
+      setVal(nameIn, "");
       const sug = () => Array.from(doc.querySelectorAll(".gpa-suggest [data-suggest]")).map(b => b.textContent);
       check("focusing a course field opens the site's own suggestion list of Airtable subjects (no <datalist>)",
         [doc.querySelectorAll(".gpa-suggest").length, sug().some(v => v.indexOf("数学") === 0), sug().some(v => /Algebra|English 9|荣誉课程/.test(v)), doc.querySelectorAll("datalist").length],
