@@ -317,7 +317,6 @@
       return (
         '<div class="gpa-start">' +
         '<p class="gpa-start-hint">' + esc(t.startStep2Hint) + "</p>" +
-        (started() ? '<p class="gpa-append">' + esc(t.startAppendNote) + "</p>" : "") +
         // Blank first: gpacalculator.net and calculator.net both open with one
         // semester and grow one at a time; the eight-semester plan is our
         // optional shortcut.
@@ -565,7 +564,7 @@
       return (
         '<section class="panel gpa-page" id="gpaPage" data-view="' + view + '">' +
         '<div class="gpa-print-head">' + printHeadInner() + "</div>" +
-        "<h2>" + esc(t.title) + "</h2>" +
+        "<h2>" + esc(t.title) + ' <span class="gpa-scope">' + esc(t.scope) + "</span></h2>" +
         '<p class="hint">' + esc(t.hint) + "</p>" +
         tabsHtml() +
         body +

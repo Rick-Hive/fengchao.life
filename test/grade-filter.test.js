@@ -635,7 +635,7 @@ setTimeout(() => {
         [saved.periods.length, saved.periods[0].rows[0].grade, saved.periods[0].rows[0].lvl, "cart" in saved], [8, "A-", "H", false]);
       click(pick("#langBtn"));
       check("the page follows the language switch, preset and semester names included",
-        [doc.querySelector("#gpaPage h2").textContent, doc.querySelector('tr[data-row] [data-f="name"]').value, doc.querySelector(".gpa-period-name").value], ["G.P.A. Calculator", "English 9", "Grade 9 · Fall"]);
+        [doc.querySelector("#gpaPage h2").firstChild.textContent.trim(), doc.querySelector('tr[data-row] [data-f="name"]').value, doc.querySelector(".gpa-period-name").value], ["G.P.A. Calculator", "English 9", "Grade 9 · Fall"]);
       click(pick("#langBtn"));
       setVal(doc.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
       click(pick("#langBtn"));
@@ -689,7 +689,8 @@ setTimeout(() => {
     });
     await after(() => {
       check("browser Back from the sheet returns to the starting point", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view")], ["#/gpa/start", "start"]);
-      check("...which says a choice here is appended, nothing cleared", !!doc.querySelector(".gpa-append"), true);
+      check("...with no note about appending (removed at Rick's request, 2026-09-17)", doc.querySelector(".gpa-append"), null);
+      check("the title carries the scope tag 仅供高中课程", doc.querySelector("#gpaPage h2 .gpa-scope").textContent, "仅供高中课程");
       click(pick('[data-gpa-start="blank"]'));
     });
     await after(() => {
