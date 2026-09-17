@@ -678,7 +678,7 @@ setTimeout(() => {
       check("the credit ⇄ periods rule sits under the table it explains, not in the sidebar (Rick, 2026-09-17)",
         [/5 节.*0\.5 学分.*4 节 = 0\.4/.test(doc.querySelector(".gpa-main .gpa-unit-note").textContent),
          doc.querySelectorAll(".gpa-side .gpa-unit-note").length,
-         doc.querySelector(".gpa-main > .gpa-unit-note").previousElementSibling.id], [true, 0, "gpaAddPeriod"]);
+         doc.querySelector(".gpa-main > .gpa-unit-note").nextElementSibling.id, doc.querySelector(".gpa-main > .gpa-unit-note").previousElementSibling.className], [true, 0, "gpaAddPeriod", "gpa-year"]);
       // The course field's suggestions: the page's own list of Airtable subjects.
       const nameIn = doc.querySelector('tr[data-row] [data-f="name"]');
       nameIn.dispatchEvent(new window.FocusEvent("focusin", { bubbles: true }));   // field holds a course name; the full list still shows

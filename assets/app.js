@@ -1833,6 +1833,15 @@
   // one without is a planned feature and renders disabled with a "coming soon"
   // tag, so the menu can show the whole roadmap without pretending anything
   // works yet. Rebuilt on every render so a language toggle relabels it.
+  // The header is sticky, so anything else that sticks (the calculator's
+  // sidebar) must sit below it. Its height depends on language and width;
+  // publish it as a CSS variable rather than guessing in the stylesheet.
+  function measureHeader() {
+    var h = document.querySelector(".site-header");
+    if (h) document.documentElement.style.setProperty("--header-h", h.offsetHeight + "px");
+  }
+  window.addEventListener("resize", measureHeader);
+
   function renderNav() {
     var nav = document.getElementById("siteNav");
     if (!nav) return;
@@ -1965,6 +1974,7 @@
     if (bv) bv.textContent = (t().brandValues || []).join(state.lang === "zh" ? " · " : " · ");
     renderNav();
     renderStepper();
+    measureHeader();
 
     // The calculator's sheet has seven columns; it gets a wider column than
     // the wizard (see body.page-gpa in app.css).

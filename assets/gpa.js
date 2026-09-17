@@ -557,11 +557,11 @@
         '<label><span>' + esc(t.printStudent) + '</span><input class="gpa-in" id="gpaStudent" type="text" maxlength="80" data-student="student" value="' + esc(S.student || "") + '" placeholder="' + esc(t.studentLabel) + '" /></label>' +
         "</div>" +
         S.periods.map(periodHtml).join("") +
-        '<button type="button" class="gpa-add-year" id="gpaAddPeriod">＋ ' + esc(t.addPeriod) + "</button>" +
-        // The credit ⇄ periods rule sits under the table it explains, beside
-        // the switch in the column head (Rick, 2026-09-17) — not in the
-        // sidebar, where it was far from the control it describes.
+        // The credit ⇄ periods rule sits right under the last table, above
+        // 添加学期 (Rick, 2026-09-17, twice) — not in the sidebar, far from
+        // the switch it describes, and not below the add button.
         '<p class="gpa-levels gpa-unit-note">' + esc(t.unitNote) + "</p>" +
+        '<button type="button" class="gpa-add-year" id="gpaAddPeriod">＋ ' + esc(t.addPeriod) + "</button>" +
         "</div>" +
         '<aside class="gpa-side">' +
         '<div class="gpa-result" id="gpaResult">' + resultInner() + "</div>" +
