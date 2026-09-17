@@ -888,6 +888,8 @@ body.page-gpa .wrap { max-width: 1200px; }
 .gpa-start-actions { margin: 18px 0 0; }
 .gpa-levels { color: var(--muted); font-size: 0.8rem; line-height: 1.6; margin: 12px 2px 0; }
 .gpa-start .gpa-levels { max-width: 640px; }
+/* Under the sheet, the unit rule reads as a footnote to the table above it. */
+.gpa-unit-note { max-width: 760px; margin-top: 4px; }
 .gpa-scope { display: inline-block; vertical-align: 3px; margin-left: 10px; padding: 2px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em; }
 /* The sheet's one-line reminder about non-academic courses. */
 .gpa-sheet-note { color: var(--muted); font-size: 0.88rem; margin: -8px 0 16px; line-height: 1.6; }

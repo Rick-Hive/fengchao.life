@@ -551,12 +551,15 @@
         "</div>" +
         S.periods.map(periodHtml).join("") +
         '<button type="button" class="gpa-add-year" id="gpaAddPeriod">＋ ' + esc(t.addPeriod) + "</button>" +
+        // The credit ⇄ periods rule sits under the table it explains, beside
+        // the switch in the column head (Rick, 2026-09-17) — not in the
+        // sidebar, where it was far from the control it describes.
+        '<p class="gpa-levels gpa-unit-note">' + esc(t.unitNote) + "</p>" +
         "</div>" +
         '<aside class="gpa-side">' +
         '<div class="gpa-result" id="gpaResult">' + resultInner() + "</div>" +
         '<details class="gpa-scale" id="gpaScaleCard"' + (narrow ? "" : " open") + ">" + scaleCardInner() + "</details>" +
         '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
-        '<p class="gpa-levels">' + esc(t.unitNote) + "</p>" +
         '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
         '<p class="gpa-print-only gpa-print-foot">' + esc(t.printSource) + "</p>" +
         "</aside></div>"
