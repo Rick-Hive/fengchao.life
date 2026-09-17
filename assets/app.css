@@ -773,15 +773,14 @@ body.page-gpa .wrap { max-width: 1200px; }
   background: #eef1f6; border-bottom: 1px solid var(--line);
   border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
 }
-/* The period title is an input so a family can rename "9 年级" to "2026 秋"
-   in place; styled as a heading until focused. */
-.gpa-period-name {
-  font: inherit; font-weight: 700; font-size: 1rem; color: var(--ink);
-  border: 1px solid transparent; border-radius: 8px; background: none; padding: 4px 6px; margin-left: -6px;
-  width: 11em; max-width: 45%; min-width: 0;
+/* The block head names a school year and a term from two dropdowns (Rick,
+   2026-09-17); in print the pair collapses to one title. */
+.gpa-period-pick { display: inline-flex; gap: 6px; flex: none; }
+.gpa-head-sel {
+  width: auto; font-weight: 700; font-size: 0.95rem; padding: 5px 26px 5px 10px; border-radius: 8px;
+  background-color: #fff; border-color: #c3d2e0;
 }
-.gpa-period-name:hover { border-color: #c3d2e0; }
-.gpa-period-name:focus { outline: none; border-color: var(--accent); background: #fff; }
+.gpa-period-title { display: none; font-weight: 700; font-size: 0.98rem; }
 .gpa-year-meta { color: var(--muted); font-size: 0.84rem; font-variant-numeric: tabular-nums; }
 .gpa-year-gpa { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); white-space: nowrap; }
 .gpa-rm-period { color: #b0b8c4; }
@@ -959,7 +958,7 @@ body.page-gpa .wrap { max-width: 1200px; }
   .gpa-table td.gpa-c-name { grid-column: 1 / -1; }
   .gpa-table td.gpa-c-pts { display: none; }
   .gpa-table td:last-child { position: absolute; right: 8px; top: 8px; }
-  .gpa-period-name { max-width: 40%; }
+  .gpa-head-sel { font-size: 0.88rem; padding: 4px 22px 4px 8px; }
   .gpa-year-meta { display: none; }
   .gpa-tab { font-size: 0.84rem; }
 }
@@ -993,7 +992,8 @@ body.page-gpa .wrap { max-width: 1200px; }
   .gpa-years { display: none; }
   .gpa-year { border: 1px solid #1c1c1c; border-radius: 4px; box-shadow: none; margin: 0 0 12px; break-inside: avoid; }
   .gpa-year-head { background: #f0f0f0; border-bottom: 1px solid #1c1c1c; padding: 6px 12px; }
-  .gpa-period-name { border: none; background: none; font-size: 0.98rem; }
+  .gpa-period-pick { display: none; }
+  .gpa-period-title { display: inline; }
   .gpa-year-gpa { color: #000; }
   .gpa-table { font-size: 0.86rem; table-layout: fixed; }
   .gpa-table th { color: #000; border-bottom: 1px solid #1c1c1c; padding: 6px 8px; }

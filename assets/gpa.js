@@ -110,6 +110,21 @@
           var legacyYear = typeof p.grade === "number" && !p.term && !p.name;
           return !(legacyYear && !p.rows.some(function (x) { return String(x.grade || "").trim() !== ""; }));
         });
+        // Since 2026-09-17 every block is a school year + a term, chosen from
+        // two dropdowns (Rick: "每个学年只有 2 个学期"). Older shapes — "第 N 学期"
+        // (seq), a typed name, a whole-year block — map onto that: N counts
+        // 9 上, 9 下, 10 上 …; anything else follows the block before it.
+        var prev = null;
+        S.periods.forEach(function (p) {
+          if (!(p.grade >= 9 && p.grade <= 12 && p.term)) {
+            var n = typeof p.seq === "number" ? p.seq : null;
+            if (n !== null) { p.grade = Math.min(12, 9 + Math.floor((n - 1) / 2)); p.term = n % 2 ? "s1" : "s2"; }
+            else if (p.grade >= 9 && p.grade <= 12) { p.term = "s1"; }
+            else { var nx = nextSlot(prev); p.grade = nx.grade; p.term = nx.term; }
+          }
+          delete p.seq; delete p.name;
+          prev = p;
+        });
         if (!S.periods.length) S.periods = null;
       }
       // r.prior (此前成绩) and r.touched, both removed 2026-09-17, are ignored if present.
@@ -134,7 +149,14 @@
     function applyBlank() {
       var rows = [];
       for (var i = 0; i < 5; i++) rows.push(blankRow());
-      S.periods = [{ id: uid(), grade: null, term: null, seq: 1, name: "", rows: rows }];
+      S.periods = [{ id: uid(), grade: 9, term: "s1", rows: rows }];
+    }
+    // The slot after a block: 9 上 → 9 下 → 10 上 …; after 12 下, 12 上 again
+    // for the family to change (the dropdown stops at 12). Nothing → 9 上.
+    function nextSlot(p) {
+      if (!p) return { grade: 9, term: "s1" };
+      if (p.term === "s1") return { grade: p.grade, term: "s2" };
+      return { grade: Math.min(12, p.grade + 1), term: "s1" };
     }
 
 
@@ -220,13 +242,7 @@
     function rowName(r) { return typeof r.name === "string" ? r.name : ctx.pickLang(r.name.en, r.name.zh); }
     function periodName(p) {
       var t = T();
-      if (p.name) return p.name;
-      if (typeof p.grade === "number") {
-        var g = fill(t.gradeN, { n: p.grade });
-        return p.term ? g + " · " + (p.term === "s1" ? t.termFall : t.termSpring) : g;
-      }
-      if (typeof p.seq === "number") return fill(t.semesterN, { n: p.seq });
-      return "";
+      return fill(t.gradeN, { n: p.grade }) + " · " + (p.term === "s1" ? t.termFall : t.termSpring);
     }
     function levelLabel(l) {
       var t = T();
@@ -300,7 +316,7 @@
     function gradeControl(r) {
       var t = T();
       if (S.gradeMode === "percent") {
-        return '<input class="gpa-in gpa-grade" type="text" inputmode="decimal" data-f="grade" value="' + esc(r.grade) + '" placeholder="' + esc(t.gradePlaceholder) + '" aria-label="' + esc(t.colGrade) + '" />';
+        return '<input class="gpa-in gpa-grade" type="text" inputmode="decimal" autocomplete="off" data-f="grade" value="' + esc(r.grade) + '" placeholder="' + esc(t.gradePlaceholder) + '" aria-label="' + esc(t.colGrade) + '" />';
       }
       var g = String(r.grade || "").trim();
       var known = false;
@@ -314,7 +330,7 @@
       opts += '<option value="P"' + (isP ? " selected" : "") + ">" + esc(t.gradePass) + "</option>";
       // A value typed under the percentage setting still shows (and counts).
       if (g && !known && !isP) opts += '<option value="' + esc(g) + '" selected>' + esc(g) + "</option>";
-      return '<select class="gpa-sel gpa-grade" data-f="grade" aria-label="' + esc(t.colGrade) + '">' + opts + "</select>";
+      return '<select class="gpa-sel gpa-grade" data-f="grade" autocomplete="off" aria-label="' + esc(t.colGrade) + '">' + opts + "</select>";
     }
 
     function ptsCell(r) {
@@ -333,10 +349,10 @@
       }).join("");
       return (
         '<tr data-row="' + esc(r.id) + '">' +
-        '<td class="gpa-c-name"><input class="gpa-in" type="text" data-f="name" autocomplete="off" value="' + esc(rowName(r)) + '" aria-label="' + esc(t.colCourse) + '" /></td>' +
-        '<td><input class="gpa-in gpa-w" type="number" min="0" step="' + (S.unit === "periods" ? "1" : "0.25") + '" data-f="w" value="' + esc(r.w) + '" aria-label="' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + '" /></td>' +
+        '<td class="gpa-c-name"><input class="gpa-in" type="text" autocomplete="off" data-f="name" value="' + esc(rowName(r)) + '" aria-label="' + esc(t.colCourse) + '" /></td>' +
+        '<td><input class="gpa-in gpa-w" type="number" min="0" autocomplete="off" step="' + (S.unit === "periods" ? "1" : "0.25") + '" data-f="w" value="' + esc(r.w) + '" aria-label="' + esc(S.unit === "periods" ? t.colPeriods : t.colWeight) + '" /></td>' +
         "<td>" + gradeControl(r) + "</td>" +
-        '<td><select class="gpa-sel" data-f="lvl" aria-label="' + esc(t.colLevel) + '" title="' + esc(t.levelsNote) + '">' + lv + "</select></td>" +
+        '<td><select class="gpa-sel" data-f="lvl" autocomplete="off" aria-label="' + esc(t.colLevel) + '" title="' + esc(t.levelsNote) + '">' + lv + "</select></td>" +
         '<td><button type="button" class="gpa-seg" data-f="ac" aria-label="' + esc(t.colType) + '">' +
         '<span class="' + (r.ac !== false ? "on" : "") + '">' + esc(t.academic) + "</span>" +
         '<span class="' + (r.ac === false ? "on" : "") + '">' + esc(t.nonAcademic) + "</span></button></td>" +
@@ -367,7 +383,15 @@
         ? fill(t.periodMeta, { w: fw(a.w + a.inProg), unit: unitLabel(), n: p.rows.length })
         : fill(t.periodNoGrades, { w: fw(a.inProg), unit: unitLabel() });
       return (
-        '<input class="gpa-period-name" type="text" data-period-name="' + esc(p.id) + '" value="' + esc(periodName(p)) + '" placeholder="' + esc(t.periodNamePlaceholder) + '" />' +
+        // Year and term as dropdowns (Rick, 2026-09-17: "增加年级下拉框选择");
+        // print shows the pair as one title.
+        '<span class="gpa-period-pick">' +
+        '<select class="gpa-sel gpa-head-sel" data-period-grade="' + esc(p.id) + '" autocomplete="off" aria-label="' + esc(t.colGradeYear) + '">' +
+        [9, 10, 11, 12].map(function (g) { return '<option value="' + g + '"' + (p.grade === g ? " selected" : "") + ">" + esc(fill(t.gradeN, { n: g })) + "</option>"; }).join("") + "</select>" +
+        '<select class="gpa-sel gpa-head-sel" data-period-term="' + esc(p.id) + '" autocomplete="off" aria-label="' + esc(t.colTerm) + '">' +
+        '<option value="s1"' + (p.term === "s1" ? " selected" : "") + ">" + esc(t.termFall) + '</option><option value="s2"' + (p.term === "s2" ? " selected" : "") + ">" + esc(t.termSpring) + "</option></select>" +
+        "</span>" +
+        '<span class="gpa-period-title gpa-print-only">' + esc(periodName(p)) + "</span>" +
         '<span class="gpa-year-meta">' + esc(meta) + "</span>" +
         '<span class="gpa-year-gpa">GPA ' + esc(f2(gpaOf(a.cp, a.wG))) + "</span>" +
         '<button type="button" class="gpa-rm gpa-rm-period" data-rm-period="' + esc(p.id) + '" title="' + esc(t.removePeriod) + '" aria-label="' + esc(t.removePeriod) + '">×</button>'
@@ -575,7 +599,7 @@
         var head = root.querySelector('.gpa-year[data-period="' + p.id + '"] .gpa-year-head');
         if (head) {
           var tmp3 = document.createElement("div"); tmp3.innerHTML = periodHeadInner(p);
-          ["gpa-year-meta", "gpa-year-gpa"].forEach(function (c) {
+          ["gpa-year-meta", "gpa-year-gpa", "gpa-period-title"].forEach(function (c) {
             var a = head.querySelector("." + c), b = tmp3.querySelector("." + c);
             if (a && b) a.textContent = b.textContent;
           });
@@ -738,12 +762,6 @@
           if (f !== "name") refresh(found.r.id);
           return;
         }
-        var pn = el.getAttribute && el.getAttribute("data-period-name");
-        if (pn) {
-          var p = findPeriod(pn);
-          if (p) { p.name = el.value; save(); refresh(); }
-          return;
-        }
         var st = el.getAttribute && el.getAttribute("data-student");
         if (st) {
           if (st === "school") S.school = el.value.slice(0, 120); else S.student = el.value.slice(0, 80);
@@ -755,6 +773,15 @@
 
       section.addEventListener("change", function (e) {
         var el = e.target;
+        var pg = el.getAttribute && (el.getAttribute("data-period-grade") || el.getAttribute("data-period-term"));
+        if (pg) {
+          var pp0 = findPeriod(pg);
+          if (!pp0) return;
+          if (el.hasAttribute("data-period-grade")) pp0.grade = Math.max(9, Math.min(12, parseInt(el.value, 10) || 9));
+          else pp0.term = el.value === "s2" ? "s2" : "s1";
+          save(); refresh();
+          return;
+        }
         var f = el.getAttribute && el.getAttribute("data-f");
         if (f !== "lvl" && f !== "grade") return;
         var tr = el.closest("[data-row]");
@@ -821,20 +848,17 @@
           if (filled) confirmModal(fill(t.removePeriodConfirm, { n: filled }), dropPeriod); else dropPeriod();
           return;
         }
-        // "Add semester": continues the pattern of the last block — Grade 9 Fall
-        // → Grade 9 Spring → Grade 10 Fall …, or Semester N → Semester N+1.
+        // "Add semester": the slot after the last block — 9 上 → 9 下 → 10 上 …
+        // A year has two terms, never a "第 5 学期" (Rick, 2026-09-17); the
+        // new block's year defaults to the one after the last and can be
+        // changed in its dropdown.
         if (e.target.closest("#gpaAddPeriod")) {
-          var last = S.periods[S.periods.length - 1];
-          var nb = { id: uid(), grade: null, term: null, seq: null, name: "", rows: [blankRow()] };
-          if (last && typeof last.grade === "number") {
-            if (last.term === "s1") { nb.grade = last.grade; nb.term = "s2"; }
-            else if (last.grade < 12) { nb.grade = last.grade + 1; nb.term = last.term ? "s1" : null; }
-          } else if (last && typeof last.seq === "number") nb.seq = last.seq + 1;
-          else nb.seq = S.periods.length + 1;
+          var slot = nextSlot(S.periods[S.periods.length - 1]);
+          var nb = { id: uid(), grade: slot.grade, term: slot.term, rows: [blankRow()] };
           S.periods.push(nb);
           save(); repaint();
-          var nm = root.querySelector(".gpa-year:last-of-type .gpa-period-name");
-          if (nm && nb.grade === null && nb.seq === null) nm.focus();
+          var gsel = root.querySelector('.gpa-year[data-period="' + nb.id + '"] [data-period-grade]');
+          if (gsel) gsel.focus();
           return;
         }
         if (e.target.closest("#gpaPrint")) { window.print(); return; }

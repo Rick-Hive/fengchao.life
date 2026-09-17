@@ -145,6 +145,9 @@ const pick = (sel) => { const el = doc.querySelector(sel); if (!el) throw new Er
 // and a Back/Forward-style arrival at a path (pushState + popstate, which
 // jsdom delivers synchronously when dispatched by hand).
 const url = () => window.location.pathname + window.location.hash;
+// A semester block's title as printed ("9 年级 · 上学期"), and its two dropdowns.
+const ptitle = (blk) => blk.querySelector(".gpa-period-title").textContent;
+const pyear = (blk) => blk.querySelector("[data-period-grade]").value + "/" + blk.querySelector("[data-period-term]").value;
 const nav = (p) => { window.history.pushState(null, "", p); window.dispatchEvent(new window.PopStateEvent("popstate")); };
 // Pedagogy -> stage -> (rhetoric only: track -> requirements) -> catalog.
 const goToCatalog = (stage, pedagogy) => {
@@ -595,7 +598,7 @@ setTimeout(() => {
     await after(() => {
       check("Next goes straight to the sheet, at its own URL", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/sheet", "sheet"]);
       check("the saved sheet is eight flat semester blocks, gpacalculator.net-style — no grouping above them (Rick, 2026-09-16)",
-        [doc.querySelectorAll(".gpa-year").length, Array.from(doc.querySelectorAll(".gpa-period-name")).slice(0, 3).map(i => i.value)],
+        [doc.querySelectorAll(".gpa-year").length, Array.from(doc.querySelectorAll(".gpa-year")).slice(0, 3).map(ptitle)],
         [8, ["9 年级 · 上学期", "9 年级 · 下学期", "10 年级 · 上学期"]]);
       check("...72 rows at half a credit, names following the language toggle; Bible and PE non-academic; nothing on the page says 美国",
         [doc.querySelectorAll("tr[data-row]").length, doc.querySelector('tr[data-row] [data-f="w"]').value,
@@ -657,7 +660,7 @@ setTimeout(() => {
         [saved.periods.length, saved.periods[0].rows[0].grade, saved.periods[0].rows[0].lvl, "cart" in saved], [8, "A-", "H", false]);
       click(pick("#langBtn"));
       check("the page follows the language switch, preset and semester names included",
-        [doc.querySelector("#gpaPage h2").firstChild.textContent.trim(), doc.querySelector('tr[data-row] [data-f="name"]').value, doc.querySelector(".gpa-period-name").value], ["G.P.A. Calculator", "English Literature 9", "Grade 9 · Fall"]);
+        [doc.querySelector("#gpaPage h2").firstChild.textContent.trim(), doc.querySelector('tr[data-row] [data-f="name"]').value, ptitle(Y1()), Y1().querySelector("[data-period-grade] option:checked").textContent], ["G.P.A. Calculator", "English Literature 9", "Grade 9 · Fall", "Grade 9"]);
       click(pick("#langBtn"));
       setVal(doc.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
       click(pick("#langBtn"));
@@ -670,10 +673,15 @@ setTimeout(() => {
       check("...and × removes it", Y1().querySelectorAll('tr[data-row]').length, 9);
       click(pick("#gpaAddPeriod"));
       const Y5 = () => Array.from(doc.querySelectorAll(".gpa-year")).pop();
-      check("Add semester after Grade 12 Spring gives an unnamed block to fill in, one blank row",
-        [doc.querySelectorAll(".gpa-year").length, Y5().querySelector(".gpa-period-name").value, Y5().querySelectorAll("tr[data-row]").length], [9, "", 1]);
-      setVal(Y5().querySelector(".gpa-period-name"), "2027 秋");
-      check("a semester can be renamed freely, as on gpacalculator.net", JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[8].name, "2027 秋");
+      // Every block is a school year + a term from two dropdowns (Rick, 2026-09-17:
+      // "增加年级下拉框选择 … 每个学年只有 2 个学期"); there is no "第 5 学期".
+      check("Add semester after 12 下 gives a block at 12 上 (the dropdown stops at 12) for the family to adjust, one blank row",
+        [doc.querySelectorAll(".gpa-year").length, pyear(Y5()), ptitle(Y5()), Y5().querySelectorAll("tr[data-row]").length,
+         Array.from(Y5().querySelectorAll("[data-period-grade] option")).map(o => o.textContent), Array.from(Y5().querySelectorAll("[data-period-term] option")).map(o => o.textContent)],
+        [9, "12/s1", "12 年级 · 上学期", 1, ["9 年级", "10 年级", "11 年级", "12 年级"], ["上学期", "下学期"]]);
+      setVal(Y5().querySelector("[data-period-grade]"), "10"); setVal(Y5().querySelector("[data-period-term]"), "s2");
+      check("changing the year and term in the head renames the block and is saved",
+        [ptitle(Y5()), JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[8].grade, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[8].term], ["10 年级 · 下学期", 10, "s2"]);
       Y5().querySelector("[data-rm-period]").click();
       // Remove the last preset block (it has names, so the site's own confirm asks) and add again: the pattern continues.
       Array.from(doc.querySelectorAll(".gpa-year")).pop().querySelector("[data-rm-period]").click();
@@ -681,7 +689,7 @@ setTimeout(() => {
         [doc.querySelectorAll(".gpa-confirm-modal").length, doc.querySelectorAll(".gpa-year").length], [1, 8]);
       click(pick(".gpa-confirm-modal [data-confirm-ok]"));
       click(pick("#gpaAddPeriod"));
-      check("Add semester continues the Fall → Spring → next grade pattern", Y5().querySelector(".gpa-period-name").value, "12 年级 · 下学期");
+      check("Add semester continues the pattern: after 12 上 comes 12 下", [pyear(Y5()), ptitle(Y5())], ["12/s2", "12 年级 · 下学期"]);
       click(pick('[data-toggle="unit"]'));
       check("the column head is a switch: flipped to 课时/周, a semester's 0.5 credit reads as 5 periods a week, the GPA does not move",
         [doc.querySelector(".gpa-table th.gpa-col-cr .gpa-switch").getAttribute("aria-checked"), doc.querySelector(".gpa-table th.gpa-col-cr .lab.on").textContent, Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaMain").textContent], ["true", "课时/周", "5", "3.57"]);
@@ -774,14 +782,23 @@ setTimeout(() => {
       });
       tool.render(box, "sheet");
       check("loading a legacy save drops ungraded whole-year blocks and keeps the graded one",
-        [box.querySelectorAll(".gpa-year").length, box.querySelector(".gpa-period-name").value, box.querySelector(".gpa-year-gpa").textContent], [1, "10 年级", "GPA 4.00"]);
-      // 清空 (which asks) leaves one empty 第 1 学期 on the sheet, as a first
+        [box.querySelectorAll(".gpa-year").length, ptitle(box.querySelector(".gpa-year")), box.querySelector(".gpa-year-gpa").textContent], [1, "10 年级 · 上学期", "GPA 4.00"]);
+      // 清空 (which asks) leaves one empty 9 年级 · 上学期 on the sheet, as a first
       // open does — there is no template and no middle step to fall back to.
       click(box.querySelector("#gpaClear"));
       click(doc.querySelector(".gpa-confirm-modal [data-confirm-ok]"));
       let saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
-      check("清空 leaves one empty 第 1 学期 with five rows and stays on the sheet",
-        [box.querySelectorAll(".gpa-year").length, box.querySelector(".gpa-period-name").value, box.querySelectorAll("tr[data-row]").length, saved2.periods.length, saved2.periods[0].seq], [1, "第 1 学期", 5, 1, 1]);
+      check("清空 leaves one empty 9 年级 · 上学期 with five rows and stays on the sheet",
+        [box.querySelectorAll(".gpa-year").length, ptitle(box.querySelector(".gpa-year")), box.querySelectorAll("tr[data-row]").length, saved2.periods.length, saved2.periods[0].grade, saved2.periods[0].term], [1, "9 年级 · 上学期", 5, 1, 9, "s1"]);
+      // Old saves named their blocks 第 N 学期 (seq) or freely; they map onto years.
+      window.localStorage.setItem("fc-gpa-v1", JSON.stringify({ periods: [
+        { id: "a", grade: null, term: null, seq: 1, name: "", rows: [] }, { id: "b", grade: null, term: null, seq: 2, name: "", rows: [] },
+        { id: "c", grade: null, term: null, seq: 3, name: "", rows: [] }, { id: "d", grade: null, term: null, seq: null, name: "2027 秋", rows: [] }] }));
+      const box3 = doc.createElement("div"); doc.body.appendChild(box3);
+      window.createGpaTool({ t: () => window.I18N.zh, esc: (s) => String(s), pickLang: (en, zh) => zh || en, openModal: () => doc.createElement("div"), closeModal: () => {}, go: () => {}, subjects: () => [] }).render(box3, "sheet");
+      check("a save with 第 1–3 学期 and a named block loads as 9 上, 9 下, 10 上, 10 下",
+        Array.from(box3.querySelectorAll(".gpa-year")).map(ptitle), ["9 年级 · 上学期", "9 年级 · 下学期", "10 年级 · 上学期", "10 年级 · 下学期"]);
+      box3.remove();
 
       // ---- first open, nothing saved: the sheet makes its own first semester --
       window.localStorage.removeItem("fc-gpa-v1");
@@ -789,9 +806,9 @@ setTimeout(() => {
       const tool2 = window.createGpaTool({ t: () => window.I18N.zh, esc: (s) => String(s), pickLang: (en, zh) => zh || en, openModal: () => doc.createElement("div"), closeModal: () => {}, go: () => {}, subjects: () => [] });
       tool2.render(box2, "sheet");
       const saved3 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
-      check("a first open of the sheet is 第 1 学期 with five blank rows at 0.5 credit — as gpacalculator.net and calculator.net open — saved at once",
-        [box2.querySelectorAll(".gpa-year").length, box2.querySelector(".gpa-period-name").value, box2.querySelectorAll("tr[data-row]").length, box2.querySelector('tr[data-row] [data-f="w"]').value, saved3.periods.length],
-        [1, "第 1 学期", 5, "0.5", 1]);
+      check("a first open of the sheet is 9 年级 · 上学期 with five blank rows at 0.5 credit, 普通课 — as gpacalculator.net and calculator.net open with one semester — saved at once",
+        [box2.querySelectorAll(".gpa-year").length, ptitle(box2.querySelector(".gpa-year")), box2.querySelectorAll("tr[data-row]").length, box2.querySelector('tr[data-row] [data-f="w"]').value, box2.querySelector('tr[data-row] [data-f="lvl"]').value, saved3.periods.length],
+        [1, "9 年级 · 上学期", 5, "0.5", "CP", 1]);
       check("no start cards, no template, no 选择起点 anywhere on the page", [box2.querySelectorAll("[data-gpa-start]").length, /选择起点/.test(box2.textContent), typeof window.GPA_PRESET], [0, false, "undefined"]);
       box.remove(); box2.remove();
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
