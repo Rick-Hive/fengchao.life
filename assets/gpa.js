@@ -58,6 +58,7 @@
         periods: null,           // null = nothing started yet
         prior: { gpa: "", w: "" },
         student: "",             // optional, printed on the sheet
+        school: "",              // optional, printed on the sheet
       };
     }
 
@@ -107,6 +108,7 @@
       }
       if (r.prior && typeof r.prior === "object") S.prior = { gpa: String(r.prior.gpa || ""), w: String(r.prior.w || "") };
       if (typeof r.student === "string") S.student = r.student.slice(0, 80);
+      if (typeof r.school === "string") S.school = r.school.slice(0, 120);
       return S;
     }
 
@@ -443,7 +445,8 @@
         '<input class="gpa-in" type="text" inputmode="decimal" data-prior="gpa" value="' + esc(S.prior.gpa) + '" placeholder="' + esc(t.priorGpa) + '" aria-label="' + esc(t.prior + " " + t.priorGpa) + '" />' +
         '<input class="gpa-in" type="text" inputmode="decimal" data-prior="w" value="' + esc(S.prior.w) + '" placeholder="' + esc(t.priorCredits) + '" aria-label="' + esc(t.prior + " " + t.priorCredits) + '" /></div>' +
         (bars ? '<div class="gpa-years">' + bars + "</div>" : "") +
-        '<div class="gpa-student"><label for="gpaStudent">' + esc(t.studentLabel) + '</label><input class="gpa-in" id="gpaStudent" type="text" maxlength="80" data-student="1" value="' + esc(S.student || "") + '" /></div>' +
+        '<div class="gpa-student"><label for="gpaSchool">' + esc(t.schoolLabel) + '</label><input class="gpa-in" id="gpaSchool" type="text" maxlength="120" data-student="school" value="' + esc(S.school || "") + '" />' +
+        '<label for="gpaStudent">' + esc(t.studentLabel) + '</label><input class="gpa-in" id="gpaStudent" type="text" maxlength="80" data-student="student" value="' + esc(S.student || "") + '" /></div>' +
         '<div class="gpa-actions"><button type="button" class="btn btn-ghost" id="gpaPrint">' + esc(t.print) + "</button>" +
         '<button type="button" class="btn btn-ghost" id="gpaClear">' + esc(t.clear) + "</button></div>"
       );
@@ -547,6 +550,7 @@
         '<div class="gpa-print-brand"><b>蜂巢</b><span>fengchao.life</span></div>' +
         '<div class="gpa-print-title"><h1>' + esc(t.printTitle) + "</h1><div>" + esc(t.printUnofficial) + "</div></div>" +
         '<div class="gpa-print-meta">' +
+        (S.school ? "<div>" + esc(t.printSchool) + "：" + esc(S.school) + "</div>" : "") +
         (S.student ? "<div>" + esc(t.printStudent) + "：" + esc(S.student) + "</div>" : "") +
         "<div>" + esc(t.printedOn) + "：" + esc(new Date().toISOString().slice(0, 10)) + "</div></div>"
       );
@@ -755,7 +759,8 @@
         if (pr) { S.prior[pr] = el.value; save(); refresh(); return; }
         var st = el.getAttribute && el.getAttribute("data-student");
         if (st) {
-          S.student = el.value.slice(0, 80); save();
+          if (st === "school") S.school = el.value.slice(0, 120); else S.student = el.value.slice(0, 80);
+          save();
           var ph = root.querySelector(".gpa-print-head");
           if (ph) ph.innerHTML = printHeadInner();
         }

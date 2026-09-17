@@ -757,6 +757,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-print-head, .gpa-print-only { display: none; }
 .gpa-student { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); }
 .gpa-student .gpa-in { padding: 6px 8px; font-size: 0.9rem; }
+.gpa-student label + .gpa-in + label { margin-top: 6px; }
 /* The sheet has seven columns, two of them switches with words on both sides,
    so this page runs wider than the wizard's 1080px. */
 body.page-gpa .wrap { max-width: 1200px; }
