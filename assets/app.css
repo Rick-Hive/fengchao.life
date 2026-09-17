@@ -82,7 +82,21 @@ img { max-width: 100%; }
   box-shadow: 0 1px 0 rgba(224, 168, 32, 0.28), 0 6px 18px -12px rgba(15, 32, 60, 0.28);
 }
 .header-inner {
-  max-width: 1080px; margin: 0 auto; padding: 13px 20px;
+  /* The header sits on the 1080px content column — but as a floor, not a
+     cap. When the row's content is wider than the column (the English
+     tagline beside the English nav), the row grows to whatever width puts
+     it all on one line, keeps its right edge on the column, and extends
+     LEFT: the mark, wordmark, values and tagline slide left together until
+     the tagline fits, rather than the tagline wrapping or losing words
+     (Rick, 2026-09-17). Chinese never needs the room, so it lays out
+     exactly as before. Below the content's width the row is the viewport
+     and the lockup wraps as a normal flex item. */
+  width: max-content;
+  min-width: min(100%, 1080px);
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: max(0px, calc((100% - 1080px) / 2));
+  padding: 13px 20px;
   display: flex; align-items: center; gap: 13px;
   /* anchors the mobile nav panel, which drops out of the header */
   position: relative;
@@ -111,24 +125,10 @@ img { max-width: 100%; }
   font-size: 0.76rem; letter-spacing: 0.08em; color: #a9781a;
   white-space: nowrap;
 }
-/* The tagline used to live inside .brand-lockup, squeezed into the same
-   column as the logo and wordmark and competing with the nav for the rest
-   of the row's width — in English that column was only ~310px, not enough
-   for the full sentence on one or two lines, so the text itself got cut
-   down instead (Rick didn't want that, 2026-09-17). It now gets its own
-   full-width row below the header's main row, clear of the nav entirely, so
-   both languages render their complete tagline without wrapping to three
-   lines. */
-.header-tagline-row {
-  max-width: 1080px; margin: 0 auto;
-  padding: 0 20px 12px;
-}
 .brand-tag {
   font-size: 0.79rem; line-height: 1.25; color: var(--muted);
   letter-spacing: 0.02em;
-  /* Aligns the tagline under the wordmark: logo width (72px) + the gap
-     between logo and lockup (13px) in .header-inner. */
-  padding-left: 85px;
+  padding-left: 10px;
   border-left: 2px solid rgba(224, 168, 32, 0.55);
 }
 
@@ -200,12 +200,10 @@ a.menu-item:hover { background: #eef1f6; }
   .logo-mark { width: 56px; height: 56px; }
   .brand-name { font-size: 1.14rem; letter-spacing: 0.1em; text-indent: 0.1em; }
   /* With the menu, cart and language buttons all in the bar, a phone leaves
-     the lockup only ~30px on that row — values stay hidden there. The
-     tagline now lives on its own full-width row below the main one, so it
-     has the whole phone width to itself and no longer needs to be dropped. */
-  .brand-values { display: none; }
-  .header-tagline-row { padding: 0 14px 10px; }
-  .brand-tag { padding-left: 64px; } /* 56px logo + 8px gap, mobile sizes */
+     the lockup ~30px: the tagline broke into one character per line. The mark
+     and wordmark are the brand on a phone; values and tagline return on wider
+     screens. */
+  .brand-tag, .brand-values { display: none; }
 }
 .header-spacer { flex: 1; }
 .lang-btn {
@@ -213,13 +211,14 @@ a.menu-item:hover { background: #eef1f6; }
   border-radius: 999px; padding: 6px 16px; font-size: 0.85rem; cursor: pointer;
   white-space: nowrap; flex: none;   /* 中文 was breaking into two lines when squeezed */
 }
-/* English runs ~60% longer than Chinese, and the header's main row packs the
-   wordmark, values and full nav into one line, so English still needs a
-   touch more room there than Chinese does. (The tagline no longer competes
-   for this row's space — see .header-tagline-row above — so it needs no
-   English-only adjustment any more.) */
+/* English runs ~60% longer than Chinese in the nav and the tagline, and the
+   header is one flex row. Three small English-only tightenings (menu labels
+   were also shortened in SITE_MENUS) keep the row as compact as it can be;
+   whatever width the full tagline still needs beyond the content column,
+   .header-inner grows leftward to give it (see above). */
 html[lang="en"] .header-inner { gap: 10px; }
 html[lang="en"] .menu-btn { padding: 7px 9px; font-size: 0.86rem; }
+html[lang="en"] .brand-tag { font-size: 0.76rem; letter-spacing: 0; }
 .lang-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
 /* The cart lives in the header, top right, and is ALWAYS there — a parent
    learns where it is before they need it, and one glance at the number on the
