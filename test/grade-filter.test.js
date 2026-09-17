@@ -642,8 +642,8 @@ setTimeout(() => {
       check("a name the family typed stays as typed in either language", doc.querySelector('tr[data-row] [data-f="name"]').value, "荣誉英语 9");
       click(pick("#langBtn"));
       click(Y1().querySelector('[data-add-row]'));
-      check("add course appends a blank row at the tools' default of 1.0 credit",
-        [Y1().querySelectorAll('tr[data-row]').length, Y1().querySelector('tr[data-row]:last-child [data-f="w"]').value], [9, "1.0"]);
+      check("add course appends a blank row at a semester's half credit (5 periods/week under the other unit)",
+        [Y1().querySelectorAll('tr[data-row]').length, Y1().querySelector('tr[data-row]:last-child [data-f="w"]').value], [9, "0.5"]);
       click(Y1().querySelector('tr[data-row]:last-child [data-rm-row]'));
       check("...and × removes it", Y1().querySelectorAll('tr[data-row]').length, 8);
       click(pick("#gpaAddPeriod"));
@@ -692,18 +692,15 @@ setTimeout(() => {
       check("browser Back from the sheet returns to the starting point", [window.location.hash, doc.getElementById("gpaPage").getAttribute("data-view")], ["#/gpa/start", "start"]);
       check("...with no note about appending (removed at Rick's request, 2026-09-17)", doc.querySelector(".gpa-append"), null);
       check("the title carries the scope tag 仅供高中课程", doc.querySelector("#gpaPage h2 .gpa-scope").textContent, "仅供高中课程");
-      click(pick('[data-gpa-start="blank"]'));
-    });
-    await after(() => {
-      check("a blank start on an existing sheet appends one empty semester after it",
-        [doc.querySelectorAll(".gpa-year").length, Array.from(doc.querySelectorAll(".gpa-period-name")).pop().value, doc.querySelectorAll(".gpa-confirm-modal").length], [9, "第 9 学期", 0]);
-      Array.from(doc.querySelectorAll(".gpa-year")).pop().querySelector("[data-rm-period]").click();   // empty: no confirm
-      window.history.back(); window.history.back();
-    });
-    await after(() => {
-      window.history.back();
       check("the starting-point tab offers the blank start first, the plan second (the tools open with one semester)",
         Array.from(doc.querySelectorAll("[data-gpa-start]")).map(b => b.getAttribute("data-gpa-start")), ["blank", "preset"]);
+      // The sheet has grades in it: a new start asks first, and does not stack
+      // a ninth semester under the eight (Rick, 2026-09-17: "这个设计太冗余了").
+      click(pick('[data-gpa-start="blank"]'));
+      check("a new start on a graded sheet asks before replacing it, and changes nothing yet",
+        [doc.querySelectorAll(".gpa-confirm-modal").length, window.location.hash, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], [1, "#/gpa/start", 8]);
+      click(pick(".gpa-confirm-modal .modal-foot [data-close]"));
+      check("...and cancelling keeps the eight semesters", [doc.body.classList.contains("modal-open"), JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], [false, 8]);
       window.history.back();
     });
     await after(() => {
@@ -733,6 +730,47 @@ setTimeout(() => {
       pick('a.menu-item[href="#/gpa"]').dispatchEvent(new window.MouseEvent("click", { bubbles: true, cancelable: true }));
       check("clicking the menu link while already at its address still opens step 1 (no hashchange fires for a same fragment)",
         [doc.getElementById("gpaPage").getAttribute("data-view"), window.location.hash], ["scale", "#/gpa/scale"]);
+
+      // ---- a fresh tool instance over a legacy save -------------------------
+      // The version before semesters saved whole-year blocks ("G9", no term).
+      // Rick's browser kept those, and the preset then stacked eight semesters
+      // under them: "G9, G10, G11, G12; G9 上学期, G9 下学期…" (2026-09-17).
+      const legacy = {
+        unit: "credits", gradeMode: "letter",
+        periods: [
+          { id: "y9",  grade: 9,  term: null, name: "", rows: [{ id: "a", name: "English 9", w: "1.0", grade: "",  lvl: "CP", ac: true }] },
+          { id: "y10", grade: 10, term: null, name: "", rows: [{ id: "b", name: "English 10", w: "1.0", grade: "A", lvl: "CP", ac: true }] },
+          { id: "y11", grade: 11, term: null, name: "", rows: [{ id: "c", name: "English 11", w: "1.0", grade: "",  lvl: "CP", ac: true }] },
+        ],
+      };
+      window.localStorage.setItem("fc-gpa-v1", JSON.stringify(legacy));
+      const box = doc.createElement("div"); doc.body.appendChild(box);
+      const tool = window.createGpaTool({
+        t: () => window.I18N.zh, esc: (s) => String(s), pickLang: (en, zh) => zh || en,
+        openModal: (html, cls) => { const ov = doc.createElement("div"); ov.className = "modal " + (cls || ""); ov.innerHTML = html; doc.body.appendChild(ov); return ov; },
+        closeModal: (ov) => ov.remove(), go: () => {}, subjects: () => [],
+      });
+      tool.render(box, "sheet");
+      check("loading a legacy save drops ungraded whole-year blocks and keeps the graded one",
+        [box.querySelectorAll(".gpa-year").length, box.querySelector(".gpa-period-name").value, box.querySelector(".gpa-year-gpa").textContent], [1, "10 年级", "GPA 4.00"]);
+      tool.render(box, "start");
+      click(box.querySelector('[data-gpa-start="preset"]'));
+      check("the preset over a graded sheet asks first", doc.querySelectorAll(".gpa-confirm-modal").length, 1);
+      click(doc.querySelector(".gpa-confirm-modal [data-confirm-ok]"));
+      let saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
+      check("...and, confirmed, the sheet is the eight semesters alone — nothing stacked above them",
+        [saved2.periods.length, saved2.periods[0].grade, saved2.periods[0].term, saved2.periods.some(p => !p.term)], [8, 9, "s1", false]);
+      tool.render(box, "start");
+      click(box.querySelector('[data-gpa-start="preset"]'));
+      saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
+      check("choosing the preset again on an ungraded template replaces it silently: still eight, no modal",
+        [doc.querySelectorAll(".gpa-confirm-modal").length, saved2.periods.length], [0, 8]);
+      tool.render(box, "start");
+      click(box.querySelector('[data-gpa-start="blank"]'));
+      saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
+      check("preset, Back, then 空白开始 shows the blank sheet, not the preset (Rick, 2026-09-17)",
+        [saved2.periods.length, saved2.periods[0].seq, saved2.periods[0].rows.length], [1, 1, 5]);
+      box.remove();
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
     });

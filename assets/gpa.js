@@ -104,7 +104,14 @@
             name: typeof p.name === "string" ? p.name : "",
             rows: rows.map(cleanRow),
           };
+        }).filter(function (p) {
+          // A whole-year block ("G9", no term) is the layout before semesters.
+          // Ungraded, it is a stale template that would sit above "G9 · 上学期"
+          // as a duplicate — drop it. Graded, the family's work is kept.
+          var legacyYear = typeof p.grade === "number" && !p.term && !p.name;
+          return !(legacyYear && !p.rows.some(function (x) { return String(x.grade || "").trim() !== ""; }));
         });
+        if (!S.periods.length) S.periods = null;
       }
       if (r.prior && typeof r.prior === "object") S.prior = { gpa: String(r.prior.gpa || ""), w: String(r.prior.w || "") };
       if (typeof r.student === "string") S.student = r.student.slice(0, 80);
@@ -117,14 +124,17 @@
     }
 
     function started() { return Array.isArray(S.periods) && S.periods.length > 0; }
-    function blankRow() { return { id: uid(), name: "", w: S.unit === "periods" ? "5" : "1.0", grade: "", lvl: "CP", ac: true }; }
+    // A blank row is one semester of a course meeting daily: 0.5 credit, or 5
+    // periods a week — the same course under either unit (the ×10 rule).
+    function blankRow() { return { id: uid(), name: "", w: S.unit === "periods" ? "5" : "0.5", grade: "", lvl: "CP", ac: true }; }
 
     // The template: eight semesters (Grade 9 Fall … Grade 12 Spring), the
     // year's courses in each at half their credit, as a transcript lists a
-    // year-long course graded twice. Appended after whatever is already there
-    // — a start never clears a sheet (Rick, 2026-09-16: "为什么要清除？").
+    // year-long course graded twice. A start builds the sheet afresh: choosing
+    // the preset twice must not stack sixteen semesters (Rick, 2026-09-17:
+    // "这个设计太冗余了"). Whether to ask first is decided in the click handler.
     function applyPreset() {
-      var out = S.periods ? S.periods.slice() : [];
+      var out = [];
       (window.GPA_PRESET || []).forEach(function (p) {
         ["s1", "s2"].forEach(function (term) {
           out.push({ id: uid(), grade: p.grade, term: term, seq: null, name: "", rows: p.rows.map(function (r) {
@@ -137,13 +147,17 @@
       S.periods = out;
     }
 
-    // Blank start: "Semester 1" with five empty rows, as calculator.net opens
-    // — or, with a sheet already there, one more empty semester after it.
+    // Blank start: "Semester 1" with five empty rows, as calculator.net opens.
     function applyBlank() {
       var rows = [];
       for (var i = 0; i < 5; i++) rows.push(blankRow());
-      if (!S.periods) S.periods = [];
-      S.periods.push({ id: uid(), grade: null, term: null, seq: S.periods.length + 1, name: "", rows: rows });
+      S.periods = [{ id: uid(), grade: null, term: null, seq: 1, name: "", rows: rows }];
+    }
+
+    // Has the family typed any grade into the current sheet? A pure template
+    // (no grades yet) is replaced silently by a new start; graded work is not.
+    function anyGraded() {
+      return allRows().some(function (r) { return String(r.grade || "").trim() !== ""; });
     }
 
     function findRow(id) {
@@ -795,8 +809,13 @@
         if (goBtn) { go(goBtn.getAttribute("data-gpa-go")); return; }
         var start = e.target.closest("[data-gpa-start]");
         if (start) {
-          if (start.getAttribute("data-gpa-start") === "preset") applyPreset(); else applyBlank();
-          save(); go("sheet"); return;
+          var kind = start.getAttribute("data-gpa-start");
+          var begin = function () {
+            if (kind === "preset") applyPreset(); else applyBlank();
+            save(); go("sheet");
+          };
+          if (anyGraded()) confirmModal(t.startReplaceConfirm, begin); else begin();
+          return;
         }
         if (e.target.closest("[data-scale-edit]")) { openScaleEditor(); return; }
         var ac = e.target.closest('[data-f="ac"]');
