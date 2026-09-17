@@ -1,7 +1,7 @@
 // UI strings. Data values from Airtable are already bilingual and shown as-is.
 window.I18N = {
   zh: {
-    brandTag: "以线上资源推动C教育生态重建",
+    brandTag: "以线上资源推动线下C教育生态重建",
     brandValues: ["开放", "自治", "协作"],
     menuLabel: "菜单",
     comingSoon: "即将上线",
@@ -241,10 +241,7 @@ window.I18N = {
     },
   },
   en: {
-    // Short enough to sit on one line beside the English nav; the Chinese
-    // tagline is the full statement (Rick, 2026-09-16: the three-line English
-    // lockup "make[s] it into three lines").
-    brandTag: "Rebuilding C-education through online resources",
+    brandTag: "Rebuilding the offline C-education ecosystem through online resources",
     brandValues: ["Open", "Autonomous", "Collaborative"],
     menuLabel: "Menu",
     comingSoon: "Coming soon",
