@@ -705,15 +705,13 @@ setTimeout(() => {
       check("browser Back from the sheet returns to the starting point", [url(), doc.getElementById("gpaPage").getAttribute("data-view")], ["/gpa/start", "start"]);
       check("...with no note about appending (removed at Rick's request, 2026-09-17)", doc.querySelector(".gpa-append"), null);
       check("the title carries the scope tag 仅供高中课程", doc.querySelector("#gpaPage h2 .gpa-scope").textContent, "仅供高中课程");
-      check("the starting-point tab offers the blank start first, the plan second (the tools open with one semester)",
-        Array.from(doc.querySelectorAll("[data-gpa-start]")).map(b => b.getAttribute("data-gpa-start")), ["blank", "preset"]);
-      // The sheet has grades in it: a new start asks first, and does not stack
-      // a ninth semester under the eight (Rick, 2026-09-17: "这个设计太冗余了").
-      click(pick('[data-gpa-start="blank"]'));
-      check("a new start on a graded sheet asks before replacing it, and changes nothing yet",
-        [doc.querySelectorAll(".gpa-confirm-modal").length, url(), JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], [1, "/gpa/start", 8]);
-      click(pick(".gpa-confirm-modal .modal-foot [data-close]"));
-      check("...and cancelling keeps the eight semesters", [doc.body.classList.contains("modal-open"), JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length], [false, 8]);
+      // With a sheet there, tab 2 has one job: lead back to it. No start cards,
+      // so nothing on this tab can replace the family's data (Rick, 2026-09-17:
+      // "数据也会变成空白 … 严重bug", then "just restore the data").
+      check("Back from a sheet lands on a tab that only leads back to the sheet: 继续填写 with its size, a 清空 note, no start cards, no dialog",
+        [doc.querySelectorAll("[data-gpa-start]").length, doc.querySelector(".gpa-continue [data-gpa-go]").getAttribute("data-gpa-go"), doc.querySelector(".gpa-continue-meta").textContent,
+         /清空/.test(doc.querySelector(".gpa-start .gpa-note").textContent), doc.querySelectorAll(".gpa-confirm-modal").length, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length],
+        [0, "sheet", "8 个学期 · 54 门课程", true, 0, 8]);
       window.history.back();
     });
     await after(() => {
@@ -766,36 +764,27 @@ setTimeout(() => {
       check("loading a legacy save drops ungraded whole-year blocks and keeps the graded one",
         [box.querySelectorAll(".gpa-year").length, box.querySelector(".gpa-period-name").value, box.querySelector(".gpa-year-gpa").textContent], [1, "10 年级", "GPA 4.00"]);
       tool.render(box, "start");
-      click(box.querySelector('[data-gpa-start="preset"]'));
-      check("the preset over a graded sheet asks first", doc.querySelectorAll(".gpa-confirm-modal").length, 1);
+      check("with that sheet present, tab 2 shows no start cards at all — only the way back",
+        [box.querySelectorAll("[data-gpa-start]").length, box.querySelector(".gpa-continue [data-gpa-go]").getAttribute("data-gpa-go"), box.querySelector(".gpa-continue-meta").textContent], [0, "sheet", "1 个学期 · 1 门课程"]);
+      // Starting over is 清空 on the sheet (which asks); after it, the cards return
+      // and a start builds the sheet afresh — never stacked on the old one.
+      tool.render(box, "sheet");
+      click(box.querySelector("#gpaClear"));
       click(doc.querySelector(".gpa-confirm-modal [data-confirm-ok]"));
-      let saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
-      check("...and, confirmed, the sheet is the eight semesters alone — nothing stacked above them",
-        [saved2.periods.length, saved2.periods[0].grade, saved2.periods[0].term, saved2.periods.some(p => !p.term)], [8, 9, "s1", false]);
       tool.render(box, "start");
+      check("after 清空 the two cards are back", Array.from(box.querySelectorAll("[data-gpa-start]")).map(b => b.getAttribute("data-gpa-start")), ["blank", "preset"]);
       click(box.querySelector('[data-gpa-start="preset"]'));
-      saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
-      check("choosing the preset again on an ungraded template replaces it silently: still eight, no modal",
-        [doc.querySelectorAll(".gpa-confirm-modal").length, saved2.periods.length], [0, 8]);
-      tool.render(box, "start");
-      click(box.querySelector('[data-gpa-start="blank"]'));
-      saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
-      check("preset, Back, then 空白开始 shows the blank sheet, not the preset (Rick, 2026-09-17)",
-        [saved2.periods.length, saved2.periods[0].seq, saved2.periods[0].rows.length], [1, 1, 5]);
-      // Work without grades must be protected too: a renamed course, then Back
-      // and a start card clicked to "return", wiped the sheet without a word
-      // (Rick, 2026-09-17: "数据也会变成空白 … 严重bug").
+      let saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
+      check("...and the preset is the eight semesters alone — nothing stacked above them",
+        [saved2.periods.length, saved2.periods[0].grade, saved2.periods[0].term, saved2.periods.some(p => !p.term)], [8, 9, "s1", false]);
+      // A stale page could still show a card; clicking it must not replace anything.
       tool.render(box, "sheet");
       setVal(box.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
-      tool.render(box, "start");
-      check("tab 2 with a sheet leads back to it first — a 继续填写 button with the sheet's size — and demotes the start cards under 或重新开始",
-        [box.querySelector(".gpa-start > .gpa-start-hint + .gpa-continue [data-gpa-go]").getAttribute("data-gpa-go"), box.querySelector(".gpa-continue-meta").textContent,
-         box.querySelector(".gpa-restart-head").textContent, box.querySelector(".gpa-continue").compareDocumentPosition(box.querySelector(".gpa-start-grid")) & 4 ? "continue-first" : "cards-first"],
-        ["sheet", "1 个学期 · 5 门课程", "或重新开始（将替换当前课表）", "continue-first"]);
-      click(box.querySelector('[data-gpa-start="preset"]'));
-      check("a start over a sheet with a renamed course (no grades) asks first instead of wiping it",
-        [doc.querySelectorAll(".gpa-confirm-modal").length, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[0].rows[0].name], [1, "荣誉英语 9"]);
-      click(doc.querySelector(".gpa-confirm-modal .modal-foot [data-close]"));
+      box.querySelector(".gpa-start-grid") || box.insertAdjacentHTML("beforeend", '<button data-gpa-start="blank" id="staleCard"></button>');
+      click(box.querySelector("#staleCard"));
+      saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
+      check("a stale start card over an existing sheet changes nothing (the renamed course and eight semesters stay)",
+        [saved2.periods.length, saved2.periods[0].rows[0].name, doc.querySelectorAll(".gpa-confirm-modal").length], [8, "荣誉英语 9", 0]);
       box.remove();
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
