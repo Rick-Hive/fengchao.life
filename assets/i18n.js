@@ -629,8 +629,6 @@ window.SITE_MENUS = [
       // in-site page (assets/gpa.js), routed in place by renderNav().
       { zh: "G.P.A. 计算器",    en: "G.P.A. Calculator",              url: "/gpa" },
       { zh: "微软教育版 Teams 申请", en: "Apply for Microsoft Teams for Education", url: "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=YjX6OPezEUazbzF-ulKacADKLAZmiVxPnCKPmH-ambpURUFKRUtTSU8ySDBTSUdKNVZOWEZUU0xNSS4u" },
-      { zh: "学生信息系统",     en: "Student Information System",     url: "https://bridge.opensis.com/" },
-      { zh: "Moodle LMS",       en: "Moodle LMS",                     url: "https://learn.qiaoliang.online/" },
       { zh: "数字版权管理和分发系统", en: "Digital Rights Management & Distribution", url: "https://view.protectedpdf.com/portal/BES/LogIn" },
       { zh: "联系我们",         en: "Contact Us",                     url: "mailto:contact@fengchao.life" },
     ],
