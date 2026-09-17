@@ -816,6 +816,7 @@ setTimeout(() => {
       window.dispatchEvent(new window.Event("pageshow"));
       check("a control the browser restored to another value is re-asserted from the saved state on pageshow (普通课 again)",
         [box2.querySelector('tr[data-row] [data-f="lvl"]').value, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[0].rows[0].lvl], ["CP", "CP"]);
+      check("both disclaimers are gone — sheet and print (Rick, 2026-09-17)", /不构成正式成绩单/.test(box2.textContent) || /仅供家庭规划参考/.test(box2.textContent), false);
       check("no start cards, no template, no 选择起点 anywhere on the page", [box2.querySelectorAll("[data-gpa-start]").length, /选择起点/.test(box2.textContent), typeof window.GPA_PRESET], [0, false, "undefined"]);
       box.remove(); box2.remove();
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");

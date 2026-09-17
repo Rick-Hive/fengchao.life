@@ -552,8 +552,6 @@
         '<div class="gpa-result" id="gpaResult">' + resultInner() + "</div>" +
         '<details class="gpa-scale" id="gpaScaleCard"' + (narrow ? "" : " open") + ">" + scaleCardInner() + "</details>" +
         '<p class="gpa-levels">' + esc(t.levelsNote) + "</p>" +
-        '<p class="gpa-note">' + esc(t.footnote) + "</p>" +
-        '<p class="gpa-print-only gpa-print-foot">' + esc(t.printSource) + "</p>" +
         "</aside></div>"
       );
     }

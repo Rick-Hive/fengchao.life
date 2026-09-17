@@ -1012,12 +1012,11 @@ body.page-gpa .wrap { max-width: 1200px; }
   .gpa-scale summary .req-caret { display: none; }
   .gpa-scale th, .gpa-scale td { color: #000; }
   .gpa-levels, .gpa-note { color: #333; font-size: 0.78rem; }
-  .gpa-print-foot { margin: 14px 0 0; padding-top: 8px; border-top: 1px solid #1c1c1c; font-size: 0.78rem; color: #333; }
   /* The sidebar is printed first (summary) but its appendix belongs last:
      pull the scale card and notes after the semesters. */
   .gpa-side { display: contents; }
   .gpa-result { order: -2; }
   .gpa-main { order: -1; }
-  .gpa-scale, .gpa-levels, .gpa-note, .gpa-print-foot { order: 1; }
+  .gpa-scale, .gpa-levels, .gpa-note { order: 1; }
 }
 }
