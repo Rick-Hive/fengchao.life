@@ -775,7 +775,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-table td { padding: 5px 4px; border-top: 1px solid #edf0f5; vertical-align: middle; }
 .gpa-table td:first-child, .gpa-table th:first-child { padding-left: 16px; }
 .gpa-table td:last-child { padding-right: 10px; width: 36px; }
-.gpa-col-lv { width: 104px; } .gpa-col-ac { width: 112px; } .gpa-col-pt { width: 52px; text-align: right !important; }
+.gpa-col-lv { width: 108px; } .gpa-col-ac { width: 112px; } .gpa-col-pt { width: 52px; text-align: right !important; }
 .gpa-in, .gpa-sel {
   width: 100%; font: inherit; font-size: 0.92rem; color: var(--ink); background: #fff;
   border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0;

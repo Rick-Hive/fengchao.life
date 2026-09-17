@@ -185,10 +185,12 @@ window.I18N = {
       colWeight: "学分",
       colPeriods: "每周课时",
       colGrade: "成绩",
-      colLevel: "级别",
+      colLevel: "课程级别",
       colType: "类别",
       colPoints: "绩点",
-      levelCP: "CP",
+      // The row dropdown uses the same words as the scale's column heads
+      // (常规课程 / 荣誉课程 / 大学先修课程 / 双学分课程), shortened to fit.
+      levelCP: "常规",
       levelHonors: "荣誉",
       levelAP: "AP",
       levelDual: "双学分",
@@ -411,7 +413,7 @@ window.I18N = {
       colWeight: "Credits",
       colPeriods: "Periods per week",
       colGrade: "Grade",
-      colLevel: "Level",
+      colLevel: "Course level",
       colType: "Type",
       colPoints: "Points",
       levelCP: "CP",
