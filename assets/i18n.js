@@ -160,12 +160,12 @@ window.I18N = {
       hint: "成绩可按字母等级或百分制输入；评分标准可自行修改；非学术类课程不参与 GPA 计算；数据可打印，不会上传存档。",
       sheetHint: "非学术课程（如圣经、艺术、体育、音乐）一般采用形成性评估，不参与 G.P.A. 计算 —— 在“类别”中标为非学术即可，其学分仍计入总学分。",
       tabs: ["评分标准", "选择起点", "课程与成绩"],
-      startStep1Hint: "默认为常见的美国高中标准（A 从 93 分起，荣誉 +0.5，AP / 双学分 +1.0）。如学校采用不同标准，请先点“编辑”。确认后进入下一步。",
+      startStep1Hint: "默认为常见的美国高中标准（A 从 93 分起，荣誉课 +0.5，双学分课 / 大学先修课 +1.0）。如学校采用不同标准，请先点“编辑”。确认后进入下一步。",
       startStep2Hint: "选择一个起点。课程名称、学分、级别之后都可以改。",
       startAppendNote: "当前已有课表：这里的选择会追加到现有课表之后，不会清除任何内容。",
       needStart: "还没有课表。请先选择起点。",
       next: "下一步",
-      levelsNote: "CP = College Prep 大学预备（常规）课程；荣誉 = Honors 荣誉课程；AP = Advanced Placement 大学先修课程；双学分 = Dual Enrollment 高中与大学双学分课程。",
+      levelsNote: "普通课 = CP（College Prep）大学预备课；荣誉课 = Honors；双学分课 = Dual Enrollment 高中与大学双学分课；大学先修课 = AP（Advanced Placement）。",
       // Our own rule, not the common calculators' (they weight by credits only):
       // one course, five periods a week, one semester = 0.5 credit; other
       // period counts in proportion. An estimate for the credit total; the GPA
@@ -188,12 +188,13 @@ window.I18N = {
       colLevel: "课程级别",
       colType: "类别",
       colPoints: "绩点",
-      // The row dropdown uses the same words as the scale's column heads
-      // (常规课程 / 荣誉课程 / 大学先修课程 / 双学分课程), shortened to fit.
-      levelCP: "常规",
-      levelHonors: "荣誉",
-      levelAP: "AP",
-      levelDual: "双学分",
+      // Full Chinese names in the dropdown, the same words as the scale's
+      // column heads: most Chinese parents do not know what CP or AP means
+      // (Rick, 2026-09-17). Longer, so the column is wider.
+      levelCP: "普通课",
+      levelHonors: "荣誉课",
+      levelAP: "大学先修课",
+      levelDual: "双学分课",
       academic: "学术",
       nonAcademic: "非学术",
       gradeNone: "—",
@@ -230,19 +231,20 @@ window.I18N = {
       scaleMin: "起始分",
       // Column heads name the course kinds in full (Rick, 2026-09-16); the row
       // dropdown keeps the short CP / 荣誉 / AP / 双学分 with levelsNote as its tooltip.
-      scaleCP: "常规课程",
-      scaleHonors: "荣誉课程",
-      scaleAP: "大学先修课程 / 双学分课程",
+      // "课", not "课程" — Chinese readers get it (Rick, 2026-09-17).
+      scaleCP: "普通课",
+      scaleHonors: "荣誉课",
+      scaleAP: "双学分课 / 大学先修课",
       scaleNote: "P = 通过，计学分不计绩点；非学术课程同样只计学分。",
       scaleEdit: "编辑",
       scaleEditTitle: "编辑评分标准",
-      scaleEditHint: "起始分为该等级的最低百分制分数；CP / 荣誉 / AP·双学分 为各级别课程的绩点。修改后所有课程绩点即时重算。",
+      scaleEditHint: "起始分为该等级的最低百分制分数；普通课 / 荣誉课 / 双学分课·大学先修课 为各级别课程的绩点。修改后所有课程绩点即时重算。",
       scaleAdd: "添加等级",
       scaleReset: "恢复默认",
       done: "完成",
       // The column heads are the switches: 学分 | 课时 and 字母 | 百分.
-      settingLetter: "字母",
-      settingPercent: "百分",
+      settingLetter: "字母成绩",
+      settingPercent: "百分数成绩",
       settingCredits: "学分",
       settingPeriods: "课时/周",
       unitCredits: "学分",
@@ -464,7 +466,7 @@ window.I18N = {
       scaleAdd: "Add grade",
       scaleReset: "Restore defaults",
       done: "Done",
-      settingLetter: "Letters",
+      settingLetter: "Letter",
       settingPercent: "Percent",
       settingCredits: "Credits",
       settingPeriods: "Periods/wk",

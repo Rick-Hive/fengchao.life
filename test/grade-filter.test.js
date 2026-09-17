@@ -580,7 +580,7 @@ setTimeout(() => {
          Array.from(Y1().querySelectorAll('tr[data-row]')).filter(r => r.querySelector('[data-f="ac"] span:last-child').className === "on").length],
         [60, "0.5", 3]);
       check("the Chinese column heads name the course kinds in full",
-        Array.from(doc.querySelectorAll("#gpaScaleCard th")).map(th => th.textContent), ["等级", "起始分", "常规课程", "荣誉课程", "大学先修课程 / 双学分课程"]);
+        Array.from(doc.querySelectorAll("#gpaScaleCard th")).map(th => th.textContent), ["等级", "起始分", "普通课", "荣誉课", "双学分课 / 大学先修课"]);
       const g9 = Array.from(Y1().querySelectorAll('tr[data-row]'));
       setVal(g9[0].querySelector('[data-f="grade"]'), "A-"); setVal(g9[0].querySelector('[data-f="lvl"]'), "H");
       setVal(g9[1].querySelector('[data-f="grade"]'), "B+");
@@ -596,7 +596,8 @@ setTimeout(() => {
         g9.slice(0, 7).map(r => r.querySelector(".gpa-c-pts").textContent), ["4.2", "3.3", "—", "—", "—", "—", "P"]);
       check("the sheet reminds that non-academic courses are left out", /形成性评估/.test(doc.querySelector(".gpa-sheet-note").textContent), true);
       const dual = g9[1].querySelector('[data-f="lvl"]');
-      check("levels offered: CP, Honors, AP, Dual Enrollment", Array.from(dual.options).map(o => o.value), ["CP", "H", "AP", "DE"]);
+      check("levels offered in Chinese, AP last: 普通课 / 荣誉课 / 双学分课 / 大学先修课",
+        [Array.from(dual.options).map(o => o.value), Array.from(dual.options).map(o => o.textContent)], [["CP", "H", "DE", "AP"], ["普通课", "荣誉课", "双学分课", "大学先修课"]]);
       setVal(dual, "DE");
       check("Dual Enrollment reads the AP column: B+ → 4.3", g9[1].querySelector(".gpa-c-pts").textContent, "4.3");
       setVal(dual, "CP");

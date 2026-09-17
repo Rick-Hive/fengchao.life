@@ -1926,6 +1926,9 @@
     renderNav();
     renderStepper();
 
+    // The calculator's sheet has seven columns; it gets a wider column than
+    // the wizard (see body.page-gpa in app.css).
+    document.body.classList.toggle("page-gpa", state.page === "gpa");
     // Standalone pages need no snapshot, so they paint before /api/data lands.
     if (state.page === "gpa") {
       gpaTool().render(app, state.sub);

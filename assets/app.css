@@ -755,7 +755,10 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
    display:flex, which would beat the hidden attribute without this rule. */
 .stepper[hidden] { display: none; }
 .gpa-print-head { display: none; }
-.gpa-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; align-items: start; }
+/* The sheet has seven columns, two of them switches with words on both sides,
+   so this page runs wider than the wizard's 1080px. */
+body.page-gpa .wrap { max-width: 1200px; }
+.gpa-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
 .gpa-year { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin: 0 0 16px; overflow: hidden; }
 .gpa-year-head { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; background: #eef1f6; border-bottom: 1px solid var(--line); }
 /* The period title is an input so a family can rename "9 年级" to "2026 秋"
@@ -775,7 +778,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-table td { padding: 5px 4px; border-top: 1px solid #edf0f5; vertical-align: middle; }
 .gpa-table td:first-child, .gpa-table th:first-child { padding-left: 16px; }
 .gpa-table td:last-child { padding-right: 10px; width: 36px; }
-.gpa-col-lv { width: 108px; } .gpa-col-ac { width: 112px; } .gpa-col-pt { width: 52px; text-align: right !important; }
+.gpa-col-lv { width: 128px; } .gpa-col-ac { width: 104px; } .gpa-col-pt { width: 52px; text-align: right !important; }
 .gpa-in, .gpa-sel {
   width: 100%; font: inherit; font-size: 0.92rem; color: var(--ink); background: #fff;
   border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0;
@@ -813,7 +816,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 /* Two-state toggle (学术/非学术; 字母/百分; 学分/课时). A button holding two
    spans in the rows, a span holding two buttons in the settings — same look. */
 .gpa-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; padding: 0; font: inherit; cursor: pointer; vertical-align: middle; }
-.gpa-seg > span, .gpa-seg > button { padding: 6px 8px; font: inherit; font-size: 0.8rem; color: var(--muted); border: none; background: none; cursor: pointer; white-space: nowrap; line-height: 1.3; }
+.gpa-seg > span, .gpa-seg > button { padding: 6px 7px; font: inherit; font-size: 0.8rem; color: var(--muted); border: none; background: none; cursor: pointer; white-space: nowrap; line-height: 1.3; }
 .gpa-seg > .on { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 .gpa-add { display: block; width: 100%; text-align: left; border: none; border-top: 1px solid #edf0f5; background: none; color: var(--accent); font: inherit; font-size: 0.9rem; font-weight: 600; padding: 10px 16px; cursor: pointer; }
 .gpa-add:hover { background: #f7f9fc; }
@@ -905,7 +908,7 @@ button.cart-info:hover, button.cart-info:focus-visible { background: rgba(255, 2
 .gpa-switch[aria-checked="true"] .track { background: var(--accent); }
 .gpa-switch[aria-checked="true"] .knob { left: 15px; }
 .gpa-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
-.gpa-col-cr { width: 116px; } .gpa-col-gr { width: 108px; }
+.gpa-col-cr { width: 118px; } .gpa-col-gr { width: 164px; }
 .gpa-table th.gpa-col-cr, .gpa-table th.gpa-col-gr { padding-top: 5px; padding-bottom: 3px; }
 .gpa-confirm p { margin: 0; font-size: 1rem; line-height: 1.6; }
 .modal.gpa-confirm-modal { max-width: 440px; }

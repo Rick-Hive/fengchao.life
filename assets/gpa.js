@@ -35,7 +35,7 @@
   "use strict";
 
   var KEY = "fc-gpa-v1";
-  var LEVELS = ["CP", "H", "AP", "DE"];
+  var LEVELS = ["CP", "H", "DE", "AP"];   // dropdown order: AP last (Rick, 2026-09-17)
   var VIEWS = ["scale", "start", "sheet"];
 
   window.createGpaTool = function (ctx) {
