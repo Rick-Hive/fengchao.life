@@ -584,43 +584,45 @@ setTimeout(() => {
       check("the standard plan is eight flat semester blocks, gpacalculator.net-style — no grouping above them (Rick, 2026-09-16)",
         [doc.querySelectorAll(".gpa-year").length, Array.from(doc.querySelectorAll(".gpa-period-name")).slice(0, 3).map(i => i.value)],
         [8, ["9 年级 · 上学期", "9 年级 · 下学期", "10 年级 · 上学期"]]);
-      check("...60 rows at half a credit, Bible flagged non-academic",
+      check("...72 rows at half a credit; Chinese literature and writing beside English every year (Rick, 2026-09-17: not a copy of a US transcript); Bible and PE non-academic",
         [doc.querySelectorAll("tr[data-row]").length, doc.querySelector('tr[data-row] [data-f="w"]').value,
-         Array.from(Y1().querySelectorAll('tr[data-row]')).filter(r => r.querySelector('[data-f="ac"] span:last-child').className === "on").length],
-        [60, "0.5", 3]);
+         Array.from(Y1().querySelectorAll('tr[data-row]')).slice(0, 4).map(r => r.querySelector('[data-f="name"]').value),
+         Array.from(Y1().querySelectorAll('tr[data-row]')).filter(r => r.querySelector('[data-f="ac"] span:last-child').className === "on").length,
+         /美国/.test(doc.getElementById("gpaPage").textContent)],
+        [72, "0.5", ["英文文学 9", "英文写作 9", "中文文学 9", "中文写作 9"], 2, false]);
       check("the Chinese column heads name the course kinds in full",
         Array.from(doc.querySelectorAll("#gpaScaleCard th")).map(th => th.textContent), ["等级", "起始分", "普通课", "荣誉课", "双学分课 / 大学先修课"]);
       const g9 = Array.from(Y1().querySelectorAll('tr[data-row]'));
-      setVal(g9[0].querySelector('[data-f="grade"]'), "A-"); setVal(g9[0].querySelector('[data-f="lvl"]'), "H");
-      setVal(g9[1].querySelector('[data-f="grade"]'), "B+");
-      setVal(g9[5].querySelector('[data-f="grade"]'), "A");     // Bible, non-academic
-      setVal(g9[6].querySelector('[data-f="grade"]'), "P");     // PE, pass/fail
+      setVal(g9[0].querySelector('[data-f="grade"]'), "A-"); setVal(g9[0].querySelector('[data-f="lvl"]'), "H");   // 英文文学 9
+      setVal(g9[2].querySelector('[data-f="grade"]'), "B+");    // 中文文学 9
+      setVal(g9[7].querySelector('[data-f="grade"]'), "A");     // Bible, non-academic
+      setVal(g9[8].querySelector('[data-f="grade"]'), "P");     // PE, pass/fail
       check("GPA = Σ(points × credits) ÷ Σ credits over graded academic rows: (3.7+3.3)/2 — Bible (non-academic) earns credit only",
         [doc.getElementById("gpaMain").textContent, doc.querySelector(".gpa-math").textContent], ["3.50", "3.5 绩点 ÷ 1 学分"]);
       check("weighted reads the Honors column for the Honors row: (4.2+3.3)/2", doc.getElementById("gpaWeighted").textContent, "3.75");
       check("no separate academic GPA tile any more", doc.getElementById("gpaAcademic"), null);
-      check("the credit total counts the whole sheet (27 credits), with no extra line about ungraded courses",
-        [doc.getElementById("gpaCredits").textContent, doc.querySelector(".gpa-sub")], ["27", null]);
+      check("the credit total counts the whole sheet (31 credits), with no extra line about ungraded courses",
+        [doc.getElementById("gpaCredits").textContent, doc.querySelector(".gpa-sub")], ["31", null]);
       check("the semester head shows its own GPA", doc.querySelector(".gpa-year-gpa").textContent, "GPA 3.50");
       check("the points column shows the level's points, — for non-academic, P, and — for ungraded",
-        g9.slice(0, 7).map(r => r.querySelector(".gpa-c-pts").textContent), ["4.2", "3.3", "—", "—", "—", "—", "P"]);
+        g9.map(r => r.querySelector(".gpa-c-pts").textContent), ["4.2", "—", "3.3", "—", "—", "—", "—", "—", "P"]);
       check("the sheet reminds that non-academic courses are left out", /形成性评估/.test(doc.querySelector(".gpa-sheet-note").textContent), true);
-      const dual = g9[1].querySelector('[data-f="lvl"]');
+      const dual = g9[2].querySelector('[data-f="lvl"]');
       check("levels offered in Chinese, AP last: 普通课 / 荣誉课 / 双学分课 / 大学先修课",
         [Array.from(dual.options).map(o => o.value), Array.from(dual.options).map(o => o.textContent)], [["CP", "H", "DE", "AP"], ["普通课", "荣誉课", "双学分课", "大学先修课"]]);
       setVal(dual, "DE");
-      check("Dual Enrollment reads the AP column: B+ → 4.3", g9[1].querySelector(".gpa-c-pts").textContent, "4.3");
+      check("Dual Enrollment reads the AP column: B+ → 4.3", g9[2].querySelector(".gpa-c-pts").textContent, "4.3");
       setVal(dual, "CP");
       click(pick('[data-toggle="gradeMode"]'));   // letters -> percent
       const g9p = Array.from(Y1().querySelectorAll('tr[data-row]'));
       check("percent entry swaps the dropdown for a text box and keeps the grades",
         [g9p[0].querySelector('[data-f="grade"]').tagName, g9p[0].querySelector('[data-f="grade"]').value], ["INPUT", "A-"]);
-      setVal(g9p[2].querySelector('[data-f="grade"]'), "91");
+      setVal(g9p[4].querySelector('[data-f="grade"]'), "91");   // 代数 I
       check("a percentage is read against the breakoffs (91 → A- → 3.7): (3.7+3.3+3.7)/3",
-        [g9p[2].querySelector(".gpa-c-pts").textContent, doc.getElementById("gpaMain").textContent, g9p[2].querySelector('[data-f="grade"]').placeholder], ["3.7", "3.57", "如 91"]);
+        [g9p[4].querySelector(".gpa-c-pts").textContent, doc.getElementById("gpaMain").textContent, g9p[4].querySelector('[data-f="grade"]').placeholder], ["3.7", "3.57", "如 91"]);
       click(pick('[data-toggle="gradeMode"]'));   // -> letters
       check("back under letters, the 91 is kept and shown as its own option",
-        Y1().querySelectorAll('tr[data-row]')[2].querySelector('[data-f="grade"]').value, "91");
+        Y1().querySelectorAll('tr[data-row]')[4].querySelector('[data-f="grade"]').value, "91");
       check("the planning card is gone (not in gpacalculator.net; Rick, 2026-09-17)", doc.getElementById("gpaPlan"), null);
       setVal(pick("#gpaSchool"), "蜂巢学堂"); setVal(pick("#gpaStudent"), "王小明");
       check("school and student go into the print header and the save, nowhere else",
@@ -642,7 +644,7 @@ setTimeout(() => {
         [saved.periods.length, saved.periods[0].rows[0].grade, saved.periods[0].rows[0].lvl, "cart" in saved], [8, "A-", "H", false]);
       click(pick("#langBtn"));
       check("the page follows the language switch, preset and semester names included",
-        [doc.querySelector("#gpaPage h2").firstChild.textContent.trim(), doc.querySelector('tr[data-row] [data-f="name"]').value, doc.querySelector(".gpa-period-name").value], ["G.P.A. Calculator", "English 9", "Grade 9 · Fall"]);
+        [doc.querySelector("#gpaPage h2").firstChild.textContent.trim(), doc.querySelector('tr[data-row] [data-f="name"]').value, doc.querySelector(".gpa-period-name").value], ["G.P.A. Calculator", "English Literature 9", "Grade 9 · Fall"]);
       click(pick("#langBtn"));
       setVal(doc.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
       click(pick("#langBtn"));
@@ -650,9 +652,9 @@ setTimeout(() => {
       click(pick("#langBtn"));
       click(Y1().querySelector('[data-add-row]'));
       check("add course appends a blank row at a semester's half credit (5 periods/week under the other unit)",
-        [Y1().querySelectorAll('tr[data-row]').length, Y1().querySelector('tr[data-row]:last-child [data-f="w"]').value], [9, "0.5"]);
+        [Y1().querySelectorAll('tr[data-row]').length, Y1().querySelector('tr[data-row]:last-child [data-f="w"]').value], [10, "0.5"]);
       click(Y1().querySelector('tr[data-row]:last-child [data-rm-row]'));
-      check("...and × removes it", Y1().querySelectorAll('tr[data-row]').length, 8);
+      check("...and × removes it", Y1().querySelectorAll('tr[data-row]').length, 9);
       click(pick("#gpaAddPeriod"));
       const Y5 = () => Array.from(doc.querySelectorAll(".gpa-year")).pop();
       check("Add semester after Grade 12 Spring gives an unnamed block to fill in, one blank row",
@@ -673,7 +675,7 @@ setTimeout(() => {
       check("under 课时/周 there is no total tile — weekly periods summed over eight semesters (\"每周总课时 285\") is not a figure anyone uses (Rick, 2026-09-17); the semester head keeps its weekly load",
         [doc.getElementById("gpaCredits"), doc.querySelector(".gpa-year-meta").textContent.indexOf("课时/周") !== -1], [null, true]);
       click(pick('[data-toggle="unit"]'));
-      check("...and back: 5 periods/week → 0.5 credit, and the 总学分 tile returns", [Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaCredits").textContent], ["0.5", "24.25"]);   // 27 − the removed 12 下 (3.25) + the added blank row (0.5)
+      check("...and back: 5 periods/week → 0.5 credit, and the 总学分 tile returns", [Y1().querySelector('tr[data-row] [data-f="w"]').value, doc.getElementById("gpaCredits").textContent], ["0.5", "27.5"]);   // 31 − the removed 12 下 (4) + the added blank row (0.5)
       check("no settings left in the sidebar scale card", doc.querySelectorAll("#gpaScaleCard [data-toggle]").length, 0);
       check("the credit ⇄ periods rule sits under the table it explains, not in the sidebar (Rick, 2026-09-17)",
         [/5 节.*0\.5 学分.*4 节 = 0\.4/.test(doc.querySelector(".gpa-main .gpa-unit-note").textContent),
@@ -711,7 +713,7 @@ setTimeout(() => {
       check("Back from a sheet lands on a tab that only leads back to the sheet: 继续填写 with its size, a 清空 note, no start cards, no dialog",
         [doc.querySelectorAll("[data-gpa-start]").length, doc.querySelector(".gpa-continue [data-gpa-go]").getAttribute("data-gpa-go"), doc.querySelector(".gpa-continue-meta").textContent,
          /清空/.test(doc.querySelector(".gpa-start .gpa-note").textContent), doc.querySelectorAll(".gpa-confirm-modal").length, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods.length],
-        [0, "sheet", "8 个学期 · 54 门课程", true, 0, 8]);
+        [0, "sheet", "8 个学期 · 64 门课程", true, 0, 8]);
       window.history.back();
     });
     await after(() => {
@@ -719,7 +721,7 @@ setTimeout(() => {
       click(pick('[data-gpa-tab="sheet"]'));
     });
     await after(() => {
-      check("the tab bar jumps straight to the sheet", [url(), doc.querySelectorAll("tr[data-row]").length], ["/gpa/sheet", 54]);   // 60 − the removed Grade 12 Spring (7) + the re-added block (1)
+      check("the tab bar jumps straight to the sheet", [url(), doc.querySelectorAll("tr[data-row]").length], ["/gpa/sheet", 64]);   // 72 − the removed Grade 12 Spring (9) + the re-added block (1)
       nav("/pedagogy");
     });
     await after(() => {
@@ -734,7 +736,7 @@ setTimeout(() => {
       click(pick('[data-gpa-tab="sheet"]'));
     });
     await after(() => {
-      check("...and the saved sheet is one tab click away", [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length], ["sheet", 54]);
+      check("...and the saved sheet is one tab click away", [doc.getElementById("gpaPage").getAttribute("data-view"), doc.querySelectorAll("tr[data-row]").length], ["sheet", 64]);
       window.history.replaceState(null, "", "/gpa");   // same address as the menu link
       const ev = new window.MouseEvent("click", { bubbles: true, cancelable: true });
       pick('a.menu-item[href="/gpa"]').dispatchEvent(ev);
