@@ -56,6 +56,7 @@
         gradeMode: "letter",     // letter | percent  (controls only; both are always parsed)
         scale: clone(window.GPA_SCALE_DEFAULT || []),
         periods: null,           // null = nothing started yet
+        touched: false,          // any edit since the last start — guards the start cards
         student: "",             // optional, printed on the sheet
         school: "",              // optional, printed on the sheet
       };
@@ -112,6 +113,7 @@
         });
         if (!S.periods.length) S.periods = null;
       }
+      if (r.touched === true) S.touched = true;
       // r.prior (the 此前成绩 boxes, removed 2026-09-17) is ignored if present.
       if (typeof r.student === "string") S.student = r.student.slice(0, 80);
       if (typeof r.school === "string") S.school = r.school.slice(0, 120);
@@ -133,6 +135,7 @@
     // the preset twice must not stack sixteen semesters (Rick, 2026-09-17:
     // "这个设计太冗余了"). Whether to ask first is decided in the click handler.
     function applyPreset() {
+      S.touched = false;
       var out = [];
       (window.GPA_PRESET || []).forEach(function (p) {
         ["s1", "s2"].forEach(function (term) {
@@ -151,13 +154,19 @@
       var rows = [];
       for (var i = 0; i < 5; i++) rows.push(blankRow());
       S.periods = [{ id: uid(), grade: null, term: null, seq: 1, name: "", rows: rows }];
+      S.touched = false;
     }
 
-    // Has the family typed any grade into the current sheet? A pure template
-    // (no grades yet) is replaced silently by a new start; graded work is not.
-    function anyGraded() {
-      return allRows().some(function (r) { return String(r.grade || "").trim() !== ""; });
+    // Has the family done ANY work on the current sheet — a grade, a renamed
+    // course, a changed credit or level, a row or semester added or removed?
+    // Only an untouched template is replaced silently by a new start. Grades
+    // alone were the test until 2026-09-17, and a sheet with renamed courses
+    // but no grades yet was wiped without a word when a start card was
+    // clicked to "go back" (Rick: "数据也会变成空白 … 严重bug").
+    function hasWork() {
+      return S.touched === true || allRows().some(function (r) { return String(r.grade || "").trim() !== ""; });
     }
+    function touch() { S.touched = true; }
 
     function findRow(id) {
       for (var i = 0; i < (S.periods || []).length; i++) {
@@ -319,9 +328,23 @@
     // Tab 2 — the two starting points.
     function startViewHtml() {
       var t = T();
+      // With a sheet already there, the way back to it must be the obvious
+      // thing on this tab: a family that pressed Back and then clicked a start
+      // card to "return" lost its sheet (Rick, 2026-09-17). So: a primary
+      // 继续填写 button first, and the two cards demoted under "or start over".
+      var has = started();
+      var cont = "";
+      if (has) {
+        var nRows = allRows().length;
+        cont = '<div class="gpa-continue">' +
+          '<button type="button" class="btn btn-primary" data-gpa-go="sheet">' + esc(t.continueSheet) + " ›</button>" +
+          '<span class="gpa-continue-meta">' + esc(fill(t.continueSheetMeta, { p: S.periods.length, n: nRows })) + "</span></div>";
+      }
       return (
         '<div class="gpa-start">' +
-        '<p class="gpa-start-hint">' + esc(t.startStep2Hint) + "</p>" +
+        '<p class="gpa-start-hint">' + esc(has ? t.startStep2HintAgain : t.startStep2Hint) + "</p>" +
+        cont +
+        (has ? '<h3 class="gpa-restart-head">' + esc(t.restartHead) + "</h3>" : "") +
         // Blank first: gpacalculator.net and calculator.net both open with one
         // semester and grow one at a time; the eight-semester plan is our
         // optional shortcut.
@@ -773,14 +796,14 @@
           if (f === "name") found.r.name = el.value;
           else if (f === "w") found.r.w = el.value;
           else if (f === "grade") found.r.grade = el.value;
-          save();
+          touch(); save();
           if (f !== "name") refresh(found.r.id);
           return;
         }
         var pn = el.getAttribute && el.getAttribute("data-period-name");
         if (pn) {
           var p = findPeriod(pn);
-          if (p) { p.name = el.value; save(); refresh(); }
+          if (p) { p.name = el.value; touch(); save(); refresh(); }
           return;
         }
         var st = el.getAttribute && el.getAttribute("data-student");
@@ -801,7 +824,7 @@
         if (!found) return;
         if (f === "lvl") found.r.lvl = LEVELS.indexOf(el.value) !== -1 ? el.value : "CP";
         else found.r.grade = el.value;
-        save();
+        touch(); save();
         refresh(found.r.id);
       });
 
@@ -818,7 +841,7 @@
             if (kind === "preset") applyPreset(); else applyBlank();
             save(); go("sheet");
           };
-          if (anyGraded()) confirmModal(t.startReplaceConfirm, begin); else begin();
+          if (started() && hasWork()) confirmModal(t.startReplaceConfirm, begin); else begin();
           return;
         }
         if (e.target.closest("[data-scale-edit]")) { openScaleEditor(); return; }
@@ -830,14 +853,14 @@
           found.r.ac = found.r.ac === false;
           ac.children[0].className = found.r.ac ? "on" : "";
           ac.children[1].className = found.r.ac ? "" : "on";
-          save(); refresh(found.r.id); return;
+          touch(); save(); refresh(found.r.id); return;
         }
         var rmRow = e.target.closest("[data-rm-row]");
         if (rmRow) {
           var fr = findRow(rmRow.getAttribute("data-rm-row"));
           if (!fr) return;
           fr.p.rows.splice(fr.i, 1);
-          save();
+          touch(); save();
           var trEl = rmRow.closest("tr");
           if (trEl) trEl.remove();
           refresh(); return;
@@ -848,7 +871,7 @@
           if (!pa) return;
           var r = blankRow();
           pa.rows.push(r);
-          save();
+          touch(); save();
           var tb = root.querySelector('.gpa-year[data-period="' + pa.id + '"] tbody');
           if (tb) {
             tb.insertAdjacentHTML("beforeend", rowHtml(r));
@@ -865,7 +888,7 @@
           var dropPeriod = function () {
             S.periods = S.periods.filter(function (x) { return x !== pp; });
             if (!S.periods.length) S.periods = null;
-            save(); repaint();
+            touch(); save(); repaint();
           };
           if (filled) confirmModal(fill(t.removePeriodConfirm, { n: filled }), dropPeriod); else dropPeriod();
           return;
@@ -881,7 +904,7 @@
           } else if (last && typeof last.seq === "number") nb.seq = last.seq + 1;
           else nb.seq = S.periods.length + 1;
           S.periods.push(nb);
-          save(); repaint();
+          touch(); save(); repaint();
           var nm = root.querySelector(".gpa-year:last-of-type .gpa-period-name");
           if (nm && nb.grade === null && nb.seq === null) nm.focus();
           return;

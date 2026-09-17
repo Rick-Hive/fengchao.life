@@ -782,6 +782,20 @@ setTimeout(() => {
       saved2 = JSON.parse(window.localStorage.getItem("fc-gpa-v1"));
       check("preset, Back, then 空白开始 shows the blank sheet, not the preset (Rick, 2026-09-17)",
         [saved2.periods.length, saved2.periods[0].seq, saved2.periods[0].rows.length], [1, 1, 5]);
+      // Work without grades must be protected too: a renamed course, then Back
+      // and a start card clicked to "return", wiped the sheet without a word
+      // (Rick, 2026-09-17: "数据也会变成空白 … 严重bug").
+      tool.render(box, "sheet");
+      setVal(box.querySelector('tr[data-row] [data-f="name"]'), "荣誉英语 9");
+      tool.render(box, "start");
+      check("tab 2 with a sheet leads back to it first — a 继续填写 button with the sheet's size — and demotes the start cards under 或重新开始",
+        [box.querySelector(".gpa-start > .gpa-start-hint + .gpa-continue [data-gpa-go]").getAttribute("data-gpa-go"), box.querySelector(".gpa-continue-meta").textContent,
+         box.querySelector(".gpa-restart-head").textContent, box.querySelector(".gpa-continue").compareDocumentPosition(box.querySelector(".gpa-start-grid")) & 4 ? "continue-first" : "cards-first"],
+        ["sheet", "1 个学期 · 5 门课程", "或重新开始（将替换当前课表）", "continue-first"]);
+      click(box.querySelector('[data-gpa-start="preset"]'));
+      check("a start over a sheet with a renamed course (no grades) asks first instead of wiping it",
+        [doc.querySelectorAll(".gpa-confirm-modal").length, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[0].rows[0].name], [1, "荣誉英语 9"]);
+      click(doc.querySelector(".gpa-confirm-modal .modal-foot [data-close]"));
       box.remove();
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
