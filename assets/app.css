@@ -915,15 +915,17 @@ body.page-gpa .wrap { max-width: 1200px; }
   font: inherit; font-size: 0.76rem; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap;
 }
 .gpa-switch .lab.on { color: var(--accent); }
+/* The track stays a neutral grey in BOTH positions: a blue track reads as
+   "on", and with a label at each end that made 字母成绩 ● look like "letter
+   grades enabled" when the knob actually pointed at 百分数成绩 (Rick,
+   2026-09-17). The knob's side and the blue label name the current choice. */
 .gpa-switch .track {
   position: relative; width: 30px; height: 17px; border-radius: 999px; background: #c9d2df; flex: none;
-  transition: background 0.15s ease;
 }
 .gpa-switch .knob {
   position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25); transition: left 0.15s ease;
 }
-.gpa-switch[aria-checked="true"] .track { background: var(--accent); }
 .gpa-switch[aria-checked="true"] .knob { left: 15px; }
 .gpa-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
 .gpa-col-cr { width: 118px; } .gpa-col-gr { width: 164px; }
