@@ -590,8 +590,8 @@ setTimeout(() => {
         [doc.getElementById("gpaMain").textContent, doc.querySelector(".gpa-math").textContent], ["3.50", "3.5 绩点 ÷ 1 学分"]);
       check("weighted reads the Honors column for the Honors row: (4.2+3.3)/2", doc.getElementById("gpaWeighted").textContent, "3.75");
       check("no separate academic GPA tile any more", doc.getElementById("gpaAcademic"), null);
-      check("the credit total counts the whole sheet (27 credits); the line beneath says how much is ungraded",
-        [doc.getElementById("gpaCredits").textContent, /25\.25 学分尚无成绩/.test(doc.querySelector(".gpa-sub").textContent)], ["27", true]);
+      check("the credit total counts the whole sheet (27 credits), with no extra line about ungraded courses",
+        [doc.getElementById("gpaCredits").textContent, doc.querySelector(".gpa-sub")], ["27", null]);
       check("the semester head shows its own GPA", doc.querySelector(".gpa-year-gpa").textContent, "GPA 3.50");
       check("the points column shows the level's points, — for non-academic, P, and — for ungraded",
         g9.slice(0, 7).map(r => r.querySelector(".gpa-c-pts").textContent), ["4.2", "3.3", "—", "—", "—", "—", "P"]);

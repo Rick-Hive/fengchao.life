@@ -426,9 +426,9 @@
       if (we !== null && un !== null && Math.abs(we - un) > 0.0005) {
         tiles += '<div><div class="k">' + esc(t.weighted) + '</div><div class="v" id="gpaWeighted">' + esc(f2(we)) + "</div></div>";
       }
-      // The total counts every course on the sheet, graded or not — "0 credits,
-      // 10 in progress" read as a contradiction (Rick, 2026-09-17); the line
-      // beneath says how much of it still has no grade.
+      // The total counts every course on the sheet, graded or not, and says
+      // nothing more — a "still ungraded" line beneath it confused (Rick,
+      // 2026-09-17); the arithmetic under the GPA already shows the graded weight.
       tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w + a.inProg)) + "</div></div>";
       var bars = (S.periods || []).map(function (p) {
         var pa = agg(p.rows), g = gpaOf(pa.cp, pa.wG);
@@ -440,7 +440,6 @@
         '<div class="gpa-big"><span class="n" id="gpaMain">' + esc(f2(un)) + '</span><span class="d">' + esc(t.unweightedTag) + "</span></div>" +
         '<div class="gpa-math">' + esc(fill(t.math, { p: fw(a.cp), w: fw(a.wG), unit: unitLabel() })) + "</div>" +
         '<div class="gpa-two">' + tiles + "</div>" +
-        (a.inProg > 0 ? '<p class="gpa-sub">' + esc(fill(t.inProgress, { w: fw(a.inProg), unit: unitLabel() })) + "</p>" : "") +
         '<div class="gpa-prior"><span>' + esc(t.prior) + "</span>" +
         '<input class="gpa-in" type="text" inputmode="decimal" data-prior="gpa" value="' + esc(S.prior.gpa) + '" placeholder="' + esc(t.priorGpa) + '" aria-label="' + esc(t.prior + " " + t.priorGpa) + '" />' +
         '<input class="gpa-in" type="text" inputmode="decimal" data-prior="w" value="' + esc(S.prior.w) + '" placeholder="' + esc(t.priorCredits) + '" aria-label="' + esc(t.prior + " " + t.priorCredits) + '" /></div>' +
