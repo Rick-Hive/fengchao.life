@@ -1,4 +1,4 @@
-// fengchao.life — G.P.A. calculator (#/gpa).
+// fengchao.life — G.P.A. calculator (/gpa).
 //
 // An independent tool: it reads nothing from the graduation tracks or the
 // order flow and uploads nothing. Courses, grades, the grading scale and the
@@ -18,9 +18,9 @@
 // Modelled on the two most-used US calculators (calculator.net,
 // gpacalculator.net) and CEFF's own SIS scale.
 //
-// Three tabs, three URLs — #/gpa (scale), #/gpa/start, #/gpa/sheet — so the
+// Three tabs, three URLs — /gpa/scale, /gpa/start, /gpa/sheet — so the
 // browser's Back button walks them (Rick, 2026-09-16: "Can't go back to step
-// 1"). A bare #/gpa — the menu link — always opens the scale, step 1.
+// 1"). A bare /gpa — the menu link — always opens the scale, step 1.
 // Periods are flat semester blocks, the way gpacalculator.net and
 // calculator.net do it (Rick, 2026-09-16: "just follow their ways that have
 // been well accepted and tested"): renamable, each with its own GPA, one
@@ -29,7 +29,7 @@
 // the same day.
 //
 // Wiring: app.js calls window.createGpaTool(ctx) once and .render(container,
-// sub) on every render() while the page is #/gpa. ctx supplies the site's
+// sub) on every render() while the page is /gpa. ctx supplies the site's
 // shared helpers (t, esc, pickLang, openModal, go).
 (function () {
   "use strict";
@@ -442,7 +442,12 @@
       // The total counts every course on the sheet, graded or not, and says
       // nothing more — a "still ungraded" line beneath it confused (Rick,
       // 2026-09-17); the arithmetic under the GPA already shows the graded weight.
-      tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalPeriods : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(a.w + a.inProg)) + "</div></div>";
+      // Under 课时/周 the tile still reports CREDITS, converted (÷10): weekly
+      // periods only mean something within one semester, and summing them
+      // across eight gave "每周总课时 285" (Rick, 2026-09-17: "definitely
+      // incorrect"). The semester head keeps the real weekly load.
+      var total = a.w + a.inProg;
+      tiles += '<div><div class="k">' + esc(S.unit === "periods" ? t.totalCreditsConv : t.totalCredits) + '</div><div class="v" id="gpaCredits">' + esc(fw(S.unit === "periods" ? total / 10 : total)) + "</div></div>";
       var bars = (S.periods || []).map(function (p) {
         var pa = agg(p.rows), g = gpaOf(pa.cp, pa.wG);
         var pct = g === null ? 0 : Math.max(0, Math.min(100, g / Math.max(scaleMax(), 4) * 100));
