@@ -56,7 +56,6 @@
         gradeMode: "letter",     // letter | percent  (controls only; both are always parsed)
         scale: clone(window.GPA_SCALE_DEFAULT || []),
         periods: null,           // null = nothing started yet
-        prior: { gpa: "", w: "" },
         student: "",             // optional, printed on the sheet
         school: "",              // optional, printed on the sheet
       };
@@ -113,7 +112,7 @@
         });
         if (!S.periods.length) S.periods = null;
       }
-      if (r.prior && typeof r.prior === "object") S.prior = { gpa: String(r.prior.gpa || ""), w: String(r.prior.w || "") };
+      // r.prior (the 此前成绩 boxes, removed 2026-09-17) is ignored if present.
       if (typeof r.student === "string") S.student = r.student.slice(0, 80);
       if (typeof r.school === "string") S.school = r.school.slice(0, 120);
       return S;
@@ -216,20 +215,12 @@
       return a;
     }
 
-    // Cumulative = every period, plus the optional prior record (a previous
-    // school's GPA over so many credits, e.g. a transfer) folded in as one
-    // block of weight at its own GPA. A transcript's total is always in
-    // credits, so the box is credits whatever the sheet's unit; under 课时/周
-    // it is scaled the same way as the rows (0.5 credit = 5 periods).
-    function cumulative() {
-      var a = agg(allRows());
-      var pg = parseFloat(S.prior.gpa), pw = parseFloat(S.prior.w);
-      if (S.unit === "periods") pw = pw * 10;
-      if (isFinite(pg) && isFinite(pw) && pw > 0) {
-        a.w += pw; a.wG += pw; a.cp += pg * pw; a.lvl += pg * pw;
-      }
-      return a;
-    }
+    // Cumulative = every semester on the sheet. (A "prior record" pair of
+    // boxes — a previous school's GPA over so many credits, borrowed from
+    // gpacalculator.net — was removed at Rick's request on 2026-09-17: CEFF
+    // families arrive with percentage transcripts, not a GPA, and enter those
+    // courses row by row.)
+    function cumulative() { return agg(allRows()); }
 
     function gpaOf(points, weight) { return weight > 0 ? points / weight : null; }
     // Two decimals, rounding half up the way a transcript does: 3.675 must
@@ -459,9 +450,6 @@
         '<div class="gpa-big"><span class="n" id="gpaMain">' + esc(f2(un)) + '</span><span class="d">' + esc(t.unweightedTag) + "</span></div>" +
         '<div class="gpa-math">' + esc(fill(t.math, { p: fw(a.cp), w: fw(a.wG), unit: unitLabel() })) + "</div>" +
         '<div class="gpa-two">' + tiles + "</div>" +
-        '<div class="gpa-prior"><span>' + esc(t.prior) + "</span>" +
-        '<input class="gpa-in" type="text" inputmode="decimal" data-prior="gpa" value="' + esc(S.prior.gpa) + '" placeholder="' + esc(t.priorGpa) + '" aria-label="' + esc(t.prior + " " + t.priorGpa) + '" />' +
-        '<input class="gpa-in" type="text" inputmode="decimal" data-prior="w" value="' + esc(S.prior.w) + '" placeholder="' + esc(t.priorCredits) + '" aria-label="' + esc(t.prior + " " + t.priorCredits) + '" /></div>' +
         (bars ? '<div class="gpa-years">' + bars + "</div>" : "") +
         '<div class="gpa-actions"><button type="button" class="btn btn-ghost" id="gpaPrint">' + esc(t.print) + "</button>" +
         '<button type="button" class="btn btn-ghost" id="gpaClear">' + esc(t.clear) + "</button></div>"
@@ -620,18 +608,7 @@
       if (!root) return;
       var res = root.querySelector("#gpaResult");
       if (res) {
-        // Keep the two prior inputs' focus/caret: repaint everything but them
-        // when one of them is being typed in.
-        var active = document.activeElement;
-        var typingPrior = active && res.contains(active) && active.hasAttribute("data-prior");
-        if (!typingPrior) res.innerHTML = resultInner();
-        else {
-          var tmp = document.createElement("div"); tmp.innerHTML = resultInner();
-          ["#gpaMain", ".gpa-math", ".gpa-two", ".gpa-years"].forEach(function (sel) {
-            var a = res.querySelector(sel), b = tmp.querySelector(sel);
-            if (a && b) a.innerHTML = b.innerHTML;
-          });
-        }
+        res.innerHTML = resultInner();
       }
       (S.periods || []).forEach(function (p) {
         var head = root.querySelector('.gpa-year[data-period="' + p.id + '"] .gpa-year-head');
@@ -806,8 +783,6 @@
           if (p) { p.name = el.value; save(); refresh(); }
           return;
         }
-        var pr = el.getAttribute && el.getAttribute("data-prior");
-        if (pr) { S.prior[pr] = el.value; save(); refresh(); return; }
         var st = el.getAttribute && el.getAttribute("data-student");
         if (st) {
           if (st === "school") S.school = el.value.slice(0, 120); else S.student = el.value.slice(0, 80);
@@ -914,7 +889,7 @@
         if (e.target.closest("#gpaPrint")) { window.print(); return; }
         if (e.target.closest("#gpaClear")) {
           confirmModal(t.clearConfirm, function () {
-            S.periods = null; S.prior = { gpa: "", w: "" };
+            S.periods = null;
             save(); go("start"); repaint();
           });
           return;

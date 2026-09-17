@@ -847,8 +847,6 @@ body.page-gpa .wrap { max-width: 1200px; }
 .gpa-two .k { color: var(--muted); font-size: 0.78rem; }
 .gpa-two .v { font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 .gpa-sub { color: var(--muted); font-size: 0.78rem; margin: 4px 0 0; }
-.gpa-prior { display: grid; grid-template-columns: 1fr 64px 64px; gap: 6px; align-items: center; margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.8rem; color: var(--muted); }
-.gpa-prior .gpa-in { padding: 5px 8px; font-size: 0.85rem; text-align: right; }
 .gpa-years { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 7px; }
 .gpa-yr { display: grid; grid-template-columns: minmax(54px, auto) 1fr 40px; gap: 10px; align-items: center; font-size: 0.84rem; }
 .gpa-yr .lbl { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9em; }
@@ -963,7 +961,7 @@ body.page-gpa .wrap { max-width: 1200px; }
 @media print {
   @page { margin: 16mm 14mm; }
   .site-header, .stepper, .cart-bar, .gpa-tabs, .gpa-actions, .gpa-add, .gpa-add-year, .gpa-rm, .gpa-switch,
-  .gpa-scale .wt, .gpa-prior, .gpa-who, .gpa-sheet-note, .gpa-page > h2, .gpa-page > .hint, .gpa-suggest { display: none !important; }
+  .gpa-scale .wt, .gpa-who, .gpa-sheet-note, .gpa-page > h2, .gpa-page > .hint, .gpa-suggest { display: none !important; }
   .gpa-print-only { display: block; }
   body { background: #fff; color: #000; }
   body.page-gpa .wrap { max-width: none; padding: 0; }

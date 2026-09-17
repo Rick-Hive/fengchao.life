@@ -626,10 +626,8 @@ setTimeout(() => {
       check("school and student go into the print header and the save, nowhere else",
         [/学校 \/ 机构：蜂巢学堂/.test(doc.querySelector(".gpa-print-head").textContent), /学生：王小明/.test(doc.querySelector(".gpa-print-head").textContent),
          JSON.parse(window.localStorage.getItem("fc-gpa-v1")).school], [true, true, "蜂巢学堂"]);
-      setVal(pick('[data-prior="gpa"]'), "3.0"); setVal(pick('[data-prior="w"]'), "1.5");
-      check("a prior record (3.0 over 1.5 credits) folds into the cumulative: (5.35 + 4.5) / 3",
-        doc.getElementById("gpaMain").textContent, "3.28");
-      setVal(pick('[data-prior="gpa"]'), ""); setVal(pick('[data-prior="w"]'), "");
+      check("no 此前成绩 boxes anywhere (removed at Rick's request, 2026-09-17); the cumulative is the sheet alone",
+        [doc.querySelectorAll("[data-prior]").length, /此前成绩/.test(doc.getElementById("gpaPage").textContent)], [0, false]);
       click(pick("#gpaScaleCard [data-scale-edit]"));
       const ed = Array.from(doc.querySelectorAll(".modal-overlay")).pop();
       check("the scale editor lists the ten default rows", ed.querySelectorAll("[data-sc]").length, 10);
