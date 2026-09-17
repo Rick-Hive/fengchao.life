@@ -809,6 +809,13 @@ setTimeout(() => {
       check("a first open of the sheet is 9 年级 · 上学期 with five blank rows at 0.5 credit, 普通课 — as gpacalculator.net and calculator.net open with one semester — saved at once",
         [box2.querySelectorAll(".gpa-year").length, ptitle(box2.querySelector(".gpa-year")), box2.querySelectorAll("tr[data-row]").length, box2.querySelector('tr[data-row] [data-f="w"]').value, box2.querySelector('tr[data-row] [data-f="lvl"]').value, saved3.periods.length],
         [1, "9 年级 · 上学期", 5, "0.5", "CP", 1]);
+      // A browser may restore old control state into the regenerated dropdowns
+      // on reload; pageshow pushes the saved state back (Rick, 2026-09-17: five
+      // blank rows all read 荣誉课).
+      box2.querySelector('tr[data-row] [data-f="lvl"]').value = "H";
+      window.dispatchEvent(new window.Event("pageshow"));
+      check("a control the browser restored to another value is re-asserted from the saved state on pageshow (普通课 again)",
+        [box2.querySelector('tr[data-row] [data-f="lvl"]').value, JSON.parse(window.localStorage.getItem("fc-gpa-v1")).periods[0].rows[0].lvl], ["CP", "CP"]);
       check("no start cards, no template, no 选择起点 anywhere on the page", [box2.querySelectorAll("[data-gpa-start]").length, /选择起点/.test(box2.textContent), typeof window.GPA_PRESET], [0, false, "undefined"]);
       box.remove(); box2.remove();
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");

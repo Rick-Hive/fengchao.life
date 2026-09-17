@@ -717,6 +717,27 @@
 
     function repaint() { render(root.parentNode, view); }
 
+    // Re-assert every control's value from S (see the pageshow listener).
+    function syncControls() {
+      if (!root || !document.body.contains(root)) return;
+      (S.periods || []).forEach(function (p) {
+        var blk = root.querySelector('.gpa-year[data-period="' + p.id + '"]');
+        if (!blk) return;
+        var g = blk.querySelector("[data-period-grade]"), tm = blk.querySelector("[data-period-term]");
+        if (g) g.value = String(p.grade);
+        if (tm) tm.value = p.term;
+        p.rows.forEach(function (r) {
+          var tr = blk.querySelector('tr[data-row="' + r.id + '"]');
+          if (!tr) return;
+          var lvl = tr.querySelector('[data-f="lvl"]'), gr = tr.querySelector('[data-f="grade"]'), w = tr.querySelector('[data-f="w"]'), nm = tr.querySelector('[data-f="name"]');
+          if (lvl) lvl.value = r.lvl;
+          if (gr) gr.value = r.grade;
+          if (w) w.value = r.w;
+          if (nm) nm.value = rowName(r);
+        });
+      });
+    }
+
     function bind(section) {
       // Scrolling can move the open list past the window's edge; re-decide
       // which way it opens. Bound once, on the window, since the page scrolls.
@@ -724,6 +745,12 @@
         scrollBound = true;
         window.addEventListener("scroll", placeSuggest, true);
         window.addEventListener("resize", placeSuggest);
+        // Browsers restore form-control state on reload and Back/Forward by
+        // position, and our controls are regenerated in the same order — so
+        // five fresh 普通课 rows once showed 荣誉课 (Rick, 2026-09-17: "默认课程
+        // 为普通课程"). The saved state is the truth: after any such restore,
+        // push it back into every control.
+        window.addEventListener("pageshow", syncControls);
       }
       // The suggestion list: opens on focus or typing in a course field,
       // arrows move, Enter picks, Escape or leaving the field closes.
