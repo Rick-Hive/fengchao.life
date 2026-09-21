@@ -161,7 +161,14 @@
   .intro-box[open] > summary::before { content: "－"; }
   .intro-box strong { color: var(--ink); }
   .intro-box a { color: var(--accent-ink); }
-  .intro-after { margin-top: 16px; }
+  .intro-box .app-def { margin-top: 11px; }
+  .intro-box .app-def strong:first-child { color: var(--accent-ink); }
+  /* One line on a wide screen (Rick, 2026-09-21): .sub's 58ch cap was breaking
+     it at roughly 29 Chinese characters, well short of the 720px column. The
+     cap is dropped here and the text shrinks to fit rather than wrapping;
+     below the width where that would get small, it wraps normally. */
+  .intro-after { margin-top: 16px; max-width: none; white-space: nowrap; font-size: clamp(.80rem, 2.18vw, .97rem); }
+  @media (max-width: 700px) { .intro-after { white-space: normal; font-size: .93rem; } }
 
   details.why {
     border-left: 3px solid var(--accent); background: var(--accent-soft);
@@ -273,13 +280,18 @@
        the two names and the reason before step 1; anyone coming back to look up
        one step can fold it away. -->
   <details class="intro-box" open>
-    <summary>开始之前：电脑和手机上都要装好 Teams，手机上还要安装微软的身份验证器</summary>
-    <p><strong>这两个软件各做什么：</strong>「Teams」是上课用的，<strong>电脑和手机上都要安装并登录</strong>；「微软身份验证器（Microsoft Authenticator）」装在手机上，负责显示一组每 30 秒变一次的 <strong>6 位验证码</strong>——登录 Teams 时，输完密码还要再输这组数字。</p>
-    <p><strong>为什么必须装验证器：</strong>这是微软对工作和学校账号的统一安全要求（多重身份验证，MFA）。微软官方的说明是：<a href="https://learn.microsoft.com/zh-cn/entra/identity/authentication/concept-mandatory-multifactor-authentication" target="_blank" rel="noopener noreferrer">「MFA 可以阻止超过 99.2% 的帐户入侵攻击」</a>。</p>
+    <!-- Not "开始之前" (Rick, 2026-09-21): that read as a prerequisite the reader
+         had to satisfy before starting, when the installing happens in step 2.
+         This block introduces the two pieces of software; step 2 installs them. -->
+    <summary>先认识两个软件：Microsoft Teams 和微软身份验证器</summary>
+    <p class="app-def"><strong>Microsoft Teams</strong> — 教学平台：上课、课堂通知、课程资料和师生沟通都在这里，<strong>电脑和手机上都要安装并登录</strong>。</p>
+    <p class="app-def"><strong>微软身份验证器（Microsoft Authenticator）</strong> — 安装在手机上，登录时提供一组每 30 秒更新的 <strong>6 位验证码</strong>。</p>
+    <p>所以登录 Teams 是两步：先输入账号和密码，再输入验证器上当前显示的 6 位验证码。</p>
+    <p><strong>为什么需要验证器：</strong>微软对工作和学校账号统一启用多重身份验证（MFA）。微软官方的说明是：<a href="https://learn.microsoft.com/zh-cn/entra/identity/authentication/concept-mandatory-multifactor-authentication" target="_blank" rel="noopener noreferrer">「MFA 可以阻止超过 99.2% 的帐户入侵攻击」</a>。</p>
     <!-- The "why not SMS" doubt lands here, where the reader is first told to
          install the authenticator — not at step 5, by which point it is long
          installed (Rick, 2026-09-21). -->
-    <p><strong>为什么不用短信验证码：</strong>国际短信在国内常常收不到或延迟很久，而且可能被拦截或转移到别人的号码上。验证器里的数字由手机<strong>按当前时间自己算出来</strong>，不依赖短信、也不需要联网，只有拿着这部手机的人看得到。</p>
+    <p><strong>为什么不用短信：</strong>国际短信在国内常有延迟或收不到，也可能被拦截或转移到他人号码。验证器上的数字由手机<strong>按当前时间生成</strong>，不依赖短信、不需要联网，只有持有这部手机的人能看到。</p>
   </details>
 
   <p class="sub intro-after">跟着下面 6 步操作，大约 10 分钟就能设置好。整个设置只做一次，每一步都很短，按顺序做就不会卡住。</p>
@@ -582,19 +594,19 @@
         '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
         '<p>打开 App Store → 搜索 <code>Microsoft Authenticator</code> → 安装（商店里显示的是英文名）。它就是登录时用来证明身份的微软身份验证器，没有它无法登录。</p></div>' +
         '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
-        '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。这是上课用的 App，<strong>手机和电脑上都要装</strong>。</p></div>' +
+        '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。这是上课和沟通用的软件，<strong>手机和电脑上都要装</strong>。</p></div>' +
         '<div class="note good"><strong>两个都装好就行，先别急着登录。</strong>登录留到第 5 步，跟着提示一次做完，不容易乱。</div>';
       return;
     }
 
     var s = STORE[state.phone] || STORE.other;
-    desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>，都从<strong>您手机自带的应用商店</strong>下载：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装<strong>Teams</strong>，上课用。";
+    desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>，都从<strong>您手机自带的应用商店</strong>下载：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装 <strong>Teams</strong>，上课和沟通用。";
 
     var html = '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
       '<p>打开 <strong>' + s + '</strong> → 搜索 <code>Microsoft Authenticator</code> → 安装。商店里显示的是<strong>英文名</strong>，发布者写着 Microsoft。</p></div>';
 
     html += '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
-      '<p>打开 <strong>' + s + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装。这是上课用的软件，<strong>手机和电脑上都要装</strong>。</p></div>';
+      '<p>打开 <strong>' + s + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装。这是上课和沟通用的软件，<strong>手机和电脑上都要装</strong>。</p></div>';
 
     html += '<div class="note plain">搜索时请<strong>用英文名</strong>搜，中文名不一定能搜到。认准发布者是 <strong>Microsoft</strong>，<strong>不要在搜索引擎上随便下载安装包</strong>——验证类软件装到被改过的版本会很危险。</div>';
 
