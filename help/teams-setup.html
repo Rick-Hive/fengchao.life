@@ -16,7 +16,7 @@
       display: flex; align-items: center; gap: 10px;
       font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: .9rem;
     }
-    .site-back a { color: #1f4e79; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
+    .site-back a { color: #1d4a83; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
     .site-back a:hover { text-decoration: underline; }
     .site-back img { width: 26px; height: 26px; display: block; }
   </style>
@@ -27,46 +27,50 @@
   </div>
 <style>
   :root {
-    --bg: #FBF6EF;
-    --surface: #FFFFFF;
-    --surface-2: #FFFCF7;
-    --ink: #2A2019;
-    --ink-soft: #746454;
-    --ink-faint: #A39177;
-    --line: #E8DCC9;
-    --accent: #B8541A;
-    --accent-ink: #7A3510;
-    --accent-soft: #F7E4D0;
-    --accent-soft-line: #E7C39C;
-    --good: #35704A;
-    --good-soft: #E2EFE4;
-    --good-line: #BBD8C3;
-    --warn: #A8332A;
-    --warn-soft: #FBE6E1;
-    --warn-line: #EBBFB6;
-    --focus: #8A4A17;
-    --shadow: 0 1px 2px rgba(42,32,25,.05), 0 8px 24px rgba(42,32,25,.05);
+    /* Palette shared with the rest of fengchao.life (assets/app.css): cool
+       gray-blue ground, near-black text, deep navy accent. Attention color is
+       a deep amber, not red — in Chinese-language UI red text reads as
+       rejection rather than neutral "warning". */
+    --bg: #f2f4f8;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --ink: #1c1c1c;
+    --ink-soft: #333333;
+    --ink-faint: #6b7787;
+    --line: #dde3ec;
+    --accent: #1d4a83;
+    --accent-ink: #123a63;
+    --accent-soft: #e8eef5;
+    --accent-soft-line: #c3d3e5;
+    --good: #15803d;
+    --good-soft: #e7f2ea;
+    --good-line: #bcdcc8;
+    --warn: #b45309;
+    --warn-soft: #fdf0e0;
+    --warn-line: #ecd2ab;
+    --focus: #1d4a83;
+    --shadow: 0 1px 3px rgba(30,41,59,.07), 0 4px 14px rgba(30,41,59,.06);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #1A1510; --surface: #241D16; --surface-2: #2B2219;
-      --ink: #F4EADE; --ink-soft: #C6B39E; --ink-faint: #8A7863;
-      --line: #3D3126; --accent: #E28B4D; --accent-ink: #F7CA9E;
-      --accent-soft: #3B2A1C; --accent-soft-line: #5D4228;
-      --good: #82C99C; --good-soft: #1E2E23; --good-line: #35503D;
-      --warn: #E99486; --warn-soft: #33201C; --warn-line: #573029;
-      --focus: #E28B4D;
+      --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+      --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+      --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+      --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+      --good: #6fc490; --good-soft: #17281f; --good-line: #2f4a39;
+      --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+      --focus: #7db2e8;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
     }
   }
   :root[data-theme="dark"] {
-    --bg: #1A1510; --surface: #241D16; --surface-2: #2B2219;
-    --ink: #F4EADE; --ink-soft: #C6B39E; --ink-faint: #8A7863;
-    --line: #3D3126; --accent: #E28B4D; --accent-ink: #F7CA9E;
-    --accent-soft: #3B2A1C; --accent-soft-line: #5D4228;
-    --good: #82C99C; --good-soft: #1E2E23; --good-line: #35503D;
-    --warn: #E99486; --warn-soft: #33201C; --warn-line: #573029;
-    --focus: #E28B4D;
+    --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+    --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+    --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+    --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+    --good: #6fc490; --good-soft: #17281f; --good-line: #2f4a39;
+    --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+    --focus: #7db2e8;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
   }
 
@@ -266,7 +270,7 @@
 
     <details class="why" id="s2why" hidden>
       <summary>为什么我的手机商店里可能搜不到？（安卓，1 分钟）</summary>
-      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（GMS）</strong>，其中就包括谷歌应用商店。谷歌自 2010 年 3 月关闭了中国大陆的搜索服务，2014 年 6 月起谷歌的各项服务在大陆整体无法访问，谷歌应用商店（Google Play）也在其中；华为手机则是另一回事：2019 年 5 月美国将华为列入出口管制清单，此后发布的新机型无法预装<strong>谷歌移动服务（Google Mobile Services，简称 GMS）</strong>——谷歌应用商店、谷歌推送、Gmail、YouTube 都属于这一套服务；此前已上市的机型不受影响。</p>
+      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（Google Mobile Services，简称 GMS）</strong>，谷歌应用商店和谷歌推送都属于这套服务。所以在安卓手机上：商店里搜不到微软身份验证器，装好之后也收不到「是否批准本次登录」的推送提示（这一条在第 5 步会用到）。</p>
       <p>所以安卓手机要从<strong>手机自带的应用商店</strong>或<strong>应用宝</strong>下载，而不是谷歌商店。按下面的顺序试，一般第一步就能搜到；都找不到就联系客服拿安装包，<strong>不要在搜索引擎上随便下载</strong>——验证类 App 装到被改过的版本会很危险。</p>
     </details>
 
@@ -370,7 +374,7 @@
 
     <details class="faq-item">
       <summary>忘记密码，或者提示密码错误</summary>
-      <p>账号由机构统一分配，您这边<strong>没有自助改密码的权限</strong>——登录页显示「无权限」是正常的，不是故障。请联系客服，我们在后台重置后把新密码发给您。收到后请<strong>复制粘贴</strong>，不要照着敲：密码里的符号很容易看错。</p>
+      <p>账号由机构统一分配，<strong>不开放自助修改密码</strong>——登录页显示「无权限」是正常的，不是故障。请联系<strong>给您分发账号的域管理员</strong>，由他在后台重置后把新密码发给您。收到后请<strong>复制粘贴</strong>，不要照着敲：密码里的符号很容易看错。</p>
     </details>
 
     <details class="faq-item">
