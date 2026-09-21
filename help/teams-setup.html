@@ -235,8 +235,10 @@
 
     <details class="why">
       <summary>为什么安卓手机要多一点步骤？（点开看一眼，1 分钟）</summary>
-      <p>苹果手机可以直接"扫一扫"完成验证，最省事。国产安卓手机因为没有装谷歌的服务，"扫码后等手机弹出提醒"这个方式在国内经常没反应、一直转圈——<strong>这不是您操作错了，是手机本身的限制。</strong></p>
-      <p>所以安卓手机改用另一种方式：让 App 直接显示一串 6 位数验证码，您手动输进去。反而更快、更稳定，一次就能成。</p>
+      <p>谷歌的服务在中国大陆无法使用，国内销售的安卓手机（华为、小米、OPPO、vivo 等）出厂时也不带<strong>谷歌服务框架</strong>。这带来两个具体影响：一是手机上没有谷歌应用商店，装 App 要换别的渠道；二是下面这件更关键的事。</p>
+      <p>Authenticator 的「推送通知」——就是扫完码之后，手机自己弹出一个「是否批准本次登录」的提示——<strong>正是通过谷歌的推送通道送达的</strong>。没有谷歌服务，这条通道不通，手机就一直等不到那条提示，表现出来就是<strong>扫码后一直转圈、没反应</strong>。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
+      <p><strong>这不是您操作错了，也不是手机坏了，更不是账号有问题。</strong></p>
+      <p>所以安卓手机改走另一条路：让 App 直接显示一组 <strong>6 位数验证码</strong>，您手动输进去。这串数字是手机<strong>按当前时间自己算出来的，不联网、不经过谷歌</strong>，所以完全不受影响，反而更快更稳，一次就能成。（苹果 iPhone 的推送走的是苹果自己的通道，在国内正常，所以 iPhone 可以直接扫码。）</p>
     </details>
 
     <div class="choice-grid" id="phoneChoices" role="group" aria-label="选择手机品牌"></div>
@@ -248,6 +250,15 @@
   <section class="card" data-step="2" hidden>
     <div class="step-head"><span class="step-num">第 2 步</span><h2>先在手机上装好 App</h2></div>
     <p class="step-desc" id="s2desc"></p>
+
+    <details class="why">
+      <summary>为什么一定要装 Authenticator？（30 秒读懂）</summary>
+      <p>您的账号里有孩子的学习记录、成绩单和校内邮件，所以它开启了<strong>两步验证</strong>：登录时除了密码，还要再证明一次「确实是本人」。</p>
+      <p>Authenticator 做的就是这第二步。它在您手机上生成一组<strong>每 30 秒变一次的 6 位数字</strong>，只有拿着这部手机的人才看得到。这样一来，<strong>即使密码被别人知道了，没有这串数字也进不去</strong>。</p>
+      <p>为什么不用短信？国际短信在国内常常收不到或延迟很久。App 生成的数字是手机按时间自己算的，<strong>不依赖短信、也不需要联网</strong>，反而更可靠。</p>
+      <p><strong>只需绑定这一次。</strong>以后登录就是打开 App 看一眼数字，不用再扫码，也不用再输那串长代码。</p>
+    </details>
+
     <div id="s2content"></div>
     <div class="actions">
       <button class="btn btn-ghost" data-back>上一步</button>
