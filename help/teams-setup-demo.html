@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teams 登录设置 · 演示 · 蜂巢帮助</title>
+  <meta name="description" content="用一段动画演示 Teams 与微软身份验证器的安装和登录绑定全过程，六步、约一分钟。" />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+<style>
+  /* Everything here is drawn in the page itself: no video file, no external
+     script, no web font. A customer in the mainland pulls ~40KB over the same
+     congested cross-border line that makes a real MP4 painful, and the demo
+     cannot fall out of step with the wizard text, because both live in this
+     repo. Palette and type match assets/app.css and teams-setup.html. */
+  :root {
+    --bg: #f2f4f8;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --ink: #1c1c1c;
+    --ink-soft: #333333;
+    --ink-faint: #6b7787;
+    --line: #dde3ec;
+    --accent: #1d4a83;
+    --accent-ink: #123a63;
+    --accent-soft: #e8eef5;
+    --accent-soft-line: #c3d3e5;
+    --good: #15803d;
+    --good-soft: #e7f2ea;
+    --warn: #b45309;
+    --warn-soft: #fdf0e0;
+    --warn-line: #ecd2ab;
+    --shadow: 0 1px 3px rgba(30,41,59,.07), 0 4px 14px rgba(30,41,59,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+      --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+      --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+      --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+      --good: #6fc490; --good-soft: #17281f;
+      --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+    --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+    --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+    --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+    --good: #6fc490; --good-soft: #17281f;
+    --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC",
+                 "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+    line-height: 1.7; padding: 26px 20px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  .site-back { display: flex; align-items: center; gap: 10px; font-size: .9rem; margin-bottom: 18px; }
+  .site-back a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
+  .site-back a:hover { text-decoration: underline; }
+  .site-back img { width: 26px; height: 26px; display: block; }
+
+  h1 {
+    font-family: "Songti SC", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+    font-size: clamp(1.4rem, 1.1rem + 1.3vw, 1.85rem); font-weight: 700; margin: 0;
+  }
+  .eyebrow {
+    display: inline-block; font-size: .76rem; font-weight: 600; letter-spacing: .09em;
+    color: var(--accent-ink); background: var(--accent-soft);
+    border: 1px solid var(--accent-soft-line); padding: 3px 11px; border-radius: 999px; margin-bottom: 11px;
+  }
+  .sub { color: var(--ink-soft); margin: 9px 0 0; font-size: .97rem; }
+
+  /* ---- player ---- */
+  .player {
+    margin-top: 22px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .stage {
+    position: relative; background: var(--surface-2); border-bottom: 1px solid var(--line);
+    min-height: clamp(300px, 46vw, 400px); display: flex; align-items: center; justify-content: center;
+    padding: 20px 18px; overflow: hidden;
+  }
+  .scene { display: none; width: 100%; }
+  .scene[data-on] { display: block; animation: fade .45s ease both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .scene-head {
+    display: flex; align-items: baseline; gap: 9px; justify-content: center;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .scene-head .n {
+    font-size: .74rem; font-weight: 700; letter-spacing: .08em; color: #fff;
+    background: var(--accent); border-radius: 999px; padding: 2px 10px;
+  }
+  .scene-head .t { font-weight: 700; font-size: 1.02rem; }
+
+  /* cover / play button */
+  .cover {
+    position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; cursor: pointer;
+    background: var(--surface-2); border: 0; font: inherit; color: var(--ink); width: 100%;
+  }
+  .cover[hidden] { display: none; }
+  .cover .disc {
+    width: 74px; height: 74px; border-radius: 50%; background: var(--accent); color: #fff;
+    display: grid; place-items: center; box-shadow: 0 6px 20px rgba(29,74,131,.3);
+    transition: transform .15s ease;
+  }
+  .cover:hover .disc { transform: scale(1.06); }
+  .cover .disc svg { width: 30px; height: 30px; margin-left: 4px; fill: currentColor; }
+  .cover .label { font-weight: 700; font-size: 1.05rem; }
+  .cover .meta { font-size: .87rem; color: var(--ink-faint); }
+
+  /* controls */
+  .controls { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+  .ctrl {
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+    width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+    cursor: pointer; flex: none; padding: 0;
+  }
+  .ctrl:hover { border-color: var(--accent-soft-line); background: var(--accent-soft); }
+  .ctrl:focus-visible, .cover:focus-visible, .seg:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .ctrl svg { width: 15px; height: 15px; fill: currentColor; }
+  .bars { display: flex; gap: 4px; flex: 1; min-width: 0; }
+  .seg {
+    flex: 1; height: 5px; border-radius: 999px; background: var(--line);
+    border: 0; padding: 0; cursor: pointer; overflow: hidden; position: relative;
+  }
+  .seg > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; }
+  .seg:hover { background: var(--accent-soft-line); }
+  .clock { font-size: .8rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; flex: none; }
+
+  .caption {
+    border-top: 1px solid var(--line); padding: 14px 18px 16px;
+    font-size: clamp(.94rem, .9rem + .3vw, 1.02rem); min-height: 74px;
+  }
+  .caption b { color: var(--accent-ink); }
+  .caption .who { display: block; font-size: .76rem; color: var(--ink-faint); margin-bottom: 3px; letter-spacing: .04em; }
+
+  /* ---- mock devices ---- */
+  .row { display: flex; gap: clamp(10px, 3vw, 26px); align-items: center; justify-content: center; flex-wrap: wrap; }
+  .phone {
+    width: clamp(150px, 40vw, 186px); border: 2.5px solid var(--ink-faint); border-radius: 20px;
+    background: var(--surface); padding: 9px 8px; box-shadow: var(--shadow); flex: none;
+  }
+  .phone .notch { width: 38%; height: 4px; border-radius: 999px; background: var(--line); margin: 1px auto 8px; }
+  .laptop {
+    width: clamp(230px, 56vw, 330px); border: 2.5px solid var(--ink-faint); border-radius: 9px;
+    background: var(--surface); padding: 8px; box-shadow: var(--shadow); flex: none;
+  }
+  .laptop .barbar { display: flex; gap: 4px; margin-bottom: 7px; align-items: center; }
+  .laptop .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+  .urlbar {
+    flex: 1; height: 17px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+    font-size: .58rem; color: var(--ink-soft); display: flex; align-items: center; padding: 0 7px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; white-space: nowrap;
+  }
+  .screen { font-size: .66rem; line-height: 1.5; }
+
+  .field {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2);
+    padding: 5px 7px; margin-top: 5px; color: var(--ink-faint); font-size: .62rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .field.filled { color: var(--ink); border-color: var(--accent-soft-line); background: var(--accent-soft); }
+  .btn-mock {
+    margin-top: 7px; background: var(--accent); color: #fff; border-radius: 999px;
+    text-align: center; padding: 4px 0; font-size: .62rem; font-weight: 700;
+  }
+  .btn-mock.ghost { background: var(--surface); color: var(--accent); border: 1px solid var(--accent-soft-line); }
+  .btn-mock.done { background: var(--good); }
+
+  .applist { display: grid; gap: 6px; }
+  .approw {
+    display: flex; align-items: center; gap: 7px; border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px; background: var(--surface-2);
+  }
+  .approw .ic { width: 24px; height: 24px; border-radius: 6px; flex: none; background: var(--accent-soft); border: 1px solid var(--accent-soft-line); }
+  .approw .txt { flex: 1; min-width: 0; }
+  .approw .nm { display: block; font-weight: 700; font-size: .64rem; line-height: 1.25; }
+  .approw .dv { display: block; font-size: .56rem; color: var(--ink-faint); line-height: 1.3; }
+  .approw .go { margin-left: auto; font-size: .56rem; font-weight: 700; color: var(--accent); flex: none; }
+  .approw.ok { border-color: var(--good); background: var(--good-soft); }
+  .approw.ok .go { color: var(--good); }
+
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; max-width: 420px; margin: 0 auto; }
+  .chip {
+    border: 1.5px solid var(--line); border-radius: 9px; background: var(--surface);
+    padding: 9px 6px; text-align: center; font-size: .8rem; font-weight: 700;
+  }
+  .chip span { display: block; font-size: .66rem; font-weight: 400; color: var(--ink-faint); }
+  .chip.pick { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+
+  .pickpair { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; max-width: 420px; margin: 0 auto; }
+  .pickpair .chip { padding: 14px 8px; }
+
+  .note-s {
+    margin: 12px auto 0; max-width: 460px; font-size: .8rem; border-left: 3px solid var(--warn);
+    background: var(--warn-soft); border-radius: 0 8px 8px 0; padding: 8px 11px; color: var(--ink-soft);
+  }
+  .note-s b { color: var(--warn); }
+  .note-s[hidden] { display: none; }
+
+  .codebox {
+    border: 1px dashed var(--accent-soft-line); background: var(--accent-soft); border-radius: 7px;
+    padding: 5px 7px; margin-top: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .56rem; color: var(--accent-ink); word-break: break-all; line-height: 1.45;
+  }
+  .flow { font-size: 1.4rem; color: var(--accent); flex: none; }
+  .bigcode {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.15rem; font-weight: 700;
+    letter-spacing: .14em; color: var(--accent-ink); text-align: center; margin-top: 6px;
+  }
+  .check { display: grid; gap: 7px; max-width: 420px; margin: 0 auto; }
+  .check div {
+    display: flex; gap: 8px; align-items: flex-start; font-size: .88rem;
+    border: 1px solid var(--line); border-radius: 9px; padding: 8px 11px; background: var(--surface);
+  }
+  .check div.on { border-color: var(--good); background: var(--good-soft); }
+  .check .tick { color: var(--ink-faint); font-weight: 700; flex: none; }
+  .check div.on .tick { color: var(--good); }
+
+  .dim { opacity: .32; }
+  .hl { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+  .after { margin-top: 20px; font-size: .93rem; color: var(--ink-soft); }
+  .after a { color: var(--accent); font-weight: 700; }
+  .cta {
+    display: inline-block; margin-top: 14px; background: var(--accent); color: #fff;
+    text-decoration: none; font-weight: 700; border-radius: 999px; padding: 11px 22px;
+  }
+  .cta:hover { background: var(--accent-ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scene[data-on] { animation: none; }
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="site-back">
+    <a href="/"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
+  </div>
+
+  <span class="eyebrow">蜂巢帮助</span>
+  <h1>Teams 登录设置 · 演示</h1>
+  <p class="sub">先看一遍全过程，大约一分钟。看完再照着做，心里有数。</p>
+
+  <div class="player">
+    <div class="stage" id="stage">
+      <button class="cover" id="cover" type="button" aria-label="播放演示">
+        <span class="disc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
+        <span class="label">播放演示</span>
+        <span class="meta">6 步 · 约 1 分钟 · 无声音</span>
+      </button>
+
+      <!-- 1 -->
+      <section class="scene" data-scene="1">
+        <div class="scene-head"><span class="n">第 1 步</span><span class="t">选择您的手机</span></div>
+        <div class="chips">
+          <div class="chip" data-chip="ios">苹果 iPhone<span>最简单</span></div>
+          <div class="chip" data-chip="huawei">华为<span>安卓</span></div>
+          <div class="chip" data-chip="xiaomi">小米<span>安卓</span></div>
+          <div class="chip">OPPO<span>安卓</span></div>
+          <div class="chip">vivo<span>安卓</span></div>
+          <div class="chip">三星 / 联想<span>安卓</span></div>
+        </div>
+        <div class="note-s" id="s1note" hidden><b>选好之后</b>，后面每一步都会按您的机型显示，不用自己判断。</div>
+      </section>
+
+      <!-- 2 -->
+      <section class="scene" data-scene="2">
+        <div class="scene-head"><span class="n">第 2 步</span><span class="t">在手机上装两个软件</span></div>
+        <div class="row">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div style="font-weight:700;margin-bottom:5px;">手机自带的应用商店</div>
+              <div class="field" id="s2search">搜索</div>
+              <div class="applist" style="margin-top:7px;">
+                <div class="approw" id="s2auth">
+                  <span class="ic"></span>
+                  <span class="txt"><span class="nm">Authenticator</span><span class="dv">微软（中国）有限公司</span></span>
+                  <span class="go" id="s2authgo">安装</span>
+                </div>
+                <div class="approw" id="s2teams" style="opacity:.35;">
+                  <span class="ic"></span>
+                  <span class="txt"><span class="nm">Teams</span><span class="dv">微软（中国）有限公司</span></span>
+                  <span class="go" id="s2teamsgo">安装</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="note-s" id="s2note" hidden><b>华为手机例外</b>：华为应用市场没有上架微软身份验证器，要先装应用宝，再从应用宝安装。</div>
+      </section>
+
+      <!-- 3 -->
+      <section class="scene" data-scene="3">
+        <div class="scene-head"><span class="n">第 3 步</span><span class="t">用电脑还是手机登录</span></div>
+        <div class="pickpair">
+          <div class="chip" data-pick="laptop">💻 用电脑<span>推荐：出问题最容易解决</span></div>
+          <div class="chip" data-pick="phone">📱 只有手机<span>也能完成</span></div>
+        </div>
+        <div class="note-s" id="s3note" hidden>演示按<b>用电脑</b>走：屏幕大、复制粘贴方便。只有手机也能完成，步骤一样。</div>
+      </section>
+
+      <!-- 4 -->
+      <section class="scene" data-scene="4">
+        <div class="scene-head"><span class="n">第 4 步</span><span class="t">开一个无痕窗口</span></div>
+        <div class="row">
+          <div class="laptop">
+            <div class="barbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="urlbar" id="s4url">新标签页</span></div>
+            <div class="screen" id="s4menu" style="min-height:108px;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);">
+              浏览器窗口
+            </div>
+          </div>
+        </div>
+        <div class="note-s" id="s4note" hidden>无痕窗口不带任何旧记录，能一次避开<b>串到别的微软账号</b>和<b>旧缓存报错</b>。</div>
+      </section>
+
+      <!-- 5 -->
+      <section class="scene" data-scene="5">
+        <div class="scene-head"><span class="n">第 5 步</span><span class="t">登录并绑定验证</span></div>
+        <div class="row">
+          <div class="laptop">
+            <div class="barbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="urlbar">teams.microsoft.com</span></div>
+            <div class="screen" id="s5pc">
+              <div class="field" id="s5acct">账号</div>
+              <div class="field" id="s5pw">密码</div>
+              <div class="btn-mock" id="s5signin">登录</div>
+            </div>
+          </div>
+          <span class="flow" id="s5arrow" style="opacity:0;">→</span>
+          <div class="phone" id="s5phone" style="opacity:0;">
+            <div class="notch"></div>
+            <div class="screen" id="s5ph">
+              <div style="font-weight:700;margin-bottom:5px;">微软身份验证器</div>
+              <div class="field">工作或学校账户</div>
+              <div class="field">手动输入账户信息</div>
+            </div>
+          </div>
+        </div>
+        <div class="note-s" id="s5note" hidden><b>代码和网址请复制粘贴</b>，不要手打——两串都很长，手打几乎一定会错一两个字符。</div>
+      </section>
+
+      <!-- 6 -->
+      <section class="scene" data-scene="6">
+        <div class="scene-head"><span class="n">第 6 步</span><span class="t">核对一下，就完成了</span></div>
+        <div class="check">
+          <div data-ck="1"><span class="tick">✓</span><span>电脑上的 Teams 能正常打开</span></div>
+          <div data-ck="2"><span class="tick">✓</span><span>手机上的 Teams 也已装好并登录</span></div>
+          <div data-ck="3"><span class="tick">✓</span><span>验证器里能看到我的机构账号</span></div>
+        </div>
+        <div class="note-s" id="s6note" hidden style="border-left-color:var(--good);background:var(--good-soft);">
+          以后登录只要两样：<b style="color:var(--good);">密码</b> ＋ 手机上当前显示的 <b style="color:var(--good);">6 位验证码</b>。不用再扫码、也不用再输那串长代码。
+        </div>
+      </section>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl" id="pp" type="button" aria-label="暂停">
+        <svg id="ppIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+      </button>
+      <button class="ctrl" id="rp" type="button" aria-label="从头播放">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>
+      </button>
+      <div class="bars" id="bars" role="group" aria-label="跳到某一步"></div>
+      <span class="clock" id="clock">0:00</span>
+    </div>
+
+    <div class="caption" id="caption"><span class="who">演示</span>点上面的播放键开始。</div>
+  </div>
+
+  <p class="after">看完就可以照着做了——向导会按您的手机型号，一步一步给出具体操作。</p>
+  <a class="cta" href="/help/teams-setup.html">开始设置 →</a>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var scenes = {};
+  Array.prototype.forEach.call(document.querySelectorAll(".scene"), function (el) {
+    scenes[el.dataset.scene] = el;
+  });
+
+  function cls(el, name, on) { if (el) el.classList[on ? "add" : "remove"](name); }
+  function show(el, on) { if (el) el.hidden = !on; }
+  function op(el, v) { if (el) el.style.opacity = v; }
+
+  // Every beat: which scene it belongs to, how long it holds, the caption, and
+  // a function that puts the mock UI into the state that caption describes.
+  // Keeping state in `enter` (not in transitions) means seeking to any beat
+  // rebuilds the picture correctly.
+  var BEATS = [
+    { s: 1, d: 3200, c: "先选您的手机品牌——它决定验证器从哪里下载，以及用哪种方式绑定。", enter: function () {
+        reset(); } },
+    { s: 1, d: 3600, c: "这里以<b>华为</b>为例。选好之后，后面每一步都会按您的机型显示。", enter: function () {
+        reset(); pick("huawei"); show($("s1note"), true); } },
+
+    { s: 2, d: 3600, c: "打开<b>手机自带的应用商店</b>，搜索关键字 <b>Authenticator</b>。", enter: function () {
+        reset(); $("s2search").textContent = "Authenticator"; cls($("s2search"), "filled", true); } },
+    { s: 2, d: 4200, c: "认准开发者是<b>微软（中国）有限公司</b>，然后安装。不是这个开发者的，不要装。", enter: function () {
+        BEATS[2].enter(); cls($("s2auth"), "hl", true); } },
+    { s: 2, d: 3400, c: "装好验证器，再用同样的方法装 <b>Teams</b>。两个都要装。", enter: function () {
+        BEATS[2].enter();
+        cls($("s2auth"), "ok", true); $("s2authgo").textContent = "已安装";
+        op($("s2teams"), "1"); cls($("s2teams"), "hl", true); } },
+    { s: 2, d: 4000, c: "<b>华为手机是例外</b>：华为应用市场没有上架验证器，要先装应用宝，再从应用宝里装。", enter: function () {
+        BEATS[4].enter(); cls($("s2teams"), "hl", false);
+        cls($("s2teams"), "ok", true); $("s2teamsgo").textContent = "已安装";
+        show($("s2note"), true); } },
+
+    { s: 3, d: 3400, c: "接下来选一台设备来打开登录页面。两台都有的话，<b>强烈建议用电脑</b>。", enter: function () {
+        reset(); } },
+    { s: 3, d: 3000, c: "电脑屏幕大、复制粘贴方便，出问题换个窗口就能重来。", enter: function () {
+        reset(); pick2("laptop"); show($("s3note"), true); } },
+
+    { s: 4, d: 3400, c: "在电脑上开一个<b>无痕窗口</b>：Windows 用 Edge 按 <b>Ctrl+Shift+N</b>，Mac 上是 ⌘+Shift+N。", enter: function () {
+        reset(); } },
+    { s: 4, d: 3800, c: "无痕窗口不带任何旧记录，能一次避开串账号和旧缓存报错这两个最常见的失败原因。", enter: function () {
+        reset();
+        $("s4url").textContent = "无痕窗口";
+        $("s4menu").innerHTML = '<div style="text-align:center;color:var(--ink-soft);">🕶 <b>无痕窗口</b><div style="font-size:.6rem;margin-top:3px;">不会保留浏览记录</div></div>';
+        show($("s4note"), true); } },
+
+    { s: 5, d: 3600, c: "在无痕窗口地址栏输入 <b>teams.microsoft.com</b>，用机构发的账号和密码登录。", enter: function () {
+        reset();
+        $("s5acct").textContent = "name@yourdomain"; cls($("s5acct"), "filled", true);
+        $("s5pw").textContent = "••••••••••"; cls($("s5pw"), "filled", true); } },
+    { s: 5, d: 4200, c: "页面出现二维码时——<b>安卓手机不用扫它</b>，点「I can't scan the QR code?」。", enter: function () {
+        BEATS[10].enter();
+        $("s5pc").innerHTML = '<div style="text-align:center;padding:6px 0;">' +
+          '<div style="width:52px;height:52px;margin:0 auto;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-size:.55rem;color:var(--ink-faint);">二维码</div>' +
+          '<div class="btn-mock ghost hl" style="margin-top:8px;font-size:.58rem;">I can\'t scan the QR code?</div></div>'; } },
+    { s: 5, d: 4400, c: "屏幕会给出一组<b>代码</b>和一个<b>网址</b>。把它们复制到手机上，<b>不要手打</b>。", enter: function () {
+        BEATS[10].enter();
+        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">请在手机上输入</div>' +
+          '<div class="codebox">代码：C7K2 9QXD 4M<br>网址：aka.ms/····</div>';
+        op($("s5arrow"), "1"); op($("s5phone"), "1");
+        show($("s5note"), true); } },
+    { s: 5, d: 4200, c: "在验证器里选<b>工作或学校账户 → 手动输入账户信息</b>，把代码和网址分别粘贴进去。", enter: function () {
+        BEATS[12].enter();
+        $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;">手动输入账户信息</div>' +
+          '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">C7K2 9QXD 4M</div>' +
+          '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">aka.ms/····</div>' +
+          '<div class="btn-mock">完成</div>'; } },
+    { s: 5, d: 4400, c: "绑定成功。验证器里出现您的账号和一组<b>每 30 秒更新的 6 位验证码</b>，输到电脑上就登录完成。", enter: function () {
+        BEATS[12].enter();
+        $("s5ph").innerHTML = '<div style="font-size:.58rem;color:var(--ink-faint);">name@yourdomain</div>' +
+          '<div class="bigcode">418 236</div>' +
+          '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">每 30 秒更新</div>';
+        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">输入验证码</div>' +
+          '<div class="field filled hl" style="font-family:ui-monospace,Menlo,monospace;letter-spacing:.1em;">418236</div>' +
+          '<div class="btn-mock done">登录成功</div>'; } },
+
+    { s: 6, d: 3600, c: "最后核对三项：电脑上的 Teams、手机上的 Teams、验证器里的账号。", enter: function () {
+        reset();
+        cls(document.querySelector('[data-ck="1"]'), "on", true);
+        cls(document.querySelector('[data-ck="2"]'), "on", true); } },
+    { s: 6, d: 5200, c: "设置只做这一次。以后登录只要<b>密码 ＋ 手机上当前显示的 6 位验证码</b>。", enter: function () {
+        reset();
+        cls(document.querySelector('[data-ck="1"]'), "on", true);
+        cls(document.querySelector('[data-ck="2"]'), "on", true);
+        cls(document.querySelector('[data-ck="3"]'), "on", true);
+        show($("s6note"), true); } }
+  ];
+
+  var TOTAL = BEATS.reduce(function (a, b) { return a + b.d; }, 0);
+
+  // Put every mock back to its authored state, so a beat's `enter` only has to
+  // describe what it changes.
+  var PRISTINE = {};
+  ["s2search", "s5pc", "s5ph", "s4menu", "s4url"].forEach(function (id) { PRISTINE[id] = $(id).innerHTML; });
+  var PRISTINE_TEXT = { s2search: $("s2search").textContent, s4url: $("s4url").textContent };
+
+  function reset() {
+    Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (c) { cls(c, "pick", false); });
+    ["s1note", "s2note", "s3note", "s4note", "s5note", "s6note"].forEach(function (id) { show($(id), false); });
+    Array.prototype.forEach.call(document.querySelectorAll(".hl"), function (c) { cls(c, "hl", false); });
+    Array.prototype.forEach.call(document.querySelectorAll(".check div"), function (c) { cls(c, "on", false); });
+
+    $("s2search").textContent = PRISTINE_TEXT.s2search; cls($("s2search"), "filled", false);
+    cls($("s2auth"), "ok", false); $("s2authgo").textContent = "安装";
+    cls($("s2teams"), "ok", false); $("s2teamsgo").textContent = "安装"; op($("s2teams"), ".35");
+
+    $("s4url").textContent = PRISTINE_TEXT.s4url;
+    $("s4menu").innerHTML = PRISTINE.s4menu;
+
+    $("s5pc").innerHTML = PRISTINE.s5pc; $("s5ph").innerHTML = PRISTINE.s5ph;
+    op($("s5arrow"), "0"); op($("s5phone"), "0");
+  }
+  function pick(id) { cls(document.querySelector('[data-chip="' + id + '"]'), "pick", true); }
+  function pick2(id) { cls(document.querySelector('[data-pick="' + id + '"]'), "pick", true); }
+
+  // ---- transport ----
+  var bars = $("bars"), segs = [];
+  for (var i = 1; i <= 6; i++) {
+    (function (n) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "seg"; b.setAttribute("aria-label", "第 " + n + " 步");
+      b.innerHTML = "<i></i>";
+      b.addEventListener("click", function () { seekScene(n); });
+      bars.appendChild(b); segs.push(b);
+    })(i);
+  }
+
+  var idx = -1, timer = null, beatStart = 0, left = 0, playing = false, elapsedBefore = 0;
+
+  function offsetOf(n) { var t = 0; for (var i = 0; i < n; i++) t += BEATS[i].d; return t; }
+  function fmt(ms) {
+    var s = Math.round(ms / 1000);
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function paint() {
+    var b = BEATS[idx];
+    Object.keys(scenes).forEach(function (k) {
+      if (String(b.s) === k) scenes[k].setAttribute("data-on", ""); else scenes[k].removeAttribute("data-on");
+    });
+    b.enter();
+    $("caption").innerHTML = '<span class="who">第 ' + b.s + ' 步</span>' + b.c;
+  }
+
+  function tickBars() {
+    var done = elapsedBefore + (playing ? Date.now() - beatStart : (BEATS[idx] ? BEATS[idx].d - left : 0));
+    // fill each segment by how much of its scene has played
+    var acc = 0;
+    for (var n = 1; n <= 6; n++) {
+      var span = BEATS.filter(function (b) { return b.s === n; }).reduce(function (a, b) { return a + b.d; }, 0);
+      var within = Math.min(Math.max(done - acc, 0), span);
+      segs[n - 1].firstChild.style.width = (span ? (within / span) * 100 : 0) + "%";
+      acc += span;
+    }
+    $("clock").textContent = fmt(Math.min(done, TOTAL));
+  }
+
+  var raf = null;
+  function loop() { tickBars(); raf = requestAnimationFrame(loop); }
+
+  function schedule(ms) {
+    clearTimeout(timer);
+    beatStart = Date.now(); left = ms;
+    timer = setTimeout(function () {
+      if (idx < BEATS.length - 1) { go(idx + 1); } else { finish(); }
+    }, ms);
+  }
+
+  function go(n) {
+    idx = n; elapsedBefore = offsetOf(n);
+    paint();
+    if (playing) schedule(BEATS[n].d); else { left = BEATS[n].d; tickBars(); }
+  }
+
+  function play() {
+    if (idx === -1 || idx >= BEATS.length) { go(0); }
+    playing = true; setIcon(true);
+    show($("cover"), false);
+    schedule(left || BEATS[idx].d);
+    if (!raf) loop();
+  }
+  function pause() {
+    playing = false; setIcon(false);
+    clearTimeout(timer);
+    left = Math.max(0, left - (Date.now() - beatStart));
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    tickBars();
+  }
+  function finish() {
+    playing = false; setIcon(false);
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    elapsedBefore = TOTAL; left = 0; tickBars();
+    $("caption").innerHTML = '<span class="who">演示结束</span>可以开始设置了——下面的按钮会带您进入向导，按您的手机型号一步步来。';
+  }
+  function seekScene(n) {
+    var first = 0;
+    for (var i = 0; i < BEATS.length; i++) { if (BEATS[i].s === n) { first = i; break; } }
+    show($("cover"), false);
+    left = BEATS[first].d;
+    go(first);
+    if (!playing) { playing = true; setIcon(true); schedule(BEATS[first].d); if (!raf) loop(); }
+  }
+  function setIcon(isPlaying) {
+    $("ppIcon").innerHTML = isPlaying
+      ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
+      : '<path d="M8 5v14l11-7z"/>';
+    $("pp").setAttribute("aria-label", isPlaying ? "暂停" : "播放");
+  }
+
+  $("cover").addEventListener("click", function () { left = 0; idx = -1; play(); });
+  $("pp").addEventListener("click", function () { playing ? pause() : play(); });
+  $("rp").addEventListener("click", function () {
+    clearTimeout(timer); left = 0; idx = -1; playing = false; play();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === " " && e.target === document.body) { e.preventDefault(); playing ? pause() : play(); }
+  });
+
+  setIcon(false);
+  reset();
+  tickBars();
+})();
+</script>
+</body>
+</html>

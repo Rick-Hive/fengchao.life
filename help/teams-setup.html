@@ -167,6 +167,17 @@
      it at roughly 29 Chinese characters, well short of the 720px column. The
      cap is dropped here and the text shrinks to fit rather than wrapping;
      below the width where that would get small, it wraps normally. */
+  .demo-link { margin: 10px 0 0; font-size: .93rem; }
+  .demo-link a {
+    display: inline-flex; align-items: center; gap: 9px; color: var(--accent-ink);
+    font-weight: 700; text-decoration: none; border: 1.5px solid var(--accent-soft-line);
+    background: var(--surface); border-radius: 999px; padding: 7px 16px 7px 8px;
+  }
+  .demo-link a:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .demo-link .disc {
+    width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff;
+    display: inline-grid; place-items: center; font-size: .6rem; padding-left: 2px;
+  }
   .intro-after { margin-top: 16px; max-width: none; white-space: nowrap; font-size: clamp(.80rem, 2.18vw, .97rem); }
   @media (max-width: 700px) { .intro-after { white-space: normal; font-size: .93rem; } }
 
@@ -298,6 +309,10 @@
   </details>
 
   <p class="sub intro-after">跟着下面 6 步操作，大约 10 分钟就能设置好。整个设置只做一次，每一步都很短，按顺序做就不会卡住。</p>
+  <!-- Step 1 only, like the intro: a one-minute animated run-through of the
+       six steps (help/teams-setup-demo.html), for a reader who wants to see
+       the whole shape before doing any of it. -->
+  <p class="demo-link"><a href="/help/teams-setup-demo.html"><span class="disc" aria-hidden="true">▶</span>先看一分钟演示，再动手</a></p>
 
   <ol class="progress" id="progress"></ol>
   <p class="progress-hint" id="progressHint">这排步骤可以点击，随时跳回任意一步。</p>
@@ -323,9 +338,9 @@
     <p class="step-desc" id="s2desc"></p>
 
     <details class="why" id="s2why" hidden>
-      <summary>为什么不从谷歌商店下载？（安卓）</summary>
-      <p>国内销售的安卓手机不带谷歌移动服务（GMS），所以无法访问谷歌应用商店。只能从<strong>手机自带的应用商店</strong>下载微软的身份验证器。请搜索关键字：<code>Authenticator</code>。</p>
-      <p>对于华为手机，受制裁影响，<strong>华为应用市场没有上架微软身份验证器</strong>。华为手机要先装<strong>应用宝</strong>，再从应用宝安装微软的身份验证器。</p>
+      <summary>为什么不是从谷歌商店下载？（安卓，1 分钟）</summary>
+      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（Google Mobile Services，简称 GMS）</strong>，谷歌应用商店和谷歌推送都属于这套服务。所以手机上没有谷歌商店，请从<strong>您手机自带的应用商店</strong>下载，搜 <code>Authenticator</code>。只有一个例外：<strong>华为应用市场没有上架微软身份验证器</strong>，华为手机要先装应用宝，再从应用宝里装——下面的步骤已经按您的机型写好了。</p>
+      <p>同样因为没有 GMS，验证器也<strong>收不到谷歌推送</strong>——第 5 步绑定时不用扫码，改成手动输入一串代码，原因那里会再说一次。</p>
     </details>
 
     <div id="s2content"></div>
@@ -561,11 +576,13 @@
   // is on any later step they are simply gone, not folded.
   var introEl = document.querySelector(".intro-box");
   var introAfterEl = document.querySelector(".intro-after");
+  var demoLinkEl = document.querySelector(".demo-link");
 
   function goTo(step) {
     state.step = step;
     if (introEl) introEl.hidden = step !== 1;
     if (introAfterEl) introAfterEl.hidden = step !== 1;
+    if (demoLinkEl) demoLinkEl.hidden = step !== 1;
     Array.prototype.forEach.call(document.querySelectorAll("section[data-step]"), function (sec) {
       sec.hidden = Number(sec.dataset.step) !== step;
     });
