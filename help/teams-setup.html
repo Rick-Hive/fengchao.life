@@ -540,8 +540,16 @@
     });
   }
 
+  // The opening block orients a reader who has not started yet. Once they move
+  // past step 1 it is just a wall of text above the step they are working on,
+  // so it folds itself away — once (Rick, 2026-09-21). After that the reader's
+  // own open/close choice stands.
+  var introEl = document.querySelector(".intro-box");
+  var introFolded = false;
+
   function goTo(step) {
     state.step = step;
+    if (introEl && step > 1 && !introFolded) { introEl.open = false; introFolded = true; }
     Array.prototype.forEach.call(document.querySelectorAll("section[data-step]"), function (sec) {
       sec.hidden = Number(sec.dataset.step) !== step;
     });
