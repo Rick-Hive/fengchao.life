@@ -269,9 +269,9 @@
     <p class="step-desc" id="s2desc"></p>
 
     <details class="why" id="s2why" hidden>
-      <summary>为什么我的手机商店里可能搜不到？（安卓，1 分钟）</summary>
-      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（Google Mobile Services，简称 GMS）</strong>，谷歌应用商店和谷歌推送都属于这套服务。所以在安卓手机上：商店里搜不到微软身份验证器，装好之后也收不到「是否批准本次登录」的推送提示（这一条在第 5 步会用到）。</p>
-      <p>所以安卓手机要从<strong>手机自带的应用商店</strong>或<strong>应用宝</strong>下载，而不是谷歌商店。按下面的顺序试，一般第一步就能搜到；都找不到就联系客服拿安装包，<strong>不要在搜索引擎上随便下载</strong>——验证类 App 装到被改过的版本会很危险。</p>
+      <summary>为什么不是从谷歌商店下载？（安卓，1 分钟）</summary>
+      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（Google Mobile Services，简称 GMS）</strong>，谷歌应用商店和谷歌推送都属于这套服务。所以手机上没有谷歌商店，请从<strong>您手机自带的应用商店</strong>下载——华为、小米、OPPO、vivo、三星、联想的商店里都能搜到，用英文名 <code>Microsoft Authenticator</code> 搜。</p>
+      <p>同样因为没有 GMS，验证器也<strong>收不到谷歌推送</strong>——第 5 步绑定时不用扫码，改成手动输入一串代码，原因那里会再说一次。</p>
     </details>
 
     <div id="s2content"></div>
@@ -421,13 +421,15 @@
     { id: "other",   name: "其他品牌 / 不确定", tag: "安卓" }
   ];
 
+  // The customer downloads from the store already on their phone (Rick,
+  // 2026-09-21). Only the store's name changes by brand.
   var STORE = {
-    huawei:  { auth: { ok: false }, teams: { ok: true,  where: "华为应用市场（AppGallery）" } },
-    xiaomi:  { auth: { ok: false }, teams: { ok: false } },
-    oppo:    { auth: { ok: true,  where: "OPPO 软件商店" }, teams: { ok: false } },
-    vivo:    { auth: { ok: false }, teams: { ok: false } },
-    samsung: { auth: { ok: true,  where: "三星应用商店（联想手机请用联想应用商店）" }, teams: { ok: false } },
-    other:   { auth: { ok: false }, teams: { ok: false } }
+    huawei:  "华为应用市场（AppGallery）",
+    xiaomi:  "小米应用商店",
+    oppo:    "OPPO 软件商店",
+    vivo:    "vivo 应用商店",
+    samsung: "三星应用商店（联想手机请用联想应用商店）",
+    other:   "手机自带的应用商店"
   };
 
   var DEVICES = [
@@ -524,34 +526,15 @@
     }
 
     var s = STORE[state.phone] || STORE.other;
-    desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装<strong>Teams</strong>，上课用。";
+    desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>，都从<strong>您手机自带的应用商店</strong>下载：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装<strong>Teams</strong>，上课用。";
 
-    var html = '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>';
-    if (s.auth.ok) {
-      html += '<p>打开 <strong>' + s.auth.where + '</strong> → 搜索 <code>Microsoft Authenticator</code>（商店里显示的是英文名）→ 安装。这是微软官方确认可用的下载渠道。</p>';
-    } else {
-      html += '<p>' + phoneName(state.phone) + ' 的商店没有微软官方确认过的下载渠道，请按顺序试，一般第 1 步就能成（原因见上面那段说明）：</p>' +
-        '<ol class="steps" style="margin-top:10px;">' +
-        '<li><span class="txt">先在<strong>手机自带的应用商店</strong>里搜 <code>Microsoft Authenticator</code>，多数情况其实搜得到。</span></li>' +
-        '<li><span class="txt">搜不到就装一个<strong>应用宝</strong>，在应用宝里再搜一次（应用宝在大部分安卓手机上都能用）。</span></li>' +
-        '<li><span class="txt">还是找不到，<strong>直接联系客服</strong>，我们发给您已经验证过的安装包，不要自己在搜索引擎上随便下载。</span></li>' +
-        '</ol>';
-    }
-    html += "</div>";
+    var html = '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
+      '<p>打开 <strong>' + s + '</strong> → 搜索 <code>Microsoft Authenticator</code> → 安装。商店里显示的是<strong>英文名</strong>，发布者写着 Microsoft。</p></div>';
 
-    html += '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>';
-    if (s.teams.ok) {
-      html += '<p>打开 <strong>' + s.teams.where + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装即可。这是微软官方确认可用的下载渠道。</p>';
-    } else {
-      html += '<p>' + phoneName(state.phone) + ' 商店里能不能搜到 Teams，微软没有官方确认过，请按和上面一样的顺序试：</p>' +
-        '<ol class="steps" style="margin-top:10px;">' +
-        '<li><span class="txt">先在<strong>手机自带的应用商店</strong>里搜 <code>Microsoft Teams</code>。</span></li>' +
-        '<li><span class="txt">搜不到就在<strong>应用宝</strong>里再搜一次。</span></li>' +
-        '<li><span class="txt">还是找不到，<strong>联系客服</strong>，我们发给您已经验证过的安装包。</span></li>' +
-        '</ol>' +
-        '<div class="note plain" style="margin-top:11px;">实在装不上，可以先用手机浏览器打开 <code>teams.microsoft.com</code> 应急，但这只是临时办法——请联系客服把 App 装好。</div>';
-    }
-    html += "</div>";
+    html += '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
+      '<p>打开 <strong>' + s + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装。这是上课用的软件，<strong>手机和电脑上都要装</strong>。</p></div>';
+
+    html += '<div class="note plain">搜索时请<strong>用英文名</strong>搜，中文名不一定能搜到。认准发布者是 <strong>Microsoft</strong>，<strong>不要在搜索引擎上随便下载安装包</strong>——验证类软件装到被改过的版本会很危险。</div>';
 
     html += '<div class="note good"><strong>两个都装好就行，先别登录。</strong>最难的一步已经过去了——登录留到第 5 步一次做完。</div>';
     box.innerHTML = html;
