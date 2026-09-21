@@ -236,8 +236,8 @@
   </div>
 
   <div class="intro-box">
-    <p>开始之前：电脑和手机上都要装好 Teams，手机上还要多装一个验证 App</p>
-    <p><strong>两个 App 各做什么：</strong>「Teams」是上课用的，<strong>电脑和手机上都要安装并登录</strong>；「微软身份验证器（Microsoft Authenticator）」装在手机上，负责显示一组每 30 秒变一次的 <strong>6 位验证码</strong>——登录 Teams 时，输完密码还要再输这组数字。</p>
+    <p>开始之前：电脑和手机上都要装好 Teams，手机上还要安装微软的身份验证器</p>
+    <p><strong>这两个软件各做什么：</strong>「Teams」是上课用的，<strong>电脑和手机上都要安装并登录</strong>；「微软身份验证器（Microsoft Authenticator）」装在手机上，负责显示一组每 30 秒变一次的 <strong>6 位验证码</strong>——登录 Teams 时，输完密码还要再输这组数字。</p>
     <p><strong>为什么必须装验证器：</strong>这是微软对工作和学校账号的统一安全要求（多重身份验证，MFA）。微软官方的说明是：<a href="https://learn.microsoft.com/zh-cn/entra/identity/authentication/concept-mandatory-multifactor-authentication" target="_blank" rel="noopener noreferrer">「MFA 可以阻止超过 99.2% 的帐户入侵攻击」</a>。</p>
     <p>整个设置只做一次，大约 10 分钟。</p>
   </div>
@@ -259,14 +259,14 @@
     <div class="actions"><span></span><button class="btn btn-primary" id="s1next" disabled>下一步</button></div>
   </section>
 
-  <!-- STEP 2 · 装 App -->
+  <!-- STEP 2 · 安装两个软件 -->
   <section class="card" data-step="2" hidden>
-    <div class="step-head"><span class="step-num">第 2 步</span><h2>先在手机上装好 App</h2></div>
+    <div class="step-head"><span class="step-num">第 2 步</span><h2>先在手机上装好这两个软件</h2></div>
     <p class="step-desc" id="s2desc"></p>
 
     <details class="why" id="s2why" hidden>
       <summary>为什么我的手机商店里可能搜不到？（安卓，1 分钟）</summary>
-      <p>国内销售的安卓手机<strong>出厂不带谷歌应用商店</strong>。谷歌自 2010 年 3 月关闭了中国大陆的搜索服务，2014 年 6 月起谷歌的各项服务在大陆整体无法访问，谷歌应用商店（Google Play）也在其中；华为手机则自 2019 年起因美国出口管制，新机型无法预装谷歌服务。</p>
+      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（GMS）</strong>，其中就包括谷歌应用商店。谷歌自 2010 年 3 月关闭了中国大陆的搜索服务，2014 年 6 月起谷歌的各项服务在大陆整体无法访问，谷歌应用商店（Google Play）也在其中；华为手机则是另一回事：2019 年 5 月美国将华为列入出口管制清单，此后发布的新机型无法预装<strong>谷歌移动服务（Google Mobile Services，简称 GMS）</strong>——谷歌应用商店、谷歌推送、Gmail、YouTube 都属于这一套服务；此前已上市的机型不受影响。</p>
       <p>所以安卓手机要从<strong>手机自带的应用商店</strong>或<strong>应用宝</strong>下载，而不是谷歌商店。按下面的顺序试，一般第一步就能搜到；都找不到就联系客服拿安装包，<strong>不要在搜索引擎上随便下载</strong>——验证类 App 装到被改过的版本会很危险。</p>
     </details>
 
@@ -322,7 +322,7 @@
 
     <details class="why" id="s5why" hidden>
       <summary>为什么不扫码，要手动输入一串代码？（安卓，点开看一眼）</summary>
-      <p>扫码之后本来的下一步，是手机自动弹出一个「是否批准本次登录」的提示，点一下就完成了。这条提示是<strong>通过谷歌的推送通道</strong>送到手机上的——国内销售的安卓手机没有谷歌服务，这条通道不通，手机就永远等不到那条提示，看起来就是<strong>扫完码一直转圈、没反应</strong>。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
+      <p>扫码之后本来的下一步，是手机自动弹出一个「是否批准本次登录」的提示，点一下就完成了。这条提示是<strong>通过谷歌的推送通道</strong>送到手机上的，而这条通道属于<strong>谷歌移动服务（GMS）</strong>——国内销售的安卓手机不带 GMS，通道不通，手机就永远等不到那条提示，看起来就是<strong>扫完码一直转圈、没反应</strong>。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
       <p>所以这里改用<strong>手动输入代码</strong>来绑定。绑好之后，验证码由手机<strong>按当前时间自己算出来</strong>，不联网、也不经过谷歌，反而更稳定。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
     </details>
 
@@ -364,7 +364,7 @@
     <p class="sub" style="margin-bottom:6px;">这几个是最常遇到的情况，点开就能看到答案。</p>
 
     <details class="faq-item">
-      <summary>为什么不用短信验证码，非要装一个 App？</summary>
+      <summary>为什么不用短信验证码，非要安装微软的身份验证器？</summary>
       <p>两个原因。一是可靠：国际短信在国内常常收不到或延迟很久；App 上的数字由手机<strong>按当前时间自己算出来</strong>，不依赖短信、也不需要联网。二是安全：短信可能被拦截或被转移到别人的号码上，App 里的数字只有拿着这部手机的人看得到。</p>
     </details>
 
@@ -509,10 +509,10 @@
     if (why2) why2.hidden = !isAndroid();
 
     if (state.phone === "ios") {
-      desc.innerHTML = "iPhone 上这两个 App 都能在 App Store 直接搜到，<strong>两个都要装</strong>。先装微软身份验证器，它是登录的前提。";
+      desc.innerHTML = "iPhone 上这两个软件都能在 App Store 直接搜到，<strong>两个都要装</strong>。先装微软身份验证器，它是登录的前提。";
       box.innerHTML =
         '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
-        '<p>打开 App Store → 搜索 <code>Microsoft Authenticator</code> → 安装（商店里显示的是英文名）。它就是登录时用来证明身份的那个 App，没有它无法登录。</p></div>' +
+        '<p>打开 App Store → 搜索 <code>Microsoft Authenticator</code> → 安装（商店里显示的是英文名）。它就是登录时用来证明身份的微软身份验证器，没有它无法登录。</p></div>' +
         '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
         '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。这是上课用的 App，<strong>手机和电脑上都要装</strong>。</p></div>' +
         '<div class="note good"><strong>两个都装好就行，先别急着登录。</strong>登录留到第 5 步，跟着提示一次做完，不容易乱。</div>';
@@ -520,7 +520,7 @@
     }
 
     var s = STORE[state.phone] || STORE.other;
-    desc.innerHTML = phoneName(state.phone) + " 手机上这两个 App <strong>都要装</strong>：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装<strong>Teams</strong>，上课用。";
+    desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装<strong>Teams</strong>，上课用。";
 
     var html = '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>';
     if (s.auth.ok) {
