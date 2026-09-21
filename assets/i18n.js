@@ -648,9 +648,8 @@ window.SITE_MENUS = [
       { zh: "创建新蜂巢",   en: "Start a New Hive" },
     ],
   },
-  // Last, right of 蜂巢生态 (Rick, 2026-09-21). Customer-facing support only; the
-  // admin-side knowledge base (tenant facts, Graph PowerShell, service-
-  // principal ids) stays internal and is NOT published here.
+  // Last, right of 蜂巢生态 (Rick, 2026-09-21). Customer-facing pages only —
+  // anything administrative stays out of this repo.
   {
     zh: "技术支持", en: "Technical Support",
     items: [
