@@ -280,8 +280,19 @@
     render();
   });
   // In-app navigation to a route: apply, render, and let the sync push it.
+  // A path the SPA does not own (a real page such as /help/teams-setup.html)
+  // is handed to the browser instead. Without this, applyRoute() silently
+  // falls back to the first step and syncUrl() rewrites the address, so the
+  // click looks like it did nothing at all (Rick, 2026-09-21).
+  function ownsRoute(h) {
+    var pm = /^([a-z]+)(?:\/([a-z]+))?$/.exec(h);
+    if (pm && PAGES.indexOf(pm[1]) !== -1) return true;
+    return h === "" || h === "done" || STEP_HASHES.indexOf(h) !== -1;
+  }
   function navigate(route) {
-    applyRoute(route.replace(/^\/+/, ""));
+    var h = route.replace(/^\/+/, "").replace(/\/+$/, "").toLowerCase();
+    if (!ownsRoute(h)) { location.assign(route); return; }
+    applyRoute(h);
     closeAllModals();
     render();
   }

@@ -651,7 +651,7 @@ window.SITE_MENUS = [
   // Last, right of 蜂巢生态 (Rick, 2026-09-21). Customer-facing pages only —
   // anything administrative stays out of this repo.
   {
-    zh: "技术支持", en: "Technical Support",
+    zh: "帮助", en: "Help",
     items: [
       // A real page, not an SPA route: renderNav()'s click handler lets a
       // root-relative .html href load normally instead of routing it.
