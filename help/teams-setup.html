@@ -97,7 +97,19 @@
   .sub { color: var(--ink-soft); margin-top: 9px; font-size: .97rem; max-width: 58ch; }
 
   .progress { display: flex; gap: 5px; margin: 24px 0 26px; padding: 0; list-style: none; }
-  .progress li { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .progress li { flex: 1; min-width: 0; }
+  /* Each step is a button: the reader can jump straight back to a step they
+     have already seen (Rick, 2026-09-21). */
+  .progress li > button {
+    display: flex; flex-direction: column; gap: 7px; width: 100%;
+    background: none; border: 0; padding: 0; margin: 0; font: inherit;
+    text-align: left; cursor: pointer; border-radius: 6px;
+  }
+  .progress li > button:hover .label { color: var(--accent-ink); }
+  .progress li > button:hover .bar { background: var(--accent-soft-line); }
+  .progress li > button:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
+  .progress-hint { margin: -18px 0 22px; font-size: .85rem; color: var(--ink-faint); }
+  .progress-hint[data-tone="warn"] { color: var(--warn); font-weight: 600; }
   .progress .bar { height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
   .progress .bar > span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
   .progress li[data-state="done"] .bar > span { width: 100%; }
@@ -247,6 +259,7 @@
   </div>
 
   <ol class="progress" id="progress"></ol>
+  <p class="progress-hint" id="progressHint">这排步骤可以点击，随时跳回任意一步。</p>
 
   <!-- STEP 1 · 手机品牌 -->
   <section class="card" data-step="1">
@@ -454,15 +467,51 @@
 
   // ---- progress ----
   var progressEl = document.getElementById("progress");
+  var progressHintEl = document.getElementById("progressHint");
+  var hintTimer = null;
+  var HINT_DEFAULT = progressHintEl.textContent;
+
+  // What each step needs before it can render anything sensible: steps 2 and 3
+  // read the phone brand, steps 4–6 also read whether the reader is on a
+  // computer or a phone. A step whose answer is missing sends them back to the
+  // step that asks for it, rather than showing a half-filled page.
+  function missingFor(step) {
+    if (step >= 2 && !state.phone) return { step: 1, msg: "请先选择您的手机品牌，后面几步才知道该给您哪套说明。" };
+    if (step >= 4 && !state.device) return { step: 3, msg: "请先选择用电脑还是手机操作，第 4 步之后才知道该给您哪套说明。" };
+    return null;
+  }
+  function resetHint() {
+    clearTimeout(hintTimer);
+    progressHintEl.textContent = HINT_DEFAULT;
+    progressHintEl.removeAttribute("data-tone");
+  }
+  function showHint(msg) {
+    progressHintEl.textContent = msg;
+    progressHintEl.setAttribute("data-tone", "warn");
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(resetHint, 6000);
+  }
+
   STEP_LABELS.forEach(function (label, i) {
+    var n = i + 1;
     var li = document.createElement("li");
-    li.innerHTML = '<span class="bar"><span></span></span><span class="label">' + (i + 1) + ". " + label + "</span>";
+    var b = document.createElement("button");
+    b.type = "button";
+    b.innerHTML = '<span class="bar"><span></span></span><span class="label">' + n + ". " + label + "</span>";
+    b.addEventListener("click", function () {
+      var gap = missingFor(n);
+      if (gap) { goTo(gap.step); showHint(gap.msg); return; }
+      resetHint();
+      goTo(n);
+    });
+    li.appendChild(b);
     progressEl.appendChild(li);
   });
   function renderProgress() {
     Array.prototype.forEach.call(progressEl.children, function (li, i) {
       var n = i + 1;
       li.dataset.state = n < state.step ? "done" : (n === state.step ? "active" : "");
+      li.firstChild.setAttribute("aria-current", n === state.step ? "step" : "false");
     });
   }
 
@@ -719,6 +768,13 @@
   // ---- boot ----
   function boot(data) {
     if (data && data.phone) state = data;
+
+    // A page load always starts at step 1. Earlier answers are kept, so the
+    // progress bar above lets the reader jump straight back to where they
+    // were; landing mid-wizard unannounced just confuses someone who opened
+    // the help menu weeks later.
+    state.step = 1;
+
     if (state.phone) {
       var pi = PHONES.map(function (p) { return p.id; }).indexOf(state.phone);
       if (pi >= 0) {
