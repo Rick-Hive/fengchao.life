@@ -221,7 +221,7 @@
 
 <div class="wrap">
   <div class="masthead">
-    <span class="eyebrow">EQUIP 客户支持</span>
+    <span class="eyebrow">蜂巢技术支持</span>
     <h1>Teams 登录设置向导</h1>
     <p class="sub">跟着下面 6 步操作，大约 10 分钟就能设置好。每一步都很短，按顺序做就不会卡住。</p>
   </div>
@@ -312,7 +312,7 @@
 
     <div class="checklist" id="checklist">
       <label><input type="checkbox" id="chk1" data-chk> Teams 已经能正常打开，能看到界面内容</label>
-      <label><input type="checkbox" id="chk2" data-chk> 手机上的 Authenticator 里能看到我的 Equip 账号</label>
+      <label><input type="checkbox" id="chk2" data-chk> 手机上的 Authenticator 里能看到我的机构账号</label>
       <label><input type="checkbox" id="chk3" data-chk> 我知道以后登录只需要看验证码，不用再重新扫码或重新绑定</label>
     </div>
 
@@ -335,7 +335,7 @@
 
     <details class="faq-item">
       <summary>忘记密码，或者提示密码错误</summary>
-      <p>这是 Equip 统一分配的机构账号，客户端这边没有自助改密码的权限，看到"无权限"是正常的、不是故障。请直接联系客服，我们在后台重新生成密码发给您；登录成功后您可以自己改成好记的密码。收到新密码时请<strong>复制粘贴</strong>，不要手动照着敲——密码里的特殊符号很容易敲错。</p>
+      <p>这是机构统一分配的账号，使用者这边没有自助改密码的权限，看到"无权限"是正常的、不是故障。请直接联系客服，我们在后台重新生成密码发给您；登录成功后您可以自己改成好记的密码。收到新密码时请<strong>复制粘贴</strong>，不要手动照着敲——密码里的特殊符号很容易敲错。</p>
     </details>
     <details class="faq-item">
       <summary>页面弹出一串英文报错，比如 AADSTS900561</summary>
@@ -357,7 +357,7 @@
   </div>
 
   <footer class="page">
-    <span>Equip 客户支持 · Teams 登录向导</span>
+    <span>蜂巢技术支持 · Teams 登录向导</span>
     <span id="stateLabel"></span>
   </footer>
 </div>
@@ -394,10 +394,10 @@
 
   var state = { phone: null, device: null, os: null, step: 1 };
   try {
-    var saved = JSON.parse(localStorage.getItem("equipTeamsWizard") || "null");
+    var saved = JSON.parse(localStorage.getItem("teamsSetupWizard") || "null");
     if (saved && saved.phone) state = saved;
   } catch (e) {}
-  function save() { try { localStorage.setItem("equipTeamsWizard", JSON.stringify(state)); } catch (e) {} }
+  function save() { try { localStorage.setItem("teamsSetupWizard", JSON.stringify(state)); } catch (e) {} }
 
   function phoneName(id) {
     for (var i = 0; i < PHONES.length; i++) if (PHONES[i].id === id) return PHONES[i].name;
@@ -621,7 +621,7 @@
     if (state.device === "laptop") {
       desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边，后面几步会用到。";
       items.push('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，按回车打开');
-      items.push('输入 Equip 给您的账号（例如 <code>xxx@equipme.cloud</code>）和密码。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
+      items.push('输入机构发给您的账号（形如 <code>name@yourschool.org</code>）和密码。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
       if (android) {
         items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）');
         items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——按下面「怎么把代码传到手机上」的方法复制过去');
@@ -632,7 +632,7 @@
       items.push('绑定成功后，Authenticator 里就会出现您的账号，下面显示一组 <strong>6 位数验证码</strong>（每 30 秒换一次）。把当前显示的这组数字输入到电脑页面上，登录完成');
     } else {
       desc.innerHTML = "全程只用这一部手机，不需要第二部手机，也不需要用摄像头扫码。";
-      items.push('打开手机上的 <strong>Teams App</strong>，输入 Equip 给您的账号和密码（建议长按粘贴，不要手打）');
+      items.push('打开手机上的 <strong>Teams App</strong>，输入机构发给您的账号和密码（建议长按粘贴，不要手打）');
       if (android) {
         items.push('提示需要身份验证时，找到并点击 <strong>「I can\'t scan the QR code?」</strong>（我无法扫描二维码）');
         items.push('屏幕上会出现一组<strong>代码</strong>和<strong>网址</strong>。<strong>好消息：都在同一部手机上，可以直接长按复制，完全不用手打。</strong>先长按选中代码 → 复制 → 切到 Authenticator → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴');
