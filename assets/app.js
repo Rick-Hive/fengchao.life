@@ -1927,8 +1927,11 @@
       // the site keeps its state and only the address changes. This also
       // covers a click on the address already shown, which as a fragment
       // link used to do nothing (Rick, 2026-09-17).
+      // A root-relative .html link (/help/teams-setup.html) is a real page
+      // outside the wizard, so it is left to the browser (Rick, 2026-09-21).
       var href = a.getAttribute("href") || "";
-      if (/^\/(?!\/)/.test(href) || /^#\//.test(href)) {
+      var isPage = /\.html?($|[?#])/i.test(href);
+      if ((/^\/(?!\/)/.test(href) && !isPage) || /^#\//.test(href)) {
         e.preventDefault();
         navigate(href.replace(/^#/, ""));
       }

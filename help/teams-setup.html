@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teams 安装和身份验证 · 蜂巢技术支持</title>
+  <meta name="description" content="Teams 与 Microsoft Authenticator 安装、登录与身份验证的分步向导，专为中国大陆用户设计。" />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+  <style>
+    /* Page chrome tying the wizard back to the site. The wizard below keeps
+       its own self-contained styles; no Google Fonts (unreachable in
+       mainland China, which is this page's whole audience). */
+    .site-back {
+      max-width: 720px; margin: 0 auto 18px; padding-inline: 20px;
+      display: flex; align-items: center; gap: 10px;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: .9rem;
+    }
+    .site-back a { color: #1f4e79; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
+    .site-back a:hover { text-decoration: underline; }
+    .site-back img { width: 26px; height: 26px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="site-back">
+    <a href="/"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
+  </div>
+<style>
+  :root {
+    --bg: #FBF6EF;
+    --surface: #FFFFFF;
+    --surface-2: #FFFCF7;
+    --ink: #2A2019;
+    --ink-soft: #746454;
+    --ink-faint: #A39177;
+    --line: #E8DCC9;
+    --accent: #B8541A;
+    --accent-ink: #7A3510;
+    --accent-soft: #F7E4D0;
+    --accent-soft-line: #E7C39C;
+    --good: #35704A;
+    --good-soft: #E2EFE4;
+    --good-line: #BBD8C3;
+    --warn: #A8332A;
+    --warn-soft: #FBE6E1;
+    --warn-line: #EBBFB6;
+    --focus: #8A4A17;
+    --shadow: 0 1px 2px rgba(42,32,25,.05), 0 8px 24px rgba(42,32,25,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1A1510; --surface: #241D16; --surface-2: #2B2219;
+      --ink: #F4EADE; --ink-soft: #C6B39E; --ink-faint: #8A7863;
+      --line: #3D3126; --accent: #E28B4D; --accent-ink: #F7CA9E;
+      --accent-soft: #3B2A1C; --accent-soft-line: #5D4228;
+      --good: #82C99C; --good-soft: #1E2E23; --good-line: #35503D;
+      --warn: #E99486; --warn-soft: #33201C; --warn-line: #573029;
+      --focus: #E28B4D;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1A1510; --surface: #241D16; --surface-2: #2B2219;
+    --ink: #F4EADE; --ink-soft: #C6B39E; --ink-faint: #8A7863;
+    --line: #3D3126; --accent: #E28B4D; --accent-ink: #F7CA9E;
+    --accent-soft: #3B2A1C; --accent-soft-line: #5D4228;
+    --good: #82C99C; --good-soft: #1E2E23; --good-line: #35503D;
+    --warn: #E99486; --warn-soft: #33201C; --warn-line: #573029;
+    --focus: #E28B4D;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+    line-height: 1.7; padding-inline: 20px; padding-block: 26px 60px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  h1, h2 { font-family: "Songti SC", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC", serif; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(1.45rem, 1.1rem + 1.4vw, 1.95rem); font-weight: 700; }
+  h2 { font-size: 1.28rem; font-weight: 700; }
+  h3 { font-size: 1rem; font-weight: 700; margin: 0; }
+  p { margin: 0; }
+
+  .eyebrow {
+    display: inline-block; font-size: .76rem; font-weight: 600; letter-spacing: .09em;
+    color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-soft-line);
+    padding: 3px 11px; border-radius: 999px; margin-bottom: 11px;
+  }
+  .masthead { margin-bottom: 8px; }
+  .sub { color: var(--ink-soft); margin-top: 9px; font-size: .97rem; max-width: 58ch; }
+
+  .progress { display: flex; gap: 5px; margin: 24px 0 26px; padding: 0; list-style: none; }
+  .progress li { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  .progress .bar { height: 4px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .progress .bar > span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+  .progress li[data-state="done"] .bar > span { width: 100%; }
+  .progress li[data-state="active"] .bar > span { width: 50%; }
+  .progress .label {
+    font-size: .68rem; font-weight: 600; color: var(--ink-faint);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .progress li[data-state="active"] .label, .progress li[data-state="done"] .label { color: var(--accent-ink); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 24px 22px; box-shadow: var(--shadow);
+  }
+  .step-head { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; }
+  .step-num { font-weight: 700; font-size: .8rem; letter-spacing: .08em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .step-desc { color: var(--ink-soft); margin: 11px 0 20px; font-size: .96rem; }
+
+  .choice-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(146px, 1fr)); gap: 10px; }
+  .choice, .branch-pick button {
+    text-align: left; cursor: pointer; border: 1.5px solid var(--line); background: var(--surface-2);
+    border-radius: 10px; padding: 13px 15px; font: inherit; color: var(--ink);
+    display: flex; flex-direction: column; gap: 3px;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .choice:hover, .branch-pick button:hover { border-color: var(--accent-soft-line); background: var(--accent-soft); }
+  .choice:focus-visible, .branch-pick button:focus-visible, .btn:focus-visible, summary:focus-visible {
+    outline: 3px solid var(--focus); outline-offset: 2px;
+  }
+  .choice .name, .branch-pick .name { font-weight: 700; font-size: 1rem; }
+  .choice .tag, .branch-pick .tag { font-size: .75rem; color: var(--ink-faint); }
+  .choice[aria-pressed="true"], .branch-pick button[aria-pressed="true"] {
+    border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .choice[aria-pressed="true"] .tag, .branch-pick button[aria-pressed="true"] .tag { color: var(--accent-ink); }
+  .branch-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+
+  details.why {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 10px 10px 0; padding: 13px 16px; margin: 0 0 20px; font-size: .93rem;
+  }
+  details.why summary {
+    cursor: pointer; font-weight: 700; color: var(--accent-ink); list-style: none;
+    display: flex; align-items: center; gap: 7px;
+  }
+  details.why summary::-webkit-details-marker { display: none; }
+  details.why summary::before { content: "＋"; width: 1em; font-weight: 700; }
+  details.why[open] summary::before { content: "－"; }
+  details.why p { margin-top: 9px; color: var(--ink-soft); }
+  details.why p + p { margin-top: 7px; }
+
+  ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 15px; }
+  ol.steps > li { counter-increment: s; display: flex; gap: 12px; align-items: flex-start; }
+  ol.steps > li::before {
+    content: counter(s); flex: none; width: 25px; height: 25px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: .8rem;
+    display: flex; align-items: center; justify-content: center; margin-top: 3px;
+  }
+  ol.steps .txt code, .note code, p code, li code {
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px;
+    padding: 1px 6px; font-size: .86em; color: var(--accent-ink); word-break: break-all;
+  }
+
+  .note { font-size: .88rem; border-radius: 9px; padding: 11px 13px; margin-top: 14px; }
+  .note.plain { color: var(--ink-soft); background: var(--surface-2); border: 1px dashed var(--line); }
+  .note.warn  { color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn-line); }
+  .note.good  { color: var(--good); background: var(--good-soft); border: 1px solid var(--good-line); }
+  .note strong { color: inherit; }
+
+  .pill { font-size: .71rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.must { color: var(--warn); background: var(--warn-soft); }
+  .pill.opt { color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); }
+
+  .app-block {
+    border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px;
+    margin-bottom: 11px; background: var(--surface-2);
+  }
+  .app-block h3 { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; flex-wrap: wrap; }
+  .app-block p { font-size: .94rem; color: var(--ink-soft); }
+  .app-block p strong, .app-block p b { color: var(--ink); }
+
+  .browser-list { display: flex; flex-direction: column; gap: 9px; margin-top: 4px; }
+  .browser-row {
+    display: flex; gap: 12px; align-items: baseline; justify-content: space-between;
+    padding: 11px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-2);
+    flex-wrap: wrap;
+  }
+  .browser-row .bname { font-weight: 700; font-size: .95rem; }
+  .browser-row .bhow { font-size: .88rem; color: var(--ink-soft); }
+  .browser-row .keys {
+    font-weight: 700; color: var(--accent-ink); background: var(--accent-soft);
+    border: 1px solid var(--accent-soft-line); border-radius: 6px; padding: 1px 8px; font-size: .84rem;
+    white-space: nowrap;
+  }
+  .browser-row.bad { background: var(--warn-soft); border-color: var(--warn-line); }
+  .browser-row.bad .bname, .browser-row.bad .bhow { color: var(--warn); }
+
+  .checklist { display: flex; flex-direction: column; gap: 11px; }
+  .checklist label { display: flex; gap: 11px; align-items: flex-start; font-size: .96rem; cursor: pointer; }
+  .checklist input { margin-top: 5px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+
+  .actions { display: flex; gap: 10px; margin-top: 24px; justify-content: space-between; align-items: center; }
+  .btn { font: inherit; font-weight: 700; border-radius: 999px; padding: 11px 22px; cursor: pointer; border: 1.5px solid transparent; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:disabled { opacity: .38; cursor: not-allowed; }
+  .btn-primary:not(:disabled):hover { background: var(--accent-ink); }
+  .btn-ghost { background: transparent; color: var(--ink-soft); border-color: var(--line); }
+  .btn-ghost:hover { border-color: var(--ink-faint); color: var(--ink); }
+
+  .faq { margin-top: 36px; }
+  .faq-item { border-bottom: 1px solid var(--line); padding: 13px 2px; }
+  .faq-item summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after { content: "▾"; color: var(--ink-faint); flex: none; transition: transform .15s ease; }
+  .faq-item[open] summary::after { transform: rotate(180deg); }
+  .faq-item p { margin-top: 9px; color: var(--ink-soft); font-size: .93rem; }
+
+  footer.page {
+    margin-top: 38px; padding-top: 16px; border-top: 1px solid var(--line);
+    color: var(--ink-faint); font-size: .81rem; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <div class="masthead">
+    <span class="eyebrow">EQUIP 客户支持</span>
+    <h1>Teams 登录设置向导</h1>
+    <p class="sub">跟着下面 6 步操作，大约 10 分钟就能设置好。每一步都很短，按顺序做就不会卡住。</p>
+  </div>
+
+  <ol class="progress" id="progress"></ol>
+
+  <!-- STEP 1 · 手机品牌 -->
+  <section class="card" data-step="1">
+    <div class="step-head"><span class="step-num">第 1 步</span><h2>选择您的手机</h2></div>
+    <p class="step-desc">手机品牌决定了从哪里下载验证 App，以及用哪种方式验证。先选它，后面每一步都会自动对应您的机型。</p>
+
+    <details class="why">
+      <summary>为什么安卓手机要多一点步骤？（点开看一眼，1 分钟）</summary>
+      <p>苹果手机可以直接"扫一扫"完成验证，最省事。国产安卓手机因为没有装谷歌的服务，"扫码后等手机弹出提醒"这个方式在国内经常没反应、一直转圈——<strong>这不是您操作错了，是手机本身的限制。</strong></p>
+      <p>所以安卓手机改用另一种方式：让 App 直接显示一串 6 位数验证码，您手动输进去。反而更快、更稳定，一次就能成。</p>
+    </details>
+
+    <div class="choice-grid" id="phoneChoices" role="group" aria-label="选择手机品牌"></div>
+
+    <div class="actions"><span></span><button class="btn btn-primary" id="s1next" disabled>下一步</button></div>
+  </section>
+
+  <!-- STEP 2 · 装 App -->
+  <section class="card" data-step="2" hidden>
+    <div class="step-head"><span class="step-num">第 2 步</span><h2>先在手机上装好 App</h2></div>
+    <p class="step-desc" id="s2desc"></p>
+    <div id="s2content"></div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-back>上一步</button>
+      <button class="btn btn-primary" data-next="3">装好了，下一步</button>
+    </div>
+  </section>
+
+  <!-- STEP 3 · 选设备 -->
+  <section class="card" data-step="3" hidden>
+    <div class="step-head"><span class="step-num">第 3 步</span><h2>用电脑还是手机登录？</h2></div>
+    <p class="step-desc">手机上的验证 App 已经装好了。现在选一台设备来打开 Teams 登录页面——两台都有的话，<strong>强烈建议用电脑</strong>。</p>
+
+    <div class="branch-pick" id="devicePick" role="group" aria-label="选择登录设备"></div>
+    <div id="deviceNote" hidden></div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" data-back>上一步</button>
+      <button class="btn btn-primary" id="s3next" disabled>下一步</button>
+    </div>
+  </section>
+
+  <!-- STEP 4 · 浏览器与无痕窗口 -->
+  <section class="card" data-step="4" hidden>
+    <div class="step-head"><span class="step-num">第 4 步</span><h2 id="s4title">选对浏览器，开无痕窗口</h2></div>
+    <p class="step-desc" id="s4desc"></p>
+
+    <details class="why">
+      <summary>为什么一定要用无痕窗口？（很关键，点开看看）</summary>
+      <p>无痕窗口是一个"干净"的窗口，不带任何记录。首次设置时用它，可以一次避开三个最常见的失败原因：<strong>浏览器里已经登录着别的微软账号</strong>（会自动把您顶到错的账号上）、<strong>旧的缓存登录页面</strong>（就是那串 AADSTS 英文报错的主要来源）、<strong>自动填充了旧密码</strong>。</p>
+      <p>设置成功之后，日常使用就改回普通窗口——无痕窗口一关就不记得登录状态，每次都要重新输验证码，日常用反而麻烦。</p>
+    </details>
+
+    <div id="osPickWrap" hidden>
+      <p style="font-weight:700;margin-bottom:9px;">您的电脑是哪种系统？</p>
+      <div class="branch-pick" id="osPick" role="group" aria-label="选择电脑系统"></div>
+    </div>
+
+    <div id="s4content"></div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" data-back>上一步</button>
+      <button class="btn btn-primary" id="s4next">窗口打开了，下一步</button>
+    </div>
+  </section>
+
+  <!-- STEP 5 · 登录绑定 -->
+  <section class="card" data-step="5" hidden>
+    <div class="step-head"><span class="step-num">第 5 步</span><h2>登录并绑定验证</h2></div>
+    <p class="step-desc" id="s5desc"></p>
+    <ol class="steps" id="s5steps"></ol>
+    <div class="note plain" id="s5tip"></div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-back>上一步</button>
+      <button class="btn btn-primary" data-next="6">登录成功了</button>
+    </div>
+  </section>
+
+  <!-- STEP 6 · 核对 -->
+  <section class="card" data-step="6" hidden>
+    <div class="step-head"><span class="step-num">第 6 步</span><h2>核对一下，就完成了</h2></div>
+    <p class="step-desc">下面三项都打上勾，说明已经彻底设置好了。</p>
+
+    <div class="checklist" id="checklist">
+      <label><input type="checkbox" id="chk1" data-chk> Teams 已经能正常打开，能看到界面内容</label>
+      <label><input type="checkbox" id="chk2" data-chk> 手机上的 Authenticator 里能看到我的 Equip 账号</label>
+      <label><input type="checkbox" id="chk3" data-chk> 我知道以后登录只需要看验证码，不用再重新扫码或重新绑定</label>
+    </div>
+
+    <div class="note good" id="doneNote" hidden>
+      <strong>设置完成，恭喜！</strong>以后登录 Teams：打开普通窗口（不用无痕了）输入账号密码，看到要验证时，打开手机 Authenticator，把里面显示的 6 位数验证码输进去就行。绑定是一次性的，以后<strong>不需要再扫码、也不需要再输那串长代码</strong>。
+    </div>
+    <div class="note plain" id="dailyTip" hidden>
+      <strong>日常使用的小建议：</strong>如果您经常在电脑上用 Teams，建议装一个 <strong>Teams 桌面版</strong>。网页版每次都要重新加载全部内容，在国内跨境线路上容易慢；桌面版会把内容缓存在本地，日常打开更快更稳。（但如果以后登录又出问题，排查时还是回到无痕网页版最方便。）
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" data-back>上一步</button>
+      <button class="btn btn-primary" id="restart">从头再走一遍</button>
+    </div>
+  </section>
+
+  <div class="faq">
+    <h2 style="margin-bottom:5px;">还有问题？</h2>
+    <p class="sub" style="margin-bottom:6px;">这几个是最常遇到的情况，点开就能看到答案。</p>
+
+    <details class="faq-item">
+      <summary>忘记密码，或者提示密码错误</summary>
+      <p>这是 Equip 统一分配的机构账号，客户端这边没有自助改密码的权限，看到"无权限"是正常的、不是故障。请直接联系客服，我们在后台重新生成密码发给您；登录成功后您可以自己改成好记的密码。收到新密码时请<strong>复制粘贴</strong>，不要手动照着敲——密码里的特殊符号很容易敲错。</p>
+    </details>
+    <details class="faq-item">
+      <summary>页面弹出一串英文报错，比如 AADSTS900561</summary>
+      <p>这类报错多半和缓存、旧链接有关。请关掉当前页面，按第 4 步重新开一个<strong>无痕窗口</strong>，从 <code>teams.microsoft.com</code> 重新走一遍，不要用收藏夹里存的旧链接。如果还是不行，请把整个报错页面截图（包含下方的 Correlation Id）发给客服。</p>
+    </details>
+    <details class="faq-item">
+      <summary>登录页面打不开、一直转圈或者显示空白</summary>
+      <p>这通常<strong>不是您的操作问题</strong>。微软的服务器在境外，国内访问要经过跨境线路，高峰时段容易拥堵、丢包，表现就是页面半天打不开、加载到一半卡住，或者验证环节超时失败。可以试：①等几分钟刷新重试，或换个时段（清早、深夜通常顺畅得多）；②切换网络试试（宽带 Wi-Fi 换成手机流量，或反过来）；③改用 <code>teams.microsoft.com</code> 这个更直接的入口。反复不行请联系客服，不用一直重试。</p>
+    </details>
+    <details class="faq-item">
+      <summary>手机上验证码一直不对，或者提示已过期</summary>
+      <p>先看两个常见原因：①Authenticator 里的验证码每 30 秒换一次，请等它刷新出新的一组再<strong>立刻</strong>输入；②手机时间必须是"自动设置"，时间不准会导致验证码永远对不上。</p>
+      <p>如果换了好几组验证码<strong>全都不对</strong>，那很可能是当初绑定时那串长代码<strong>输错了一个字符</strong>——这种情况验证码会一直是错的，再试也没用。解决办法：在 Authenticator 里把这个账号<strong>删掉</strong>，然后回到第 5 步重新绑定一次，这次务必用复制粘贴。</p>
+    </details>
+    <details class="faq-item">
+      <summary>都按步骤做了，还是登录不上</summary>
+      <p>请把您看到的界面或报错<strong>截图</strong>发给客服，不用自己反复重试。有截图我们通常一眼就能判断问题在哪一步。</p>
+    </details>
+  </div>
+
+  <footer class="page">
+    <span>Equip 客户支持 · Teams 登录向导</span>
+    <span id="stateLabel"></span>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PHONES = [
+    { id: "ios",     name: "苹果 iPhone",  tag: "最简单" },
+    { id: "huawei",  name: "华为",          tag: "安卓" },
+    { id: "xiaomi",  name: "小米",          tag: "安卓" },
+    { id: "oppo",    name: "OPPO",         tag: "安卓" },
+    { id: "vivo",    name: "vivo",         tag: "安卓" },
+    { id: "samsung", name: "三星 / 联想",   tag: "安卓" },
+    { id: "other",   name: "其他品牌 / 不确定", tag: "安卓" }
+  ];
+
+  var STORE = {
+    huawei:  { auth: { ok: false }, teams: { ok: true,  where: "华为应用市场（AppGallery）" } },
+    xiaomi:  { auth: { ok: false }, teams: { ok: false } },
+    oppo:    { auth: { ok: true,  where: "OPPO 软件商店" }, teams: { ok: false } },
+    vivo:    { auth: { ok: false }, teams: { ok: false } },
+    samsung: { auth: { ok: true,  where: "三星应用商店（联想手机请用联想应用商店）" }, teams: { ok: false } },
+    other:   { auth: { ok: false }, teams: { ok: false } }
+  };
+
+  var DEVICES = [
+    { id: "laptop", name: "💻 用电脑", tag: "推荐：出问题最容易解决" },
+    { id: "phone",  name: "📱 只有手机", tag: "也能完成，不用第二部手机" }
+  ];
+
+  var STEP_LABELS = ["选手机", "装 App", "选设备", "无痕窗口", "登录绑定", "完成"];
+
+  var state = { phone: null, device: null, os: null, step: 1 };
+  try {
+    var saved = JSON.parse(localStorage.getItem("equipTeamsWizard") || "null");
+    if (saved && saved.phone) state = saved;
+  } catch (e) {}
+  function save() { try { localStorage.setItem("equipTeamsWizard", JSON.stringify(state)); } catch (e) {} }
+
+  function phoneName(id) {
+    for (var i = 0; i < PHONES.length; i++) if (PHONES[i].id === id) return PHONES[i].name;
+    return "";
+  }
+  function isAndroid() { return state.phone && state.phone !== "ios"; }
+
+  // ---- progress ----
+  var progressEl = document.getElementById("progress");
+  STEP_LABELS.forEach(function (label, i) {
+    var li = document.createElement("li");
+    li.innerHTML = '<span class="bar"><span></span></span><span class="label">' + (i + 1) + ". " + label + "</span>";
+    progressEl.appendChild(li);
+  });
+  function renderProgress() {
+    Array.prototype.forEach.call(progressEl.children, function (li, i) {
+      var n = i + 1;
+      li.dataset.state = n < state.step ? "done" : (n === state.step ? "active" : "");
+    });
+  }
+
+  function goTo(step) {
+    state.step = step;
+    Array.prototype.forEach.call(document.querySelectorAll("section[data-step]"), function (sec) {
+      sec.hidden = Number(sec.dataset.step) !== step;
+    });
+    if (step === 2) buildStep2();
+    if (step === 4) buildStep4();
+    if (step === 5) buildStep5();
+    renderProgress();
+    save();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-back]"), function (btn) {
+    btn.addEventListener("click", function () {
+      goTo(Math.max(1, Number(btn.closest("section[data-step]").dataset.step) - 1));
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-next]"), function (btn) {
+    btn.addEventListener("click", function () { goTo(Number(btn.dataset.next)); });
+  });
+
+  // ---- step 1 ----
+  var phoneChoicesEl = document.getElementById("phoneChoices");
+  PHONES.forEach(function (p) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "choice"; b.setAttribute("aria-pressed", "false");
+    b.innerHTML = '<span class="name">' + p.name + '</span><span class="tag">' + p.tag + "</span>";
+    b.addEventListener("click", function () {
+      state.phone = p.id;
+      Array.prototype.forEach.call(phoneChoicesEl.children, function (c) { c.setAttribute("aria-pressed", "false"); });
+      b.setAttribute("aria-pressed", "true");
+      document.getElementById("s1next").disabled = false;
+      document.getElementById("stateLabel").textContent = "已选：" + p.name;
+      save();
+    });
+    phoneChoicesEl.appendChild(b);
+  });
+  document.getElementById("s1next").addEventListener("click", function () { goTo(2); });
+
+  // ---- step 2 ----
+  function buildStep2() {
+    var desc = document.getElementById("s2desc");
+    var box = document.getElementById("s2content");
+
+    if (state.phone === "ios") {
+      desc.textContent = "iPhone 两个 App 都能直接在 App Store 搜到，正常安装就行。";
+      box.innerHTML =
+        '<div class="app-block"><h3>Microsoft Authenticator <span class="pill must">必装</span></h3>' +
+        '<p>打开 App Store → 搜索 <code>Microsoft Authenticator</code> → 安装。这个是用来验证身份的，没有它无法登录。</p></div>' +
+        '<div class="app-block"><h3>Microsoft Teams <span class="pill opt">建议装</span></h3>' +
+        '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。</p></div>' +
+        '<div class="note good"><strong>装好就行，先别急着登录。</strong>登录留到第 5 步，跟着提示一次做完，不容易乱。</div>';
+      return;
+    }
+
+    var s = STORE[state.phone] || STORE.other;
+    desc.innerHTML = phoneName(state.phone) + " 手机：<strong>Authenticator 是必须装的</strong>；Teams 如果您主要在电脑上用，手机上不装也完全没问题。";
+
+    var html = '<div class="app-block"><h3>Microsoft Authenticator <span class="pill must">必装</span></h3>';
+    if (s.auth.ok) {
+      html += '<p>打开 <strong>' + s.auth.where + '</strong> → 搜索 <code>Microsoft Authenticator</code> → 安装。这是微软官方确认可用的下载渠道。</p>';
+    } else {
+      html += '<p>' + phoneName(state.phone) + ' 的商店目前没有官方确认的下载渠道，请按顺序试，一般第 1 步就能成：</p>' +
+        '<ol class="steps" style="margin-top:10px;">' +
+        '<li><span class="txt">先在<strong>手机自带的应用商店</strong>里搜 <code>Microsoft Authenticator</code>，多数情况其实搜得到。</span></li>' +
+        '<li><span class="txt">搜不到就装一个<strong>应用宝</strong>，在应用宝里再搜一次（应用宝在大部分安卓手机上都能用）。</span></li>' +
+        '<li><span class="txt">还是找不到，<strong>直接联系客服</strong>，我们发给您已经验证过的安装包，不要自己在搜索引擎上随便下载。</span></li>' +
+        '</ol>';
+    }
+    html += "</div>";
+
+    html += '<div class="app-block"><h3>Microsoft Teams <span class="pill opt">可选</span></h3>';
+    if (s.teams.ok) {
+      html += '<p>打开 <strong>' + s.teams.where + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装即可。</p>';
+    } else {
+      html += '<p>' + phoneName(state.phone) + ' 商店里能不能搜到 Teams，我们还没完全确认。<strong>不用为这个卡住</strong>：您可以只在电脑上用 Teams；真需要手机用的话，用手机浏览器打开 <code>teams.microsoft.com</code> 也一样能用。</p>';
+    }
+    html += "</div>";
+
+    html += '<div class="note good"><strong>装好 Authenticator 就够了，先别登录。</strong>最难的一步已经过去了——登录留到第 5 步一次做完。</div>';
+    box.innerHTML = html;
+  }
+
+  // ---- step 3 ----
+  var devicePickEl = document.getElementById("devicePick");
+  var deviceNoteEl = document.getElementById("deviceNote");
+  DEVICES.forEach(function (d) {
+    var b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-pressed", "false");
+    b.innerHTML = '<span class="name">' + d.name + '</span><span class="tag">' + d.tag + "</span>";
+    b.addEventListener("click", function () {
+      state.device = d.id;
+      Array.prototype.forEach.call(devicePickEl.children, function (x) { x.setAttribute("aria-pressed", "false"); });
+      b.setAttribute("aria-pressed", "true");
+      document.getElementById("s3next").disabled = false;
+      deviceNoteEl.hidden = false;
+      deviceNoteEl.className = "note good";
+      deviceNoteEl.innerHTML = d.id === "laptop"
+        ? "<strong>好选择。</strong>电脑屏幕大、复制粘贴方便，出错时换个窗口就能重来。手机只负责显示验证码。"
+        : "<strong>没问题，一部手机也能完成。</strong>我们会用「手动输入验证码」的方式——不需要扫码，也<strong>不需要借第二部手机</strong>。";
+      save();
+    });
+    devicePickEl.appendChild(b);
+  });
+  document.getElementById("s3next").addEventListener("click", function () { goTo(4); });
+  document.getElementById("s4next").addEventListener("click", function () { goTo(5); });
+
+  // ---- step 4 ----
+  var OSES = [
+    { id: "win", name: "🪟 Windows", tag: "最佳浏览器：Edge" },
+    { id: "mac", name: "🍎 Mac（苹果电脑）", tag: "最佳浏览器：Chrome 或 Edge" }
+  ];
+  var osPickWrap = document.getElementById("osPickWrap");
+  var osPickEl = document.getElementById("osPick");
+  OSES.forEach(function (o) {
+    var b = document.createElement("button");
+    b.type = "button"; b.setAttribute("aria-pressed", "false");
+    b.innerHTML = '<span class="name">' + o.name + '</span><span class="tag">' + o.tag + "</span>";
+    b.addEventListener("click", function () {
+      state.os = o.id;
+      Array.prototype.forEach.call(osPickEl.children, function (x) { x.setAttribute("aria-pressed", "false"); });
+      b.setAttribute("aria-pressed", "true");
+      save();
+      renderBrowsers();
+    });
+    osPickEl.appendChild(b);
+  });
+
+  function browserRow(name, how, keys, kind, best) {
+    return '<div class="browser-row' + (kind === "bad" ? " bad" : "") + '">' +
+      '<span class="bname">' + (best ? "★ " : "") + name + (best ? ' <span class="pill must">最佳选择</span>' : "") + '</span>' +
+      '<span class="bhow">' + how + '</span><span class="keys">' + keys + "</span></div>";
+  }
+
+  function renderBrowsers() {
+    var box = document.getElementById("s4content");
+    var next = document.getElementById("s4next");
+    next.disabled = !state.os;
+    if (!state.os) { box.innerHTML = '<div class="note plain">请先选择上面的电脑系统，我们会给出对应的最佳浏览器建议。</div>'; return; }
+
+    if (state.os === "win") {
+      box.innerHTML =
+        '<div class="note good"><strong>如果这几个浏览器您都有：请用 Edge。</strong>微软官方对 Teams 网页版的支持名单里，Edge 和 Chrome 是完全同等的——但 Edge 是 Windows 自带的，不用下载；而在国内下载 Chrome 要访问谷歌的网站，容易下到被第三方重新打包、捆绑插件的版本。<strong>如果您电脑上已经有正版 Chrome，用 Chrome 一样好。</strong></div>' +
+        '<div class="browser-list">' +
+          browserRow("Edge", "右上「…」→ 新建 InPrivate 窗口", "Ctrl+Shift+N", "ok", true) +
+          browserRow("Chrome 谷歌浏览器", "右上「⋮」→ 打开新的无痕式窗口（已装正版即可用）", "Ctrl+Shift+N", "ok", false) +
+          browserRow("Firefox 火狐", "右上「☰」→ 新建隐私浏览窗口（官方也支持）", "Ctrl+Shift+P", "ok", false) +
+          browserRow("360 / QQ 浏览器", "菜单 → 无痕（隐私）窗口；并把模式切到<strong>极速模式</strong>", "Ctrl+Shift+N", "ok", false) +
+          browserRow("⚠️ IE 浏览器：不要使用", "IE 确实有 InPrivate（Ctrl+Shift+P），<strong>但 Teams 早已不支持 IE</strong>，用它一定登录不上", "换 Edge", "bad", false) +
+          browserRow("⚠️ Safari：Windows 上没有", "苹果 2012 年就停止为 Windows 开发 Safari，<strong>现在网上的「Windows 版 Safari」都是十几年前的老版本或假安装包</strong>，请不要下载", "不存在", "bad", false) +
+        "</div>" +
+        '<div class="note warn"><strong>三个最容易踩的坑：</strong>①桌面上那个蓝色「e」如果是老版 IE，请换成 Edge（蓝绿色漩涡图标）；②360 / QQ 浏览器若停在「兼容模式」，内核其实还是 IE，一样登不上，务必切到「极速模式」；③浏览器<strong>版本太旧也会被拒绝</strong>——微软只支持最新的三个版本，请先让浏览器更新到最新版。</div>' +
+        '<div class="note plain"><strong>如果您的电脑是 Windows 7 或更老的系统：</strong>Chrome 和 Edge 都在 2023 年初停止了对 Win7 的支持，版本停在 109，已经远低于 Teams 的要求，很可能直接提示浏览器不受支持。这种情况建议<strong>回到第 3 步改用手机登录</strong>，不要在老电脑上耗时间。</div>';
+    } else {
+      box.innerHTML =
+        '<div class="note good"><strong>如果这几个浏览器您都有：Mac 上请优先用 Chrome 或 Edge。</strong>三个浏览器官方都支持，但 Safari 的支持范围更窄（只支持最新两个版本），而且它的隐私保护机制有时会打断微软登录的多次跳转，中途卡住。Chrome / Edge 更稳。（Mac 上没有 IE，不用担心这个问题。）</div>' +
+        '<div class="browser-list">' +
+          browserRow("Chrome 谷歌浏览器", "右上「⋮」→ 打开新的无痕式窗口", "⌘+Shift+N", "ok", true) +
+          browserRow("Edge", "右上「…」→ 新建 InPrivate 窗口", "⌘+Shift+N", "ok", false) +
+          browserRow("Safari（Mac 自带）", "菜单栏「文件」→ 新建无痕浏览窗口", "⌘+Shift+N", "ok", false) +
+        "</div>" +
+        '<div class="note plain">如果只有 Safari，也可以直接用，但请先把 macOS 和 Safari 更新到较新版本——万一登录中途卡住或反复跳回登录页，装一个 Chrome 重试即可。</div>';
+    }
+  }
+
+  function buildStep4() {
+    var title = document.getElementById("s4title");
+    var desc = document.getElementById("s4desc");
+    var box = document.getElementById("s4content");
+
+    if (state.device === "laptop") {
+      title.textContent = "选对浏览器，开无痕窗口";
+      desc.innerHTML = "浏览器选错是登录失败最常见的原因之一。先选系统，我们给出最佳浏览器，再照着开一个<strong>无痕窗口</strong>。";
+      osPickWrap.hidden = false;
+      renderBrowsers();
+    } else {
+      osPickWrap.hidden = true;
+      document.getElementById("s4next").disabled = false;
+      title.textContent = "在手机上准备一个干净的窗口";
+      desc.innerHTML = "如果您用<strong>手机 Teams App</strong> 登录，可以直接跳到下一步。只有用手机浏览器登录时，才需要下面这一步。";
+      box.innerHTML =
+        '<div class="browser-list">' +
+          '<div class="browser-row"><span class="bname">用 Teams App 登录</span><span class="bhow">不需要做任何准备，直接下一步</span><span class="keys">推荐</span></div>' +
+          '<div class="browser-row"><span class="bname">Safari（iPhone）</span><span class="bhow">底部右下「标签页」→ 无痕浏览 → 新建标签页</span><span class="keys">无痕</span></div>' +
+          '<div class="browser-row"><span class="bname">安卓手机浏览器</span><span class="bhow">标签页按钮 → 无痕 / 隐私模式 → 新建</span><span class="keys">无痕</span></div>' +
+        '</div>' +
+        '<div class="note plain">手机上如果之前登录过别的微软账号，建议先在浏览器里退出，或者直接用无痕标签页，避免账号串号。</div>';
+    }
+  }
+
+  // ---- step 5 ----
+  function buildStep5() {
+    var desc = document.getElementById("s5desc");
+    var stepsEl = document.getElementById("s5steps");
+    var tip = document.getElementById("s5tip");
+    var items = [];
+    var android = isAndroid();
+
+    if (state.device === "laptop") {
+      desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边，后面几步会用到。";
+      items.push('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，按回车打开');
+      items.push('输入 Equip 给您的账号（例如 <code>xxx@equipme.cloud</code>）和密码。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
+      if (android) {
+        items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）');
+        items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——按下面「怎么把代码传到手机上」的方法复制过去');
+        items.push('打开手机上的 Authenticator → 右上「+」→ 选<strong>工作或学校账户</strong> → 选<strong>手动输入账户信息</strong> → 把代码和网址<strong>分别粘贴</strong>进两个输入框');
+      } else {
+        items.push('页面会出现一个二维码。打开手机上的 Authenticator → 右上「+」→ 选<strong>工作或学校账户</strong> → <strong>扫描二维码</strong>，对准电脑屏幕扫一下');
+      }
+      items.push('绑定成功后，Authenticator 里就会出现您的账号，下面显示一组 <strong>6 位数验证码</strong>（每 30 秒换一次）。把当前显示的这组数字输入到电脑页面上，登录完成');
+    } else {
+      desc.innerHTML = "全程只用这一部手机，不需要第二部手机，也不需要用摄像头扫码。";
+      items.push('打开手机上的 <strong>Teams App</strong>，输入 Equip 给您的账号和密码（建议长按粘贴，不要手打）');
+      if (android) {
+        items.push('提示需要身份验证时，找到并点击 <strong>「I can\'t scan the QR code?」</strong>（我无法扫描二维码）');
+        items.push('屏幕上会出现一组<strong>代码</strong>和<strong>网址</strong>。<strong>好消息：都在同一部手机上，可以直接长按复制，完全不用手打。</strong>先长按选中代码 → 复制 → 切到 Authenticator → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴');
+        items.push('再切回 Teams，同样长按复制那个网址，回到 Authenticator 粘贴到第二个输入框，然后确认');
+      } else {
+        items.push('提示需要身份验证时，手机会自动跳到 Authenticator，按屏幕提示点「批准」即可');
+      }
+      items.push('绑定成功后，回到 Teams，把 Authenticator 里显示的 <strong>6 位数验证码</strong>输进去，登录完成');
+    }
+
+    stepsEl.innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + "</span></li>"; }).join("");
+
+    if (android && state.device === "laptop") {
+      tip.className = "note warn";
+      tip.innerHTML =
+        '<strong>⚠️ 这一步最容易出错，请务必用复制，不要手打。</strong>' +
+        '<div style="margin-top:8px;">代码是一长串字母加数字，网址也很长，手打几乎一定会敲错一两个字符。<strong>怎么把它们从电脑传到手机上：</strong></div>' +
+        '<div style="margin-top:8px;">① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进 Authenticator。网址同样操作一遍。</div>' +
+        '<div style="margin-top:8px;">如果实在只能手打：先按 <code>Ctrl</code> 和 <code>+</code> 把网页字体放大，输完后<strong>逐字核对一遍</strong>再点确认。</div>';
+    } else if (android) {
+      tip.className = "note good";
+      tip.innerHTML = '<strong>小提示：</strong>因为代码和 Authenticator 在同一部手机上，请一定用<strong>长按复制粘贴</strong>，不要看着屏幕手打——这串代码很长，手打极容易错。验证码每 30 秒刷新一次，提示"过期"就等新的一组再输。手机时间请保持"自动设置"。';
+    } else {
+      tip.className = "note plain";
+      tip.innerHTML = '<strong>小提示：</strong>如果扫码后一直转圈没反应，不用干等——点「I can\'t scan the QR code?」改用手动输入代码，同样有效（代码很长，建议复制粘贴而不是手打）。';
+    }
+  }
+
+  // ---- step 6 ----
+  var checklistEl = document.getElementById("checklist");
+  var doneNote = document.getElementById("doneNote");
+  Array.prototype.forEach.call(checklistEl.querySelectorAll("input[data-chk]"), function (chk) {
+    chk.addEventListener("change", function () {
+      var all = Array.prototype.every.call(checklistEl.querySelectorAll("input[data-chk]"), function (c) { return c.checked; });
+      doneNote.hidden = !all;
+      document.getElementById("dailyTip").hidden = !all;
+    });
+  });
+  document.getElementById("restart").addEventListener("click", function () {
+    state = { phone: null, device: null, os: null, step: 1 };
+    save();
+    location.reload();
+  });
+
+  // ---- boot ----
+  function boot(data) {
+    if (data && data.phone) state = data;
+    if (state.phone) {
+      var pi = PHONES.map(function (p) { return p.id; }).indexOf(state.phone);
+      if (pi >= 0) {
+        phoneChoicesEl.children[pi].setAttribute("aria-pressed", "true");
+        document.getElementById("stateLabel").textContent = "已选：" + phoneName(state.phone);
+      }
+      document.getElementById("s1next").disabled = false;
+    }
+    if (state.device) {
+      var di = DEVICES.map(function (d) { return d.id; }).indexOf(state.device);
+      if (di >= 0) devicePickEl.children[di].click();
+    }
+    if (state.os) {
+      var oi = OSES.map(function (o) { return o.id; }).indexOf(state.os);
+      if (oi >= 0) osPickEl.children[oi].setAttribute("aria-pressed", "true");
+    }
+    goTo(state.step || 1);
+  }
+  if (window.claude && window.claude.hot) {
+    window.claude.hot.ready ? window.claude.hot.ready(boot) : boot(window.claude.hot.data || null);
+  } else {
+    boot(null);
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -552,6 +552,22 @@ setTimeout(() => {
              const en = doc.getElementById("cartLbl").textContent; click(pick("#langBtn")); return [zh, en]; })(),
     ["购物车", "Cart"]);
 
+  // ---- 技术支持 → Teams 安装和身份验证 (/help/teams-setup.html) ----
+  // A real page in the repo, not an SPA route: the nav handler must NOT
+  // intercept it, or the browser would never leave the wizard.
+  const helpLink = doc.querySelector('a.menu-item[href="/help/teams-setup.html"]');
+  check("the support menu links to the Teams page in the same tab (an in-site page, no ↗)",
+    [!!helpLink, helpLink && helpLink.getAttribute("target"), helpLink && !!helpLink.querySelector(".ext-ic")],
+    [true, null, false]);
+  check("技术支持 is the last menu, right of 蜂巢生态",
+    (() => { const labels = Array.prototype.map.call(doc.querySelectorAll("#siteNav .menu-btn"), (b) => b.textContent.trim());
+             return [labels[labels.length - 1], labels[labels.length - 2]]; })(),
+    ["技术支持", "蜂巢生态"]);
+  check("clicking it is a page load, not a route (default NOT prevented)",
+    (() => { const ev = new window.MouseEvent("click", { bubbles: true, cancelable: true });
+             helpLink.dispatchEvent(ev); return ev.defaultPrevented; })(),
+    false);
+
   // ---- G.P.A. calculator (/gpa) — a standalone page beside the wizard ----
   // Entered here through a LEGACY link (#/gpa, the address before paths), which
   // jsdom delivers as an asynchronous hashchange — so this doubles as the test

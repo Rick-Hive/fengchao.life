@@ -9,7 +9,7 @@
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/api/*", "/admin*", "/*.{css,js,ico,png,svg,jpg,jpeg,webp,json,txt,xml,webmanifest,woff,woff2}"]
+    "exclude": ["/assets/*", "/api/*", "/admin*", "/help/*", "/*.{css,js,ico,png,svg,jpg,jpeg,webp,json,txt,xml,webmanifest,woff,woff2,html}"]
   },
   "responseOverrides": {
     "401": {

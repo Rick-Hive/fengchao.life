@@ -648,6 +648,17 @@ window.SITE_MENUS = [
       { zh: "创建新蜂巢",   en: "Start a New Hive" },
     ],
   },
+  // Last, right of 蜂巢生态 (Rick, 2026-09-21). Customer-facing support only; the
+  // admin-side knowledge base (tenant facts, Graph PowerShell, service-
+  // principal ids) stays internal and is NOT published here.
+  {
+    zh: "技术支持", en: "Technical Support",
+    items: [
+      // A real page, not an SPA route: renderNav()'s click handler lets a
+      // root-relative .html href load normally instead of routing it.
+      { zh: "Teams 安装和身份验证", en: "Teams Setup & Sign-in", url: "/help/teams-setup.html" },
+    ],
+  },
 ];
 
 window.SUBJECT_LABEL_ZH = { "ESL": "ESL" };
