@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Teams 安装和身份验证 · 蜂巢帮助</title>
-  <meta name="description" content="Teams 与 Microsoft Authenticator 安装、登录与身份验证的分步向导，专为中国大陆用户设计。" />
+  <meta name="description" content="Teams 与微软身份验证器（Microsoft Authenticator）安装、登录与身份验证的分步向导，专为中国大陆用户设计。" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
   <style>
@@ -131,6 +131,15 @@
   .choice[aria-pressed="true"] .tag, .branch-pick button[aria-pressed="true"] .tag { color: var(--accent-ink); }
   .branch-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 
+  .intro-box {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 10px 10px 0; padding: 15px 17px; margin: 18px 0 0; font-size: .95rem;
+  }
+  .intro-box p { margin-top: 9px; color: var(--ink-soft); }
+  .intro-box p:first-child { margin-top: 0; color: var(--accent-ink); font-weight: 700; }
+  .intro-box strong { color: var(--ink); }
+  .intro-box a { color: var(--accent-ink); }
+
   details.why {
     border-left: 3px solid var(--accent); background: var(--accent-soft);
     border-radius: 0 10px 10px 0; padding: 13px 16px; margin: 0 0 20px; font-size: .93rem;
@@ -226,19 +235,23 @@
     <p class="sub">跟着下面 6 步操作，大约 10 分钟就能设置好。每一步都很短，按顺序做就不会卡住。</p>
   </div>
 
+  <div class="intro-box">
+    <p>开始之前：电脑和手机上都要装好 Teams，手机上还要多装一个验证 App</p>
+    <p><strong>两个 App 各做什么：</strong>「Teams」是上课用的，<strong>电脑和手机上都要安装并登录</strong>；「微软身份验证器（Microsoft Authenticator）」装在手机上，负责显示一组每 30 秒变一次的 <strong>6 位验证码</strong>——登录 Teams 时，输完密码还要再输这组数字。</p>
+    <p><strong>为什么必须装验证器：</strong>这是微软对工作和学校账号的统一安全要求（多重身份验证，MFA）。微软官方的说明是：<a href="https://learn.microsoft.com/zh-cn/entra/identity/authentication/concept-mandatory-multifactor-authentication" target="_blank" rel="noopener noreferrer">「MFA 可以阻止超过 99.2% 的帐户入侵攻击」</a>。</p>
+    <p>整个设置只做一次，大约 10 分钟。</p>
+  </div>
+
   <ol class="progress" id="progress"></ol>
 
   <!-- STEP 1 · 手机品牌 -->
   <section class="card" data-step="1">
     <div class="step-head"><span class="step-num">第 1 步</span><h2>选择您的手机</h2></div>
-    <p class="step-desc">手机品牌决定了从哪里下载验证 App，以及用哪种方式验证。先选它，后面每一步都会自动对应您的机型。</p>
+    <p class="step-desc">先确认您的手机品牌：它决定微软身份验证器（Microsoft Authenticator）从哪里下载，以及用哪种方式验证。选好之后，后面每一步都会自动对应您的机型。</p>
 
     <details class="why">
-      <summary>为什么安卓手机要多一点步骤？（点开看一眼，1 分钟）</summary>
-      <p>谷歌的服务在中国大陆无法使用，国内销售的安卓手机（华为、小米、OPPO、vivo 等）出厂时也不带<strong>谷歌服务框架</strong>。这带来两个具体影响：一是手机上没有谷歌应用商店，装 App 要换别的渠道；二是下面这件更关键的事。</p>
-      <p>Authenticator 的「推送通知」——就是扫完码之后，手机自己弹出一个「是否批准本次登录」的提示——<strong>正是通过谷歌的推送通道送达的</strong>。没有谷歌服务，这条通道不通，手机就一直等不到那条提示，表现出来就是<strong>扫码后一直转圈、没反应</strong>。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
-      <p><strong>这不是您操作错了，也不是手机坏了，更不是账号有问题。</strong></p>
-      <p>所以安卓手机改走另一条路：让 App 直接显示一组 <strong>6 位数验证码</strong>，您手动输进去。这串数字是手机<strong>按当前时间自己算出来的，不联网、不经过谷歌</strong>，所以完全不受影响，反而更快更稳，一次就能成。（苹果 iPhone 的推送走的是苹果自己的通道，在国内正常，所以 iPhone 可以直接扫码。）</p>
+      <summary>苹果和安卓有什么不一样？（一句话）</summary>
+      <p>iPhone 可以直接用摄像头扫二维码完成绑定，最省事。国内销售的安卓手机改成<strong>复制粘贴一串代码</strong>来绑定——步骤一样简单，只是多粘贴一次。至于为什么必须这样，第 2 步和第 5 步会在真正用到的地方说明，现在不用操心。</p>
     </details>
 
     <div class="choice-grid" id="phoneChoices" role="group" aria-label="选择手机品牌"></div>
@@ -251,12 +264,10 @@
     <div class="step-head"><span class="step-num">第 2 步</span><h2>先在手机上装好 App</h2></div>
     <p class="step-desc" id="s2desc"></p>
 
-    <details class="why">
-      <summary>为什么一定要装 Authenticator？（30 秒读懂）</summary>
-      <p>您的账号里有孩子的学习记录、成绩单和校内邮件，所以它开启了<strong>两步验证</strong>：登录时除了密码，还要再证明一次「确实是本人」。</p>
-      <p>Authenticator 做的就是这第二步。它在您手机上生成一组<strong>每 30 秒变一次的 6 位数字</strong>，只有拿着这部手机的人才看得到。这样一来，<strong>即使密码被别人知道了，没有这串数字也进不去</strong>。</p>
-      <p>为什么不用短信？国际短信在国内常常收不到或延迟很久。App 生成的数字是手机按时间自己算的，<strong>不依赖短信、也不需要联网</strong>，反而更可靠。</p>
-      <p><strong>只需绑定这一次。</strong>以后登录就是打开 App 看一眼数字，不用再扫码，也不用再输那串长代码。</p>
+    <details class="why" id="s2why" hidden>
+      <summary>为什么我的手机商店里可能搜不到？（安卓，1 分钟）</summary>
+      <p>国内销售的安卓手机<strong>出厂不带谷歌应用商店</strong>。谷歌自 2010 年 3 月关闭了中国大陆的搜索服务，2014 年 6 月起谷歌的各项服务在大陆整体无法访问，谷歌应用商店（Google Play）也在其中；华为手机则自 2019 年起因美国出口管制，新机型无法预装谷歌服务。</p>
+      <p>所以安卓手机要从<strong>手机自带的应用商店</strong>或<strong>应用宝</strong>下载，而不是谷歌商店。按下面的顺序试，一般第一步就能搜到；都找不到就联系客服拿安装包，<strong>不要在搜索引擎上随便下载</strong>——验证类 App 装到被改过的版本会很危险。</p>
     </details>
 
     <div id="s2content"></div>
@@ -269,7 +280,7 @@
   <!-- STEP 3 · 选设备 -->
   <section class="card" data-step="3" hidden>
     <div class="step-head"><span class="step-num">第 3 步</span><h2>用电脑还是手机登录？</h2></div>
-    <p class="step-desc">手机上的验证 App 已经装好了。现在选一台设备来打开 Teams 登录页面——两台都有的话，<strong>强烈建议用电脑</strong>。</p>
+    <p class="step-desc">手机上的微软身份验证器已经装好了。现在选一台设备来打开 Teams 登录页面——两台都有的话，<strong>强烈建议用电脑</strong>。</p>
 
     <div class="branch-pick" id="devicePick" role="group" aria-label="选择登录设备"></div>
     <div id="deviceNote" hidden></div>
@@ -308,6 +319,13 @@
   <section class="card" data-step="5" hidden>
     <div class="step-head"><span class="step-num">第 5 步</span><h2>登录并绑定验证</h2></div>
     <p class="step-desc" id="s5desc"></p>
+
+    <details class="why" id="s5why" hidden>
+      <summary>为什么不扫码，要手动输入一串代码？（安卓，点开看一眼）</summary>
+      <p>扫码之后本来的下一步，是手机自动弹出一个「是否批准本次登录」的提示，点一下就完成了。这条提示是<strong>通过谷歌的推送通道</strong>送到手机上的——国内销售的安卓手机没有谷歌服务，这条通道不通，手机就永远等不到那条提示，看起来就是<strong>扫完码一直转圈、没反应</strong>。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
+      <p>所以这里改用<strong>手动输入代码</strong>来绑定。绑好之后，验证码由手机<strong>按当前时间自己算出来</strong>，不联网、也不经过谷歌，反而更稳定。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
+    </details>
+
     <ol class="steps" id="s5steps"></ol>
     <div class="note plain" id="s5tip"></div>
     <div class="actions">
@@ -322,13 +340,14 @@
     <p class="step-desc">下面三项都打上勾，说明已经彻底设置好了。</p>
 
     <div class="checklist" id="checklist">
-      <label><input type="checkbox" id="chk1" data-chk> Teams 已经能正常打开，能看到界面内容</label>
-      <label><input type="checkbox" id="chk2" data-chk> 手机上的 Authenticator 里能看到我的机构账号</label>
+      <label><input type="checkbox" id="chk1" data-chk> 电脑上的 Teams 能正常打开，能看到界面内容</label>
+      <label><input type="checkbox" id="chk1b" data-chk> 手机上的 Teams 也已装好，并且登录成功</label>
+      <label><input type="checkbox" id="chk2" data-chk> 手机上的微软身份验证器里能看到我的机构账号</label>
       <label><input type="checkbox" id="chk3" data-chk> 我知道以后登录只需要看验证码，不用再重新扫码或重新绑定</label>
     </div>
 
     <div class="note good" id="doneNote" hidden>
-      <strong>设置完成，恭喜！</strong>以后登录 Teams：打开普通窗口（不用无痕了）输入账号密码，看到要验证时，打开手机 Authenticator，把里面显示的 6 位数验证码输进去就行。绑定是一次性的，以后<strong>不需要再扫码、也不需要再输那串长代码</strong>。
+      <strong>设置完成，恭喜！</strong>以后登录 Teams：打开普通窗口（不用无痕了）输入账号密码，看到要验证时，打开手机上的微软身份验证器，把里面显示的 6 位数验证码输进去就行。绑定是一次性的，以后<strong>不需要再扫码、也不需要再输那串长代码</strong>。
     </div>
     <div class="note plain" id="dailyTip" hidden>
       <strong>日常使用的小建议：</strong>如果您经常在电脑上用 Teams，建议装一个 <strong>Teams 桌面版</strong>。网页版每次都要重新加载全部内容，在国内跨境线路上容易慢；桌面版会把内容缓存在本地，日常打开更快更稳。（但如果以后登录又出问题，排查时还是回到无痕网页版最方便。）
@@ -345,6 +364,10 @@
     <p class="sub" style="margin-bottom:6px;">这几个是最常遇到的情况，点开就能看到答案。</p>
 
     <details class="faq-item">
+      <summary>为什么不用短信验证码，非要装一个 App？</summary>
+      <p>两个原因。一是可靠性：国际短信在国内常常收不到或延迟很久，而 App 上的数字是手机<strong>按当前时间自己算出来的</strong>，不依赖短信、也不需要联网。二是安全性：短信可以被拦截或被转移到别人的号码上，App 里的数字只有拿着这部手机的人看得到。</p>
+    </details>
+    <details class="faq-item">
       <summary>忘记密码，或者提示密码错误</summary>
       <p>这是机构统一分配的账号，使用者这边没有自助改密码的权限，看到"无权限"是正常的、不是故障。请直接联系客服，我们在后台重新生成密码发给您；登录成功后您可以自己改成好记的密码。收到新密码时请<strong>复制粘贴</strong>，不要手动照着敲——密码里的特殊符号很容易敲错。</p>
     </details>
@@ -358,8 +381,8 @@
     </details>
     <details class="faq-item">
       <summary>手机上验证码一直不对，或者提示已过期</summary>
-      <p>先看两个常见原因：①Authenticator 里的验证码每 30 秒换一次，请等它刷新出新的一组再<strong>立刻</strong>输入；②手机时间必须是"自动设置"，时间不准会导致验证码永远对不上。</p>
-      <p>如果换了好几组验证码<strong>全都不对</strong>，那很可能是当初绑定时那串长代码<strong>输错了一个字符</strong>——这种情况验证码会一直是错的，再试也没用。解决办法：在 Authenticator 里把这个账号<strong>删掉</strong>，然后回到第 5 步重新绑定一次，这次务必用复制粘贴。</p>
+      <p>先看两个常见原因：①微软身份验证器里的验证码每 30 秒换一次，请等它刷新出新的一组再<strong>立刻</strong>输入；②手机时间必须是"自动设置"，时间不准会导致验证码永远对不上。</p>
+      <p>如果换了好几组验证码<strong>全都不对</strong>，那很可能是当初绑定时那串长代码<strong>输错了一个字符</strong>——这种情况验证码会一直是错的，再试也没用。解决办法：在微软身份验证器里把这个账号<strong>删掉</strong>，然后回到第 5 步重新绑定一次，这次务必用复制粘贴。</p>
     </details>
     <details class="faq-item">
       <summary>都按步骤做了，还是登录不上</summary>
@@ -401,7 +424,7 @@
     { id: "phone",  name: "📱 只有手机", tag: "也能完成，不用第二部手机" }
   ];
 
-  var STEP_LABELS = ["选手机", "装 App", "选设备", "无痕窗口", "登录绑定", "完成"];
+  var STEP_LABELS = ["选手机", "装验证器", "选设备", "无痕窗口", "登录绑定", "完成"];
 
   var state = { phone: null, device: null, os: null, step: 1 };
   try {
@@ -475,25 +498,28 @@
     var desc = document.getElementById("s2desc");
     var box = document.getElementById("s2content");
 
+    var why2 = document.getElementById("s2why");
+    if (why2) why2.hidden = !isAndroid();
+
     if (state.phone === "ios") {
-      desc.textContent = "iPhone 两个 App 都能直接在 App Store 搜到，正常安装就行。";
+      desc.innerHTML = "iPhone 上这两个 App 都能在 App Store 直接搜到，<strong>两个都要装</strong>。先装微软身份验证器，它是登录的前提。";
       box.innerHTML =
-        '<div class="app-block"><h3>Microsoft Authenticator <span class="pill must">必装</span></h3>' +
-        '<p>打开 App Store → 搜索 <code>Microsoft Authenticator</code> → 安装。这个是用来验证身份的，没有它无法登录。</p></div>' +
-        '<div class="app-block"><h3>Microsoft Teams <span class="pill opt">建议装</span></h3>' +
-        '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。</p></div>' +
-        '<div class="note good"><strong>装好就行，先别急着登录。</strong>登录留到第 5 步，跟着提示一次做完，不容易乱。</div>';
+        '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
+        '<p>打开 App Store → 搜索 <code>Microsoft Authenticator</code> → 安装（商店里显示的是英文名）。它就是登录时用来证明身份的那个 App，没有它无法登录。</p></div>' +
+        '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
+        '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。这是上课用的 App，<strong>手机和电脑上都要装</strong>。</p></div>' +
+        '<div class="note good"><strong>两个都装好就行，先别急着登录。</strong>登录留到第 5 步，跟着提示一次做完，不容易乱。</div>';
       return;
     }
 
     var s = STORE[state.phone] || STORE.other;
-    desc.innerHTML = phoneName(state.phone) + " 手机：<strong>Authenticator 是必须装的</strong>；Teams 如果您主要在电脑上用，手机上不装也完全没问题。";
+    desc.innerHTML = phoneName(state.phone) + " 手机上这两个 App <strong>都要装</strong>：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装<strong>Teams</strong>，上课用。";
 
-    var html = '<div class="app-block"><h3>Microsoft Authenticator <span class="pill must">必装</span></h3>';
+    var html = '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>';
     if (s.auth.ok) {
-      html += '<p>打开 <strong>' + s.auth.where + '</strong> → 搜索 <code>Microsoft Authenticator</code> → 安装。这是微软官方确认可用的下载渠道。</p>';
+      html += '<p>打开 <strong>' + s.auth.where + '</strong> → 搜索 <code>Microsoft Authenticator</code>（商店里显示的是英文名）→ 安装。这是微软官方确认可用的下载渠道。</p>';
     } else {
-      html += '<p>' + phoneName(state.phone) + ' 的商店目前没有官方确认的下载渠道，请按顺序试，一般第 1 步就能成：</p>' +
+      html += '<p>' + phoneName(state.phone) + ' 的商店没有微软官方确认过的下载渠道，请按顺序试，一般第 1 步就能成（原因见上面那段说明）：</p>' +
         '<ol class="steps" style="margin-top:10px;">' +
         '<li><span class="txt">先在<strong>手机自带的应用商店</strong>里搜 <code>Microsoft Authenticator</code>，多数情况其实搜得到。</span></li>' +
         '<li><span class="txt">搜不到就装一个<strong>应用宝</strong>，在应用宝里再搜一次（应用宝在大部分安卓手机上都能用）。</span></li>' +
@@ -502,15 +528,21 @@
     }
     html += "</div>";
 
-    html += '<div class="app-block"><h3>Microsoft Teams <span class="pill opt">可选</span></h3>';
+    html += '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>';
     if (s.teams.ok) {
-      html += '<p>打开 <strong>' + s.teams.where + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装即可。</p>';
+      html += '<p>打开 <strong>' + s.teams.where + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装即可。这是微软官方确认可用的下载渠道。</p>';
     } else {
-      html += '<p>' + phoneName(state.phone) + ' 商店里能不能搜到 Teams，我们还没完全确认。<strong>不用为这个卡住</strong>：您可以只在电脑上用 Teams；真需要手机用的话，用手机浏览器打开 <code>teams.microsoft.com</code> 也一样能用。</p>';
+      html += '<p>' + phoneName(state.phone) + ' 商店里能不能搜到 Teams，微软没有官方确认过，请按和上面一样的顺序试：</p>' +
+        '<ol class="steps" style="margin-top:10px;">' +
+        '<li><span class="txt">先在<strong>手机自带的应用商店</strong>里搜 <code>Microsoft Teams</code>。</span></li>' +
+        '<li><span class="txt">搜不到就在<strong>应用宝</strong>里再搜一次。</span></li>' +
+        '<li><span class="txt">还是找不到，<strong>联系客服</strong>，我们发给您已经验证过的安装包。</span></li>' +
+        '</ol>' +
+        '<div class="note plain" style="margin-top:11px;">实在装不上，可以先用手机浏览器打开 <code>teams.microsoft.com</code> 应急，但这只是临时办法——请联系客服把 App 装好。</div>';
     }
     html += "</div>";
 
-    html += '<div class="note good"><strong>装好 Authenticator 就够了，先别登录。</strong>最难的一步已经过去了——登录留到第 5 步一次做完。</div>';
+    html += '<div class="note good"><strong>两个都装好就行，先别登录。</strong>最难的一步已经过去了——登录留到第 5 步一次做完。</div>';
     box.innerHTML = html;
   }
 
@@ -628,6 +660,8 @@
     var tip = document.getElementById("s5tip");
     var items = [];
     var android = isAndroid();
+    var why5 = document.getElementById("s5why");
+    if (why5) why5.hidden = !android;
 
     if (state.device === "laptop") {
       desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边，后面几步会用到。";
@@ -636,22 +670,22 @@
       if (android) {
         items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）');
         items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——按下面「怎么把代码传到手机上」的方法复制过去');
-        items.push('打开手机上的 Authenticator → 右上「+」→ 选<strong>工作或学校账户</strong> → 选<strong>手动输入账户信息</strong> → 把代码和网址<strong>分别粘贴</strong>进两个输入框');
+        items.push('打开手机上的微软身份验证器 → 右上「+」→ 选<strong>工作或学校账户</strong> → 选<strong>手动输入账户信息</strong> → 把代码和网址<strong>分别粘贴</strong>进两个输入框');
       } else {
-        items.push('页面会出现一个二维码。打开手机上的 Authenticator → 右上「+」→ 选<strong>工作或学校账户</strong> → <strong>扫描二维码</strong>，对准电脑屏幕扫一下');
+        items.push('页面会出现一个二维码。打开手机上的微软身份验证器 → 右上「+」→ 选<strong>工作或学校账户</strong> → <strong>扫描二维码</strong>，对准电脑屏幕扫一下');
       }
-      items.push('绑定成功后，Authenticator 里就会出现您的账号，下面显示一组 <strong>6 位数验证码</strong>（每 30 秒换一次）。把当前显示的这组数字输入到电脑页面上，登录完成');
+      items.push('绑定成功后，微软身份验证器里就会出现您的账号，下面显示一组 <strong>6 位数验证码</strong>（每 30 秒换一次）。把当前显示的这组数字输入到电脑页面上，登录完成');
     } else {
       desc.innerHTML = "全程只用这一部手机，不需要第二部手机，也不需要用摄像头扫码。";
       items.push('打开手机上的 <strong>Teams App</strong>，输入机构发给您的账号和密码（建议长按粘贴，不要手打）');
       if (android) {
         items.push('提示需要身份验证时，找到并点击 <strong>「I can\'t scan the QR code?」</strong>（我无法扫描二维码）');
-        items.push('屏幕上会出现一组<strong>代码</strong>和<strong>网址</strong>。<strong>好消息：都在同一部手机上，可以直接长按复制，完全不用手打。</strong>先长按选中代码 → 复制 → 切到 Authenticator → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴');
-        items.push('再切回 Teams，同样长按复制那个网址，回到 Authenticator 粘贴到第二个输入框，然后确认');
+        items.push('屏幕上会出现一组<strong>代码</strong>和<strong>网址</strong>。<strong>好消息：都在同一部手机上，可以直接长按复制，完全不用手打。</strong>先长按选中代码 → 复制 → 切到微软身份验证器 → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴');
+        items.push('再切回 Teams，同样长按复制那个网址，回到微软身份验证器粘贴到第二个输入框，然后确认');
       } else {
-        items.push('提示需要身份验证时，手机会自动跳到 Authenticator，按屏幕提示点「批准」即可');
+        items.push('提示需要身份验证时，手机会自动跳到微软身份验证器，按屏幕提示点「批准」即可');
       }
-      items.push('绑定成功后，回到 Teams，把 Authenticator 里显示的 <strong>6 位数验证码</strong>输进去，登录完成');
+      items.push('绑定成功后，回到 Teams，把微软身份验证器里显示的 <strong>6 位数验证码</strong>输进去，登录完成');
     }
 
     stepsEl.innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + "</span></li>"; }).join("");
@@ -661,11 +695,11 @@
       tip.innerHTML =
         '<strong>⚠️ 这一步最容易出错，请务必用复制，不要手打。</strong>' +
         '<div style="margin-top:8px;">代码是一长串字母加数字，网址也很长，手打几乎一定会敲错一两个字符。<strong>怎么把它们从电脑传到手机上：</strong></div>' +
-        '<div style="margin-top:8px;">① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进 Authenticator。网址同样操作一遍。</div>' +
+        '<div style="margin-top:8px;">① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进微软身份验证器。网址同样操作一遍。</div>' +
         '<div style="margin-top:8px;">如果实在只能手打：先按 <code>Ctrl</code> 和 <code>+</code> 把网页字体放大，输完后<strong>逐字核对一遍</strong>再点确认。</div>';
     } else if (android) {
       tip.className = "note good";
-      tip.innerHTML = '<strong>小提示：</strong>因为代码和 Authenticator 在同一部手机上，请一定用<strong>长按复制粘贴</strong>，不要看着屏幕手打——这串代码很长，手打极容易错。验证码每 30 秒刷新一次，提示"过期"就等新的一组再输。手机时间请保持"自动设置"。';
+      tip.innerHTML = '<strong>小提示：</strong>因为代码和微软身份验证器在同一部手机上，请一定用<strong>长按复制粘贴</strong>，不要看着屏幕手打——这串代码很长，手打极容易错。验证码每 30 秒刷新一次，提示"过期"就等新的一组再输。手机时间请保持"自动设置"。';
     } else {
       tip.className = "note plain";
       tip.innerHTML = '<strong>小提示：</strong>如果扫码后一直转圈没反应，不用干等——点「I can\'t scan the QR code?」改用手动输入代码，同样有效（代码很长，建议复制粘贴而不是手打）。';
