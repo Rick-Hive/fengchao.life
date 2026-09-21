@@ -186,6 +186,8 @@
   details.why.trouble { border-left-color: var(--warn); background: var(--warn-soft); }
   details.why.trouble summary { color: var(--warn); }
   details.why.trouble a { color: var(--warn); }
+  details.why.inline { margin: 9px 0 0; padding: 10px 13px; font-size: .9rem; }
+  details.why.inline p { margin-top: 7px; }
   details.why p { margin-top: 9px; color: var(--ink-soft); }
   details.why p + p { margin-top: 7px; }
 
@@ -222,6 +224,7 @@
     border: 1px solid var(--line); border-radius: 10px; padding: 15px 16px;
     margin-bottom: 11px; background: var(--surface-2);
   }
+  .app-block .identify { margin-top: 8px; font-size: .9rem; color: var(--ink-soft); }
   .app-block h3 { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; flex-wrap: wrap; }
   .app-block p { font-size: .94rem; color: var(--ink-soft); }
   .app-block p strong, .app-block p b { color: var(--ink); }
@@ -321,7 +324,7 @@
 
     <details class="why" id="s2why" hidden>
       <summary>为什么不是从谷歌商店下载？（安卓，1 分钟）</summary>
-      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（Google Mobile Services，简称 GMS）</strong>，谷歌应用商店和谷歌推送都属于这套服务。所以手机上没有谷歌商店，请从<strong>您手机自带的应用商店</strong>下载——华为、小米、OPPO、vivo、三星、联想的商店里都能搜到，用英文名 <code>Microsoft Authenticator</code> 搜。</p>
+      <p>国内销售的安卓手机<strong>出厂不带谷歌移动服务（Google Mobile Services，简称 GMS）</strong>，谷歌应用商店和谷歌推送都属于这套服务。所以手机上没有谷歌商店，请从<strong>您手机自带的应用商店</strong>下载，搜 <code>Authenticator</code>。只有一个例外：<strong>华为应用市场没有上架微软身份验证器</strong>，华为手机要先装应用宝，再从应用宝里装——下面的步骤已经按您的机型写好了。</p>
       <p>同样因为没有 GMS，验证器也<strong>收不到谷歌推送</strong>——第 5 步绑定时不用扫码，改成手动输入一串代码，原因那里会再说一次。</p>
     </details>
 
@@ -435,7 +438,7 @@
 
     <details class="faq-item">
       <summary>都按步骤做了，还是登录不上</summary>
-      <p>请把您看到的界面或报错<strong>截图</strong>发给客服，不用自己反复重试。有截图我们通常一眼就能看出卡在哪一步。</p>
+      <p>请把您看到的界面或报错<strong>截图</strong>，发给<strong>为您分配账号的域管理员</strong>，不用自己反复重试。有截图通常一眼就能看出卡在哪一步。</p>
     </details>
   </div>
 
@@ -461,13 +464,26 @@
 
   // The customer downloads from the store already on their phone (Rick,
   // 2026-09-21). Only the store's name changes by brand.
+  // Where each app is actually listed, checked 2026-09-21 (Rick asked for every
+  // step to be verified, not assumed):
+  //   小米应用商店  — "Authenticator" and "Teams", developer 微软（中国）有限公司
+  //                 (app.mi.com; its web download is disabled for every app,
+  //                 WeChat included, and the site itself says to use the phone store).
+  //   华为应用市场  — Teams yes (AppGallery C100427405). Authenticator NO: absent
+  //                 from Microsoft's own list of China channels and confirmed missing
+  //                 on Microsoft Q&A (2023-08). Huawei owners get it from 应用宝, where
+  //                 it is listed as "Authenticator" by 微软（中国）有限公司.
+  //   OPPO / 联想 / 三星 — named by Microsoft as the China download channels
+  //                 (support.microsoft.com, 在中国下载 Microsoft Authenticator).
+  //   vivo          — no listing reachable from here; try the store, fall back to 应用宝.
+  // `auth` is where the authenticator comes from: "store" or "yyb" (应用宝).
   var STORE = {
-    huawei:  "华为应用市场（AppGallery）",
-    xiaomi:  "小米应用商店",
-    oppo:    "OPPO 软件商店",
-    vivo:    "vivo 应用商店",
-    samsung: "三星应用商店（联想手机请用联想应用商店）",
-    other:   "手机自带的应用商店"
+    huawei:  { store: "华为应用市场（AppGallery）", auth: "yyb",   verified: true },
+    xiaomi:  { store: "小米应用商店",               auth: "store", verified: true },
+    oppo:    { store: "OPPO 软件商店",              auth: "store", verified: true },
+    vivo:    { store: "vivo 应用商店",              auth: "store", verified: false },
+    samsung: { store: "三星应用商店（联想手机请用联想应用商店）", auth: "store", verified: true },
+    other:   { store: "手机自带的应用商店",         auth: "store", verified: false }
   };
 
   var DEVICES = [
@@ -540,16 +556,16 @@
     });
   }
 
-  // The opening block orients a reader who has not started yet. Once they move
-  // past step 1 it is just a wall of text above the step they are working on,
-  // so it folds itself away — once (Rick, 2026-09-21). After that the reader's
-  // own open/close choice stands.
+  // The opening block and the "6 步、10 分钟" line orient a reader who has not
+  // started yet. They belong to step 1 only (Rick, 2026-09-21): once the reader
+  // is on any later step they are simply gone, not folded.
   var introEl = document.querySelector(".intro-box");
-  var introFolded = false;
+  var introAfterEl = document.querySelector(".intro-after");
 
   function goTo(step) {
     state.step = step;
-    if (introEl && step > 1 && !introFolded) { introEl.open = false; introFolded = true; }
+    if (introEl) introEl.hidden = step !== 1;
+    if (introAfterEl) introAfterEl.hidden = step !== 1;
     Array.prototype.forEach.call(document.querySelectorAll("section[data-step]"), function (sec) {
       sec.hidden = Number(sec.dataset.step) !== step;
     });
@@ -596,28 +612,51 @@
     var why2 = document.getElementById("s2why");
     if (why2) why2.hidden = !isAndroid();
 
+    // What the reader will see in a Chinese store: the listing is titled
+    // "Authenticator" (Galaxy Store: "Microsoft Authenticator"), and the
+    // developer reads 微软（中国）有限公司 (Galaxy Store: Microsoft). Verified on
+    // 小米应用商店 and 应用宝, 2026-09-21.
+    var identify = '<p class="identify">怎么认：搜索结果叫 <strong>Authenticator</strong>（有的商店写 Microsoft Authenticator），图标是<strong>蓝色的锁形</strong>，开发者是<strong>微软（中国）有限公司</strong>或 Microsoft。不是这个开发者的，不要装。</p>';
+
     if (state.phone === "ios") {
-      desc.innerHTML = "iPhone 上这两个软件都能在 App Store 直接搜到，<strong>两个都要装</strong>。先装微软身份验证器，它是登录的前提。";
+      desc.innerHTML = "iPhone 上这两个软件都在 App Store 里，<strong>两个都要装</strong>。先装微软身份验证器，它是登录的前提。";
       box.innerHTML =
         '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
-        '<p>打开 App Store → 搜索 <code>Microsoft Authenticator</code> → 安装（商店里显示的是英文名）。它就是登录时用来证明身份的微软身份验证器，没有它无法登录。</p></div>' +
+        '<p>打开 App Store → 搜索 <code>Authenticator</code> → 安装。</p>' +
+        '<p class="identify">怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。</p></div>' +
         '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
-        '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。这是上课和沟通用的软件，<strong>手机和电脑上都要装</strong>。</p></div>' +
+        '<p>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。<strong>手机和电脑上都要装</strong>。</p></div>' +
         '<div class="note good"><strong>两个都装好就行，先别急着登录。</strong>登录留到第 5 步，跟着提示一次做完，不容易乱。</div>';
       return;
     }
 
     var s = STORE[state.phone] || STORE.other;
-    desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>，都从<strong>您手机自带的应用商店</strong>下载：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装 <strong>Teams</strong>，上课和沟通用。";
+    var html = "";
 
-    var html = '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
-      '<p>打开 <strong>' + s + '</strong> → 搜索 <code>Microsoft Authenticator</code> → 安装。商店里显示的是<strong>英文名</strong>，发布者写着 Microsoft。</p></div>';
+    if (s.auth === "yyb") {
+      // Huawei: the authenticator is not in AppGallery at all, so the store
+      // route would strand every Huawei owner. 应用宝 carries it.
+      desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>。<strong>Teams</strong> 在华为应用市场里有；<strong>微软身份验证器</strong>华为应用市场没有上架，要通过<strong>应用宝</strong>安装。";
+      html += '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
+        '<ol class="steps" style="margin-top:6px;">' +
+        '<li><span class="txt">在<strong>华为应用市场</strong>搜索 <code>应用宝</code> → 安装（应用宝是腾讯的应用商店，开发者写着<strong>腾讯</strong>）。</span></li>' +
+        '<li><span class="txt">打开<strong>应用宝</strong> → 搜索 <code>Authenticator</code> → 安装。</span></li>' +
+        '</ol>' + identify + '</div>';
+      html += '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
+        '<p>打开<strong>华为应用市场</strong> → 搜索 <code>Teams</code> → 安装。开发者同样是<strong>微软（中国）有限公司</strong>。<strong>手机和电脑上都要装</strong>。</p></div>';
+    } else {
+      desc.innerHTML = phoneName(state.phone) + " 手机上这两个软件<strong>都要装</strong>，都从<strong>" + s.store + "</strong>下载：先装<strong>微软身份验证器（Microsoft Authenticator）</strong>，它是登录的前提；再装 <strong>Teams</strong>。";
+      html += '<div class="app-block"><h3>微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>' +
+        '<p>打开 <strong>' + s.store + '</strong> → 搜索 <code>Authenticator</code> → 安装。</p>' + identify;
+      if (!s.verified) {
+        html += '<p class="identify">如果商店里搜不到：先在商店里搜 <code>应用宝</code> 装上（腾讯的应用商店），再在应用宝里搜 <code>Authenticator</code>。</p>';
+      }
+      html += '</div>';
+      html += '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
+        '<p>打开 <strong>' + s.store + '</strong> → 搜索 <code>Teams</code> → 安装。开发者同样是<strong>微软（中国）有限公司</strong>。<strong>手机和电脑上都要装</strong>。</p></div>';
+    }
 
-    html += '<div class="app-block"><h3>Microsoft Teams <span class="pill must">必装</span></h3>' +
-      '<p>打开 <strong>' + s + '</strong> → 搜索 <code>Microsoft Teams</code> → 安装。这是上课和沟通用的软件，<strong>手机和电脑上都要装</strong>。</p></div>';
-
-    html += '<div class="note plain">搜索时请<strong>用英文名</strong>搜，中文名不一定能搜到。认准发布者是 <strong>Microsoft</strong>，<strong>不要在搜索引擎上随便下载安装包</strong>——验证类软件装到被改过的版本会很危险。</div>';
-
+    html += '<div class="note plain"><strong>不要在搜索引擎上随便下载安装包</strong>——验证类软件装到被改过的版本会很危险。只从应用商店装。</div>';
     html += '<div class="note good"><strong>两个都装好就行，先别登录。</strong>最难的一步已经过去了——登录留到第 5 步一次做完。</div>';
     box.innerHTML = html;
   }
@@ -745,7 +784,11 @@
       items.push('输入机构发给您的账号（形如 <code>name@yourdomain</code>）和密码。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
       if (android) {
         items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）');
-        items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——按下面「怎么把代码传到手机上」的方法复制过去');
+        items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——把它们传到手机上再粘贴：' +
+          '<details class="why trouble inline"><summary>怎么把代码和网址传到手机上（点开看）</summary>' +
+          '<p>① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进微软身份验证器。网址同样操作一遍。</p>' +
+          '<p>如果实在只能手打：先按 <code>Ctrl</code> 和 <code>+</code> 把网页字体放大，输完后<strong>逐字核对一遍</strong>再点确认。</p>' +
+          '</details>');
         items.push('打开手机上的微软身份验证器 → 右上「+」→ 选<strong>工作或学校账户</strong> → 选<strong>手动输入账户信息</strong> → 把代码和网址<strong>分别粘贴</strong>进两个输入框');
       } else {
         items.push('页面会出现一个二维码。打开手机上的微软身份验证器 → 右上「+」→ 选<strong>工作或学校账户</strong> → <strong>扫描二维码</strong>，对准电脑屏幕扫一下');
@@ -767,16 +810,17 @@
     stepsEl.innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + "</span></li>"; }).join("");
 
     if (android && state.device === "laptop") {
-      tip.className = "note warn";
-      tip.innerHTML =
-        '<strong>⚠️ 这一步最容易出错，请务必用复制，不要手打。</strong>' +
-        '<div style="margin-top:8px;">代码是一长串字母加数字，网址也很长，手打几乎一定会敲错一两个字符。<strong>怎么把它们从电脑传到手机上：</strong></div>' +
-        '<div style="margin-top:8px;">① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进微软身份验证器。网址同样操作一遍。</div>' +
-        '<div style="margin-top:8px;">如果实在只能手打：先按 <code>Ctrl</code> 和 <code>+</code> 把网页字体放大，输完后<strong>逐字核对一遍</strong>再点确认。</div>';
+      // The how-to lives under the sub-step that produces the code (Rick,
+      // 2026-09-21); nothing to repeat down here.
+      tip.className = "note plain";
+      tip.hidden = true;
+      tip.innerHTML = "";
     } else if (android) {
+      tip.hidden = false;
       tip.className = "note good";
       tip.innerHTML = '<strong>小提示：</strong>因为代码和微软身份验证器在同一部手机上，请一定用<strong>长按复制粘贴</strong>，不要看着屏幕手打——这串代码很长，手打极容易错。验证码每 30 秒刷新一次，提示"过期"就等新的一组再输。手机时间请保持"自动设置"。';
     } else {
+      tip.hidden = false;
       tip.className = "note plain";
       tip.innerHTML = '<strong>小提示：</strong>如果扫码后一直转圈没反应，不用干等——点「I can\'t scan the QR code?」改用手动输入代码，同样有效（代码很长，建议复制粘贴而不是手打）。';
     }
