@@ -365,28 +365,35 @@
 
     <details class="faq-item">
       <summary>为什么不用短信验证码，非要装一个 App？</summary>
-      <p>两个原因。一是可靠性：国际短信在国内常常收不到或延迟很久，而 App 上的数字是手机<strong>按当前时间自己算出来的</strong>，不依赖短信、也不需要联网。二是安全性：短信可以被拦截或被转移到别人的号码上，App 里的数字只有拿着这部手机的人看得到。</p>
+      <p>两个原因。一是可靠：国际短信在国内常常收不到或延迟很久；App 上的数字由手机<strong>按当前时间自己算出来</strong>，不依赖短信、也不需要联网。二是安全：短信可能被拦截或被转移到别人的号码上，App 里的数字只有拿着这部手机的人看得到。</p>
     </details>
+
     <details class="faq-item">
       <summary>忘记密码，或者提示密码错误</summary>
-      <p>这是机构统一分配的账号，使用者这边没有自助改密码的权限，看到"无权限"是正常的、不是故障。请直接联系客服，我们在后台重新生成密码发给您；登录成功后您可以自己改成好记的密码。收到新密码时请<strong>复制粘贴</strong>，不要手动照着敲——密码里的特殊符号很容易敲错。</p>
+      <p>账号由机构统一分配，您这边<strong>没有自助改密码的权限</strong>——登录页显示「无权限」是正常的，不是故障。请联系客服，我们在后台重置后把新密码发给您。收到后请<strong>复制粘贴</strong>，不要照着敲：密码里的符号很容易看错。</p>
     </details>
+
     <details class="faq-item">
       <summary>页面弹出一串英文报错，比如 AADSTS900561</summary>
-      <p>这类报错多半和缓存、旧链接有关。请关掉当前页面，按第 4 步重新开一个<strong>无痕窗口</strong>，从 <code>teams.microsoft.com</code> 重新走一遍，不要用收藏夹里存的旧链接。如果还是不行，请把整个报错页面截图（包含下方的 Correlation Id）发给客服。</p>
+      <p>这类报错来自浏览器里的<strong>旧缓存或旧链接</strong>，不是账号有问题。关掉页面，按第 4 步重新开一个<strong>无痕窗口</strong>，在地址栏手动输入 <code>teams.microsoft.com</code>，不要用收藏夹里存的旧链接。重走一遍通常就正常；如果还报错，请把整页截图（包含下方的 Correlation Id）发给客服。</p>
     </details>
+
     <details class="faq-item">
       <summary>登录页面打不开、一直转圈或者显示空白</summary>
-      <p>这通常<strong>不是您的操作问题</strong>。微软的服务器在境外，国内访问要经过跨境线路，高峰时段容易拥堵、丢包，表现就是页面半天打不开、加载到一半卡住，或者验证环节超时失败。可以试：①等几分钟刷新重试，或换个时段（清早、深夜通常顺畅得多）；②切换网络试试（宽带 Wi-Fi 换成手机流量，或反过来）；③改用 <code>teams.microsoft.com</code> 这个更直接的入口。反复不行请联系客服，不用一直重试。</p>
+      <p><strong>这不是您的操作问题。</strong>微软的服务器在境外，国内访问要走跨境线路。微软官方文档的原话是：这些线路「<a href="https://learn.microsoft.com/zh-cn/microsoft-365/enterprise/microsoft-365-networking-china?view=o365-worldwide" target="_blank" rel="noopener noreferrer">容易出现严重的跨境网络拥堵</a>」，并会导致数据包丢失和延迟。</p>
+      <p>可以试三件事：①换个时段，清早和深夜通常顺畅得多；②切换网络，宽带 Wi-Fi 换成手机流量，或反过来；③在地址栏直接输入 <code>teams.microsoft.com</code>。反复不行就不必一直重试，联系客服。</p>
+      <p>设置完成后请在电脑上装 <strong>Teams 桌面版</strong>：微软官方建议优先使用带缓存的客户端、避免使用网页版，日常打开会稳得多。</p>
     </details>
+
     <details class="faq-item">
       <summary>手机上验证码一直不对，或者提示已过期</summary>
-      <p>先看两个常见原因：①微软身份验证器里的验证码每 30 秒换一次，请等它刷新出新的一组再<strong>立刻</strong>输入；②手机时间必须是"自动设置"，时间不准会导致验证码永远对不上。</p>
-      <p>如果换了好几组验证码<strong>全都不对</strong>，那很可能是当初绑定时那串长代码<strong>输错了一个字符</strong>——这种情况验证码会一直是错的，再试也没用。解决办法：在微软身份验证器里把这个账号<strong>删掉</strong>，然后回到第 5 步重新绑定一次，这次务必用复制粘贴。</p>
+      <p>两个原因几乎覆盖所有情况：①验证码<strong>每 30 秒换一组</strong>，请等它刷新出新的一组再<strong>立刻</strong>输入；②手机时间必须设为<strong>「自动设置」</strong>——验证码是按时间算出来的，手机时间不准就永远对不上。</p>
+      <p>如果连换几组<strong>全都不对</strong>，那是当初绑定时那串长代码输错了一个字符，再试也没用。在微软身份验证器里把这个账号<strong>删掉</strong>，回到第 5 步重新绑定一次，这次用复制粘贴。重新绑定后立刻就能用。</p>
     </details>
+
     <details class="faq-item">
       <summary>都按步骤做了，还是登录不上</summary>
-      <p>请把您看到的界面或报错<strong>截图</strong>发给客服，不用自己反复重试。有截图我们通常一眼就能判断问题在哪一步。</p>
+      <p>请把您看到的界面或报错<strong>截图</strong>发给客服，不用自己反复重试。有截图我们通常一眼就能看出卡在哪一步。</p>
     </details>
   </div>
 
