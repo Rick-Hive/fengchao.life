@@ -348,7 +348,7 @@
             <div class="screen" id="s5ph">
               <div style="font-weight:700;margin-bottom:5px;">微软身份验证器</div>
               <div class="field">工作或学校账户</div>
-              <div class="field">Enter code manually</div>
+              <div class="field">手动输入账户信息</div>
             </div>
           </div>
         </div>
@@ -364,7 +364,7 @@
           <div data-ck="3"><span class="tick">✓</span><span>验证器里能看到我的机构账号</span></div>
         </div>
         <div class="note-s" id="s6note" hidden style="border-left-color:var(--good);background:var(--good-soft);">
-          以后登录只要两样：<b style="color:var(--good);">密码</b> ＋ 在手机的验证器上<b style="color:var(--good);">确认一次</b>。不用再扫码、也不用再输那串长代码。
+          以后登录只要两样：<b style="color:var(--good);">密码</b> ＋ 手机上当前显示的 <b style="color:var(--good);">6 位验证码</b>。不用再扫码、也不用再输那串长代码。
         </div>
       </section>
     </div>
@@ -441,38 +441,37 @@
         reset();
         $("s5acct").textContent = "name@yourdomain"; cls($("s5acct"), "filled", true);
         $("s5pw").textContent = "••••••••••"; cls($("s5pw"), "filled", true); } },
-    { s: 5, d: 4200, c: "页面出现二维码时——<b>安卓手机不用扫它</b>，点二维码下面的「Can't scan the QR code?」。", enter: function () {
+    { s: 5, d: 4200, c: "页面出现二维码时——<b>安卓手机不用扫它</b>，点「I can't scan the QR code?」。", enter: function () {
         BEATS[10].enter();
         $("s5pc").innerHTML = '<div style="text-align:center;padding:6px 0;">' +
           '<div style="width:52px;height:52px;margin:0 auto;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-size:.55rem;color:var(--ink-faint);">二维码</div>' +
-          '<div class="btn-mock ghost hl" style="margin-top:8px;font-size:.58rem;">Can\'t scan the QR code?</div></div>'; } },
-    { s: 5, d: 4400, c: "屏幕会给出一组<b>代码</b>和一个<b>网址</b>。把它们复制到手机上，<b>不要手打</b>。", enter: function () {
+          '<div class="btn-mock ghost hl" style="margin-top:8px;font-size:.58rem;">I can\'t scan the QR code?</div></div>'; } },
+    { s: 5, d: 4400, c: "（备用路）屏幕给出一组<b>代码</b>和一个<b>网址</b>，各有 Copy 按钮。复制到手机上，<b>不要手打</b>，几分钟内完成。", enter: function () {
         BEATS[10].enter();
         $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">请在手机上输入</div>' +
           '<div class="codebox">代码：C7K2 9QXD 4M<br>网址：aka.ms/····</div>';
         op($("s5arrow"), "1"); op($("s5phone"), "1");
         show($("s5note"), true); } },
-    { s: 5, d: 4200, c: "验证器里：「+」→ <b>Work or school account → Scan QR code</b>（不要选 Sign in）→ <b>Enter code manually</b>，把代码和网址分别粘贴进去。", enter: function () {
+    { s: 5, d: 4200, c: "在验证器里选<b>工作或学校账户 → 手动输入账户信息</b>，把代码和网址分别粘贴进去。", enter: function () {
         BEATS[12].enter();
-        $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;">Enter code manually</div>' +
+        $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;">手动输入账户信息</div>' +
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">C7K2 9QXD 4M</div>' +
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">aka.ms/····</div>' +
           '<div class="btn-mock">完成</div>'; } },
-    { s: 5, d: 4400, c: "绑定成功。电脑上「Let's try it out」显示一个两位数，手机上弹出提示——输入那个数，登录完成。", enter: function () {
+    { s: 5, d: 4400, c: "绑定成功。验证器里出现您的账号和一组<b>每 30 秒更新的 6 位验证码</b>，输到电脑上就登录完成。", enter: function () {
         BEATS[12].enter();
-        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">Let\'s try it out</div>' +
-          '<div class="bigcode">29</div>' +
-          '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">把这个数输进手机</div>';
-        $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;font-size:.62rem;">Are you trying to sign in?</div>' +
-          '<div style="font-size:.55rem;color:var(--ink-faint);">name@yourdomain</div>' +
-          '<div class="field filled hl" style="text-align:center;font-family:ui-monospace,Menlo,monospace;letter-spacing:.1em;">29</div>' +
-          '<div class="btn-mock done">Yes</div>'; } },
+        $("s5ph").innerHTML = '<div style="font-size:.58rem;color:var(--ink-faint);">name@yourdomain</div>' +
+          '<div class="bigcode">418 236</div>' +
+          '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">每 30 秒更新</div>';
+        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">输入验证码</div>' +
+          '<div class="field filled hl" style="font-family:ui-monospace,Menlo,monospace;letter-spacing:.1em;">418236</div>' +
+          '<div class="btn-mock done">登录成功</div>'; } },
 
     { s: 6, d: 3600, c: "最后核对三项：电脑上的 Teams、手机上的 Teams、验证器里的账号。", enter: function () {
         reset();
         cls(document.querySelector('[data-ck="1"]'), "on", true);
         cls(document.querySelector('[data-ck="2"]'), "on", true); } },
-    { s: 6, d: 5200, c: "设置只做这一次。以后登录只要<b>密码 ＋ 在手机的验证器上确认一次</b>。", enter: function () {
+    { s: 6, d: 5200, c: "设置只做这一次。以后登录只要<b>密码 ＋ 手机上当前显示的 6 位验证码</b>。", enter: function () {
         reset();
         cls(document.querySelector('[data-ck="1"]'), "on", true);
         cls(document.querySelector('[data-ck="2"]'), "on", true);

@@ -280,6 +280,8 @@
   .pastemap .pm-mid .pm-box[data-n="1"] { color: var(--accent); }
   .pastemap .pm-mid .pm-box[data-n="2"] { color: var(--good); }
   .pastemap .pm-note { font-size: .78rem; color: var(--ink-faint); margin-top: 9px; text-align: center; }
+  ol.steps.inner { margin: 8px 0 0; padding-left: 0; }
+  ol.steps.inner > li { margin-top: 10px; }
   .shot { margin: 10px 0 4px; }
   .shot img {
     display: block; max-width: min(100%, 420px); height: auto; border: 1px solid var(--line);
@@ -421,7 +423,7 @@
 
     <details class="why">
       <summary>苹果和安卓有什么不一样？（一句话）</summary>
-      <p>iPhone 可以直接用摄像头扫二维码完成绑定，最省事。国内销售的安卓手机改成<strong>复制粘贴一串代码</strong>来绑定——步骤一样简单，只是多粘贴一次。至于为什么必须这样，第 2 步和第 5 步会在真正用到的地方说明，现在不用操心。</p>
+      <p>iPhone 和安卓都先用摄像头<strong>扫二维码</strong>完成绑定，最省事。少数国内安卓手机扫码后会一直转圈，那时改成<strong>复制粘贴一串代码</strong>——步骤一样简单，只是多粘贴一次。为什么会这样，第 2 步和第 5 步会在用到的地方说明，现在不用操心。</p>
     </details>
 
     <div class="choice-grid" id="phoneChoices" role="group" aria-label="选择手机品牌"></div>
@@ -491,9 +493,9 @@
     <p class="step-desc" id="s5desc"></p>
 
     <details class="why" id="s5why" hidden>
-      <summary>为什么安卓不扫码，要手动输入代码？（点开看一眼）</summary>
-      <p>扫码之后，验证器会立刻去谷歌的推送通道登记——国内安卓手机没有这条通道（属于 GMS），所以常见的现象是<strong>扫完码一直转圈、没反应</strong>。手动输入代码和网址走的是另一条路，不经过谷歌，绑定本身能完成。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
-      <p>绑定完成后微软还会做一次「Let's try it out」的测试：电脑显示一个两位数，验证器里弹出「Are you trying to sign in?」让您输入这个数。<strong>国内安卓手机这一步是正常的</strong>（2026-09 在小米手机上实测确认）——如果没有自动弹出来，<strong>打开验证器</strong>，提示就在里面。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
+      <summary>安卓扫码为什么可能会转圈？（点开看一眼）</summary>
+      <p>扫码之后，验证器会去谷歌的推送通道登记。手机上有谷歌服务的，几秒就完成；<strong>没有的（国内销售的多数安卓机），可能就一直转圈</strong>。所以安卓先扫码试一下，转圈超过一分钟就改走「手动输入代码」——那条路不经过谷歌，绑定一样能完成。微软的文档也写明：中国大陆的安卓手机不支持推送通知。</p>
+      <p>绑定完成后微软还会做一次「Let\'s try it out」的测试：电脑显示一个两位数，验证器里弹出「Are you trying to sign in?」让您输入这个数。国内的小米手机实测这一步可以（2026-09）——如果没有自动弹出来，<strong>打开验证器</strong>看一下，提示通常就在里面；别的品牌请以实际为准，页面会随实测更新。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
     </details>
 
     <ol class="steps" id="s5steps"></ol>
@@ -934,10 +936,11 @@
 
   // Step 5 mirrors the screens in the order Microsoft shows them (walk-through
   // 2026-09-22). Every label in 「」 is the exact English on screen. The
-  // "Let's try it out" number prompt was confirmed to appear on a mainland
-  // Xiaomi the same day (colleague of Rick's) — the app shows the pending
-  // request when opened even without GMS push, so the Android exit says
-  // "open the app", not "wait for a notification".
+  // "Let's try it out" number prompt was seen on a mainland Xiaomi the same
+  // day (a colleague of Rick's). Microsoft's own doc still says Android push
+  // does not work in China, and we do not know whether that phone had Google
+  // services enabled or whether the app fetched the request on open — so the
+  // Android exit says "open the app and look", with a screenshot fallback.
   function buildStep5() {
     var desc = document.getElementById("s5desc");
     var stepsEl = document.getElementById("s5steps");
@@ -982,20 +985,33 @@
       '电脑出现 <strong>「Let\'s try it out」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「Are you trying to sign in?」→ 在框里输入电脑上的那个数 → <strong>Yes</strong>。电脑显示「Authenticator Added」→ <strong>Done</strong>，登录完成。' +
       shot('pc-try-it-out.jpg', 'Let\'s try it out 页面，显示一个两位数', '把这个数输进手机上弹出的框') +
       (android
-        ? oops('手机上没有弹出「Are you trying to sign in?」', '<p>国内安卓手机收不到系统通知，但提示本身是有的：<strong>打开微软身份验证器</strong>，它会直接显示这个提示（必要时下拉刷新一下）。输入电脑上的两位数 → Yes。如果电脑那边等太久变成了超时，点 Next 再来一次，手机上再开一次验证器。</p>')
+        ? oops('手机上没有弹出「Are you trying to sign in?」', '<p><strong>先打开微软身份验证器</strong>看一下——国内安卓收不到系统通知，但打开 App 后提示常常就在里面（必要时下拉刷新）。看到了就输入电脑上的两位数 → Yes。电脑那边超时了就点 Next 再来一次，手机上再开一次验证器。</p><p>打开验证器也没有任何提示：把电脑屏幕和手机屏幕各截一张图，发给为您分配账号的域管理员，并说明手机品牌。</p>')
         : '');
 
     if (state.device === "laptop") {
-      desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边——先在手机上准备好，再去电脑上点出代码。";
+      desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边，绑定时要用。";
       items.push('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，按回车打开');
       items.push('输入机构发给您的账号（形如 <code>name@yourdomain</code>）→ Next → 输入密码 → Sign in。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
       items.push(pwItem);
       items.push(threeNext);
       if (android) {
-        items.push('出现 <strong>「Scan the QR code」</strong>。安卓手机<strong>不扫它</strong>——先做下一条，把手机准备好。');
-        items.push(phonePrep);
-        items.push(revealCode);
-        items.push(transfer);
+        // Android, computer flow (Rick, 2026-09-22): scan first — most phones
+        // bind on the spot — and only fall back to the code + URL route when
+        // the scan hangs. The fallback keeps the whole timed-transfer drill,
+        // but as an exception exit, not the main road.
+        items.push('出现 <strong>「Scan the QR code」</strong>。打开手机上的微软身份验证器 → 右上「+」→ <strong>「Work or school account」</strong> → <strong>「Scan QR code」（不要选「Sign in」）</strong> → 对准电脑屏幕扫一下。<strong>大多数手机到这里就绑定成功了</strong>——验证器里出现您的账号，就点电脑上的 Next。' +
+          shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 Work or school account') +
+          shot('pc-scan-qr.jpg', 'Scan the QR code 页面', '扫这个二维码；下面那行链接是备用路') +
+          oops('选了「Sign in」，被要求输账号密码', '<p>不要在这里输，点左上角返回，重新「+」→ Work or school account → Scan QR code。如果账户列表里已经出现了您的账号，点进去 → <strong>「Set up 2-step verification」</strong> 也能进到扫码界面。</p>' +
+            shot('ph-account-2step.jpg', '账户页底部的 Set up 2-step verification', '账户页 → Set up 2-step verification')));
+        items.push('<strong>扫码顺利的，直接看第 7 条。扫完一直转圈、一分钟没反应的：</strong>不用干等，也不是您的问题——这部手机没有谷歌服务，扫码走不通。改走下面的<strong>手动输入代码</strong>：' +
+          '<details class="why trouble inline" open><summary>手动输入代码和网址（三小步，点开）</summary>' +
+            '<ol class="steps inner">' +
+              '<li><span class="txt">' + phonePrep.replace('<strong>先把手机准备好，电脑先别动。</strong>打开微软身份验证器 → 右上「+」→ 选 <strong>「Work or school account」</strong> → 弹出两个选项，<strong>选「Scan QR code」，不要选「Sign in」</strong> → 打开了扫码界面 → 点底部蓝色按钮', '<strong>先把手机准备好，电脑先别动。</strong>手机还停在扫码界面的话，直接点底部蓝色按钮') + '</span></li>' +
+              '<li><span class="txt">' + revealCode + '</span></li>' +
+              '<li><span class="txt">' + transfer + '</span></li>' +
+            '</ol>' +
+          '</details>');
       } else {
         items.push('出现 <strong>「Scan the QR code」</strong>。打开手机上的微软身份验证器 → 右上「+」→ <strong>「Work or school account」</strong> → <strong>「Scan QR code」</strong>（不要选「Sign in」）→ 对准电脑屏幕扫一下。' +
           shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 Work or school account') +
