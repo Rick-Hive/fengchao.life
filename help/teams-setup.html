@@ -280,6 +280,14 @@
   .pastemap .pm-mid .pm-box[data-n="1"] { color: var(--accent); }
   .pastemap .pm-mid .pm-box[data-n="2"] { color: var(--good); }
   .pastemap .pm-note { font-size: .78rem; color: var(--ink-faint); margin-top: 9px; text-align: center; }
+  .shot { margin: 10px 0 4px; }
+  .shot img {
+    display: block; max-width: min(100%, 420px); height: auto; border: 1px solid var(--line);
+    border-radius: 8px; box-shadow: var(--shadow); background: var(--surface);
+  }
+  .shot figcaption { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; }
+  .why.inline .shot img { max-width: min(100%, 360px); }
+
   @media (max-width: 480px) {
     .pastemap .pm-row { flex-direction: column; }
     .pastemap .pm-side { max-width: 230px; width: 100%; }
@@ -388,8 +396,8 @@
          This block introduces the two pieces of software; step 2 installs them. -->
     <summary>先认识两个软件：Microsoft Teams 和微软身份验证器</summary>
     <p class="app-def"><strong>Microsoft Teams</strong> — 教学平台：上课、课堂通知、课程资料和师生沟通都在这里，<strong>电脑和手机上都要安装并登录</strong>。</p>
-    <p class="app-def"><strong>微软身份验证器（Microsoft Authenticator）</strong> — 安装在手机上，登录时提供一组每 30 秒更新的 <strong>6 位验证码</strong>。</p>
-    <p>所以登录 Teams 是两步：先输入账号和密码，再输入验证器上当前显示的 6 位验证码。</p>
+    <p class="app-def"><strong>微软身份验证器（Microsoft Authenticator）</strong> — 安装在手机上，每次登录时由它来<strong>确认是您本人</strong>：手机上弹出提示，您输入电脑屏幕上显示的一个两位数；或者输入它显示的一组 6 位验证码。</p>
+    <p>所以登录 Teams 是两步：先输入账号和密码，再在手机的验证器上确认一次。<strong>第一次登录</strong>还会多两件事：把机构发的密码换成您自己的，以及把验证器和账号绑定——这就是下面六步要做的。</p>
     <p><strong>为什么需要验证器：</strong>微软对工作和学校账号统一启用多重身份验证（MFA）。微软官方的说明是：<a href="https://learn.microsoft.com/zh-cn/entra/identity/authentication/concept-mandatory-multifactor-authentication" target="_blank" rel="noopener noreferrer">「MFA 可以阻止超过 99.2% 的帐户入侵攻击」</a>。</p>
     <!-- The "why not SMS" doubt lands here, where the reader is first told to
          install the authenticator — not at step 5, by which point it is long
@@ -483,9 +491,9 @@
     <p class="step-desc" id="s5desc"></p>
 
     <details class="why" id="s5why" hidden>
-      <summary>为什么不扫码，要手动输入一串代码？（安卓，点开看一眼）</summary>
-      <p>扫码之后本来的下一步，是手机自动弹出一个「是否批准本次登录」的提示，点一下就完成了。这条提示是<strong>通过谷歌的推送通道</strong>送到手机上的，而这条通道属于<strong>谷歌移动服务（GMS）</strong>——国内销售的安卓手机不带 GMS，通道不通，手机就永远等不到那条提示，看起来就是<strong>扫完码一直转圈、没反应</strong>。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
-      <p>所以这里改用<strong>手动输入代码</strong>来绑定。绑好之后，验证码由手机<strong>按当前时间自己算出来</strong>，不联网、也不经过谷歌，反而更稳定。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
+      <summary>为什么安卓不扫码，要手动输入代码？（点开看一眼）</summary>
+      <p>扫码之后，验证器会立刻去谷歌的推送通道登记——国内安卓手机没有这条通道（属于 GMS），所以常见的现象是<strong>扫完码一直转圈、没反应</strong>。手动输入代码和网址走的是另一条路，不经过谷歌，绑定本身能完成。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
+      <p>要说明的是：绑定完成后微软还会做一次「Let's try it out」的测试，这一步在 iPhone 上是弹出提示、输一个两位数。<strong>国内安卓手机在这一步会怎样，我们正在实机核实</strong>，核实后会更新这里。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
     </details>
 
     <ol class="steps" id="s5steps"></ol>
@@ -509,17 +517,18 @@
   <!-- STEP 6 · 核对 -->
   <section class="card" data-step="6" hidden>
     <div class="step-head"><span class="step-num">第 6 步</span><h2>核对一下，就完成了</h2></div>
-    <p class="step-desc">下面三项都打上勾，说明已经彻底设置好了。</p>
+    <p class="step-desc">下面几项都打上勾，说明已经彻底设置好了。</p>
 
     <div class="checklist" id="checklist">
       <label><input type="checkbox" id="chk1" data-chk> 电脑上的 Teams 能正常打开，能看到界面内容</label>
       <label><input type="checkbox" id="chk1b" data-chk> 手机上的 Teams 也已装好，并且登录成功</label>
       <label><input type="checkbox" id="chk2" data-chk> 手机上的微软身份验证器里能看到我的机构账号</label>
-      <label><input type="checkbox" id="chk3" data-chk> 我知道以后登录只需要看验证码，不用再重新扫码或重新绑定</label>
+      <label><input type="checkbox" id="chk2b" data-chk> 我记下了自己设的新密码</label>
+      <label><input type="checkbox" id="chk3" data-chk> 我知道以后登录只需要在手机上确认一次，不用再重新扫码或重新绑定</label>
     </div>
 
     <div class="note good" id="doneNote" hidden>
-      <strong>设置完成，恭喜！</strong>以后登录 Teams：打开普通窗口（不用无痕了）输入账号密码，看到要验证时，打开手机上的微软身份验证器，把里面显示的 6 位数验证码输进去就行。绑定是一次性的，以后<strong>不需要再扫码、也不需要再输那串长代码</strong>。
+      <strong>设置完成，恭喜！</strong>以后登录 Teams：打开普通窗口（不用无痕了）输入账号和<strong>您自己设的</strong>密码，看到要验证时看手机——验证器弹出「Are you trying to sign in?」就输入电脑上显示的两位数；如果页面让您输验证码，就把验证器里显示的 6 位数输进去。绑定是一次性的，以后<strong>不需要再扫码、也不需要再输那串长代码</strong>。
     </div>
     <div class="note plain" id="dailyTip" hidden>
       <strong>日常使用的小建议：</strong>如果您经常在电脑上用 Teams，建议装一个 <strong>Teams 桌面版</strong>。网页版每次都要重新加载全部内容，在国内跨境线路上容易慢；桌面版会把内容缓存在本地，日常打开更快更稳。（但如果以后登录又出问题，排查时还是回到无痕网页版最方便。）
@@ -537,7 +546,7 @@
 
     <details class="faq-item">
       <summary>忘记密码，或者提示密码错误</summary>
-      <p>账号由机构统一分配，<strong>不开放自助修改密码</strong>——登录页显示「无权限」是正常的，不是故障。请联系<strong>给您分发账号的域管理员</strong>，由他在后台重置后把新密码发给您。收到后请<strong>复制粘贴</strong>，不要照着敲：密码里的符号很容易看错。</p>
+      <p>密码只在<strong>第一次登录</strong>时由您自己设置一次（见第 5 步的「Update your password」）。之后<strong>不能自助重置</strong>——「Forgot my password」走不通、显示「无权限」都是正常的，不是故障。忘了密码请联系<strong>给您分发账号的域管理员</strong>，由他在后台重置后把新密码发给您；收到后请<strong>复制粘贴</strong>，不要照着敲，登录时会再让您设一个新的。</p>
     </details>
 
     <details class="faq-item">
@@ -880,8 +889,8 @@
   function qrSketch(kind) {
     return '<div class="sketch">' +
       '<div class="frame ' + (kind === "phone" ? "phone" : "") + '"><div class="qr"></div>' +
-      '<div class="lnk">I can\'t scan the QR code?</div></div>' +
-      '<div class="say">二维码<strong>下面</strong>那行英文小字，就是要点的链接：<b>「I can\'t scan the QR code?」</b>' +
+      '<div class="lnk">Can\'t scan the QR code?</div></div>' +
+      '<div class="say">二维码<strong>下面</strong>那行英文小字，就是要点的链接：<b>「Can\'t scan the QR code?」</b>' +
       '<small>示意图，不是真实截图；实际页面为英文，位置和字样一致。</small></div></div>';
   }
 
@@ -893,7 +902,7 @@
     return '<div class="pastemap">' +
       '<div class="pm-row">' +
         '<div class="pm-side"><div class="pm-cap">' + (onePhone ? "Teams（同一部手机）" : "电脑上的 Teams 页面") + '</div>' +
-          '<div class="pm-screen' + (onePhone ? "" : " wide") + '"><div class="pm-title">请在手机上输入</div>' +
+          '<div class="pm-screen' + (onePhone ? "" : " wide") + '"><div class="pm-title">Enter the following into…</div>' +
           '<div class="pm-box" data-n="1"><span class="pm-n">1</span><span class="pm-v">代码 C7K2 9QXD 4M</span></div>' +
           '<div class="pm-box" data-n="2"><span class="pm-n">2</span><span class="pm-v">网址 aka.ms/····</span></div>' +
           '</div></div>' +
@@ -903,7 +912,7 @@
           '<div class="pm-box" data-n="2"><span class="pm-v">→</span></div>' +
           '</div></div>' +
         '<div class="pm-side"><div class="pm-cap">微软身份验证器</div>' +
-          '<div class="pm-screen"><div class="pm-title">手动输入账户信息</div>' +
+          '<div class="pm-screen"><div class="pm-title">Enter code manually</div>' +
           '<div class="pm-box" data-n="1"><span class="pm-n">1</span><span class="pm-v">代码</span></div>' +
           '<div class="pm-box" data-n="2"><span class="pm-n">2</span><span class="pm-v">网址</span></div>' +
           '</div></div>' +
@@ -912,6 +921,21 @@
       (onePhone ? '来回切换两次。' : '别放反了。') + '</div></div>';
   }
 
+  // A real screenshot from the 2026-09-22 walk-through (Rick, iPhone + Mac,
+  // test account), cropped to the screen the reader is looking for. Expired
+  // codes and the dead QR are pixelated; nothing but the test account shows.
+  function shot(file, alt, cap) {
+    return '<figure class="shot"><img src="/help/img/' + file + '" alt="' + alt + '" loading="lazy" decoding="async">' +
+      (cap ? '<figcaption>' + cap + '</figcaption>' : '') + '</figure>';
+  }
+  function oops(summary, body) {
+    return '<details class="why trouble inline"><summary>' + summary + '</summary>' + body + '</details>';
+  }
+
+  // Step 5 mirrors the screens in the order Microsoft shows them (walk-through
+  // 2026-09-22). Every label in 「」 is the exact English on screen. What the
+  // Android push test does on a mainland phone without GMS is NOT yet
+  // verified — that one spot says so rather than guessing.
   function buildStep5() {
     var desc = document.getElementById("s5desc");
     var stepsEl = document.getElementById("s5steps");
@@ -921,53 +945,85 @@
     var why5 = document.getElementById("s5why");
     if (why5) why5.hidden = !android;
 
+    // ---- shared: sign in + first-time password ----
+    var pwItem = '出现 <strong>「Update your password」</strong>——<strong>第一次登录都会有这一屏</strong>，是微软要求您把机构发的密码换成自己的。' +
+      '第一格：粘贴机构发的密码；第二格和第三格：输入您<strong>自己设的新密码</strong>，两格一样。新密码至少 8 位，要有大写字母、小写字母和数字。→ Sign in。' +
+      '<strong>请把新密码记下来，以后登录都用它。</strong>' +
+      shot('pc-update-password.jpg', 'Update your password 页面：三个输入框', '第一格旧密码，第二、三格新密码') +
+      oops('如果提示密码不符合要求', '<p>换一个：长度 8 位以上，同时含大写字母、小写字母、数字，不要包含您的名字或账号。三格里第二、三格必须完全一样。</p>');
+
+    var threeNext = '接下来三屏都只需点 <strong>Next</strong>：「Let\'s keep your account secure」→「Install Microsoft Authenticator」（验证器第 2 步已经装好，<strong>不用点商店图标</strong>）→「Set up your account in app」。';
+
+    // ---- shared: the phone side, Authenticator ----
+    var phonePrep =
+      '<strong>先把手机准备好，电脑先别动。</strong>打开微软身份验证器 → 右上「+」→ 选 <strong>「Work or school account」</strong> → 弹出两个选项，<strong>选「Scan QR code」，不要选「Sign in」</strong> → 打开了扫码界面 → 点底部蓝色按钮 <strong>「Enter code manually」</strong> → 出现 Code 和 URL 两个空格。<strong>手机就停在这一屏。</strong>' +
+      shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 Work or school account') +
+      shot('ph-enter-code-manually.jpg', '扫码界面底部的 Enter code manually 按钮', '扫码界面底部：Enter code manually') +
+      oops('走错了？选了「Sign in」，被要求输账号密码', '<p>这是最容易走错的一步。<strong>不要在这里输账号密码</strong>，点左上角返回。' +
+        '如果验证器的账户列表里已经出现了您的账号，点进去，选 <strong>「Set up 2-step verification」</strong>，同样能进到扫码界面，再点「Enter code manually」。</p>' +
+        shot('ph-account-2step.jpg', '账户页底部的 Set up 2-step verification', '账户页 → Set up 2-step verification'));
+
+    var revealCode =
+      '回到电脑，点二维码下面的 <strong>「Can\'t scan the QR code?」</strong>。页面变成「Enter the following into Microsoft Authenticator」，给出 <strong>Code</strong> 和 <strong>URL</strong>，各配一个 <strong>Copy</strong> 按钮。' +
+      '<strong>从这一刻起计时——这组代码几分钟就会过期，中途不要去做别的事。</strong>' +
+      shot('pc-scan-qr.jpg', 'Scan the QR code 页面，链接 Can\'t scan the QR code? 在二维码下方', '二维码下方：Can\'t scan the QR code?') +
+      shot('pc-code-url.jpg', 'Enter the following into Microsoft Authenticator：Code、URL 和两个 Copy 按钮', 'Copy code / Copy URL：用按钮，不用鼠标选');
+
+    var transfer =
+      '<strong>用 Copy 按钮把两样传到手机</strong>：点 <strong>Copy code</strong> → 粘贴到微信「文件传输助手」（电脑版或网页版）→ 点 <strong>Copy URL</strong> → 粘贴到同一条消息的下一行 → 发送，<strong>一条消息两样一起发</strong>。手机微信里长按复制代码 → 切到验证器粘贴进<strong>第一格</strong>；再复制网址 → 粘贴进<strong>第二格</strong> → 确认。' +
+      pasteMap('laptop') +
+      oops('电脑上出现「Authenticator registration has timed out」', '<p>代码过期了，<strong>旧的作废</strong>。点 <strong>Next</strong>，页面会给出<strong>新的</strong> Code 和 URL，把手机里已经粘的两格也换成新的，再确认。这次先把微信在两边都开好，再点 Copy。</p>' +
+        shot('pc-timed-out.jpg', '超时提示：Authenticator registration has timed out', '看到这行就点 Next 重新拿一组')) +
+      oops('没有微信，或者只能手打', '<p>也可以把两样贴进给自己的邮件或备忘录同步；实在要手打，先按 <code>Ctrl</code> 和 <code>+</code> 放大网页，输完<strong>逐字核对</strong>再确认。代码是一串数字，网址很长——最容易错的是网址。</p>');
+
+    var tryOut =
+      '电脑出现 <strong>「Let\'s try it out」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「Are you trying to sign in?」→ 在框里输入电脑上的那个数 → <strong>Yes</strong>。电脑显示「Authenticator Added」→ <strong>Done</strong>，登录完成。' +
+      shot('pc-try-it-out.jpg', 'Let\'s try it out 页面，显示一个两位数', '把这个数输进手机上弹出的框') +
+      (android
+        ? oops('安卓手机等了一分钟，没有弹出「Are you trying to sign in?」', '<p>国内安卓手机收不到谷歌推送，这一步<strong>可能就是这样卡住的</strong>。我们正在国内手机上核实这一屏之后的走法；在页面更新之前，请把电脑屏幕和手机屏幕各截一张图，发给为您分配账号的域管理员。</p>')
+        : '');
+
     if (state.device === "laptop") {
-      desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边，后面几步会用到。";
+      desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边——先在手机上准备好，再去电脑上点出代码。";
       items.push('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，按回车打开');
-      items.push('输入机构发给您的账号（形如 <code>name@yourdomain</code>）和密码。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
+      items.push('输入机构发给您的账号（形如 <code>name@yourdomain</code>）→ Next → 输入密码 → Sign in。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
+      items.push(pwItem);
+      items.push(threeNext);
       if (android) {
-        items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）' + qrSketch('laptop'));
-        items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——把它们传到手机上再粘贴：' + pasteMap('laptop') +
-          '<details class="why trouble inline"><summary>怎么把代码和网址传到手机上（点开看）</summary>' +
-          '<p>① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进微软身份验证器。网址同样操作一遍。</p>' +
-          '<p>如果实在只能手打：先按 <code>Ctrl</code> 和 <code>+</code> 把网页字体放大，输完后<strong>逐字核对一遍</strong>再点确认。</p>' +
-          '</details>');
-        items.push('打开手机上的微软身份验证器 → 右上「+」→ 选<strong>工作或学校账户</strong> → 选<strong>手动输入账户信息</strong> → 把代码和网址<strong>分别粘贴</strong>进两个输入框');
+        items.push('出现 <strong>「Scan the QR code」</strong>。安卓手机<strong>不扫它</strong>——先做下一条，把手机准备好。');
+        items.push(phonePrep);
+        items.push(revealCode);
+        items.push(transfer);
       } else {
-        items.push('页面会出现一个二维码。打开手机上的微软身份验证器 → 右上「+」→ 选<strong>工作或学校账户</strong> → <strong>扫描二维码</strong>，对准电脑屏幕扫一下');
+        items.push('出现 <strong>「Scan the QR code」</strong>。打开手机上的微软身份验证器 → 右上「+」→ <strong>「Work or school account」</strong> → <strong>「Scan QR code」</strong>（不要选「Sign in」）→ 对准电脑屏幕扫一下。' +
+          shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 Work or school account') +
+          oops('扫完一直转圈，或者选错了「Sign in」', '<p>转圈：点电脑上的「Can\'t scan the QR code?」，改用手动输入代码——方法见安卓那条路。选错 Sign in：点返回，重新「+」→ Work or school account → Scan QR code。</p>'));
+        items.push('电脑上点 <strong>Next</strong>。');
       }
-      items.push('绑定成功后，微软身份验证器里就会出现您的账号，下面显示一组 <strong>6 位数验证码</strong>（每 30 秒换一次）。把当前显示的这组数字输入到电脑页面上，登录完成');
+      items.push(tryOut);
     } else {
-      desc.innerHTML = "全程只用这一部手机，不需要第二部手机，也不需要用摄像头扫码。";
-      items.push('打开手机上的 <strong>Teams App</strong>，输入机构发给您的账号和密码（建议长按粘贴，不要手打）');
+      desc.innerHTML = "全程只用这一部手机。第一次登录会先要您改密码，然后绑定验证器——按下面的顺序，一次只做一样。";
+      items.push('打开手机上的 <strong>Teams App</strong>，输入机构发给您的账号 → Next → 密码 → Sign in（建议长按粘贴，不要手打）');
+      items.push(pwItem);
+      items.push(threeNext);
       if (android) {
-        items.push('提示需要身份验证时，找到并点击 <strong>「I can\'t scan the QR code?」</strong>（我无法扫描二维码）' + qrSketch('phone'));
-        items.push('屏幕上会出现<strong>两组</strong>内容：一组<strong>代码</strong>，一个<strong>网址</strong>。都在同一部手机上，<strong>长按就能复制，完全不用手打</strong>。要把它们分别粘贴到验证器的两个输入框里：' + pasteMap('phone'));
-        items.push('<strong>先搬代码：</strong>在 Teams 里长按选中<strong>代码</strong> → 复制 → 切到微软身份验证器 → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴到<strong>第一格</strong>');
-        items.push('<strong>再搬网址：</strong>切回 Teams，长按复制<strong>网址</strong> → 切回验证器 → 粘贴到<strong>第二格</strong> → 确认。两格都填好才能绑定成功');
+        items.push('出现 <strong>「Scan the QR code」</strong>——同一部手机没法自己扫自己，点二维码下面的 <strong>「Can\'t scan the QR code?」</strong>，出现 Code 和 URL，各有一个 <strong>Copy</strong> 按钮。<strong>从这一刻起计时，几分钟内完成。</strong>' + qrSketch('phone'));
+        items.push('两样都在这部手机上，<strong>用 Copy 按钮复制，不用手打</strong>。要把它们分别粘贴到验证器的两个输入框里：' + pasteMap('phone'));
+        items.push('<strong>先搬代码：</strong>点 <strong>Copy code</strong> → 切到微软身份验证器 → 「+」→ <strong>「Work or school account」</strong> → <strong>「Scan QR code」（不要选「Sign in」）</strong> → 底部 <strong>「Enter code manually」</strong> → 粘贴到<strong>第一格</strong>' +
+          shot('ph-enter-code-manually.jpg', '扫码界面底部的 Enter code manually 按钮', '扫码界面底部：Enter code manually') +
+          oops('选了「Sign in」，被要求输账号密码', '<p>不要在这里输，点返回。如果账户列表里已经有您的账号，点进去 → <strong>「Set up 2-step verification」</strong> → 「Enter code manually」。</p>'));
+        items.push('<strong>再搬网址：</strong>切回 Teams，点 <strong>Copy URL</strong> → 切回验证器 → 粘贴到<strong>第二格</strong> → 确认。两格都填好才能绑定成功。' +
+          oops('提示「Authenticator registration has timed out」', '<p>代码过期了，旧的作废。点 <strong>Next</strong> 拿<strong>新的</strong> Code 和 URL，把验证器里两格都换成新的再确认。</p>'));
       } else {
-        items.push('提示需要身份验证时，手机会自动跳到微软身份验证器，按屏幕提示点「批准」即可');
+        items.push('出现「Scan the QR code」时手机会自动跳到微软身份验证器，按屏幕提示完成即可；如果没有跳转，点「Can\'t scan the QR code?」改用 Copy code / Copy URL 手动粘贴（方法同安卓）。');
       }
-      items.push('绑定成功后，回到 Teams，把微软身份验证器里显示的 <strong>6 位数验证码</strong>输进去，登录完成');
+      items.push(tryOut);
     }
 
     stepsEl.innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + "</span></li>"; }).join("");
 
-    if (android && state.device === "laptop") {
-      // The how-to lives under the sub-step that produces the code (Rick,
-      // 2026-09-21); nothing to repeat down here.
-      tip.className = "note plain";
-      tip.hidden = true;
-      tip.innerHTML = "";
-    } else if (android) {
-      tip.hidden = false;
-      tip.className = "note good";
-      tip.innerHTML = '<strong>小提示：</strong>因为代码和微软身份验证器在同一部手机上，请一定用<strong>长按复制粘贴</strong>，不要看着屏幕手打——这串代码很长，手打极容易错。验证码每 30 秒刷新一次，提示"过期"就等新的一组再输。手机时间请保持"自动设置"。';
-    } else {
-      tip.hidden = false;
-      tip.className = "note plain";
-      tip.innerHTML = '<strong>小提示：</strong>如果扫码后一直转圈没反应，不用干等——点「I can\'t scan the QR code?」改用手动输入代码，同样有效（代码很长，建议复制粘贴而不是手打）。';
-    }
+    // Everything the old tip said now sits inside the sub-step it belongs to.
+    tip.className = "note plain"; tip.hidden = true; tip.innerHTML = "";
   }
 
   // ---- step 6 ----
