@@ -199,6 +199,38 @@
   details.why.trouble a { color: var(--warn); }
   details.why.inline { margin: 9px 0 0; padding: 10px 13px; font-size: .9rem; }
   details.why.inline p { margin-top: 7px; }
+
+  /* A drawn stand-in for the sign-in screen at the moment the reader has to
+     find one link. Deliberately a sketch — neutral shapes and our own labels,
+     never Microsoft's page or marks — and labelled as such. A real screenshot
+     from a test account can replace it in the same slot. */
+  .sketch {
+    display: flex; gap: 14px; align-items: center; margin: 10px 0 2px;
+    border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 10px 12px;
+  }
+  .sketch .frame {
+    flex: none; border: 2px solid var(--ink-faint); border-radius: 8px; background: var(--surface);
+    padding: 9px 10px; width: 150px;
+  }
+  .sketch .frame.phone { width: 118px; border-radius: 14px; }
+  .sketch .qr {
+    width: 56px; height: 56px; margin: 0 auto 8px; border: 1px solid var(--line); border-radius: 5px;
+    background:
+      linear-gradient(90deg, var(--line) 50%, transparent 50%) 0 0/10px 10px,
+      linear-gradient(var(--line) 50%, transparent 50%) 0 0/10px 10px;
+    opacity: .7;
+  }
+  .sketch .frame.phone .qr { width: 44px; height: 44px; }
+  .sketch .lnk {
+    font-size: .6rem; text-align: center; color: var(--accent); text-decoration: underline;
+    outline: 2px solid var(--warn); outline-offset: 3px; border-radius: 3px; padding: 0 2px;
+    font-family: Inter, "Segoe UI", Arial, sans-serif; white-space: nowrap;
+  }
+  .sketch .frame.phone .lnk { font-size: .54rem; white-space: normal; line-height: 1.35; }
+  .sketch .say { font-size: .86rem; color: var(--ink-soft); line-height: 1.6; }
+  .sketch .say b { color: var(--warn); }
+  .sketch .say small { display: block; color: var(--ink-faint); font-size: .74rem; margin-top: 4px; }
+  @media (max-width: 420px) { .sketch { flex-direction: column; align-items: flex-start; } }
   details.why p { margin-top: 9px; color: var(--ink-soft); }
   details.why p + p { margin-top: 7px; }
 
@@ -786,6 +818,16 @@
   }
 
   // ---- step 5 ----
+  // The one link a reader must find on the sign-in screen, drawn rather than
+  // photographed. kind: "laptop" | "phone".
+  function qrSketch(kind) {
+    return '<div class="sketch">' +
+      '<div class="frame ' + (kind === "phone" ? "phone" : "") + '"><div class="qr"></div>' +
+      '<div class="lnk">I can\'t scan the QR code?</div></div>' +
+      '<div class="say">二维码<strong>下面</strong>那行英文小字，就是要点的链接：<b>「I can\'t scan the QR code?」</b>' +
+      '<small>示意图，不是真实截图；实际页面为英文，位置和字样一致。</small></div></div>';
+  }
+
   function buildStep5() {
     var desc = document.getElementById("s5desc");
     var stepsEl = document.getElementById("s5steps");
@@ -800,7 +842,7 @@
       items.push('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，按回车打开');
       items.push('输入机构发给您的账号（形如 <code>name@yourdomain</code>）和密码。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
       if (android) {
-        items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）');
+        items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）' + qrSketch('laptop'));
         items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——把它们传到手机上再粘贴：' +
           '<details class="why trouble inline"><summary>怎么把代码和网址传到手机上（点开看）</summary>' +
           '<p>① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进微软身份验证器。网址同样操作一遍。</p>' +
@@ -815,7 +857,7 @@
       desc.innerHTML = "全程只用这一部手机，不需要第二部手机，也不需要用摄像头扫码。";
       items.push('打开手机上的 <strong>Teams App</strong>，输入机构发给您的账号和密码（建议长按粘贴，不要手打）');
       if (android) {
-        items.push('提示需要身份验证时，找到并点击 <strong>「I can\'t scan the QR code?」</strong>（我无法扫描二维码）');
+        items.push('提示需要身份验证时，找到并点击 <strong>「I can\'t scan the QR code?」</strong>（我无法扫描二维码）' + qrSketch('phone'));
         items.push('屏幕上会出现一组<strong>代码</strong>和<strong>网址</strong>。<strong>好消息：都在同一部手机上，可以直接长按复制，完全不用手打。</strong>先长按选中代码 → 复制 → 切到微软身份验证器 → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴');
         items.push('再切回 Teams，同样长按复制那个网址，回到微软身份验证器粘贴到第二个输入框，然后确认');
       } else {
