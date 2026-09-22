@@ -231,6 +231,63 @@
   .sketch .say b { color: var(--warn); }
   .sketch .say small { display: block; color: var(--ink-faint); font-size: .74rem; margin-top: 4px; }
   @media (max-width: 420px) { .sketch { flex-direction: column; align-items: flex-start; } }
+
+  /* Two values, two boxes: which one goes where is the whole difficulty of
+     this sub-step, and prose cannot carry it (Rick, 2026-09-22). The map
+     below pairs each source box with its destination field by number and
+     colour, so the reader checks a picture rather than re-reading a sentence. */
+  .pastemap {
+    border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px;
+    padding: 12px; margin: 11px 0 2px;
+  }
+  .pastemap .pm-row { display: flex; align-items: center; gap: 10px; justify-content: center; }
+  .pastemap .pm-side { flex: 1 1 0; min-width: 0; max-width: 200px; }
+  .pastemap .pm-cap {
+    font-size: .72rem; font-weight: 700; color: var(--ink-faint);
+    text-align: center; margin-bottom: 5px;
+  }
+  .pastemap .pm-screen {
+    border: 2px solid var(--ink-faint); border-radius: 12px; background: var(--surface); padding: 8px 8px 9px;
+  }
+  .pastemap .pm-screen.wide { border-radius: 7px; }
+  .pastemap .pm-title { font-size: .58rem; font-weight: 700; margin-bottom: 6px; color: var(--ink-soft); }
+  .pastemap .pm-box {
+    display: flex; align-items: center; gap: 6px; border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 6px; margin-top: 5px; background: var(--surface-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .55rem;
+    color: var(--ink); white-space: nowrap; overflow: hidden;
+  }
+  .pastemap .pm-box .pm-v { overflow: hidden; text-overflow: ellipsis; }
+  .pastemap .pm-box[data-n="1"] { border-color: var(--accent); background: var(--accent-soft); }
+  .pastemap .pm-box[data-n="2"] { border-color: var(--good); background: var(--good-soft); }
+  .pastemap .pm-n {
+    flex: none; width: 15px; height: 15px; border-radius: 50%; color: #fff;
+    font-size: .52rem; font-weight: 700; display: grid; place-items: center;
+    font-family: inherit;
+  }
+  .pastemap .pm-box[data-n="1"] .pm-n { background: var(--accent); }
+  .pastemap .pm-box[data-n="2"] .pm-n { background: var(--good); }
+  /* The middle column is a copy of a side with everything invisible except the
+     arrows, so it inherits the exact same vertical rhythm and each arrow sits
+     on the row it belongs to. */
+  .pastemap .pm-mid { flex: 0 0 34px; max-width: 34px; }
+  .pastemap .pm-mid .pm-cap, .pastemap .pm-mid .pm-title { visibility: hidden; }
+  .pastemap .pm-mid .pm-screen { border-color: transparent; background: none; padding-inline: 0; }
+  .pastemap .pm-mid .pm-box {
+    border-color: transparent; background: none; justify-content: center;
+    font-family: inherit; font-size: 1rem; font-weight: 700; padding-inline: 0;
+  }
+  .pastemap .pm-mid .pm-box[data-n="1"] { color: var(--accent); }
+  .pastemap .pm-mid .pm-box[data-n="2"] { color: var(--good); }
+  .pastemap .pm-note { font-size: .78rem; color: var(--ink-faint); margin-top: 9px; text-align: center; }
+  @media (max-width: 480px) {
+    .pastemap .pm-row { flex-direction: column; }
+    .pastemap .pm-side { max-width: 230px; width: 100%; }
+    .pastemap .pm-mid { flex: none; max-width: 100%; }
+    .pastemap .pm-mid .pm-cap, .pastemap .pm-mid .pm-title { display: none; }
+    .pastemap .pm-mid .pm-screen { display: flex; gap: 26px; justify-content: center; padding-block: 0; }
+    .pastemap .pm-mid .pm-box { margin-top: 0; transform: rotate(90deg); }
+  }
   details.why p { margin-top: 9px; color: var(--ink-soft); }
   details.why p + p { margin-top: 7px; }
 
@@ -828,6 +885,33 @@
       '<small>示意图，不是真实截图；实际页面为英文，位置和字样一致。</small></div></div>';
   }
 
+  // Which of the two values goes into which field. `from` is "phone" when the
+  // reader is doing everything on one phone, "laptop" when the code is on a
+  // computer screen.
+  function pasteMap(from) {
+    var onePhone = from === "phone";
+    return '<div class="pastemap">' +
+      '<div class="pm-row">' +
+        '<div class="pm-side"><div class="pm-cap">' + (onePhone ? "Teams（同一部手机）" : "电脑上的 Teams 页面") + '</div>' +
+          '<div class="pm-screen' + (onePhone ? "" : " wide") + '"><div class="pm-title">请在手机上输入</div>' +
+          '<div class="pm-box" data-n="1"><span class="pm-n">1</span><span class="pm-v">代码 C7K2 9QXD 4M</span></div>' +
+          '<div class="pm-box" data-n="2"><span class="pm-n">2</span><span class="pm-v">网址 aka.ms/····</span></div>' +
+          '</div></div>' +
+        '<div class="pm-side pm-mid"><div class="pm-cap">&nbsp;</div>' +
+          '<div class="pm-screen"><div class="pm-title">&nbsp;</div>' +
+          '<div class="pm-box" data-n="1"><span class="pm-v">→</span></div>' +
+          '<div class="pm-box" data-n="2"><span class="pm-v">→</span></div>' +
+          '</div></div>' +
+        '<div class="pm-side"><div class="pm-cap">微软身份验证器</div>' +
+          '<div class="pm-screen"><div class="pm-title">手动输入账户信息</div>' +
+          '<div class="pm-box" data-n="1"><span class="pm-n">1</span><span class="pm-v">代码</span></div>' +
+          '<div class="pm-box" data-n="2"><span class="pm-n">2</span><span class="pm-v">网址</span></div>' +
+          '</div></div>' +
+      '</div>' +
+      '<div class="pm-note">两组分别粘贴：<strong>代码</strong>进第一格，<strong>网址</strong>进第二格，' +
+      (onePhone ? '来回切换两次。' : '别放反了。') + '</div></div>';
+  }
+
   function buildStep5() {
     var desc = document.getElementById("s5desc");
     var stepsEl = document.getElementById("s5steps");
@@ -843,7 +927,7 @@
       items.push('输入机构发给您的账号（形如 <code>name@yourdomain</code>）和密码。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错');
       if (android) {
         items.push('页面会出现一个二维码——<strong>不用扫它</strong>。直接点页面上的 <strong>「I can\'t scan the QR code?」</strong>（意思是"我无法扫描二维码"）' + qrSketch('laptop'));
-        items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——把它们传到手机上再粘贴：' +
+        items.push('页面会显示一组<strong>代码（Code）</strong>和<strong>网址（URL）</strong>。这两串都<strong>又长又容易看错，请不要用手打</strong>——把它们传到手机上再粘贴：' + pasteMap('laptop') +
           '<details class="why trouble inline"><summary>怎么把代码和网址传到手机上（点开看）</summary>' +
           '<p>① 在电脑上用鼠标选中代码 → 复制（Ctrl+C）；② 在电脑上登录<strong>微信网页版或微信电脑版</strong>，发给「文件传输助手」；③ 手机微信里打开，长按复制；④ 粘贴进微软身份验证器。网址同样操作一遍。</p>' +
           '<p>如果实在只能手打：先按 <code>Ctrl</code> 和 <code>+</code> 把网页字体放大，输完后<strong>逐字核对一遍</strong>再点确认。</p>' +
@@ -858,8 +942,9 @@
       items.push('打开手机上的 <strong>Teams App</strong>，输入机构发给您的账号和密码（建议长按粘贴，不要手打）');
       if (android) {
         items.push('提示需要身份验证时，找到并点击 <strong>「I can\'t scan the QR code?」</strong>（我无法扫描二维码）' + qrSketch('phone'));
-        items.push('屏幕上会出现一组<strong>代码</strong>和<strong>网址</strong>。<strong>好消息：都在同一部手机上，可以直接长按复制，完全不用手打。</strong>先长按选中代码 → 复制 → 切到微软身份验证器 → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴');
-        items.push('再切回 Teams，同样长按复制那个网址，回到微软身份验证器粘贴到第二个输入框，然后确认');
+        items.push('屏幕上会出现<strong>两组</strong>内容：一组<strong>代码</strong>，一个<strong>网址</strong>。都在同一部手机上，<strong>长按就能复制，完全不用手打</strong>。要把它们分别粘贴到验证器的两个输入框里：' + pasteMap('phone'));
+        items.push('<strong>先搬代码：</strong>在 Teams 里长按选中<strong>代码</strong> → 复制 → 切到微软身份验证器 → 「+」→ <strong>工作或学校账户</strong> → <strong>手动输入账户信息</strong> → 粘贴到<strong>第一格</strong>');
+        items.push('<strong>再搬网址：</strong>切回 Teams，长按复制<strong>网址</strong> → 切回验证器 → 粘贴到<strong>第二格</strong> → 确认。两格都填好才能绑定成功');
       } else {
         items.push('提示需要身份验证时，手机会自动跳到微软身份验证器，按屏幕提示点「批准」即可');
       }
