@@ -495,7 +495,6 @@
     <details class="why" id="s5why" hidden>
       <summary>安卓扫码为什么可能会转圈？（点开看一眼）</summary>
       <p>扫码之后，验证器会去谷歌的推送通道登记。手机上有谷歌服务的，几秒就完成；<strong>没有的（国内销售的多数安卓机），可能就一直转圈</strong>。所以安卓先扫码试一下，转圈超过一分钟就改走「手动输入代码」——那条路不经过谷歌，绑定一样能完成。微软的文档也写明：中国大陆的安卓手机不支持推送通知。</p>
-      <p>绑定完成后微软还会做一次「Let\'s try it out」的测试：电脑显示一个两位数，验证器里弹出「Are you trying to sign in?」让您输入这个数。国内的小米手机实测这一步可以（2026-09）——如果没有自动弹出来，<strong>打开验证器</strong>看一下，提示通常就在里面；别的品牌请以实际为准，页面会随实测更新。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
     </details>
 
     <ol class="steps" id="s5steps"></ol>
@@ -985,7 +984,7 @@
       '电脑出现 <strong>「Let\'s try it out」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「Are you trying to sign in?」→ 在框里输入电脑上的那个数 → <strong>Yes</strong>。电脑显示「Authenticator Added」→ <strong>Done</strong>，登录完成。' +
       shot('pc-try-it-out.jpg', 'Let\'s try it out 页面，显示一个两位数', '把这个数输进手机上弹出的框') +
       (android
-        ? oops('手机上没有弹出「Are you trying to sign in?」', '<p><strong>先打开微软身份验证器</strong>看一下——国内安卓收不到系统通知，但打开 App 后提示常常就在里面（必要时下拉刷新）。看到了就输入电脑上的两位数 → Yes。电脑那边超时了就点 Next 再来一次，手机上再开一次验证器。</p><p>打开验证器也没有任何提示：把电脑屏幕和手机屏幕各截一张图，发给为您分配账号的域管理员，并说明手机品牌。</p>')
+        ? oops('手机上没有弹出「Are you trying to sign in?」', '<p><strong>先打开微软身份验证器</strong>看一下，提示可能在里面（必要时下拉刷新）。看到了就输入电脑上的两位数 → Yes。电脑那边超时了就点 Next 再来一次。</p><p>打开验证器也没有任何提示：把电脑屏幕和手机屏幕各截一张图，发给为您分配账号的域管理员，并说明手机品牌。</p>')
         : '');
 
     if (state.device === "laptop") {
