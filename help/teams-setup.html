@@ -49,6 +49,9 @@
     --warn-soft: #fdf0e0;
     --warn-line: #ecd2ab;
     --focus: #1d4a83;
+    /* Annotation red, used only for the rings drawn on screenshots. It keeps
+       the same value in dark mode: the screenshots stay light either way. */
+    --mark: #d92d20;
     --shadow: 0 1px 3px rgba(30,41,59,.07), 0 4px 14px rgba(30,41,59,.06);
   }
   @media (prefers-color-scheme: dark) {
@@ -93,6 +96,11 @@
     color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-soft-line);
     padding: 3px 11px; border-radius: 999px; margin-bottom: 11px;
   }
+  /* The masthead badge doubles as "take me back to the start" (Rick,
+     2026-09-22) — the reader's choices are kept, only the view returns. */
+  button.eyebrow { font-family: inherit; cursor: pointer; }
+  button.eyebrow:hover { background: var(--accent-soft-line); }
+  button.eyebrow:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   .masthead { margin-bottom: 8px; }
   .sub { color: var(--ink-soft); margin-top: 9px; font-size: .97rem; max-width: 58ch; }
 
@@ -283,12 +291,24 @@
   ol.steps.inner { margin: 8px 0 0; padding-left: 0; }
   ol.steps.inner > li { margin-top: 10px; }
   .shot { margin: 10px 0 4px; }
+  /* A red ellipse drawn over the screenshot marks the one control the step is
+     talking about (Rick, 2026-09-22). The ring is an overlay, not baked into
+     the picture, so the same screenshot can point at a different control
+     where a different step uses it. Red is the annotation colour only —
+     warnings in the page stay amber. */
+  /* The width lives on the wrapper, not the image: the ring is positioned in
+     percentages of the wrapper, so the two boxes have to be the same size. */
+  .shot .pic { position: relative; display: block; width: min(100%, 420px); line-height: 0; }
   .shot img {
-    display: block; max-width: min(100%, 420px); height: auto; border: 1px solid var(--line);
+    display: block; width: 100%; height: auto; border: 1px solid var(--line);
     border-radius: 8px; box-shadow: var(--shadow); background: var(--surface);
   }
+  .shot .ring {
+    position: absolute; border: 3px solid var(--mark); border-radius: 50%;
+    pointer-events: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .7);
+  }
   .shot figcaption { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; }
-  .why.inline .shot img { max-width: min(100%, 360px); }
+  .why.inline .shot .pic { width: min(100%, 360px); }
 
   @media (max-width: 480px) {
     .pastemap .pm-row { flex-direction: column; }
@@ -385,7 +405,7 @@
 
 <div class="wrap">
   <div class="masthead">
-    <span class="eyebrow">蜂巢帮助</span>
+    <button type="button" class="eyebrow" id="homeBtn" title="回到向导开头">蜂巢帮助</button>
     <h1>Teams 登录设置向导</h1>
   </div>
 
@@ -491,11 +511,6 @@
   <section class="card" data-step="5" hidden>
     <div class="step-head"><span class="step-num">第 5 步</span><h2>登录并绑定验证</h2></div>
     <p class="step-desc" id="s5desc"></p>
-
-    <details class="why" id="s5why" hidden>
-      <summary>安卓扫码为什么可能会转圈？（点开看一眼）</summary>
-      <p>扫码之后，验证器会去谷歌的推送通道登记。手机上有谷歌服务的，几秒就完成；<strong>没有的（国内销售的多数安卓机），可能就一直转圈</strong>。所以安卓先扫码试一下，转圈超过一分钟就改走「手动输入代码」——那条路不经过谷歌，绑定一样能完成。微软的文档也写明：中国大陆的安卓手机不支持推送通知。</p>
-    </details>
 
     <ol class="steps" id="s5steps"></ol>
     <div class="note plain" id="s5tip"></div>
@@ -703,6 +718,12 @@
   Array.prototype.forEach.call(document.querySelectorAll("[data-next]"), function (btn) {
     btn.addEventListener("click", function () { goTo(Number(btn.dataset.next)); });
   });
+
+  // The masthead badge is the way back to the top of the wizard (Rick,
+  // 2026-09-22). It returns to step 1; the phone and device already chosen
+  // stay chosen, so nobody loses their place by clicking it.
+  var homeBtn = document.getElementById("homeBtn");
+  if (homeBtn) homeBtn.addEventListener("click", function () { goTo(1); });
 
   // ---- step 1 ----
   var phoneChoicesEl = document.getElementById("phoneChoices");
@@ -927,9 +948,21 @@
   // A real screenshot from the 2026-09-22 walk-through (Rick, iPhone + Mac,
   // test account), cropped to the screen the reader is looking for. Expired
   // codes and the dead QR are pixelated; nothing but the test account shows.
-  function shot(file, alt, cap) {
-    return '<figure class="shot"><img src="/help/img/' + file + '" alt="' + alt + '" loading="lazy" decoding="async">' +
-      (cap ? '<figcaption>' + cap + '</figcaption>' : '') + '</figure>';
+  // rings: "left,top,width,height" in percent of the picture, one ellipse per
+  // group, several groups separated by ";". Percentages rather than pixels so
+  // the ring follows the image at every width.
+  function shot(file, alt, cap, rings) {
+    var marks = "";
+    if (rings) {
+      rings.split(";").forEach(function (r) {
+        var v = r.split(",");
+        marks += '<span class="ring" style="left:' + v[0] + '%;top:' + v[1] +
+          '%;width:' + v[2] + '%;height:' + v[3] + '%"></span>';
+      });
+    }
+    return '<figure class="shot"><span class="pic">' +
+      '<img src="/help/img/' + file + '" alt="' + alt + '" loading="lazy" decoding="async">' + marks +
+      '</span>' + (cap ? '<figcaption>' + cap + '</figcaption>' : '') + '</figure>';
   }
   function oops(summary, body) {
     return '<details class="why trouble inline"><summary>' + summary + '</summary>' + body + '</details>';
@@ -948,14 +981,21 @@
     var tip = document.getElementById("s5tip");
     var items = [];
     var android = isAndroid();
-    var why5 = document.getElementById("s5why");
-    if (why5) why5.hidden = !android;
+
+    // The "why does it spin" explainer lives inside the item where the spin is
+    // handled, not at the head of the step (Rick, 2026-09-22): the reader meets
+    // it when it matters, after the way out, not before they have seen the QR
+    // code at all.
+    var whySpin =
+      '<details class="why inline"><summary>安卓扫码为什么可能会转圈？（点开看一眼）</summary>' +
+      '<p>扫码之后，验证器会去谷歌的推送通道登记。手机上有谷歌服务的，几秒就完成；<strong>没有的（国内销售的多数安卓机），可能就一直转圈</strong>。所以安卓先扫码试一下，转圈超过一分钟就改走「手动输入代码」——那条路不经过谷歌，绑定一样能完成。微软的文档也写明：中国大陆的安卓手机不支持推送通知。</p>' +
+      '</details>';
 
     // ---- shared: sign in + first-time password ----
     var pwItem = '出现 <strong>「更新密码（Update your password）」</strong>——<strong>第一次登录都会有这一屏</strong>，是微软要求您把机构发的密码换成自己的。' +
       '第一格：粘贴机构发的密码；第二格和第三格：输入您<strong>自己设的新密码</strong>，两格一样。新密码至少 8 位，要有大写字母、小写字母和数字。→ 登录（Sign in）。' +
       '<strong>请把新密码记下来，以后登录都用它。</strong>' +
-      shot('pc-update-password.jpg', 'Update your password 页面：三个输入框', '第一格旧密码，第二、三格新密码') +
+      shot('pc-update-password.jpg', 'Update your password 页面：三个输入框', '第一格旧密码，第二、三格新密码', '0.5,43.5,99,40') +
       oops('如果提示密码不符合要求', '<p>换一个：长度 8 位以上，同时含大写字母、小写字母、数字，不要包含您的名字或账号。三格里第二、三格必须完全一样。</p>');
 
     var threeNext = '接下来三屏都只需点 <strong>下一步（Next）</strong>：「让我们保护你的帐户安全（Let\'s keep your account secure）」→「安装 Microsoft Authenticator（Install Microsoft Authenticator）」（验证器第 2 步已经装好，<strong>不用点商店图标</strong>）→「在应用中设置你的帐户（Set up your account in app）」。';
@@ -963,28 +1003,33 @@
     // ---- shared: the phone side, Authenticator ----
     var phonePrep =
       '<strong>先把手机准备好，电脑先别动。</strong>打开微软身份验证器 → 右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出两个选项，<strong>选「扫描 QR 码（Scan QR code）」，不要选「登录（Sign in）」</strong> → 打开了扫码界面 → 点底部蓝色按钮 <strong>「手动输入代码（Enter code manually）」</strong> → 出现 代码（Code）和 URL 两个空格。<strong>手机就停在这一屏。</strong>' +
-      shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 工作或学校帐户（Work or school account）') +
-      shot('ph-enter-code-manually.jpg', '扫码界面底部的 Enter code manually 按钮', '扫码界面底部：手动输入代码（Enter code manually）') +
+      shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 工作或学校帐户（Work or school account）', '1,62,98,21') +
+      shot('ph-enter-code-manually.jpg', '扫码界面底部的 Enter code manually 按钮', '扫码界面底部：手动输入代码（Enter code manually）', '1.5,60,97,39') +
       oops('走错了？选了「登录（Sign in）」，被要求输账号密码', '<p>这是最容易走错的一步。<strong>不要在这里输账号密码</strong>，点左上角返回。' +
         '如果验证器的账户列表里已经出现了您的账号，点进去，选 <strong>「设置两步验证（Set up 2-step verification）」</strong>，同样能进到扫码界面，再点「手动输入代码（Enter code manually）」。</p>' +
-        shot('ph-account-2step.jpg', '账户页底部的 Set up 2-step verification', '账户页 → 设置两步验证（Set up 2-step verification）'));
+        shot('ph-account-2step.jpg', '账户页底部的 Set up 2-step verification', '账户页 → 设置两步验证（Set up 2-step verification）', '1,88.4,98,11.2'));
 
     var revealCode =
       '回到电脑，点二维码下面的 <strong>「无法扫描 QR 码？（Can\'t scan the QR code?）」</strong>。页面变成「在 Microsoft Authenticator 中输入以下内容（Enter the following into Microsoft Authenticator）」，给出 <strong>代码（Code）</strong> 和 <strong>URL（网址）</strong>，各配一个 <strong>复制（Copy）</strong> 按钮。' +
       '<strong>从这一刻起计时——这组代码几分钟就会过期，中途不要去做别的事。</strong>' +
-      shot('pc-scan-qr.jpg', 'Scan the QR code 页面，链接 Can\'t scan the QR code? 在二维码下方', '二维码下方：无法扫描 QR 码？（Can\'t scan the QR code?）') +
-      shot('pc-code-url.jpg', 'Enter the following into Microsoft Authenticator：Code、URL 和两个 Copy 按钮', '复制代码 / 复制 URL：用按钮，不用鼠标选');
+      shot('pc-scan-qr.jpg', 'Scan the QR code 页面，链接 Can\'t scan the QR code? 在二维码下方', '二维码下方：无法扫描 QR 码？（Can\'t scan the QR code?）', '2.5,77,50,7.4') +
+      shot('pc-code-url.jpg', 'Enter the following into Microsoft Authenticator：Code、URL 和两个 Copy 按钮', '复制代码 / 复制 URL：用按钮，不用鼠标选', '64.8,49.4,31.5,7.7;65.5,60.7,31.5,7.7');
 
     var transfer =
       '<strong>用 Copy 按钮把两样传到手机</strong>：点 <strong>复制代码（Copy code）</strong> → 粘贴到微信「文件传输助手」（电脑版或网页版）→ 点 <strong>复制 URL（Copy URL）</strong> → 粘贴到同一条消息的下一行 → 发送，<strong>一条消息两样一起发</strong>。手机微信里长按复制代码 → 切到验证器粘贴进<strong>第一格</strong>；再复制网址 → 粘贴进<strong>第二格</strong> → 确认。' +
       pasteMap('laptop') +
       oops('电脑上出现「Authenticator 注册已超时（Authenticator registration has timed out）」', '<p>代码过期了，<strong>旧的作废</strong>。点 <strong>下一步（Next）</strong>，页面会给出<strong>新的</strong> Code 和 URL，把手机里已经粘的两格也换成新的，再确认。这次先把微信在两边都开好，再点 Copy。</p>' +
-        shot('pc-timed-out.jpg', '超时提示：Authenticator registration has timed out', '看到这行就点「下一步（Next）」重新拿一组')) +
+        shot('pc-timed-out.jpg', '超时提示：Authenticator registration has timed out', '看到这行就点「下一步（Next）」重新拿一组', '5.8,13.2,89,34.6')) +
       oops('没有微信，或者只能手打', '<p>也可以把两样贴进给自己的邮件或备忘录同步；实在要手打，先按 <code>Ctrl</code> 和 <code>+</code> 放大网页，输完<strong>逐字核对</strong>再确认。代码是一串数字，网址很长——最容易错的是网址。</p>');
 
-    var tryOut =
-      '电脑出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」→ 在框里输入电脑上的那个数 → <strong>是（Yes）</strong>。电脑显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。' +
-      shot('pc-try-it-out.jpg', 'Let\'s try it out 页面，显示一个两位数', '把这个数输进手机上弹出的框');
+    // One phone and no computer means there is no "look at the other screen":
+    // the same screen shows the number and then the prompt (Rick's one-phone
+    // route, 2026-09-22), so the wording changes with the device.
+    var tryOut = state.device === "laptop"
+      ? '电脑出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」→ 在框里输入电脑上的那个数 → <strong>是（Yes）</strong>。电脑显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。' +
+        shot('pc-try-it-out.jpg', 'Let\'s try it out 页面，显示一个两位数', '把这个数输进手机上弹出的框', '40.9,66.3,17,10.6')
+      : '屏幕上出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>，<strong>先把这个数记住</strong>；切到微软身份验证器，弹出「是否正在尝试登录？（Are you trying to sign in?）」→ 输入刚才那个数 → <strong>是（Yes）</strong>。切回 Teams，显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。' +
+        shot('pc-try-it-out.jpg', 'Let\'s try it out 页面，显示一个两位数', '记住这个数，切到验证器输进弹出的框', '40.9,66.3,17,10.6');
 
     if (state.device === "laptop") {
       desc.innerHTML = "在刚打开的无痕窗口里操作。手机放在手边，绑定时要用。";
@@ -998,10 +1043,10 @@
         // the scan hangs. The fallback keeps the whole timed-transfer drill,
         // but as an exception exit, not the main road.
         items.push('出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。打开手机上的微软身份验证器 → 右上「+」→ <strong>「工作或学校帐户（Work or school account）」</strong> → <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 对准电脑屏幕扫一下。<strong>大多数手机到这里就绑定成功了</strong>——验证器里出现您的账号，就点电脑上的「下一步（Next）」。' +
-          shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 工作或学校帐户（Work or school account）') +
-          shot('pc-scan-qr.jpg', 'Scan the QR code 页面', '扫这个二维码；下面那行链接是备用路') +
+          shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 工作或学校帐户（Work or school account）', '1,62,98,21') +
+          shot('pc-scan-qr.jpg', 'Scan the QR code 页面', '扫这个二维码；下面那行链接是备用路', '26,26,48,38') +
           oops('选了「登录（Sign in）」，被要求输账号密码', '<p>不要在这里输，点左上角返回，重新「+」→ Work or school account → Scan QR code。如果账户列表里已经出现了您的账号，点进去 → <strong>「设置两步验证（Set up 2-step verification）」</strong> 也能进到扫码界面。</p>' +
-            shot('ph-account-2step.jpg', '账户页底部的 Set up 2-step verification', '账户页 → 设置两步验证（Set up 2-step verification）')));
+            shot('ph-account-2step.jpg', '账户页底部的 Set up 2-step verification', '账户页 → 设置两步验证（Set up 2-step verification）', '1,88.4,98,11.2')));
         items.push('<strong>扫码顺利的，直接看第 7 条。扫完一直转圈、一分钟没反应的：</strong>不用干等，也不是您的问题——这部手机没有谷歌服务，扫码走不通。改走下面的<strong>手动输入代码</strong>：' +
           '<details class="why trouble inline" open><summary>手动输入代码和网址（三小步，点开）</summary>' +
             '<ol class="steps inner">' +
@@ -1009,10 +1054,10 @@
               '<li><span class="txt">' + revealCode + '</span></li>' +
               '<li><span class="txt">' + transfer + '</span></li>' +
             '</ol>' +
-          '</details>');
+          '</details>' + whySpin);
       } else {
         items.push('出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。打开手机上的微软身份验证器 → 右上「+」→ <strong>「工作或学校帐户（Work or school account）」</strong> → <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准电脑屏幕扫一下。' +
-          shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 工作或学校帐户（Work or school account）') +
+          shot('ph-add-account.jpg', '验证器 Add account：选 Work or school account', '「+」之后选 工作或学校帐户（Work or school account）', '1,62,98,21') +
           oops('扫完一直转圈，或者选错了「登录（Sign in）」', '<p>转圈：点电脑上的「无法扫描 QR 码？（Can\'t scan the QR code?）」，改用手动输入代码——方法见安卓那条路。选错 Sign in：点返回，重新「+」→ Work or school account → Scan QR code。</p>'));
         items.push('电脑上点 <strong>下一步（Next）</strong>。');
       }
@@ -1026,7 +1071,7 @@
         items.push('出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>——同一部手机没法自己扫自己，点二维码下面的 <strong>「无法扫描 QR 码？（Can\'t scan the QR code?）」</strong>，出现 代码（Code）和 URL（网址），各有一个 <strong>复制（Copy）</strong> 按钮。<strong>从这一刻起计时，几分钟内完成。</strong>' + qrSketch('phone'));
         items.push('两样都在这部手机上，<strong>用复制（Copy）按钮复制，不用手打</strong>。要把它们分别粘贴到验证器的两个输入框里：' + pasteMap('phone'));
         items.push('<strong>先搬代码：</strong>点 <strong>复制代码（Copy code）</strong> → 切到微软身份验证器 → 「+」→ <strong>「工作或学校帐户（Work or school account）」</strong> → <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 底部 <strong>「手动输入代码（Enter code manually）」</strong> → 粘贴到<strong>第一格</strong>' +
-          shot('ph-enter-code-manually.jpg', '扫码界面底部的 Enter code manually 按钮', '扫码界面底部：手动输入代码（Enter code manually）') +
+          shot('ph-enter-code-manually.jpg', '扫码界面底部的 Enter code manually 按钮', '扫码界面底部：手动输入代码（Enter code manually）', '1.5,60,97,39') +
           oops('选了「登录（Sign in）」，被要求输账号密码', '<p>不要在这里输，点返回。如果账户列表里已经有您的账号，点进去 → <strong>「设置两步验证（Set up 2-step verification）」</strong> → 「手动输入代码（Enter code manually）」。</p>'));
         items.push('<strong>再搬网址：</strong>切回 Teams，点 <strong>复制 URL（Copy URL）</strong> → 切回验证器 → 粘贴到<strong>第二格</strong> → 确认。两格都填好才能绑定成功。' +
           oops('提示「Authenticator 注册已超时（Authenticator registration has timed out）」', '<p>代码过期了，旧的作废。点 <strong>下一步（Next）</strong> 拿<strong>新的</strong> Code 和 URL，把验证器里两格都换成新的再确认。</p>'));
