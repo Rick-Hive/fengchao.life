@@ -76,6 +76,15 @@
     color: var(--accent-ink); background: var(--accent-soft);
     border: 1px solid var(--accent-soft-line); padding: 3px 11px; border-radius: 999px; margin-bottom: 11px;
   }
+  /* Same language switch as the wizard: one button, one stored choice. */
+  .mast-top { display: flex; align-items: center; gap: 10px; }
+  .lang-btn {
+    font: inherit; font-size: .76rem; font-weight: 700; letter-spacing: .04em;
+    margin-bottom: 11px; padding: 3px 12px; border-radius: 999px; cursor: pointer;
+    color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line);
+  }
+  .lang-btn:hover { color: var(--accent-ink); border-color: var(--accent-soft-line); }
+  .lang-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
   .sub { color: var(--ink-soft); margin: 9px 0 0; font-size: .97rem; }
 
   /* ---- player ---- */
@@ -248,143 +257,146 @@
 <body>
 <div class="wrap">
   <div class="site-back">
-    <a href="/"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
+    <a href="/" data-en="<img src='/assets/logo-mark.png' alt='' width='512' height='512' /> Back to Hive home"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
   </div>
 
-  <span class="eyebrow">蜂巢帮助</span>
-  <h1>Teams 登录设置 · 演示</h1>
-  <p class="sub">先看一遍全过程，大约一分钟。看完再照着做，心里有数。</p>
+  <div class="mast-top">
+    <span class="eyebrow" data-en="Hive Help">蜂巢帮助</span>
+    <button type="button" class="lang-btn" id="langBtn">EN</button>
+  </div>
+  <h1 data-en="Teams sign-in setup · demo">Teams 登录设置 · 演示</h1>
+  <p class="sub" data-en="Watch the whole thing once, about a minute. Then do it yourself knowing what is coming.">先看一遍全过程，大约一分钟。看完再照着做，心里有数。</p>
 
   <div class="player">
     <div class="stage" id="stage">
-      <button class="cover" id="cover" type="button" aria-label="播放演示">
+      <button class="cover" id="cover" type="button" aria-label="播放演示" data-en-label="Play the demo">
         <span class="disc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span>
-        <span class="label">播放演示</span>
-        <span class="meta">6 步 · 约 1 分钟 · 无声音</span>
+        <span class="label" data-en="Play the demo">播放演示</span>
+        <span class="meta" data-en="6 steps · about 1 minute · no sound">6 步 · 约 1 分钟 · 无声音</span>
       </button>
 
       <!-- 1 -->
       <section class="scene" data-scene="1">
-        <div class="scene-head"><span class="n">第 1 步</span><span class="t">选择您的手机</span></div>
+        <div class="scene-head"><span class="n" data-en="Step 1">第 1 步</span><span class="t" data-en="Choose your phone">选择您的手机</span></div>
         <div class="chips">
-          <div class="chip" data-chip="ios">苹果 iPhone<span>最简单</span></div>
-          <div class="chip" data-chip="huawei">华为 / 荣耀<span>安卓</span></div>
-          <div class="chip" data-chip="xiaomi">小米<span>安卓</span></div>
-          <div class="chip">OPPO<span>安卓</span></div>
-          <div class="chip">vivo<span>安卓</span></div>
-          <div class="chip">三星<span>安卓</span></div>
+          <div class="chip" data-chip="ios" data-en="iPhone<span>easiest</span>">苹果 iPhone<span>最简单</span></div>
+          <div class="chip" data-chip="huawei" data-en="Huawei / Honor<span>Android</span>">华为 / 荣耀<span>安卓</span></div>
+          <div class="chip" data-chip="xiaomi" data-en="Xiaomi<span>Android</span>">小米<span>安卓</span></div>
+          <div class="chip" data-en="OPPO<span>Android</span>">OPPO<span>安卓</span></div>
+          <div class="chip" data-en="vivo<span>Android</span>">vivo<span>安卓</span></div>
+          <div class="chip" data-en="Samsung<span>Android</span>">三星<span>安卓</span></div>
         </div>
-        <div class="note-s" id="s1note" hidden><b>选好之后</b>，后面每一步都会按您的机型显示，不用自己判断。</div>
+        <div class="note-s" id="s1note" data-en="<b>Once you choose</b>, every later step matches your phone — nothing left for you to work out." hidden><b>选好之后</b>，后面每一步都会按您的机型显示，不用自己判断。</div>
       </section>
 
       <!-- 2 -->
       <section class="scene" data-scene="2">
-        <div class="scene-head"><span class="n">第 2 步</span><span class="t">在手机上装两个软件</span></div>
+        <div class="scene-head"><span class="n" data-en="Step 2">第 2 步</span><span class="t" data-en="Install two apps on the phone">在手机上装两个软件</span></div>
         <div class="row">
           <div class="phone">
             <div class="notch"></div>
             <div class="screen">
-              <div style="font-weight:700;margin-bottom:5px;">手机自带的应用商店</div>
-              <div class="field" id="s2search">搜索</div>
+              <div style="font-weight:700;margin-bottom:5px;" data-en="The store already on your phone">手机自带的应用商店</div>
+              <div class="field" id="s2search" data-en="Search">搜索</div>
               <div class="applist" style="margin-top:7px;">
                 <div class="approw" id="s2auth">
                   <span class="ic"></span>
                   <span class="txt"><span class="nm">Authenticator</span><span class="dv">微软（中国）有限公司</span></span>
-                  <span class="go" id="s2authgo">安装</span>
+                  <span class="go" id="s2authgo" data-en="Install">安装</span>
                 </div>
                 <div class="approw" id="s2teams" style="opacity:.35;">
                   <span class="ic"></span>
                   <span class="txt"><span class="nm">Teams</span><span class="dv">微软（中国）有限公司</span></span>
-                  <span class="go" id="s2teamsgo">安装</span>
+                  <span class="go" id="s2teamsgo" data-en="Install">安装</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <div class="note-s" id="s2note" hidden><b>华为手机例外</b>：华为应用市场没有上架微软身份验证器，要先装应用宝，再从应用宝安装。</div>
+        <div class="note-s" id="s2note" data-en="<b>Huawei and Honor are the exception</b>: their stores do not carry Microsoft Authenticator, so install 应用宝 (Tencent MyApp) first and get it from there." hidden><b>华为手机例外</b>：华为应用市场没有上架微软身份验证器，要先装应用宝，再从应用宝安装。</div>
       </section>
 
       <!-- 3 -->
       <section class="scene" data-scene="3">
-        <div class="scene-head"><span class="n">第 3 步</span><span class="t">用电脑还是手机登录</span></div>
+        <div class="scene-head"><span class="n" data-en="Step 3">第 3 步</span><span class="t" data-en="Computer or phone">用电脑还是手机登录</span></div>
         <div class="pickpair">
-          <div class="chip" data-pick="laptop">💻 用电脑<span>推荐：出问题最容易解决</span></div>
-          <div class="chip" data-pick="phone">📱 只有手机<span>也能完成</span></div>
+          <div class="chip" data-pick="laptop" data-en="💻 On a computer<span>recommended — easiest to fix</span>">💻 用电脑<span>推荐：出问题最容易解决</span></div>
+          <div class="chip" data-pick="phone" data-en="📱 Phone only<span>also works</span>">📱 只有手机<span>也能完成</span></div>
         </div>
-        <div class="note-s" id="s3note" hidden>演示按<b>用电脑</b>走：屏幕大、复制粘贴方便。只有手机也能完成，步骤一样。</div>
+        <div class="note-s" id="s3note" data-en="The demo takes the <b>computer</b> route: bigger screen, easier copy and paste. One phone alone works too, with the same steps." hidden>演示按<b>用电脑</b>走：屏幕大、复制粘贴方便。只有手机也能完成，步骤一样。</div>
       </section>
 
       <!-- 4 -->
       <section class="scene" data-scene="4">
-        <div class="scene-head"><span class="n">第 4 步</span><span class="t">开一个无痕窗口</span></div>
+        <div class="scene-head"><span class="n" data-en="Step 4">第 4 步</span><span class="t" data-en="Open a private window">开一个无痕窗口</span></div>
         <div class="row">
           <div class="laptop">
             <div class="barbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
-              <span class="urlbar" id="s4url">新标签页</span></div>
+              <span class="urlbar" id="s4url" data-en="New tab">新标签页</span></div>
             <div class="screen" id="s4menu" style="min-height:108px;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);">
-              浏览器窗口
+              <span data-en="Browser window">浏览器窗口</span>
             </div>
           </div>
         </div>
-        <div class="note-s" id="s4note" hidden>无痕窗口不带任何旧记录，能一次避开<b>串到别的微软账号</b>和<b>旧缓存报错</b>。</div>
+        <div class="note-s" id="s4note" data-en="A private window carries no old history, which avoids <b>landing on someone else's Microsoft account</b> and <b>stale-cache errors</b> in one move." hidden>无痕窗口不带任何旧记录，能一次避开<b>串到别的微软账号</b>和<b>旧缓存报错</b>。</div>
       </section>
 
       <!-- 5 -->
       <section class="scene" data-scene="5">
-        <div class="scene-head"><span class="n">第 5 步</span><span class="t">登录并绑定验证</span></div>
+        <div class="scene-head"><span class="n" data-en="Step 5">第 5 步</span><span class="t" data-en="Sign in and link the authenticator">登录并绑定验证</span></div>
         <div class="row">
           <div class="laptop">
             <div class="barbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
               <span class="urlbar">teams.microsoft.com</span></div>
             <div class="screen" id="s5pc">
-              <div class="field" id="s5acct">账号</div>
-              <div class="field" id="s5pw">密码</div>
-              <div class="btn-mock" id="s5signin">登录</div>
+              <div class="field" id="s5acct" data-en="Account">账号</div>
+              <div class="field" id="s5pw" data-en="Password">密码</div>
+              <div class="btn-mock" id="s5signin" data-en="Sign in">登录</div>
             </div>
           </div>
           <span class="flow" id="s5arrow" style="opacity:0;">→</span>
           <div class="phone" id="s5phone" style="opacity:0;">
             <div class="notch"></div>
             <div class="screen" id="s5ph">
-              <div style="font-weight:700;margin-bottom:5px;">微软身份验证器</div>
-              <div class="field">工作或学校账户</div>
-              <div class="field">手动输入代码</div>
+              <div style="font-weight:700;margin-bottom:5px;" data-en="Microsoft Authenticator">微软身份验证器</div>
+              <div class="field" data-en="Work or school account">工作或学校账户</div>
+              <div class="field" data-en="Enter code manually">手动输入代码</div>
             </div>
           </div>
         </div>
-        <div class="note-s" id="s5note" hidden><b>代码和网址请复制粘贴</b>，不要手打——两串都很长，手打几乎一定会错一两个字符。</div>
+        <div class="note-s" id="s5note" data-en="<b>Copy and paste the code and the URL</b> rather than typing them — both are long, and typing them almost always costs you a character or two." hidden><b>代码和网址请复制粘贴</b>，不要手打——两串都很长，手打几乎一定会错一两个字符。</div>
       </section>
 
       <!-- 6 -->
       <section class="scene" data-scene="6">
-        <div class="scene-head"><span class="n">第 6 步</span><span class="t">核对一下，就完成了</span></div>
+        <div class="scene-head"><span class="n" data-en="Step 6">第 6 步</span><span class="t" data-en="Check these, and you're done">核对一下，就完成了</span></div>
         <div class="check">
-          <div data-ck="1"><span class="tick">✓</span><span>电脑上的 Teams 能正常打开</span></div>
-          <div data-ck="2"><span class="tick">✓</span><span>手机上的 Teams 也已装好并登录</span></div>
-          <div data-ck="3"><span class="tick">✓</span><span>验证器里能看到我的机构账号</span></div>
+          <div data-ck="1"><span class="tick">✓</span><span data-en="Teams opens on the computer">电脑上的 Teams 能正常打开</span></div>
+          <div data-ck="2"><span class="tick">✓</span><span data-en="Teams is installed and signed in on the phone">手机上的 Teams 也已装好并登录</span></div>
+          <div data-ck="3"><span class="tick">✓</span><span data-en="My school account is listed in the authenticator">验证器里能看到我的机构账号</span></div>
         </div>
-        <div class="note-s" id="s6note" hidden style="border-left-color:var(--good);background:var(--good-soft);">
+        <div class="note-s" id="s6note" data-en="From now on signing in takes two things: <b style='color:var(--good);'>your password</b> and <b style='color:var(--good);'>one confirmation</b> in the authenticator on your phone. No more scanning, and no more long codes." hidden style="border-left-color:var(--good);background:var(--good-soft);">
           以后登录只要两样：<b style="color:var(--good);">密码</b> ＋ 在手机的验证器上<b style="color:var(--good);">确认一次</b>。不用再扫码、也不用再输那串长代码。
         </div>
       </section>
     </div>
 
     <div class="controls">
-      <button class="ctrl" id="pp" type="button" aria-label="暂停">
+      <button class="ctrl" id="pp" type="button" aria-label="暂停" data-en-label="Pause">
         <svg id="ppIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
       </button>
-      <button class="ctrl" id="rp" type="button" aria-label="从头播放">
+      <button class="ctrl" id="rp" type="button" aria-label="从头播放" data-en-label="Play from the start">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>
       </button>
-      <div class="bars" id="bars" role="group" aria-label="跳到某一步"></div>
+      <div class="bars" id="bars" role="group" aria-label="跳到某一步" data-en-label="Jump to a step"></div>
       <span class="clock" id="clock">0:00</span>
     </div>
 
-    <div class="caption" id="caption"><span class="who">演示</span>点上面的播放键开始。</div>
+    <div class="caption" id="caption" data-en="<span class='who'>Demo</span>Select play above to start."><span class="who">演示</span>点上面的播放键开始。</div>
   </div>
 
-  <p class="after">看完就可以照着做了——向导会按您的手机型号，一步一步给出具体操作。</p>
-  <a class="cta" href="/help/teams-setup.html">开始设置 →</a>
+  <p class="after" data-en="Once you have seen it, go and do it — the wizard gives the exact steps for your phone, one at a time.">看完就可以照着做了——向导会按您的手机型号，一步一步给出具体操作。</p>
+  <a class="cta" href="/help/teams-setup.html" data-en="Start the setup →">开始设置 →</a>
 </div>
 
 <script>
@@ -392,6 +404,35 @@
   "use strict";
 
   var $ = function (id) { return document.getElementById(id); };
+
+  // ---- language ----
+  // Same contract as the wizard: the site's choice lives in localStorage under
+  // "fc-lang", static markup carries its English in data-en, and everything
+  // built in script goes through T(中文, English).
+  var LANG = "zh";
+  try {
+    var savedLang = localStorage.getItem("fc-lang");
+    if (savedLang === "en" || savedLang === "zh") LANG = savedLang;
+  } catch (e) {}
+  function T(zh, en) { return LANG === "en" ? en : zh; }
+
+  (function applyStatic() {
+    if (LANG !== "en") return;
+    document.documentElement.lang = "en";
+    document.title = "Teams sign-in setup · demo · Hive Help";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en]"), function (el) {
+      el.innerHTML = el.getAttribute("data-en");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en-label]"), function (el) {
+      el.setAttribute("aria-label", el.getAttribute("data-en-label"));
+    });
+  })();
+
+  $("langBtn").textContent = T("EN", "中文");
+  $("langBtn").addEventListener("click", function () {
+    try { localStorage.setItem("fc-lang", LANG === "en" ? "zh" : "en"); } catch (e) {}
+    location.reload();
+  });
   var scenes = {};
   Array.prototype.forEach.call(document.querySelectorAll(".scene"), function (el) {
     scenes[el.dataset.scene] = el;
@@ -406,73 +447,73 @@
   // Keeping state in `enter` (not in transitions) means seeking to any beat
   // rebuilds the picture correctly.
   var BEATS = [
-    { s: 1, d: 3200, c: "先选您的手机品牌——它决定验证器从哪里下载，以及用哪种方式绑定。", enter: function () {
+    { s: 1, d: 3200, c: T("先选您的手机品牌——它决定验证器从哪里下载，以及用哪种方式绑定。", "Start with the make of your phone — it decides where the authenticator comes from and how the linking works."), enter: function () {
         reset(); } },
-    { s: 1, d: 3600, c: "这里以<b>华为</b>为例。选好之后，后面每一步都会按您的机型显示。", enter: function () {
+    { s: 1, d: 3600, c: T("这里以<b>华为</b>为例。选好之后，后面每一步都会按您的机型显示。", "<b>Huawei</b> here, as an example. Once chosen, every later step is written for that phone."), enter: function () {
         reset(); pick("huawei"); show($("s1note"), true); } },
 
-    { s: 2, d: 3600, c: "打开<b>手机自带的应用商店</b>，搜索关键字 <b>Authenticator</b>。", enter: function () {
+    { s: 2, d: 3600, c: T("打开<b>手机自带的应用商店</b>，搜索关键字 <b>Authenticator</b>。", "Open <b>the store already on your phone</b> and search for <b>Authenticator</b>."), enter: function () {
         reset(); $("s2search").textContent = "Authenticator"; cls($("s2search"), "filled", true); } },
-    { s: 2, d: 4200, c: "认准开发者是<b>微软（中国）有限公司</b>，然后安装。不是这个开发者的，不要装。", enter: function () {
+    { s: 2, d: 4200, c: T("认准开发者是<b>微软（中国）有限公司</b>，然后安装。不是这个开发者的，不要装。", "Check the developer reads <b>微软（中国）有限公司</b>, then install. Anyone else as the developer: do not install it."), enter: function () {
         BEATS[2].enter(); cls($("s2auth"), "hl", true); } },
-    { s: 2, d: 3400, c: "装好验证器，再用同样的方法装 <b>Teams</b>。两个都要装。", enter: function () {
+    { s: 2, d: 3400, c: T("装好验证器，再用同样的方法装 <b>Teams</b>。两个都要装。", "With the authenticator installed, get <b>Teams</b> the same way. You need both."), enter: function () {
         BEATS[2].enter();
-        cls($("s2auth"), "ok", true); $("s2authgo").textContent = "已安装";
+        cls($("s2auth"), "ok", true); $("s2authgo").textContent = T("已安装", "Installed");
         op($("s2teams"), "1"); cls($("s2teams"), "hl", true); } },
-    { s: 2, d: 4000, c: "<b>华为手机是例外</b>：华为应用市场没有上架验证器，要先装应用宝，再从应用宝里装。", enter: function () {
+    { s: 2, d: 4000, c: T("<b>华为手机是例外</b>：华为应用市场没有上架验证器，要先装应用宝，再从应用宝里装。", "<b>Huawei and Honor are the exception</b>: their stores do not carry the authenticator, so install 应用宝 first and get it from there."), enter: function () {
         BEATS[4].enter(); cls($("s2teams"), "hl", false);
-        cls($("s2teams"), "ok", true); $("s2teamsgo").textContent = "已安装";
+        cls($("s2teams"), "ok", true); $("s2teamsgo").textContent = T("已安装", "Installed");
         show($("s2note"), true); } },
 
-    { s: 3, d: 3400, c: "接下来选一台设备来打开登录页面。两台都有的话，<b>强烈建议用电脑</b>。", enter: function () {
+    { s: 3, d: 3400, c: T("接下来选一台设备来打开登录页面。两台都有的话，<b>强烈建议用电脑</b>。", "Next, choose the device that opens the sign-in page. If you have both, <b>a computer is strongly recommended</b>."), enter: function () {
         reset(); } },
-    { s: 3, d: 3000, c: "电脑屏幕大、复制粘贴方便，出问题换个窗口就能重来。", enter: function () {
+    { s: 3, d: 3000, c: T("电脑屏幕大、复制粘贴方便，出问题换个窗口就能重来。", "A big screen, easy copy and paste, and if anything goes wrong you open another window and start again."), enter: function () {
         reset(); pick2("laptop"); show($("s3note"), true); } },
 
-    { s: 4, d: 3400, c: "在电脑上开一个<b>无痕窗口</b>：Windows 用 Edge 按 <b>Ctrl+Shift+N</b>，Mac 上是 ⌘+Shift+N。", enter: function () {
+    { s: 4, d: 3400, c: T("在电脑上开一个<b>无痕窗口</b>：Windows 用 Edge 按 <b>Ctrl+Shift+N</b>，Mac 上是 ⌘+Shift+N。", "Open a <b>private window</b> on the computer: in Edge on Windows press <b>Ctrl+Shift+N</b>; on a Mac it is ⌘+Shift+N."), enter: function () {
         reset(); } },
-    { s: 4, d: 3800, c: "无痕窗口不带任何旧记录，能一次避开串账号和旧缓存报错这两个最常见的失败原因。", enter: function () {
+    { s: 4, d: 3800, c: T("无痕窗口不带任何旧记录，能一次避开串账号和旧缓存报错这两个最常见的失败原因。", "A private window carries no old history, which rules out the two most common failures at once: the wrong account, and stale-cache errors."), enter: function () {
         reset();
-        $("s4url").textContent = "无痕窗口";
-        $("s4menu").innerHTML = '<div style="text-align:center;color:var(--ink-soft);">🕶 <b>无痕窗口</b><div style="font-size:.6rem;margin-top:3px;">不会保留浏览记录</div></div>';
+        $("s4url").textContent = T("无痕窗口", "Private window");
+        $("s4menu").innerHTML = '<div style="text-align:center;color:var(--ink-soft);">🕶 <b>' + T("无痕窗口", "Private window") + '</b><div style="font-size:.6rem;margin-top:3px;">' + T("不会保留浏览记录", "keeps no browsing history") + '</div></div>';
         show($("s4note"), true); } },
 
-    { s: 5, d: 3600, c: "在无痕窗口地址栏输入 <b>teams.microsoft.com</b>，用机构发的账号和密码登录。", enter: function () {
+    { s: 5, d: 3600, c: T("在无痕窗口地址栏输入 <b>teams.microsoft.com</b>，用机构发的账号和密码登录。", "In the private window, go to <b>teams.microsoft.com</b> and sign in with the account and password your school issued."), enter: function () {
         reset();
         $("s5acct").textContent = "name@yourdomain"; cls($("s5acct"), "filled", true);
         $("s5pw").textContent = "••••••••••"; cls($("s5pw"), "filled", true); } },
-    { s: 5, d: 4200, c: "页面出现二维码——<b>先用验证器扫它</b>，多数手机到此就绑定成功。扫完一直转圈的，点二维码下面的「无法扫描 QR 码？（Can't scan the QR code?）」改手动输入。", enter: function () {
+    { s: 5, d: 4200, c: T("页面出现二维码——<b>先用验证器扫它</b>，多数手机到此就绑定成功。扫完一直转圈的，点二维码下面的「无法扫描 QR 码？（Can't scan the QR code?）」改手动输入。", "A QR code appears — <b>scan it with the authenticator first</b>; on most phones that links the account there and then. If the scan just spins, select <b>Can't scan the QR code?</b> underneath it and enter the code by hand."), enter: function () {
         BEATS[10].enter();
         $("s5pc").innerHTML = '<div style="text-align:center;padding:6px 0;">' +
-          '<div style="width:52px;height:52px;margin:0 auto;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-size:.55rem;color:var(--ink-faint);">二维码</div>' +
+          '<div style="width:52px;height:52px;margin:0 auto;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-size:.55rem;color:var(--ink-faint);">' + T("二维码", "QR code") + '</div>' +
           '<div class="btn-mock ghost hl" style="margin-top:8px;font-size:.58rem;">Can\'t scan the QR code?</div></div>'; } },
-    { s: 5, d: 4400, c: "（备用路）屏幕给出一组<b>代码</b>和一个<b>网址</b>，各有 Copy 按钮。复制到手机上，<b>不要手打</b>，几分钟内完成。", enter: function () {
+    { s: 5, d: 4400, c: T("（备用路）屏幕给出一组<b>代码</b>和一个<b>网址</b>，各有 Copy 按钮。复制到手机上，<b>不要手打</b>，几分钟内完成。", "(Fallback route) The screen gives a <b>code</b> and a <b>URL</b>, each with a Copy button. Get both onto the phone — <b>do not type them</b> — and finish within a few minutes."), enter: function () {
         BEATS[10].enter();
-        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">请在手机上输入</div>' +
-          '<div class="codebox">代码：C7K2 9QXD 4M<br>网址：aka.ms/····</div>';
+        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">' + T("请在手机上输入", "Enter on your phone") + '</div>' +
+          '<div class="codebox">' + T("代码：", "Code: ") + 'C7K2 9QXD 4M<br>' + T("网址：", "URL: ") + 'aka.ms/····</div>';
         op($("s5arrow"), "1"); op($("s5phone"), "1");
         show($("s5note"), true); } },
-    { s: 5, d: 4200, c: "验证器里：「+」→ <b>工作或学校帐户 → 扫描 QR 码</b>（不要选「登录 Sign in」）→ <b>手动输入代码（Enter code manually）</b>，把代码和网址分别粘贴进去。", enter: function () {
+    { s: 5, d: 4200, c: T("验证器里：「+」→ <b>工作或学校帐户 → 扫描 QR 码</b>（不要选「登录 Sign in」）→ <b>手动输入代码（Enter code manually）</b>，把代码和网址分别粘贴进去。", "In the authenticator: &ldquo;+&rdquo; → <b>Work or school account → Scan QR code</b> (not Sign in) → <b>Enter code manually</b>, then paste the code and the URL into their own fields."), enter: function () {
         BEATS[12].enter();
-        $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;">手动输入代码</div>' +
+        $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;">' + T("手动输入代码", "Enter code manually") + '</div>' +
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">C7K2 9QXD 4M</div>' +
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">aka.ms/····</div>' +
-          '<div class="btn-mock">完成</div>'; } },
-    { s: 5, d: 4400, c: "绑定成功。电脑上「让我们试一试（Let\'s try it out）」显示一个两位数，手机上弹出提示——输入那个数，登录完成。", enter: function () {
+          '<div class="btn-mock">' + T("完成", "Finish") + '</div>'; } },
+    { s: 5, d: 4400, c: T("绑定成功。电脑上「让我们试一试（Let\'s try it out）」显示一个两位数，手机上弹出提示——输入那个数，登录完成。", "Linked. The computer shows <b>Let\'s try it out</b> with a two-digit number and the phone pops up a prompt — type that number in, and you are signed in."), enter: function () {
         BEATS[12].enter();
         $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">Let\'s try it out</div>' +
           '<div class="bigcode">29</div>' +
-          '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">把这个数输进手机</div>';
+          '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">' + T("把这个数输进手机", "type this on the phone") + '</div>';
         $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;font-size:.62rem;">Are you trying to sign in?</div>' +
           '<div style="font-size:.55rem;color:var(--ink-faint);">name@yourdomain</div>' +
           '<div class="field filled hl" style="text-align:center;font-family:ui-monospace,Menlo,monospace;letter-spacing:.1em;">29</div>' +
           '<div class="btn-mock done">Yes</div>'; } },
 
-    { s: 6, d: 3600, c: "最后核对三项：电脑上的 Teams、手机上的 Teams、验证器里的账号。", enter: function () {
+    { s: 6, d: 3600, c: T("最后核对三项：电脑上的 Teams、手机上的 Teams、验证器里的账号。", "Finally, check three things: Teams on the computer, Teams on the phone, and your account in the authenticator."), enter: function () {
         reset();
         cls(document.querySelector('[data-ck="1"]'), "on", true);
         cls(document.querySelector('[data-ck="2"]'), "on", true); } },
-    { s: 6, d: 5200, c: "设置只做这一次。以后登录只要<b>密码 ＋ 在手机的验证器上确认一次</b>。", enter: function () {
+    { s: 6, d: 5200, c: T("设置只做这一次。以后登录只要<b>密码 ＋ 在手机的验证器上确认一次</b>。", "This setup happens once. From then on, signing in takes <b>your password plus one confirmation</b> in the authenticator on your phone."), enter: function () {
         reset();
         cls(document.querySelector('[data-ck="1"]'), "on", true);
         cls(document.querySelector('[data-ck="2"]'), "on", true);
@@ -495,8 +536,8 @@
     Array.prototype.forEach.call(document.querySelectorAll(".check div"), function (c) { cls(c, "on", false); });
 
     $("s2search").textContent = PRISTINE_TEXT.s2search; cls($("s2search"), "filled", false);
-    cls($("s2auth"), "ok", false); $("s2authgo").textContent = "安装";
-    cls($("s2teams"), "ok", false); $("s2teamsgo").textContent = "安装"; op($("s2teams"), ".35");
+    cls($("s2auth"), "ok", false); $("s2authgo").textContent = T("安装", "Install");
+    cls($("s2teams"), "ok", false); $("s2teamsgo").textContent = T("安装", "Install"); op($("s2teams"), ".35");
 
     $("s4url").textContent = PRISTINE_TEXT.s4url;
     $("s4menu").innerHTML = PRISTINE.s4menu;
@@ -512,7 +553,7 @@
   for (var i = 1; i <= 6; i++) {
     (function (n) {
       var b = document.createElement("button");
-      b.type = "button"; b.className = "seg"; b.setAttribute("aria-label", "第 " + n + " 步");
+      b.type = "button"; b.className = "seg"; b.setAttribute("aria-label", T("第 " + n + " 步", "Step " + n));
       b.innerHTML = "<i></i>";
       b.addEventListener("click", function () { seekScene(n); });
       bars.appendChild(b); segs.push(b);
@@ -533,7 +574,7 @@
       if (String(b.s) === k) scenes[k].setAttribute("data-on", ""); else scenes[k].removeAttribute("data-on");
     });
     b.enter();
-    $("caption").innerHTML = '<span class="who">第 ' + b.s + ' 步</span>' + b.c;
+    $("caption").innerHTML = '<span class="who">' + T("第 " + b.s + " 步", "Step " + b.s) + '</span>' + b.c;
   }
 
   function tickBars() {
@@ -584,7 +625,8 @@
     playing = false; setIcon(false);
     if (raf) { cancelAnimationFrame(raf); raf = null; }
     elapsedBefore = TOTAL; left = 0; tickBars();
-    $("caption").innerHTML = '<span class="who">演示结束</span>可以开始设置了——下面的按钮会带您进入向导，按您的手机型号一步步来。';
+    $("caption").innerHTML = '<span class="who">' + T("演示结束", "End of demo") + '</span>' +
+      T("可以开始设置了——下面的按钮会带您进入向导，按您的手机型号一步步来。", "Time to set it up — the button below opens the wizard, which walks through it step by step for your phone.");
   }
   function seekScene(n) {
     var first = 0;
