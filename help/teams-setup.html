@@ -493,7 +493,7 @@
     <details class="why" id="s5why" hidden>
       <summary>为什么安卓不扫码，要手动输入代码？（点开看一眼）</summary>
       <p>扫码之后，验证器会立刻去谷歌的推送通道登记——国内安卓手机没有这条通道（属于 GMS），所以常见的现象是<strong>扫完码一直转圈、没反应</strong>。手动输入代码和网址走的是另一条路，不经过谷歌，绑定本身能完成。微软官方文档也写明：中国大陆的安卓手机只支持验证码方式，不支持推送通知。</p>
-      <p>要说明的是：绑定完成后微软还会做一次「Let's try it out」的测试，这一步在 iPhone 上是弹出提示、输一个两位数。<strong>国内安卓手机在这一步会怎样，我们正在实机核实</strong>，核实后会更新这里。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
+      <p>绑定完成后微软还会做一次「Let's try it out」的测试：电脑显示一个两位数，验证器里弹出「Are you trying to sign in?」让您输入这个数。<strong>国内安卓手机这一步是正常的</strong>（2026-09 在小米手机上实测确认）——如果没有自动弹出来，<strong>打开验证器</strong>，提示就在里面。<strong>这不是您操作错了，也不是手机或账号有问题。</strong></p>
     </details>
 
     <ol class="steps" id="s5steps"></ol>
@@ -933,9 +933,11 @@
   }
 
   // Step 5 mirrors the screens in the order Microsoft shows them (walk-through
-  // 2026-09-22). Every label in 「」 is the exact English on screen. What the
-  // Android push test does on a mainland phone without GMS is NOT yet
-  // verified — that one spot says so rather than guessing.
+  // 2026-09-22). Every label in 「」 is the exact English on screen. The
+  // "Let's try it out" number prompt was confirmed to appear on a mainland
+  // Xiaomi the same day (colleague of Rick's) — the app shows the pending
+  // request when opened even without GMS push, so the Android exit says
+  // "open the app", not "wait for a notification".
   function buildStep5() {
     var desc = document.getElementById("s5desc");
     var stepsEl = document.getElementById("s5steps");
@@ -980,7 +982,7 @@
       '电脑出现 <strong>「Let\'s try it out」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「Are you trying to sign in?」→ 在框里输入电脑上的那个数 → <strong>Yes</strong>。电脑显示「Authenticator Added」→ <strong>Done</strong>，登录完成。' +
       shot('pc-try-it-out.jpg', 'Let\'s try it out 页面，显示一个两位数', '把这个数输进手机上弹出的框') +
       (android
-        ? oops('安卓手机等了一分钟，没有弹出「Are you trying to sign in?」', '<p>国内安卓手机收不到谷歌推送，这一步<strong>可能就是这样卡住的</strong>。我们正在国内手机上核实这一屏之后的走法；在页面更新之前，请把电脑屏幕和手机屏幕各截一张图，发给为您分配账号的域管理员。</p>')
+        ? oops('手机上没有弹出「Are you trying to sign in?」', '<p>国内安卓手机收不到系统通知，但提示本身是有的：<strong>打开微软身份验证器</strong>，它会直接显示这个提示（必要时下拉刷新一下）。输入电脑上的两位数 → Yes。如果电脑那边等太久变成了超时，点 Next 再来一次，手机上再开一次验证器。</p>')
         : '');
 
     if (state.device === "laptop") {
