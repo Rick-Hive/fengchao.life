@@ -89,7 +89,7 @@
      margins is a second column, not a wider paragraph — and the explanations
      move into a 340px column beside it. */
   .layout { display: grid; grid-template-columns: minmax(0, 1fr); }
-  .main { max-width: 720px; min-width: 0; }
+  .head, .main { max-width: 720px; min-width: 0; }
   .side { display: none; }
   @media (min-width: 1140px) {
     .layout { grid-template-columns: minmax(0, 720px) 340px; gap: 32px; align-items: start; }
@@ -99,11 +99,8 @@
       scrollbar-width: thin; padding: 2px 4px 12px; margin: 0 -4px;
     }
     .side[hidden] { display: none; }
-    .side-head {
-      font-size: .72rem; font-weight: 700; letter-spacing: .1em;
-      color: var(--ink-faint); margin: 2px 0 10px;
-    }
     .side details.why { margin: 0 0 12px; }
+    .side details.why:first-child { margin-top: 0; }
   }
 
   h1, h2 { font-family: "Songti SC", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC", serif; text-wrap: balance; margin: 0; }
@@ -456,8 +453,10 @@
 </style>
 
 <div class="wrap">
- <div class="layout">
-  <div class="main">
+ <!-- Title, intro and the progress bar run above the two columns, so the side
+      column starts level with the first step card rather than beside the
+      heading (Rick, 2026-09-22). -->
+ <div class="head">
   <div class="masthead">
     <div class="mast-top">
       <button type="button" class="eyebrow" id="homeBtn" title="回到向导开头" data-en-title="Back to the start" data-en="Hive Help">蜂巢帮助</button>
@@ -492,6 +491,10 @@
 
   <ol class="progress" id="progress"></ol>
   <p class="progress-hint" id="progressHint" data-en="This row of steps is clickable — jump back to any step at any time.">这排步骤可以点击，随时跳回任意一步。</p>
+ </div><!-- /.head -->
+
+ <div class="layout">
+  <div class="main">
 
   <!-- STEP 1 · 手机品牌 -->
   <section class="card" data-step="1">
@@ -807,9 +810,6 @@
   // Moving rather than duplicating keeps one copy in the DOM, so a reader who
   // opened one on a phone and then rotated does not meet two of them.
   var sideEl = document.getElementById("sideNotes");
-  var sideHead = document.createElement("p");
-  sideHead.className = "side-head";
-  sideHead.textContent = T("说明", "Good to know");
   var wideMQ = window.matchMedia("(min-width: 1140px)");
   var sideNotes = Array.prototype.map.call(document.querySelectorAll("details.why[data-side]"), function (el) {
     var slot = document.createElement("span");
@@ -835,7 +835,6 @@
         n.slot.parentNode.insertBefore(n.el, n.slot.nextSibling);
       }
     });
-    if (!sideEl.firstChild || sideEl.firstChild !== sideHead) sideEl.insertBefore(sideHead, sideEl.firstChild);
     sideEl.hidden = !wide || shown === 0;
   }
   if (wideMQ.addEventListener) wideMQ.addEventListener("change", placeNotes);
