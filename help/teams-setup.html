@@ -12,7 +12,7 @@
        its own self-contained styles; no Google Fonts (unreachable in
        mainland China, which is this page's whole audience). */
     .site-back {
-      max-width: 720px; margin: 0 auto 18px; padding-inline: 20px;
+      max-width: 1132px; margin: 0 auto 18px; padding-inline: 20px;
       display: flex; align-items: center; gap: 10px;
       font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: .9rem;
     }
@@ -23,7 +23,7 @@
 </head>
 <body>
   <div class="site-back">
-    <a href="/"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
+    <a href="/" data-en="<img src='/assets/logo-mark.png' alt='' width='512' height='512' /> Back to Hive home"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
   </div>
 <style>
   :root {
@@ -83,7 +83,28 @@
     font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
     line-height: 1.7; padding-inline: 20px; padding-block: 26px 60px;
   }
-  .wrap { max-width: 720px; margin: 0 auto; }
+  .wrap { max-width: 1132px; margin: 0 auto; }
+  /* One column on a phone. On a wide screen the reading column keeps its
+     720px measure — long lines are harder to read, so the answer to the empty
+     margins is a second column, not a wider paragraph — and the explanations
+     move into a 340px column beside it. */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .main { max-width: 720px; min-width: 0; }
+  .side { display: none; }
+  @media (min-width: 1140px) {
+    .layout { grid-template-columns: minmax(0, 720px) 340px; gap: 32px; align-items: start; }
+    .side {
+      display: block; position: sticky; top: 18px;
+      max-height: calc(100vh - 36px); overflow-y: auto; overscroll-behavior: contain;
+      scrollbar-width: thin; padding: 2px 4px 12px; margin: 0 -4px;
+    }
+    .side[hidden] { display: none; }
+    .side-head {
+      font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+      color: var(--ink-faint); margin: 2px 0 10px;
+    }
+    .side details.why { margin: 0 0 12px; }
+  }
 
   h1, h2 { font-family: "Songti SC", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC", serif; text-wrap: balance; margin: 0; }
   h1 { font-size: clamp(1.45rem, 1.1rem + 1.4vw, 1.95rem); font-weight: 700; }
@@ -435,6 +456,8 @@
 </style>
 
 <div class="wrap">
+ <div class="layout">
+  <div class="main">
   <div class="masthead">
     <div class="mast-top">
       <button type="button" class="eyebrow" id="homeBtn" title="回到向导开头" data-en-title="Back to the start" data-en="Hive Help">蜂巢帮助</button>
@@ -475,7 +498,7 @@
     <div class="step-head"><span class="step-num" data-en="Step 1">第 1 步</span><h2 data-en="Choose your phone">选择您的手机</h2></div>
     <p class="step-desc" data-en="Start with the make of your phone: it decides where Microsoft Authenticator is downloaded from and how you will verify. Once you choose, every later step matches your phone automatically.">先确认您的手机品牌：它决定微软身份验证器（Microsoft Authenticator）从哪里下载，以及用哪种方式验证。选好之后，后面每一步都会自动对应您的机型。</p>
 
-    <details class="why">
+    <details class="why" data-side="1">
       <summary data-en="What is different between iPhone and Android? (one line)">苹果和安卓有什么不一样？（一句话）</summary>
       <p data-en="Both iPhone and Android start by <strong>scanning a QR code</strong> with the camera — that is the quick way. On a few phones sold in mainland China the scan just spins; then you switch to <strong>copying and pasting a code</strong> instead — the same steps, with one extra paste. Steps 2 and 5 explain why where it matters; no need to worry about it now.">iPhone 和安卓都先用摄像头<strong>扫二维码</strong>完成绑定，最省事。少数国内安卓手机扫码后会一直转圈，那时改成<strong>复制粘贴一串代码</strong>——步骤一样简单，只是多粘贴一次。为什么会这样，第 2 步和第 5 步会在用到的地方说明，现在不用操心。</p>
     </details>
@@ -490,7 +513,7 @@
     <div class="step-head"><span class="step-num" data-en="Step 2">第 2 步</span><h2 data-en="Install both apps on your phone">先在手机上装好这两个软件</h2></div>
     <p class="step-desc" id="s2desc"></p>
 
-    <details class="why" id="s2why" hidden>
+    <details class="why" id="s2why" data-side="2" hidden>
       <summary data-en="Why not download from the Google Play Store? (Android)">为什么不从谷歌商店下载？（安卓）</summary>
       <p data-en="Android phones sold in mainland China ship without Google Mobile Services (GMS), so the Google Play Store is not reachable. Microsoft Authenticator has to come from <strong>the app store that is already on the phone</strong>. Search for the keyword <code>Authenticator</code>.">国内销售的安卓手机不带谷歌移动服务（GMS），所以无法访问谷歌应用商店。只能从<strong>手机自带的应用商店</strong>下载微软的身份验证器。请搜索关键字：<code>Authenticator</code>。</p>
       <p data-en="On Huawei and Honor phones, sanctions mean <strong>neither AppGallery nor the Honor store carries Microsoft Authenticator</strong>. On those two brands, install <strong>应用宝 (Tencent MyApp)</strong> first, then install Microsoft Authenticator from it.">对于华为 / 荣耀手机，受制裁影响，<strong>华为应用市场、荣耀应用市场都没有上架微软身份验证器</strong>。这两个品牌的手机要先装<strong>应用宝</strong>，再从应用宝安装微软的身份验证器。</p>
@@ -522,7 +545,7 @@
     <div class="step-head"><span class="step-num" data-en="Step 4">第 4 步</span><h2 id="s4title">选对浏览器，开无痕窗口</h2></div>
     <p class="step-desc" id="s4desc"></p>
 
-    <details class="why">
+    <details class="why" data-side="4">
       <summary data-en="Why does it have to be a private window? (this one matters — open it)">为什么一定要用无痕窗口？（很关键，点开看看）</summary>
       <p data-en="A private window is a clean window that carries no history. Using one for the first-time setup avoids the three most common causes of failure in one move: <strong>another Microsoft account already signed in</strong> (which quietly pushes you onto the wrong account), <strong>a cached old sign-in page</strong> (the main source of those AADSTS error strings), and <strong>an old password filled in automatically</strong>.">无痕窗口是一个"干净"的窗口，不带任何记录。首次设置时用它，可以一次避开三个最常见的失败原因：<strong>浏览器里已经登录着别的微软账号</strong>（会自动把您顶到错的账号上）、<strong>旧的缓存登录页面</strong>（就是那串 AADSTS 英文报错的主要来源）、<strong>自动填充了旧密码</strong>。</p>
       <p data-en="Once setup succeeds, go back to an ordinary window for daily use — a private window forgets you the moment it closes, so you would have to verify every single time.">设置成功之后，日常使用就改回普通窗口——无痕窗口一关就不记得登录状态，每次都要重新输验证码，日常用反而麻烦。</p>
@@ -552,7 +575,7 @@
     <!-- The three things that actually go wrong, kept at the step where they go
          wrong rather than in a list at the foot of the page (Rick, 2026-09-21).
          They appear here once; no other step repeats them. -->
-    <details class="why trouble">
+    <details class="why trouble" data-side="5">
       <summary data-en="Stuck signing in? Three things that actually happen">登录卡住了？三种常见情况</summary>
       <p data-en="<strong>① The Teams sign-in page (<code>teams.microsoft.com</code>) will not open, spins forever, or comes up blank.</strong> The Teams app on a phone hanging at the splash screen is the same thing. This is not something you did wrong. Microsoft's servers are outside mainland China, so traffic crosses the border, and Microsoft's own documentation says those links are <a href='https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-networking-china?view=o365-worldwide' target='_blank' rel='noopener noreferrer'>prone to severe cross-border network congestion</a>, with packet loss and latency. Three things worth trying: pick another time of day — early morning and late evening are usually much smoother; switch from broadband Wi-Fi to mobile data, or the other way round; and type <code>teams.microsoft.com</code> straight into the address bar. If it keeps failing, there is no point retrying over and over."><strong>① Teams 登录页面（<code>teams.microsoft.com</code>）打不开、一直转圈或显示空白。</strong>手机上用 Teams App 登录时卡在启动画面，也是同一回事。这不是您的操作问题。微软的服务器在境外，国内访问要走跨境线路，微软官方文档的原话是这些线路「<a href="https://learn.microsoft.com/zh-cn/microsoft-365/enterprise/microsoft-365-networking-china?view=o365-worldwide" target="_blank" rel="noopener noreferrer">容易出现严重的跨境网络拥堵</a>」，并会导致丢包和延迟。可以试三件事：换个时段，清早和深夜通常顺畅得多；宽带 Wi-Fi 换成手机流量，或反过来；在地址栏直接输入 <code>teams.microsoft.com</code>。反复不行就不必一直重试。</p>
       <p data-en="<strong>② An error string in English appears, such as AADSTS900561.</strong> These come from stale cache or an old link in the browser, not from a problem with your account. Close the page, go back to step 4 and open a fresh private window, then <strong>type</strong> <code>teams.microsoft.com</code> in the address bar yourself — do not use an old bookmark. Walking through it again normally works."><strong>② 弹出一串英文报错，比如 AADSTS900561。</strong>这类报错来自浏览器里的旧缓存或旧链接，不是账号有问题。关掉页面，回第 4 步重新开一个无痕窗口，在地址栏<strong>手动输入</strong> <code>teams.microsoft.com</code>，不要用收藏夹里的旧链接。重走一遍通常就正常。</p>
@@ -609,6 +632,13 @@
     <span data-en="Hive Help · Teams sign-in wizard">蜂巢帮助 · Teams 登录向导</span>
     <span id="stateLabel"></span>
   </footer>
+  </div><!-- /.main -->
+
+  <!-- On a wide screen the explanations ride in the right column, where the
+       page had nothing but margin, and fold back into the step itself on a
+       narrow one (Rick, 2026-09-22). Own scroll box, like /gpa. -->
+  <aside class="side" id="sideNotes" hidden></aside>
+ </div><!-- /.layout -->
 </div>
 
 <script>
@@ -771,6 +801,46 @@
   var introAfterEl = document.querySelector(".intro-after");
   var demoLinkEl = document.querySelector(".demo-link");
 
+  // ---- side column ----
+  // The step-level explanations are written inline, inside the step they
+  // belong to, and are moved into the right column when there is room for it.
+  // Moving rather than duplicating keeps one copy in the DOM, so a reader who
+  // opened one on a phone and then rotated does not meet two of them.
+  var sideEl = document.getElementById("sideNotes");
+  var sideHead = document.createElement("p");
+  sideHead.className = "side-head";
+  sideHead.textContent = T("说明", "Good to know");
+  var wideMQ = window.matchMedia("(min-width: 1140px)");
+  var sideNotes = Array.prototype.map.call(document.querySelectorAll("details.why[data-side]"), function (el) {
+    var slot = document.createElement("span");
+    slot.hidden = true;
+    el.parentNode.insertBefore(slot, el);
+    return { el: el, slot: slot, step: Number(el.getAttribute("data-side")) };
+  });
+  function placeNotes() {
+    var wide = wideMQ.matches;
+    var shown = 0;
+    sideNotes.forEach(function (n) {
+      var toSide = wide && n.step === state.step && !n.el.hidden;
+      if (toSide) {
+        if (n.el.parentNode !== sideEl) {
+          sideEl.appendChild(n.el);
+          // In the column there is room to read it; the amber trouble block
+          // stays folded, because it is a list of failures, not an intro.
+          if (!n.el.classList.contains("trouble")) n.el.open = true;
+        }
+        shown++;
+      } else if (n.el.parentNode === sideEl) {
+        n.el.open = false;
+        n.slot.parentNode.insertBefore(n.el, n.slot.nextSibling);
+      }
+    });
+    if (!sideEl.firstChild || sideEl.firstChild !== sideHead) sideEl.insertBefore(sideHead, sideEl.firstChild);
+    sideEl.hidden = !wide || shown === 0;
+  }
+  if (wideMQ.addEventListener) wideMQ.addEventListener("change", placeNotes);
+  else if (wideMQ.addListener) wideMQ.addListener(placeNotes);
+
   function goTo(step) {
     state.step = step;
     if (introEl) introEl.hidden = step !== 1;
@@ -782,6 +852,7 @@
     if (step === 2) buildStep2();
     if (step === 4) buildStep4();
     if (step === 5) buildStep5();
+    placeNotes();
     renderProgress();
     save();
     window.scrollTo({ top: 0, behavior: "smooth" });
