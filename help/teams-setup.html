@@ -1395,12 +1395,17 @@
             '<strong>Get the phone ready first; leave the computer alone for a moment.</strong> If the phone is still on the scanner screen, just tap the blue button at the bottom, <strong>Enter code manually</strong> → two empty fields appear, Code and URL. <strong>Leave the phone on this screen.</strong>')
         : T('<strong>先把手机准备好，电脑先别动。</strong>打开微软身份验证器 → 右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出两个选项，<strong>选「扫描 QR 码（Scan QR code）」，不要选「登录（Sign in）」</strong> → 打开了扫码界面 → 点底部蓝色按钮 <strong>「手动输入代码（Enter code manually）」</strong> → 出现 代码（Code）和 URL 两个空格。<strong>手机就停在这一屏。</strong>',
             '<strong>Get the phone ready first; leave the computer alone for a moment.</strong> Open Microsoft Authenticator → &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, and <strong>you want Scan QR code, not Sign in</strong> → the scanner opens → tap the blue button at the bottom, <strong>Enter code manually</strong> → two empty fields appear, Code and URL. <strong>Leave the phone on this screen.</strong>');
+      var manualShot = shot('ph-enter-code-manually.jpg', T('扫码界面底部的 Enter code manually 按钮', 'The Enter code manually button at the bottom of the scanner'),
+        T('扫码界面底部：手动输入代码（Enter code manually）', 'Bottom of the scanner: Enter code manually'), '1.5,60,97,39');
+      // Short form: the phone is already on the scanner after item 5, which
+      // has just covered the Sign-in wrong turn — so neither the Add account
+      // picture nor that warning is repeated here (Rick, 2026-09-23).
+      if (short) return lead + manualShot;
       return lead +
       shot('ph-add-account.jpg', T('验证器 Add account：选 Work or school account', 'Authenticator Add account: choose Work or school account'),
         T('「+」之后选 工作或学校帐户（Work or school account）', 'After &ldquo;+&rdquo;, choose Work or school account'), '1,62,98,21',
         T('50,72,c|选这一条', '50,72,c|choose this')) +
-      shot('ph-enter-code-manually.jpg', T('扫码界面底部的 Enter code manually 按钮', 'The Enter code manually button at the bottom of the scanner'),
-        T('扫码界面底部：手动输入代码（Enter code manually）', 'Bottom of the scanner: Enter code manually'), '1.5,60,97,39') +
+      manualShot +
       oops(T('走错了？选了「登录（Sign in）」，被要求输账号密码', 'Took the wrong turn? Chose Sign in and now it asks for an account and password'),
         '<p>' + T('这是最容易走错的一步。<strong>不要在这里输账号密码</strong>，点左上角返回。' +
         '如果验证器的账户列表里已经出现了您的账号，点进去，选 <strong>「设置两步验证（Set up 2-step verification）」</strong>，同样能进到扫码界面，再点「手动输入代码（Enter code manually）」。',
