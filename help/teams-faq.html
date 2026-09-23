@@ -93,9 +93,9 @@
     <a href="/" data-en="<img src='/assets/logo-mark.png' alt='' width='512' height='512' /> Back to Hive home"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
   </div>
   <nav class="helpnav" aria-label="帮助页面" data-en-label="Help pages">
-    <a href="/help/teams-setup.html" data-en="Setup wizard">设置向导</a>
-    <a href="/help/teams-flow.html" data-en="Setup flowchart">设置流程图</a>
-    <a href="/help/teams-faq.html" aria-current="page" data-en="Teams &amp; Authenticator Q&amp;A">微软 Teams 和身份验证器问答</a>
+    <a href="/help/teams-setup.html" data-en="Teams &amp; Authenticator setup">Teams 和身份验证器设置</a>
+    <a href="/help/teams-flow.html" data-en="Flowchart">流程图</a>
+    <a href="/help/teams-faq.html" aria-current="page" data-en="Q&amp;A">问答(Q&amp;A)</a>
   </nav>
 
   <div class="mast-top">
@@ -169,6 +169,14 @@
     <summary data-en="Why can't the authenticator run on my Android phone?">为什么验证器不能装在我的安卓手机上？</summary>
     <p data-en="Android phones sold in mainland China ship <strong>without Google services</strong>. Microsoft Authenticator links a work account through a Google channel; without that channel the linking spins forever. We tested this on a real Huawei by every route Microsoft offers — scanning the QR code, typing the code and URL by hand, the app's own code-only mode — and none of them finished. Microsoft's own support answers say the same: push notifications do not work on Android phones in China.">国内销售的安卓手机<strong>出厂不带谷歌服务</strong>。微软身份验证器绑定工作账号要经过谷歌的通道，没有这条通道，绑定就一直转圈。我们在华为真机上把微软提供的每条路都试了——扫二维码、手动输入代码和网址、验证器自己的验证码模式——没有一条走得通。微软自己的支持问答也是这么说的：中国的安卓手机收不到推送。</p>
     <p data-en="<strong>Teams itself installs and runs fine</strong> on these phones. Only the authenticator has to live elsewhere: an iPhone or iPad of yours (an old one is fine), or your administrator's phone. It is not a fault in your phone, and there is no need to buy a new one."><strong>Teams 本身在这些手机上安装、使用都没问题。</strong>只是验证器得放在别处：您自己的 iPhone 或 iPad（旧的也行），或者管理员的手机。这不是您手机的毛病，也不用买新手机。</p>
+  </details>
+
+  <details class="q" id="q-android-notify">
+    <summary data-en="Why does Teams on my Android phone not pop up message notifications?">为什么安卓手机上的 Teams 不弹出消息提醒？</summary>
+    <p data-en="<strong>Short answer: the same reason the authenticator cannot pop up.</strong> On Android, an app that is closed or in the background does not keep its own line to its server open; its notifications are delivered by <strong>Google's push service (Firebase Cloud Messaging)</strong>, which is part of Google services. Teams, like most Android apps, uses it. Android phones sold in mainland China ship without Google services, so that channel does not exist — a new message for you reaches Microsoft's servers, but nothing wakes your phone up to announce it. Microsoft's own documentation for devices without Google services says it plainly: in that case &ldquo;push notifications might also not be available&rdquo;."><strong>简单说：和验证器弹不出提示是同一个原因。</strong>在安卓手机上，一个关着或退到后台的应用，并不自己一直连着它的服务器；它的消息提醒是由<strong>谷歌的推送服务（Firebase Cloud Messaging）</strong>送到手机上的，而这个推送服务属于谷歌服务的一部分。Teams 和大多数安卓应用一样用的是它。国内销售的安卓手机出厂不带谷歌服务，这条通道根本不存在——别人给您发的消息已经到了微软的服务器，但没有人去"叫醒"您的手机告诉您。微软自己为没有谷歌服务的设备写的说明也是这样说的：这种情况下"推送通知可能也不可用"。</p>
+    <p data-en="<strong>What this means in practice:</strong> while Teams is <strong>open on screen</strong>, messages arrive in real time — the app is talking to Microsoft directly. Once it is closed or has been in the background for a while, messages <strong>wait until you open Teams</strong>, and then they are all there. Nothing is lost; you are just not told."><strong>实际表现：</strong>Teams <strong>开在屏幕上</strong>的时候，消息是实时到的——这时应用自己在和微软通话。一旦关掉，或者在后台放久了，消息就<strong>等您下次打开 Teams 时才出现</strong>，打开后一条不少。消息不会丢，只是没人提醒您。</p>
+    <p data-en="<strong>What helps, and what does not:</strong> in the phone's settings for Teams, allow notifications, allow it to <strong>run in the background / start automatically</strong>, and set battery use to <strong>unrestricted</strong> (the menu names differ by brand: 自启动, 后台活动, 电池优化, 省电策略). On some phones this keeps Teams alive in the background long enough to show messages sooner. It is not a guarantee — the phone's own power saving may still close it. Changing phones or installing a &ldquo;Google installer&rdquo; from the internet is <strong>not</strong> recommended."><strong>能做的和不建议做的：</strong>在手机设置里找到 Teams，打开通知权限，允许它<strong>后台运行 / 自启动</strong>，电池使用设为<strong>不限制</strong>（各品牌叫法不同：自启动、后台活动、电池优化、省电策略）。在部分手机上，这样能让 Teams 在后台多活一阵，消息来得早一些。但不能保证——手机自己的省电机制仍可能把它关掉。<strong>不建议</strong>为此换手机，也不建议从网上装所谓的"谷歌安装器"。</p>
+    <p data-en="<strong>So you do not miss class:</strong> open Teams at the times your class or group usually posts; ask your teacher to announce schedule changes early; and if you have a computer, the <strong>Teams desktop app</strong> shows notifications normally while it is running. An iPhone or iPad with Teams installed also receives notifications normally.<br>A few mainland Android phones do have Google services enabled; on those, Teams notifications may work. If yours pops up messages, nothing needs changing."><strong>为了不错过上课：</strong>在班级或小组通常发通知的时间打开 Teams 看一眼；请老师把课程变动尽早通知；有电脑的话，<strong>电脑版 Teams</strong> 开着时能正常弹提醒。装了 Teams 的 iPhone / iPad 也能正常收到提醒。<br>少数国内安卓手机开着谷歌服务，这类手机上 Teams 的提醒可能是正常的。如果您的手机能弹出消息，什么都不用改。</p>
   </details>
 
   <details class="q" id="q-admin-scan">
