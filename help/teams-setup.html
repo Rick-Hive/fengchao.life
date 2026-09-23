@@ -1481,8 +1481,8 @@
         // bind on the spot — and only fall back to the code + URL route when
         // the scan hangs. The fallback keeps the whole timed-transfer drill,
         // but as an exception exit, not the main road.
-        items.push(T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。手机上选 <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 对准电脑屏幕扫一下。<strong>大多数手机到这里就绑定成功了</strong>——验证器里出现您的账号，就点电脑上的「下一步（Next）」。',
-          '<strong>Scan the QR code</strong> appears on the computer. On the phone choose <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen. <strong>On most phones the account is linked right there</strong> — once it shows up in the authenticator, select Next on the computer.') +
+        items.push(T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。回到手机上的<strong>微软身份验证器（Authenticator）</strong>，选 <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 对准电脑屏幕扫一下。<strong>大多数手机到这里就绑定成功了</strong>——验证器里出现您的账号，就点电脑上的「下一步（Next）」。',
+          '<strong>Scan the QR code</strong> appears on the computer. Back in <strong>Microsoft Authenticator</strong> on the phone, choose <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen. <strong>On most phones the account is linked right there</strong> — once it shows up in the authenticator, select Next on the computer.') +
           shot('pc-scan-qr.jpg', T('Scan the QR code 页面', 'The Scan the QR code page'),
             T('扫这个二维码；下面那行链接是备用路', 'Scan this code; the link underneath is the fallback route'),
             '26,26,48,38', T('97,45,l|扫这个码', '97,45,l|scan this')) +
@@ -1501,8 +1501,8 @@
             '</ol>' +
           '</details>' + whySpin);
       } else {
-        items.push(T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。手机上选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准电脑屏幕扫一下。',
-          '<strong>Scan the QR code</strong> appears on the computer. On the phone choose <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen.') +
+        items.push(T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。回到手机上的<strong>微软身份验证器（Authenticator）</strong>，选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准电脑屏幕扫一下。',
+          '<strong>Scan the QR code</strong> appears on the computer. Back in <strong>Microsoft Authenticator</strong> on the phone, choose <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen.') +
           shot('pc-scan-qr.jpg', T('Scan the QR code 页面', 'The Scan the QR code page'),
             T('扫这个二维码', 'Scan this code'),
             '26,26,48,38', T('97,45,l|扫这个码', '97,45,l|scan this')) +
