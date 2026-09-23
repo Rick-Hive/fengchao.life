@@ -85,6 +85,9 @@
   .cta { display: inline-block; margin-top: 26px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; border-radius: 999px; padding: 11px 22px; }
   .cta:hover { background: var(--accent-ink); }
   footer.page { margin-top: 38px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: .81rem; }
+  details.q ol { margin: 8px 0 0; padding-left: 22px; color: var(--ink-soft); font-size: .95rem; }
+  details.q ol li { margin: 4px 0; }
+  details.q ol strong { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -202,7 +205,20 @@
 
   <details class="q" id="q-new-phone">
     <summary data-en="I changed my phone. What now?">我换了手机，怎么办？</summary>
-    <p data-en="<strong>Teams</strong>: install it on the new phone and sign in; you will be asked to verify — the prompt goes to your authenticator device. <strong>The authenticator</strong>: if it lived on the phone you replaced, contact the administrator to remove the old device, then relink on the new one by following the wizard. Installing the app on the new phone by itself does nothing — the account is not in it until it is linked again."><strong>Teams</strong>：在新手机上装好、登录，会要求验证——提示发到您的验证器设备上。<strong>验证器</strong>：如果它装在被换掉的那部手机上，请联系管理员删掉老设备，再按向导在新设备上重新绑定。只在新手机上装验证器是没用的——不重新绑定，账号不会自己出现在里面。</p>
+    <p data-en="The authenticator does not move to a new phone by itself. There are two situations.">验证器不会自己跟到新手机上。分两种情况：</p>
+    <p data-en="<strong>The old phone still works (best done before you switch):</strong> add the new phone first, then remove the old one — no administrator needed."><strong>旧手机还能用（最好在换机前做）：</strong>先把新手机加上，再删掉旧手机，全程不用找管理员。</p>
+    <ol>
+      <li data-en="Install <strong>Microsoft Authenticator</strong> on the new phone from the App Store.">在新手机上从 App Store 装好 <strong>Microsoft Authenticator</strong>。</li>
+      <li data-en="On a computer, open <code>mysignins.microsoft.com/security-info</code> in a private window, sign in, and approve with the <strong>old</strong> phone. (No computer? Open the page in the old phone's browser.)">在电脑上用浏览器无痕窗口打开 <code>mysignins.microsoft.com/security-info</code>，用学校账号登录，用<strong>旧手机</strong>批准。（没有电脑，也可以用旧手机的浏览器打开这个页面。）</li>
+      <li data-en="<strong>Add sign-in method</strong> → Microsoft Authenticator → Next until a QR code appears. On the new phone: &ldquo;+&rdquo; → Work or school account → <strong>Scan QR code</strong>, then type the two-digit number.">点<strong>「添加登录方法」</strong>→ Microsoft Authenticator，一直点下一步到出现二维码。新手机的验证器里点「+」→「工作或学校帐户」→<strong>「扫描 QR 码」</strong>，再输入两位数。</li>
+      <li data-en="If the <strong>default sign-in method</strong> on that page is still the old phone, select Change and pick the new phone's Authenticator.">如果这一页的<strong>「默认登录方法」</strong>还是旧手机，点「更改」，改成新手机的 Authenticator。</li>
+      <li data-en="In the list, find the entry with the <strong>old phone's model</strong> and select <strong>Delete</strong>. This is what actually unlinks the old phone.">在列表里找到写着<strong>旧手机型号</strong>的那一条，点<strong>「删除」</strong>。到这一步，微软那边才真正解除旧手机的绑定。</li>
+      <li data-en="Last, in the old phone's authenticator: open the school account → gear icon → <strong>Remove account</strong>.">最后，在旧手机的验证器里删掉学校账号：点进账号 → 右上角齿轮 →<strong>「删除账户」</strong>。</li>
+      <li data-en="Sign in to Teams on the new phone.">在新手机上登录 Teams。</li>
+    </ol>
+    <p data-en="<strong>Why this order:</strong> removing the account only from the old phone's authenticator is not enough — Microsoft still has the old phone on record and keeps sending requests there, so the new phone gets stuck. Deleting it on the old phone comes last."><strong>为什么是这个顺序：</strong>只在旧手机的验证器里删账号是不够的。微软那边还记着旧手机，验证请求会继续发往那里，新手机就会卡住。所以在旧手机上删除，一定放在最后。</p>
+    <p data-en="<strong>The old phone is gone (lost, broken, given away):</strong> contact <strong>the administrator who issued your account</strong> to remove the old device, then open the <a href='/help/teams-setup.html'>setup wizard</a>, choose &ldquo;I have used Teams before, and now it asks me to verify&rdquo;, and link the new phone."><strong>旧手机已经不在了（丢了、坏了、送人了）：</strong>联系<strong>为您分配账号的管理员</strong>删除旧设备，然后打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按提示在新手机上重新绑定。</p>
+    <p data-en="If your authenticator is on the administrator's phone (the Android route), changing your own phone does not affect it — just install Teams on the new phone and sign in.">如果您的验证器在管理员手机上（安卓路线），换自己的手机不影响验证器，在新手机上装好 Teams 登录即可。</p>
   </details>
 
   <h2 id="trouble" data-en="When you are stuck">卡住了</h2>
