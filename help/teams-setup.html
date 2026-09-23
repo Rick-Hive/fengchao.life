@@ -381,6 +381,8 @@
   details.intro p { margin-top: 9px; color: var(--ink-soft); }
   details.intro p strong { color: var(--ink); }
   details.intro .more { margin-top: 9px; font-size: .88rem; }
+  .main details.intro[data-side] { margin-top: 16px; }
+  .side details.intro { margin: 0 0 12px; }
   details.intro .more a { color: var(--accent-ink); font-weight: 700; }
   /* The one line that recurs on every step (Rick, 2026-09-23). */
   .sec-tip {
@@ -419,7 +421,12 @@
   <section class="card" data-screen="who">
     <div class="step-head"><span class="step-num" data-en="Step 1">第 1 步</span><h2 data-en="Which describes you?">您是哪种情况？</h2></div>
 
-    <details class="intro" open>
+    <p class="step-desc" data-en="Choose one; the steps that follow are arranged for your situation.">先选一个，后面的步骤会按您的情况安排。</p>
+    <div class="branch-pick stack" id="whoPick" role="group" aria-label="选择您的情况" data-en-label="Choose your situation"></div>
+
+    <!-- The two reading blocks ride in the right column on a wide screen (Rick,
+         2026-09-23) and sit under the choice on a phone; open either way. -->
+    <details class="intro" data-side="who" data-keep-open open>
       <summary data-en="What Teams is, and why signing in is stricter than WeChat">Teams 是什么？为什么它的登录比微信"讲究"？</summary>
       <p data-en="<strong>Microsoft Teams</strong> is Microsoft's platform for teaching and working together: lessons, announcements, course materials and messages between teachers and students all live in it. By Microsoft's own figures it has <strong>over 300 million monthly users</strong> and is used by <strong>more than a million organisations</strong> — universities and schools, hospitals, research labs, and nearly every Fortune 100 company; some 180,000 educational institutions teach in it."><strong>Microsoft Teams</strong> 是微软的教学与协作平台：上课、课堂通知、课程资料、师生沟通都在这里。按微软公布的数字，它有<strong>全球 3 亿多月活跃用户</strong>、<strong>100 多万家机构</strong>在用——大学和中小学、医院、实验室，以及几乎所有财富 100 强企业；18 万多所教育机构用它上课。</p>
       <p data-en="<strong>Why the sign-in is stricter than WeChat:</strong> WeChat is a personal app — the account is yours and your phone number is the key. Teams is an <em>organisation's</em> tool: the account was issued to you by your school or institution, and it opens the classroom, the files, the directory and everyone else's information. One stolen account hurts more than one person. So Microsoft requires <strong>a password plus a second confirmation</strong> on every work and school account worldwide — it is the same rule for a Fortune 100 company as for us, not something aimed at you."><strong>为什么比微信严：</strong>微信是个人工具，账号属于您自己，手机号就是钥匙。Teams 是<em>机构</em>的工具：账号是学校 / 机构发给您的，打开的是课堂、文件、通讯录和其他所有人的信息。一个账号被盗，受害的不只是一个人。所以微软对全球所有工作 / 学校账号一律要求<strong>"密码 + 第二重确认"</strong>——财富 100 强企业和我们是同一条规矩，不是针对谁。</p>
@@ -427,15 +434,13 @@
       <p class="more" data-en="More in the <a href='/help/teams-faq.html'>Teams &amp; Authenticator Q&amp;A</a>.">更多说明见 <a href="/help/teams-faq.html">微软 Teams 和身份验证器问答</a>。</p>
     </details>
 
-    <details class="intro" open>
+    <details class="intro" data-side="who" data-keep-open open>
       <summary data-en="What the authenticator does when you sign in">身份验证器在登录里做什么？</summary>
       <p data-en="Signing in to Teams is not only a password check. When the password is right, Microsoft hands your Teams app a few <strong>tokens</strong> — think of them as tickets: a short one (about an hour) that fetches your messages, and a long one that quietly renews the short one. From then on Teams shows tickets, not your password, which is why you can go months without typing it.">登录 Teams 不只是核对密码。密码对了，微软会发给您的 Teams 几张<strong>令牌</strong>——可以理解为"票"：一张短票（约一小时）用来取消息，一张长票用来悄悄续短票。此后 Teams 每次出示的都是票，不是密码——所以您可以几个月不输密码。</p>
       <p data-en="Each ticket carries a stamp for what was checked. Sign in with only a password and the ticket has only a &ldquo;password&rdquo; stamp; complete verification and it gains a &ldquo;verified&rdquo; stamp. When the institution requires the verified stamp, a ticket without it is sent back for verification — <strong>that is why a correct password can still be met with &ldquo;please verify&rdquo;</strong>.">每张票上都盖着"查过什么"的章。只用密码登录，票上只有"密码"章；做过身份验证，多一个"已验证"章。机构要求有"已验证"章时，没有这个章的票就会被打回去补验证——<strong>这就是"密码明明正确，却还要验证"的原因</strong>。</p>
       <p data-en="<strong>When verification is asked for:</strong> the first sign-in; a new phone or computer; after you sign out yourself; after a password change; after a long gap (about 90 days) without opening Teams; when the institution tightens its security settings. <strong>Microsoft Authenticator</strong> is the small app that applies the stamp: it shows a prompt, you type the two-digit number on the screen, and you are through."><strong>什么时候会被要求验证：</strong>第一次登录；换了新手机或新电脑；自己点了退出登录；改了密码；很久（约 90 天）没打开 Teams；机构调整了安全要求。<strong>微软身份验证器（Microsoft Authenticator）</strong>就是那个帮您盖章的小软件：它弹出提示，您输入屏幕上的两位数，就过了。</p>
     </details>
 
-    <p class="step-desc" data-en="Choose one; the steps that follow are arranged for your situation.">先选一个，后面的步骤会按您的情况安排。</p>
-    <div class="branch-pick stack" id="whoPick" role="group" aria-label="选择您的情况" data-en-label="Choose your situation"></div>
 
     <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. This account opens the institution's classes, files and directory; one verification buys years of not being hijacked.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。这个账号能进入机构的课堂、文件和通讯录，一次验证换来的是长期不被盗用。</span></div>
     <div class="actions"><span></span><button class="btn btn-primary" data-next disabled data-en="Next">下一步</button></div>
@@ -752,7 +757,7 @@
   // ---- side column ----
   var sideEl = document.getElementById("sideNotes");
   var wideMQ = window.matchMedia("(min-width: 1140px)");
-  var sideNotes = Array.prototype.map.call(document.querySelectorAll("details.why[data-side]"), function (el) {
+  var sideNotes = Array.prototype.map.call(document.querySelectorAll("details[data-side]"), function (el) {
     var slot = document.createElement("span"); slot.hidden = true;
     el.parentNode.insertBefore(slot, el);
     return { el: el, slot: slot, screen: el.getAttribute("data-side") };
@@ -765,7 +770,7 @@
         if (n.el.parentNode !== sideEl) { sideEl.appendChild(n.el); if (!n.el.classList.contains("trouble")) n.el.open = true; }
         shown++;
       } else if (n.el.parentNode === sideEl) {
-        n.el.open = false;
+        n.el.open = n.el.hasAttribute("data-keep-open");
         n.slot.parentNode.insertBefore(n.el, n.slot.nextSibling);
       }
     });
