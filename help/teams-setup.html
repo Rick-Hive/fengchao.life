@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Teams 安装和身份验证 · 蜂巢帮助</title>
-  <meta name="description" content="Teams 与微软身份验证器（Microsoft Authenticator）安装、登录与身份验证的分步向导，专为中国大陆用户设计。" />
+  <title>微软 Teams 和身份验证器设置向导 · 蜂巢帮助</title>
+  <meta name="description" content="微软 Teams 与身份验证器（Microsoft Authenticator）的安装、首次登录与身份验证向导，按新用户 / 老用户、iPhone / 安卓分路，专为中国大陆用户设计。" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
   <style>
@@ -12,19 +12,36 @@
        its own self-contained styles; no Google Fonts (unreachable in
        mainland China, which is this page's whole audience). */
     .site-back {
-      max-width: 1132px; margin: 0 auto 18px; padding-inline: 20px;
+      max-width: 1132px; margin: 0 auto 12px; padding-inline: 20px;
       display: flex; align-items: center; gap: 10px;
       font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: .9rem;
     }
     .site-back a { color: #1d4a83; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
     .site-back a:hover { text-decoration: underline; }
     .site-back img { width: 26px; height: 26px; display: block; }
+    /* The help pages share one menu bar: wizard, Q&A, demo (Rick, 2026-09-23). */
+    .helpnav {
+      max-width: 1132px; margin: 0 auto 18px; padding-inline: 20px;
+      display: flex; gap: 8px; flex-wrap: wrap;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .helpnav a {
+      text-decoration: none; font-size: .86rem; font-weight: 600; padding: 6px 15px;
+      border-radius: 999px; border: 1px solid var(--line, #dde3ec);
+      color: var(--accent-ink, #123a63); background: var(--surface, #fff);
+    }
+    .helpnav a:hover { border-color: var(--accent, #1d4a83); }
+    .helpnav a[aria-current="page"] { background: var(--accent, #1d4a83); color: #fff; border-color: var(--accent, #1d4a83); }
   </style>
 </head>
 <body>
   <div class="site-back">
     <a href="/" data-en="<img src='/assets/logo-mark.png' alt='' width='512' height='512' /> Back to Hive home"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
   </div>
+  <nav class="helpnav" aria-label="帮助页面" data-en-label="Help pages">
+    <a href="/help/teams-setup.html" aria-current="page" data-en="Setup wizard">设置向导</a>
+    <a href="/help/teams-faq.html" data-en="Teams &amp; Authenticator Q&amp;A">微软 Teams 和身份验证器问答</a>
+  </nav>
 <style>
   :root {
     /* Palette shared with the rest of fengchao.life (assets/app.css): cool
@@ -346,213 +363,280 @@
   }
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+
+  /* ---- additions for the 2026-09-23 rebuild ---- */
+  /* Two reading blocks above the first choice: what Teams is and what the
+     authenticator does. Open on arrival; a returning reader can fold them. */
+  details.intro {
+    border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px;
+    padding: 13px 16px; margin: 0 0 12px; font-size: .94rem;
+  }
+  details.intro summary {
+    cursor: pointer; font-weight: 700; color: var(--accent-ink); list-style: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  details.intro summary::-webkit-details-marker { display: none; }
+  details.intro summary::before { content: "＋"; width: 1em; font-weight: 700; color: var(--accent); }
+  details.intro[open] summary::before { content: "－"; }
+  details.intro p { margin-top: 9px; color: var(--ink-soft); }
+  details.intro p strong { color: var(--ink); }
+  details.intro .more { margin-top: 9px; font-size: .88rem; }
+  details.intro .more a { color: var(--accent-ink); font-weight: 700; }
+  /* The one line that recurs on every step (Rick, 2026-09-23). */
+  .sec-tip {
+    display: flex; gap: 9px; align-items: flex-start; margin-top: 18px;
+    font-size: .86rem; color: var(--ink-soft); border-top: 1px dashed var(--line); padding-top: 12px;
+  }
+  .sec-tip b { color: var(--accent-ink); }
+  /* The must-read block on the Android route: same shape as the intro, amber
+     edge, and the choice below it stays locked until it has been opened. */
+  details.mustread { border-left: 3px solid var(--warn); }
+  details.mustread summary { color: var(--warn); }
+  .confirm { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: .94rem; }
+  .confirm input { width: 18px; height: 18px; margin-top: 4px; accent-color: var(--accent); flex: none; }
+  .branch-pick.stack { grid-template-columns: 1fr; }
+  .branch-pick .sub { display: block; font-size: .8rem; color: var(--ink-faint); margin-top: 3px; max-width: none; }
 </style>
 
 <div class="wrap">
- <!-- Title, intro and the progress bar run above the two columns, so the side
-      column starts level with the first step card rather than beside the
-      heading (Rick, 2026-09-22). -->
  <div class="head">
   <div class="masthead">
     <div class="mast-top">
       <button type="button" class="eyebrow" id="homeBtn" title="回到向导开头" data-en-title="Back to the start" data-en="Hive Help">蜂巢帮助</button>
       <button type="button" class="lang-btn" id="langBtn">EN</button>
     </div>
-    <h1 data-en="Teams sign-in setup">Teams 登录设置向导</h1>
+    <h1 data-en="Microsoft Teams &amp; Authenticator setup wizard">微软 Teams 和身份验证器设置向导</h1>
   </div>
-
-  <!-- The "two apps" introduction used to sit here, above the steps. It now
-       rides in the side column beside step 1 (Rick, 2026-09-22) and folds
-       into the step on a narrow screen; see the first details.why in step 1. -->
-  <p class="sub intro-after" data-en="Follow the 6 steps below; it takes about 10 minutes. You only do this setup once, each step is short, and taking them in order keeps you out of trouble.">跟着下面 6 步操作，大约 10 分钟就能设置好。整个设置只做一次，每一步都很短，按顺序做就不会卡住。</p>
-  <!-- Step 1 only, like the intro: a one-minute animated run-through of the
-       six steps (help/teams-setup-demo.html), for a reader who wants to see
-       the whole shape before doing any of it. -->
-  <p class="demo-link"><a href="/help/teams-setup-demo.html" data-en="<span class='disc' aria-hidden='true'>▶</span>Watch the one-minute demo first"><span class="disc" aria-hidden="true">▶</span>先看一分钟演示，再动手</a></p>
-
+  <p class="sub intro-after" id="introAfter" data-en="Answer two questions and the wizard lays out the steps that fit you. It takes about 10 minutes, once.">先回答两个问题，向导会按您的情况排出步骤。整个设置只做一次，大约 10 分钟。</p>
   <ol class="progress" id="progress"></ol>
   <p class="progress-hint" id="progressHint" data-en="This row of steps is clickable — jump back to any step at any time.">这排步骤可以点击，随时跳回任意一步。</p>
- </div><!-- /.head -->
+ </div>
 
  <div class="layout">
   <div class="main">
 
-  <!-- STEP 1 · 手机品牌 -->
-  <section class="card" data-step="1">
-    <div class="step-head"><span class="step-num" data-en="Step 1">第 1 步</span><h2 data-en="Choose your phone">选择您的手机</h2></div>
-    <p class="step-desc" data-en="Start with the make of your phone: it decides which apps you install, where from, and how you will verify. Once you choose, every later step matches your phone automatically.">先确认您的手机品牌：它决定要装哪些软件、从哪里下载，以及用哪种方式验证。选好之后，后面每一步都会自动对应您的机型。</p>
+  <!-- ===== who ===== -->
+  <section class="card" data-screen="who">
+    <div class="step-head"><span class="step-num" data-en="Step 1">第 1 步</span><h2 data-en="Which describes you?">您是哪种情况？</h2></div>
 
-    <!-- Open on arrival wherever it lands: a first-time reader needs the two
-         names before choosing anything. Written for the customer — what the
-         software is and what they will be asked to do — not how the tenant is
-         configured; that lives in the project notes, not here. -->
-    <details class="why" data-side="1" data-keep-open open>
-      <summary data-en="Two apps to know first: Microsoft Teams and Microsoft Authenticator">先认识两个软件：Microsoft Teams 和微软身份验证器</summary>
-      <p data-en="<strong>Microsoft Teams</strong> — the classroom: lessons, announcements, course materials and messages between teachers and students all live here. <strong>Install and sign in on both the computer and the phone.</strong>"><strong>Microsoft Teams</strong> — 教学平台：上课、课堂通知、课程资料和师生沟通都在这里，<strong>电脑和手机上都要安装并登录</strong>。</p>
-      <p data-en="<strong>Microsoft Authenticator</strong> — a small app that <strong>confirms it is really you</strong> when you sign in to Teams: it shows a prompt, you type the two-digit number on the screen, and you are through. <strong>On an iPhone</strong> it lives on your own phone. <strong>A mainland Android phone</strong> has no Google services and the authenticator cannot finish linking there, so it is not installed; instead <strong>the authenticator on a teacher's (or hive coordinator's) phone scans for you</strong>. A <strong>text-message code</strong> is the other option (some phones never receive it; Microsoft ends text-message verification in February 2027)."><strong>微软身份验证器（Microsoft Authenticator）</strong> — 装在手机上的一个小软件，登录 Teams 时由它<strong>确认是您本人</strong>：它弹出提示，输入屏幕上显示的一个两位数就通过了。<strong>苹果手机</strong>装在自己手机上。<strong>国内的安卓手机</strong>没有谷歌服务，验证器在上面完成不了绑定，所以不装它，而是<strong>由老师（或蜂巢协调员）手机上的验证器帮您扫码</strong>；也可以改用<strong>短信验证</strong>（部分手机收不到；微软将于 2027 年 2 月停止短信验证）。</p>
-      <p data-en="You need to do two things:<br>1. Enter the account and password your school or organisation issued to you;<br>2. Link your account to a way of verifying (an authenticator or a text message), ready for the verification that follows.">您需要完成两件事：<br>1. 输入您的学校或机构给您分发的账户和密码；<br>2. 将您的账户和一个验证方式关联起来（验证器或短信），以备后续做身份验证。</p>
-      <p data-en="<strong>Why the extra confirmation:</strong> Microsoft requires multi-factor authentication (MFA) on every school account. In Microsoft's own words, <a href='https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mandatory-multifactor-authentication' target='_blank' rel='noopener noreferrer'>&ldquo;MFA can block more than 99.2% of account compromise attacks&rdquo;</a>."><strong>为什么要多这一步确认：</strong>微软要求所有学校账号都做多重身份验证（MFA）。微软官方的说明是：<a href="https://learn.microsoft.com/zh-cn/entra/identity/authentication/concept-mandatory-multifactor-authentication" target="_blank" rel="noopener noreferrer">「MFA 可以阻止超过 99.2% 的帐户入侵攻击」</a>。</p>
+    <details class="intro" open>
+      <summary data-en="What Teams is, and why signing in is stricter than WeChat">Teams 是什么？为什么它的登录比微信"讲究"？</summary>
+      <p data-en="<strong>Microsoft Teams</strong> is Microsoft's platform for teaching and working together: lessons, announcements, course materials and messages between teachers and students all live in it. By Microsoft's own figures it has <strong>over 300 million monthly users</strong> and is used by <strong>more than a million organisations</strong> — universities and schools, hospitals, research labs, and nearly every Fortune 100 company; some 180,000 educational institutions teach in it."><strong>Microsoft Teams</strong> 是微软的教学与协作平台：上课、课堂通知、课程资料、师生沟通都在这里。按微软公布的数字，它有<strong>全球 3 亿多月活跃用户</strong>、<strong>100 多万家机构</strong>在用——大学和中小学、医院、实验室，以及几乎所有财富 100 强企业；18 万多所教育机构用它上课。</p>
+      <p data-en="<strong>Why the sign-in is stricter than WeChat:</strong> WeChat is a personal app — the account is yours and your phone number is the key. Teams is an <em>organisation's</em> tool: the account was issued to you by your school or institution, and it opens the classroom, the files, the directory and everyone else's information. One stolen account hurts more than one person. So Microsoft requires <strong>a password plus a second confirmation</strong> on every work and school account worldwide — it is the same rule for a Fortune 100 company as for us, not something aimed at you."><strong>为什么比微信严：</strong>微信是个人工具，账号属于您自己，手机号就是钥匙。Teams 是<em>机构</em>的工具：账号是学校 / 机构发给您的，打开的是课堂、文件、通讯录和其他所有人的信息。一个账号被盗，受害的不只是一个人。所以微软对全球所有工作 / 学校账号一律要求<strong>"密码 + 第二重确认"</strong>——财富 100 强企业和我们是同一条规矩，不是针对谁。</p>
+      <p data-en="<strong>This account was not easy to come by.</strong> Businesses pay for Teams per person per month (from about US$4 for the basic plan, more with Office included). And since 2026 Microsoft has been shutting down the free personal edition of Teams in mainland China — the mobile app first, then desktop and web this summer — so a work or school account is now the only way to use Teams here. Yours was applied for by the institution and opened by an administrator, one account at a time. Ten minutes on verification buys years of using it safely."><strong>这个账号来之不易。</strong>商业版 Teams 按人按月收费（基础版每人每月约 4 美元起，含 Office 的套餐更高）。而 2026 年起微软陆续停止了中国大陆<strong>个人版（免费版）Teams</strong> 的服务——手机版先停，电脑和网页版今年夏天停——现在在国内只有工作 / 学校账号还能用 Teams。您手里这个账号，是机构申请、管理员逐个开通的。花十分钟把身份验证做好，换来的是长期安全地使用它。</p>
+      <p class="more" data-en="More in the <a href='/help/teams-faq.html'>Teams &amp; Authenticator Q&amp;A</a>.">更多说明见 <a href="/help/teams-faq.html">微软 Teams 和身份验证器问答</a>。</p>
     </details>
 
-    <!-- Why the two brands get different steps (Rick, 2026-09-22). One cause,
-         two visible effects; no mention of what was changed on the tenant. -->
-    <details class="why" data-side="1">
+    <details class="intro" open>
+      <summary data-en="What the authenticator does when you sign in">身份验证器在登录里做什么？</summary>
+      <p data-en="Signing in to Teams is not only a password check. When the password is right, Microsoft hands your Teams app a few <strong>tokens</strong> — think of them as tickets: a short one (about an hour) that fetches your messages, and a long one that quietly renews the short one. From then on Teams shows tickets, not your password, which is why you can go months without typing it.">登录 Teams 不只是核对密码。密码对了，微软会发给您的 Teams 几张<strong>令牌</strong>——可以理解为"票"：一张短票（约一小时）用来取消息，一张长票用来悄悄续短票。此后 Teams 每次出示的都是票，不是密码——所以您可以几个月不输密码。</p>
+      <p data-en="Each ticket carries a stamp for what was checked. Sign in with only a password and the ticket has only a &ldquo;password&rdquo; stamp; complete verification and it gains a &ldquo;verified&rdquo; stamp. When the institution requires the verified stamp, a ticket without it is sent back for verification — <strong>that is why a correct password can still be met with &ldquo;please verify&rdquo;</strong>.">每张票上都盖着"查过什么"的章。只用密码登录，票上只有"密码"章；做过身份验证，多一个"已验证"章。机构要求有"已验证"章时，没有这个章的票就会被打回去补验证——<strong>这就是"密码明明正确，却还要验证"的原因</strong>。</p>
+      <p data-en="<strong>When verification is asked for:</strong> the first sign-in; a new phone or computer; after you sign out yourself; after a password change; after a long gap (about 90 days) without opening Teams; when the institution tightens its security settings. <strong>Microsoft Authenticator</strong> is the small app that applies the stamp: it shows a prompt, you type the two-digit number on the screen, and you are through."><strong>什么时候会被要求验证：</strong>第一次登录；换了新手机或新电脑；自己点了退出登录；改了密码；很久（约 90 天）没打开 Teams；机构调整了安全要求。<strong>微软身份验证器（Microsoft Authenticator）</strong>就是那个帮您盖章的小软件：它弹出提示，您输入屏幕上的两位数，就过了。</p>
+    </details>
+
+    <p class="step-desc" data-en="Choose one; the steps that follow are arranged for your situation.">先选一个，后面的步骤会按您的情况安排。</p>
+    <div class="branch-pick stack" id="whoPick" role="group" aria-label="选择您的情况" data-en-label="Choose your situation"></div>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. This account opens the institution's classes, files and directory; one verification buys years of not being hijacked.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。这个账号能进入机构的课堂、文件和通讯录，一次验证换来的是长期不被盗用。</span></div>
+    <div class="actions"><span></span><button class="btn btn-primary" data-next disabled data-en="Next">下一步</button></div>
+  </section>
+
+  <!-- ===== dev ===== -->
+  <section class="card" data-screen="dev" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Which phone do you use?">您用的是哪种手机？</h2></div>
+    <p class="step-desc" data-en="Brand does not matter here — only whether it is Apple or Android. That single fact decides where the authenticator can live.">这里不分品牌，只分苹果还是安卓。这一点决定了验证器能装在哪里。</p>
+
+    <details class="why" data-side="dev">
       <summary data-en="Why is an Android phone different from an iPhone?">安卓手机为什么和苹果不同？</summary>
-      <p data-en="<strong>iPhone:</strong> both apps are in the App Store, and at sign-in the authenticator <strong>scans a QR code</strong> and the account is linked — the simplest route of all."><strong>苹果 iPhone：</strong>两个软件都在 App Store 里，登录时用验证器<strong>扫一下二维码</strong>就绑定好了——全程最省事。</p>
-      <p data-en="<strong>Android phones sold in mainland China</strong> ship without Google services. Linking an account in Microsoft Authenticator goes through a Google channel, and a phone without Google services spins and never gets an answer — scanning and typing the code alike; we tried on a real Huawei. So an Android phone <strong>does not get the authenticator</strong> and takes one of two routes: <strong>a teacher (or hive coordinator) scans for you</strong> with the authenticator on their phone, or you use <strong>a text-message code</strong>. Once signed in, Teams stays signed in, so nobody has to be asked every time."><strong>国内销售的安卓手机</strong>出厂不带谷歌服务。微软身份验证器绑定账号时要经过谷歌的通道登记，没有谷歌服务的手机会一直转圈，等不到结果——扫码、手动输入代码都一样，我们在华为真机上试过。所以安卓手机<strong>不装验证器</strong>，走两条路之一：<strong>请老师（或蜂巢协调员）用他手机上的验证器帮您扫码</strong>，或者用<strong>短信验证码</strong>。Teams 一次登录成功后会一直保持登录，不用每次都找人。</p>
-      <p data-en="None of this is a fault in your phone, and there is no need for a different one — the wizard gives the steps that match the brand you choose.">这不是您手机的问题，也不用换手机——向导会按您选的品牌给出对应的步骤。</p>
+      <p data-en="<strong>iPhone / iPad:</strong> Teams and Microsoft Authenticator both come from the App Store, and the authenticator on your own device does the verifying."><strong>iPhone / iPad：</strong>Teams 和微软身份验证器都在 App Store 里，验证器装在您自己的设备上，自己完成验证。</p>
+      <p data-en="<strong>Android phones sold in mainland China</strong> ship without Google services. Microsoft Authenticator links an account through a Google channel, and without it the linking never completes — we tried every route on a real Huawei: scanning, typing the code, the app's own code mode. <strong>Teams itself installs and runs fine on these phones.</strong> Only the authenticator has to live somewhere else: an iPhone or iPad of yours, or your administrator's phone."><strong>国内销售的安卓手机</strong>出厂不带谷歌服务。微软身份验证器绑定账号要经过谷歌的通道，没有它就永远完成不了——我们在华为真机上把扫码、手动输入、验证码模式都试过了。<strong>Teams 本身在这些手机上安装、使用都没问题</strong>，只是验证器得放在别处：您自己的 iPhone 或 iPad，或者管理员的手机。</p>
     </details>
 
-    <div class="choice-grid" id="phoneChoices" role="group" aria-label="选择手机品牌" data-en-label="Choose your phone brand"></div>
+    <div class="branch-pick" id="devPick" role="group" aria-label="选择手机类型" data-en-label="Choose your phone type"></div>
 
-    <div class="actions"><span></span><button class="btn btn-primary" id="s1next" data-en="Next" disabled>下一步</button></div>
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Verification is what keeps a leaked password from becoming a hijacked account.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。密码万一泄露，验证这一步就是账号不被拿走的最后一道门。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next disabled data-en="Next">下一步</button></div>
   </section>
 
-  <!-- STEP 2 · 安装两个软件 -->
-  <section class="card" data-step="2" hidden>
-    <div class="step-head"><span class="step-num" data-en="Step 2">第 2 步</span><h2 id="s2title" data-en="Install both apps on your phone">先在手机上装好这两个软件</h2></div>
-    <p class="step-desc" id="s2desc"></p>
+  <!-- ===== ios-install (new user) ===== -->
+  <section class="card" data-screen="ios-install" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Install both apps on your iPhone or iPad">先在 iPhone / iPad 上装好两个软件</h2></div>
+    <p class="step-desc" data-en="Both come from the App Store, and <strong>you need both</strong>. Install Microsoft Authenticator first — signing in depends on it.">两个软件都在 App Store 里，<strong>两个都要装</strong>。先装微软身份验证器，它是登录的前提。</p>
 
-    <!-- Android only (Rick, 2026-09-22): the authenticator or a text-message
-         code, side by side. iPhone owners are not asked — scanning simply
-         works there — and the choice comes before installing, because the
-         text-message route does not need the authenticator at all. -->
-    <details class="why" id="s2whyPick" data-side="2" hidden>
-      <summary data-en="Teacher scans, or text message — how to choose?">请老师帮扫和短信，怎么选？</summary>
-      <p data-en="<strong>Why not simply install the authenticator on this phone?</strong> Android phones sold in mainland China have no Google services, and without them Microsoft Authenticator cannot finish linking an account — we tried every route on a real Huawei. So the authenticator lives on a phone that can run it, and yours only needs Teams."><strong>为什么不直接在这部手机上装验证器？</strong>国内销售的安卓手机没有谷歌服务，微软身份验证器在这种手机上完成不了绑定——我们在华为真机上把各种办法都试过了。所以验证器放在一部能用它的手机上，您的手机只装 Teams。</p>
-      <p data-en="<strong>The teacher scans for you:</strong> quickest, nothing to install, no text message involved. The teacher's (or a hive coordinator's) authenticator holds your account, so when Teams asks to verify again — after a new phone, a sign-out or a password change — you ask them once more. That is rare: Teams stays signed in. Your own iPad or iPhone can take the teacher's place; the steps are identical."><strong>请老师帮扫：</strong>最快，不用装东西，不依赖短信。您的账号会记在老师（或蜂巢协调员）的验证器里，以后 Teams 再要求验证时——换了手机、退出了登录、改了密码——再找他一次。这种情况很少，Teams 登录后会一直保持。您自己另有 iPad 或 iPhone 的，也可以用它代替老师的手机，步骤完全一样。</p>
-      <p data-en="<strong>Text message code:</strong> you finish it on your own — each sign-in, a 6-digit code is sent to your phone. Two things to know: <strong>some phones or carriers never receive Microsoft's messages</strong> (a Huawei on a Shenzhen carrier did not, in our test), and <strong>Microsoft stops offering text-message verification in February 2027</strong>, when we will help you switch."><strong>手机短信验证码：</strong>自己就能完成——每次登录时微软发一条 6 位数的短信到您手机。两点要知道：<strong>部分手机 / 运营商收不到微软的短信</strong>（我们测试的一部华为、深圳运营商就收不到）；而且<strong>微软从 2027 年 2 月起不再提供短信验证</strong>，届时我们会帮您切换。</p>
+    <div class="app-block"><h3 data-en="Microsoft Authenticator <span class='pill must'>required</span>">微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>
+      <p data-en="Open the App Store → search <code>Authenticator</code> → install.">打开 App Store → 搜索 <code>Authenticator</code> → 安装。</p>
+      <p class="identify" data-en="How to recognise it: <strong>Microsoft Authenticator</strong>, a <strong>blue padlock</strong> icon, developer <strong>Microsoft Corporation</strong>.">怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。</p></div>
+    <div class="app-block"><h3>Microsoft Teams <span class="pill must" data-en="required">必装</span></h3>
+      <p data-en="Open the App Store → search <code>Microsoft Teams</code> → install.">打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。</p></div>
+    <div class="note good" data-en="<strong>Install both, and do not sign in yet.</strong> The first sign-in happens on another device in the next two steps; the phone joins in at the end."><strong>两个都装好就行，先别登录。</strong>第一次登录要在另一台设备上做（接下来两步），手机最后再登。</div>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Two apps, once — then everyday sign-in is one tap.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。两个软件装一次，以后日常登录只是手机上确认一下。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="Both installed — next">装好了，下一步</button></div>
+  </section>
+
+  <!-- ===== ios-check (returning user) ===== -->
+  <section class="card" data-screen="ios-check" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Check the authenticator on your iPhone or iPad">先检查 iPhone / iPad 上的验证器</h2></div>
+    <p class="step-desc" data-en="You have signed in before and Teams now asks you to verify. Which of these is you?">您以前登录过，现在 Teams 要求验证。您是下面哪种情况？</p>
+
+    <details class="why" data-side="ios-check">
+      <summary data-en="Where did my verification go? Why do I get nothing?">我的验证码发到哪里了？为什么收不到？</summary>
+      <p data-en="The prompt goes to <strong>the device whose authenticator was linked to your account</strong> — not to whichever phone you are holding. The commonest case: you set it up on an old iPhone or iPad, later changed phones and installed the authenticator again on the new one. The new app knows nothing about your account; the prompt still goes to the old device.">提示只会发到<strong>当初和您账号绑定的那台设备的验证器</strong>上，不是您手里正拿着的这部。最常见的情况：当初在一部老 iPhone / iPad 上设置的，后来换了手机、在新手机上又装了验证器——新验证器里并没有您的账号，提示仍然发往老设备。</p>
+      <p data-en="If the old device is still around, open its authenticator: the request is waiting there. If it is gone, contact <strong>the administrator who issued your account</strong>, ask them to remove the old device, and then link the authenticator on the new one following this wizard.">老设备还在，打开它上面的验证器，请求就在里面。老设备已经没了，请联系<strong>给您分配账号的管理员</strong>，让他把老设备删掉，然后按本向导在新设备上重新绑定。</p>
     </details>
 
+    <div class="branch-pick stack" id="checkPick" role="group" aria-label="验证器状态" data-en-label="Authenticator status"></div>
+    <div id="checkContent"></div>
 
-    <div id="methodPickWrap" hidden>
-      <p style="font-weight:700;margin-bottom:9px;" data-en="How would you like to verify when signing in?">登录时用哪种方式验证？</p>
-      <div class="branch-pick" id="methodPick" role="group" aria-label="选择验证方式" data-en-label="Choose how you verify"></div>
-      <div id="methodNote" hidden></div>
-    </div>
-
-    <div id="s2content"></div>
-    <div class="actions">
-      <button class="btn btn-ghost" data-back data-en="Back">上一步</button>
-      <button class="btn btn-primary" id="s2next" data-next="3" data-en="Both installed — next">装好了，下一步</button>
-    </div>
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. A prompt that only your own device can answer is what makes the account yours.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。只有您自己的设备能回应的提示，才让这个账号真正属于您。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next disabled data-en="Next">下一步</button></div>
   </section>
 
-  <!-- STEP 3 · 选设备 -->
-  <section class="card" data-step="3" hidden>
-    <div class="step-head"><span class="step-num" data-en="Step 3">第 3 步</span><h2 data-en="Sign in on a computer or on the phone?">用电脑还是手机登录？</h2></div>
-    <p class="step-desc" id="s3desc"></p>
+  <!-- ===== second (iOS: another device for the first sign-in) ===== -->
+  <section class="card" data-screen="second" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Get a second device ready for the first sign-in">准备另一台设备做第一次登录</h2></div>
+    <p class="step-desc" data-en="Linking works by <strong>scanning a QR code with the authenticator</strong> — and a phone cannot scan its own screen. So the QR code has to appear on <strong>another device</strong>: sign in there first, scan with your iPhone or iPad, and sign in on the phone afterwards.">绑定靠<strong>验证器扫二维码</strong>，而手机扫不了自己屏幕上的码。所以二维码要显示在<strong>另一台设备</strong>上：先在那台设备上登录，用 iPhone / iPad 扫，最后再在手机上登录。</p>
 
-    <div class="branch-pick" id="devicePick" role="group" aria-label="选择登录设备" data-en-label="Choose the device you sign in on"></div>
-    <div id="deviceNote" hidden></div>
-
-    <div class="actions">
-      <button class="btn btn-ghost" data-back data-en="Back">上一步</button>
-      <button class="btn btn-primary" id="s3next" data-en="Next" disabled>下一步</button>
-    </div>
-  </section>
-
-  <!-- STEP 4 · 浏览器与无痕窗口 -->
-  <section class="card" data-step="4" hidden>
-    <div class="step-head"><span class="step-num" data-en="Step 4">第 4 步</span><h2 id="s4title">选对浏览器，开无痕窗口</h2></div>
-    <p class="step-desc" id="s4desc"></p>
-
-    <details class="why" data-side="4">
+    <details class="why" data-side="second">
       <summary data-en="Why does it have to be a private window? (this one matters — open it)">为什么一定要用无痕窗口？（很关键，点开看看）</summary>
       <p data-en="A private window is a clean window that carries no history. Using one for the first-time setup avoids the three most common causes of failure in one move: <strong>another Microsoft account already signed in</strong> (which quietly pushes you onto the wrong account), <strong>a cached old sign-in page</strong> (the main source of those AADSTS error strings), and <strong>an old password filled in automatically</strong>.">无痕窗口是一个"干净"的窗口，不带任何记录。首次设置时用它，可以一次避开三个最常见的失败原因：<strong>浏览器里已经登录着别的微软账号</strong>（会自动把您顶到错的账号上）、<strong>旧的缓存登录页面</strong>（就是那串 AADSTS 英文报错的主要来源）、<strong>自动填充了旧密码</strong>。</p>
-      <p data-en="Once setup succeeds, go back to an ordinary window for daily use — a private window forgets you the moment it closes, so you would have to verify every single time.">设置成功之后，日常使用就改回普通窗口——无痕窗口一关就不记得登录状态，每次都要重新输验证码，日常用反而麻烦。</p>
+      <p data-en="Once setup succeeds, go back to an ordinary window for daily use — a private window forgets you the moment it closes.">设置成功之后，日常使用就改回普通窗口——无痕窗口一关就不记得登录状态。</p>
     </details>
 
-    <div id="osPickWrap" hidden>
-      <p style="font-weight:700;margin-bottom:9px;" data-en="Which system is your computer?">您的电脑是哪种系统？</p>
-      <div class="branch-pick" id="osPick" role="group" aria-label="选择电脑系统" data-en-label="Choose your computer's system"></div>
-    </div>
+    <p style="font-weight:700;margin-bottom:9px;" data-en="Which device will show the QR code?">用哪台设备显示二维码？</p>
+    <div class="branch-pick" id="secondPick" role="group" aria-label="选择第二台设备" data-en-label="Choose the second device"></div>
+    <div id="secondContent"></div>
 
-    <div id="s4content"></div>
-
-    <div class="actions">
-      <button class="btn btn-ghost" data-back data-en="Back">上一步</button>
-      <button class="btn btn-primary" id="s4next" data-en="Window is open — next">窗口打开了，下一步</button>
-    </div>
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. The QR code is a one-time secret between Microsoft and your authenticator; nobody else's phone can copy it.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。二维码是微软和您的验证器之间的一次性密文，别人的手机拿不走。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next disabled data-en="Window is open — next">窗口打开了，下一步</button></div>
   </section>
 
-  <!-- STEP 5 · 登录绑定 -->
-  <section class="card" data-step="5" hidden>
-    <div class="step-head"><span class="step-num" data-en="Step 5">第 5 步</span><h2 id="s5title" data-en="Sign in and link the authenticator">登录并绑定验证</h2></div>
-    <p class="step-desc" id="s5desc"></p>
+  <!-- ===== signin-pc (iOS) ===== -->
+  <section class="card" data-screen="signin-pc" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Sign in and link the authenticator">登录并绑定验证器</h2></div>
+    <p class="step-desc" id="pcDesc"></p>
+    <ol class="steps" id="pcSteps"></ol>
 
-    <ol class="steps" id="s5steps"></ol>
-    <div class="note plain" id="s5tip"></div>
-
-    <!-- The three things that actually go wrong, kept at the step where they go
-         wrong rather than in a list at the foot of the page (Rick, 2026-09-21).
-         They appear here once; no other step repeats them. -->
-    <details class="why trouble" data-side="5">
+    <details class="why trouble" data-side="signin-pc">
       <summary data-en="Stuck signing in? Three things that actually happen">登录卡住了？三种常见情况</summary>
-      <p data-en="<strong>① The Teams sign-in page (<code>teams.microsoft.com</code>) will not open, spins forever, or comes up blank.</strong> The Teams app on a phone hanging at the splash screen is the same thing. This is not something you did wrong. Microsoft's servers are outside mainland China, so traffic crosses the border, and Microsoft's own documentation says those links are <a href='https://learn.microsoft.com/en-us/microsoft-365/enterprise/microsoft-365-networking-china?view=o365-worldwide' target='_blank' rel='noopener noreferrer'>prone to severe cross-border network congestion</a>, with packet loss and latency. Three things worth trying: pick another time of day — early morning and late evening are usually much smoother; switch from broadband Wi-Fi to mobile data, or the other way round; and type <code>teams.microsoft.com</code> straight into the address bar. If it keeps failing, there is no point retrying over and over."><strong>① Teams 登录页面（<code>teams.microsoft.com</code>）打不开、一直转圈或显示空白。</strong>手机上用 Teams App 登录时卡在启动画面，也是同一回事。这不是您的操作问题。微软的服务器在境外，国内访问要走跨境线路，微软官方文档的原话是这些线路「<a href="https://learn.microsoft.com/zh-cn/microsoft-365/enterprise/microsoft-365-networking-china?view=o365-worldwide" target="_blank" rel="noopener noreferrer">容易出现严重的跨境网络拥堵</a>」，并会导致丢包和延迟。可以试三件事：换个时段，清早和深夜通常顺畅得多；宽带 Wi-Fi 换成手机流量，或反过来；在地址栏直接输入 <code>teams.microsoft.com</code>。反复不行就不必一直重试。</p>
-      <p data-en="<strong>② An error string in English appears, such as AADSTS900561.</strong> These come from stale cache or an old link in the browser, not from a problem with your account. Close the page, go back to step 4 and open a fresh private window, then <strong>type</strong> <code>teams.microsoft.com</code> in the address bar yourself — do not use an old bookmark. Walking through it again normally works."><strong>② 弹出一串英文报错，比如 AADSTS900561。</strong>这类报错来自浏览器里的旧缓存或旧链接，不是账号有问题。关掉页面，回第 4 步重新开一个无痕窗口，在地址栏<strong>手动输入</strong> <code>teams.microsoft.com</code>，不要用收藏夹里的旧链接。重走一遍通常就正常。</p>
-      <p id="trouble3" data-en="<strong>③ The verification code keeps being rejected, or says it has expired.</strong> Do not keep trying. <strong>Delete</strong> this account inside Microsoft Authenticator and <strong>link it again</strong> from this step (use copy and paste this time); it works immediately once linked. If it is still wrong after relinking, set the phone's clock to <strong>Automatic</strong>."><strong>③ 验证码一直不对，或提示已过期。</strong>不用反复试。在微软身份验证器里把这个账号<strong>删掉</strong>，回到本步<strong>重新绑定一次</strong>（这次用复制粘贴），绑好马上就能用。如果重新绑定后还是不对，请把手机时间改成<strong>「自动设置」</strong>。</p>
+      <p data-en="<strong>① The Teams sign-in page (<code>teams.microsoft.com</code>) will not open, spins forever, or comes up blank.</strong> This is not something you did wrong. Microsoft's servers are outside mainland China and the cross-border links are congested. Try another time of day (early morning and late evening are usually smoother), switch between Wi-Fi and mobile data, and type <code>teams.microsoft.com</code> straight into the address bar."><strong>① Teams 登录页面（<code>teams.microsoft.com</code>）打不开、一直转圈或显示空白。</strong>这不是您的操作问题。微软的服务器在境外，跨境线路常常拥堵。可以换个时段（清早和深夜通常顺畅得多）、宽带 Wi-Fi 和手机流量互换、在地址栏直接输入 <code>teams.microsoft.com</code>。</p>
+      <p data-en="<strong>② An error string in English appears, such as AADSTS900561.</strong> Stale cache or an old link. Close the page, open a fresh private window, and <strong>type</strong> <code>teams.microsoft.com</code> yourself — do not use an old bookmark."><strong>② 弹出一串英文报错，比如 AADSTS900561。</strong>来自浏览器里的旧缓存或旧链接。关掉页面，重新开一个无痕窗口，在地址栏<strong>手动输入</strong> <code>teams.microsoft.com</code>，不要用收藏夹里的旧链接。</p>
+      <p data-en="<strong>③ The authenticator shows nothing when the two-digit number appears.</strong> Open the authenticator by hand; the request is usually waiting inside. If not, your account may be linked to another device — see the note &ldquo;Where did my verification go?&rdquo; and contact your administrator."><strong>③ 出现两位数时验证器没有任何提示。</strong>先手动打开验证器，请求通常就在里面。还是没有，您的账号可能绑在另一台设备上——见「我的验证码发到哪里了」那条，联系管理员。</p>
     </details>
-    <div class="actions">
-      <button class="btn btn-ghost" data-back data-en="Back">上一步</button>
-      <button class="btn btn-primary" data-next="6" data-en="I'm signed in">登录成功了</button>
-    </div>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. This is the one time the linking happens; from now on it is a two-digit number.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。绑定只做这一次，以后每次就是输一个两位数。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="I'm signed in">登录成功了</button></div>
   </section>
 
-  <!-- STEP 6 · 核对 -->
-  <section class="card" data-step="6" hidden>
-    <div class="step-head"><span class="step-num" data-en="Step 6">第 6 步</span><h2 data-en="Check these, and you're done">核对一下，就完成了</h2></div>
+  <!-- ===== android-verifier ===== -->
+  <section class="card" data-screen="android-verifier" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Where will your authenticator live?">您的验证器放在哪里？</h2></div>
+    <p class="step-desc" data-en="Your Android phone <strong>can</strong> install and run Teams. What it cannot do is run the authenticator. Read the short explanation below, then tell us which applies to you.">您的安卓手机<strong>可以</strong>安装和使用 Teams。它做不了的是运行验证器。请先读下面这段短说明，再告诉我们您属于哪种情况。</p>
+
+    <details class="intro mustread" id="mustRead" open>
+      <summary data-en="Why the authenticator cannot run on a mainland Android phone (please read)">为什么验证器不能装在国内的安卓手机上（请读一下）</summary>
+      <p data-en="Android phones sold in mainland China ship without Google services. Microsoft Authenticator links a work account through a Google channel; without that channel the linking spins and never completes. We tested this on a real Huawei by every route Microsoft offers — scanning the QR code, typing the code and URL, the app's own code-only mode — and none of them finished. Microsoft's own support answers say the same: push notifications do not work on Android in China.">国内销售的安卓手机出厂不带谷歌服务。微软身份验证器绑定工作账号时要经过谷歌的通道，没有这条通道，绑定就一直转圈、永远完成不了。我们在华为真机上把微软提供的每条路都试了——扫二维码、手动输入代码和网址、验证器自己的验证码模式——没有一条能走完。微软自己的支持问答也是这么说的：中国的安卓手机收不到推送。</p>
+      <p data-en="So: <strong>Teams goes on your Android phone; the authenticator goes on an iPhone or iPad.</strong> It can be your own (an old one is fine), a family member's that stays at home, or — if you have none — your administrator's phone, who then scans for you.">所以：<strong>Teams 装在您的安卓手机上，验证器装在一部 iPhone 或 iPad 上。</strong>可以是您自己的（旧的也行）、家里常在的一部家人的，或者——都没有的话——管理员的手机，由他帮您扫码。</p>
+      <p data-en="Text-message codes are not offered here: in our tests Microsoft's messages often never reached mainland phones, and Microsoft ends text-message verification in February 2027.">这里不再提供短信验证码：我们测试时微软的短信常常到不了国内手机，而且微软将于 2027 年 2 月停止短信验证。</p>
+    </details>
+
+    <p style="font-weight:700;margin:14px 0 9px;" data-en="Which applies to you?">您属于哪种？</p>
+    <div class="branch-pick stack" id="verifierPick" role="group" aria-label="验证器放在哪里" data-en-label="Where the authenticator lives"></div>
+    <label class="confirm" id="confirmWrap" hidden><input type="checkbox" id="confirmOwn"> <span data-en="I have an iPhone or iPad at hand right now, and it will stay with me — future verification prompts go to it.">我手头现在就有一部 iPhone 或 iPad，而且它会一直在我身边——以后的验证提示都发到它上面。</span></label>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Microsoft will not lower the bar for one region; we route around it instead.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。微软不会为某个地区降低门槛，我们只能绕路过去。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next disabled data-en="Next">下一步</button></div>
+  </section>
+
+  <!-- ===== ios-auth (Android + own iPhone/iPad) ===== -->
+  <section class="card" data-screen="ios-auth" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Install the authenticator on your iPhone or iPad">在 iPhone / iPad 上装好验证器</h2></div>
+    <p class="step-desc" data-en="Only the authenticator goes on this device; Teams stays on your Android phone.">这台设备上只装验证器；Teams 装在您的安卓手机上。</p>
+
+    <details class="why" data-side="ios-auth">
+      <summary data-en="Where did my verification go? Why do I get nothing?">我的验证码发到哪里了？为什么收不到？</summary>
+      <p data-en="Every future prompt goes to <strong>this iPhone or iPad</strong> — not to your Android phone, and not to a newer iPhone you might buy later. If you ever replace it and install the authenticator on the new one, the prompts still go to the old device. Then contact <strong>the administrator who issued your account</strong> to remove the old device, and link the new one again by following this wizard.">以后每一次验证提示都发到<strong>这部 iPhone / iPad</strong> 上——不发到您的安卓手机，也不会自动转到您以后新买的 iPhone。哪天换了设备、在新设备上又装了验证器，提示仍然发往老设备。那时请联系<strong>给您分配账号的管理员</strong>删掉老设备，再按本向导在新设备上重新绑定。</p>
+    </details>
+
+    <div class="app-block"><h3 data-en="Microsoft Authenticator <span class='pill must'>required</span>">微软身份验证器（Microsoft Authenticator） <span class="pill must">必装</span></h3>
+      <p data-en="On the iPhone or iPad: open the App Store → search <code>Authenticator</code> → install.">在 iPhone / iPad 上：打开 App Store → 搜索 <code>Authenticator</code> → 安装。</p>
+      <p class="identify" data-en="How to recognise it: <strong>Microsoft Authenticator</strong>, a <strong>blue padlock</strong> icon, developer <strong>Microsoft Corporation</strong>.">怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。</p></div>
+    <div class="note warn" data-en="<strong>Keep this device safe and close by.</strong> From now on, every verification prompt for your Teams account arrives on it."><strong>请妥善保管这台设备，并且放在身边。</strong>以后您 Teams 账号的每一次验证提示，都会发到它上面。</div>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. A prompt that lands on a device you hold is the whole point.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。提示落在您自己拿着的设备上，这才是验证的意义。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="Installed — next">装好了，下一步</button></div>
+  </section>
+
+  <!-- ===== brand (Android: choose brand, install Teams) ===== -->
+  <section class="card" data-screen="brand" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Install Teams on your Android phone">在安卓手机上装好 Teams</h2></div>
+    <p class="step-desc" data-en="Choose the brand and we name the store to use. Only Teams is installed here.">选一下品牌，我们告诉您从哪个商店装。这部手机只装 Teams。</p>
+    <div class="choice-grid" id="brandPick" role="group" aria-label="选择手机品牌" data-en-label="Choose your phone brand"></div>
+    <div id="brandContent" style="margin-top:14px;"></div>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Installing from the phone's own store keeps a tampered copy off your phone.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。从手机自带商店安装，能避免装到被改过的版本。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next disabled data-en="Teams installed — next">Teams 装好了，下一步</button></div>
+  </section>
+
+  <!-- ===== signin-android (own iPhone/iPad scans) ===== -->
+  <section class="card" data-screen="signin-android" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Sign in on the Android phone, scan with the iPhone or iPad">安卓手机登录，iPhone / iPad 扫码</h2></div>
+    <p class="step-desc" data-en="Keep both devices in front of you. The Android phone shows the QR code; the iPhone or iPad scans it.">两台设备都放在面前。安卓手机显示二维码，iPhone / iPad 负责扫。</p>
+    <ol class="steps" id="androidSteps"></ol>
+
+    <details class="why trouble" data-side="signin-android">
+      <summary data-en="Stuck signing in? Three things that actually happen">登录卡住了？三种常见情况</summary>
+      <p data-en="<strong>① Teams will not open or spins forever.</strong> Cross-border congestion, not your fault. Try another time of day, switch between Wi-Fi and mobile data."><strong>① Teams 打不开或一直转圈。</strong>跨境线路拥堵，不是您的问题。换个时段，Wi-Fi 和流量互换。</p>
+      <p data-en="<strong>② The QR code expired before the scan.</strong> Select <strong>Next</strong> on the Android phone; a fresh code appears."><strong>② 还没扫完二维码就过期了。</strong>在安卓手机上点「下一步（Next）」，会给一个新的码。</p>
+      <p data-en="<strong>③ The iPhone or iPad shows nothing when the two-digit number appears.</strong> Open the authenticator by hand; the request is usually waiting inside. If a wrong number was typed, select Next on the Android phone for a fresh one."><strong>③ 出现两位数时 iPhone / iPad 上没有提示。</strong>手动打开验证器，请求通常就在里面。数字输错了，在安卓手机上点「下一步」换一个新的。</p>
+    </details>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Two devices, once — then Teams stays signed in on the phone.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。两台设备配合一次，之后手机上的 Teams 一直保持登录。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="I'm signed in">登录成功了</button></div>
+  </section>
+
+  <!-- ===== signin-admin (administrator scans) ===== -->
+  <section class="card" data-screen="signin-admin" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Sign in with your administrator scanning for you">登录，请管理员帮您扫码</h2></div>
+    <p class="step-desc" data-en="<strong>Book a time with the administrator who issued your account first.</strong> They need Microsoft Authenticator on their phone. Beside you is easiest; a video call works too — you hold your Android screen up to the camera."><strong>先和给您分配账号的管理员约好时间。</strong>他的手机上要有微软身份验证器。他在您身边最省事；视频通话也行——您把安卓手机的屏幕对着摄像头。</p>
+    <ol class="steps" id="adminSteps"></ol>
+
+    <details class="why" data-side="signin-admin">
+      <summary data-en="What it means when the administrator scans for you">管理员帮我扫码，意味着什么？</summary>
+      <p data-en="Your account's authenticator then lives on the administrator's phone. Everything works the same for you day to day — Teams stays signed in. When Teams asks to verify again (a new phone, a sign-out, a password change), <strong>the prompt goes to the administrator</strong>: message them in Teams, tell them the two-digit number on your screen, and they confirm it.">您账号的验证器就记在管理员的手机上。日常使用对您没有任何区别——Teams 一直保持登录。哪天 Teams 又要求验证（换手机、退出登录、改密码），<strong>提示会发到管理员那里</strong>：在 Teams 里给他发消息，把您屏幕上的两位数告诉他，他确认一下即可。</p>
+      <p data-en="If you later get an iPhone or iPad of your own, ask the administrator to move the authenticator over: they remove their entry and you link your own device following this wizard.">以后如果您有了自己的 iPhone 或 iPad，可以请管理员把验证器"搬"过来：他删掉他手机上的登记，您按本向导在自己的设备上重新绑定。</p>
+    </details>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Even the administrator only confirms a number you read to them — nobody signs in as you without you.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。连管理员也只能确认您念给他的数字——没有您，谁也不能以您的身份登录。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="I'm signed in">登录成功了</button></div>
+  </section>
+
+  <!-- ===== done ===== -->
+  <section class="card" data-screen="done" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Check these, and you're done">核对一下，就完成了</h2></div>
     <p class="step-desc" data-en="Tick all of these and the setup is completely finished.">下面几项都打上勾，说明已经彻底设置好了。</p>
-
-    <!-- Built in script: the items differ between the authenticator and the
-         text-message route (Rick, 2026-09-22). -->
     <div class="checklist" id="checklist"></div>
-
     <div class="note good" id="doneNote" hidden></div>
-    <div class="note plain" id="dailyTip" data-en="<strong>One tip for daily use:</strong> if you use Teams on a computer often, install the <strong>Teams desktop app</strong>. The web version reloads everything each time, which is slow over cross-border links; the desktop app caches content locally and opens faster and more reliably. (If sign-in ever breaks again, though, the private web window is still the easiest place to troubleshoot.)" hidden>
-      <strong>日常使用的小建议：</strong>如果您经常在电脑上用 Teams，建议装一个 <strong>Teams 桌面版</strong>。网页版每次都要重新加载全部内容，在国内跨境线路上容易慢；桌面版会把内容缓存在本地，日常打开更快更稳。（但如果以后登录又出问题，排查时还是回到无痕网页版最方便。）
+    <div class="note plain" id="dailyTip" data-en="<strong>One tip for daily use:</strong> if you use Teams on a computer often, install the <strong>Teams desktop app</strong>. The web version reloads everything each time, which is slow over cross-border links; the desktop app caches content locally and opens faster." hidden>
+      <strong>日常使用的小建议：</strong>如果您经常在电脑上用 Teams，建议装一个 <strong>Teams 桌面版</strong>。网页版每次都要重新加载全部内容，在跨境线路上容易慢；桌面版会把内容缓存在本地，日常打开更快更稳。
     </div>
-
-    <div class="actions">
-      <button class="btn btn-ghost" data-back data-en="Back">上一步</button>
-      <button class="btn btn-primary" id="restart" data-en="Start over">从头再走一遍</button>
-    </div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" id="restart" data-en="Start over">从头再走一遍</button></div>
   </section>
 
   <div class="faq">
-    <h2 style="margin-bottom:5px;" data-en="Still stuck?">还有问题？</h2>
-    <p class="sub" style="margin-bottom:6px;" data-en="The three things that commonly go wrong while signing in are answered inside step 5. These are separate.">登录过程中卡住的三种常见情况，答案在第 5 步里。下面这几条是另外的。</p>
-
-    <details class="faq-item">
-      <summary data-en="Teams is asking me to verify again (new phone, signed out, changed password)">Teams 又要求验证了（换了手机 / 退出了登录 / 改了密码）</summary>
-      <p data-en="This is normal after any of those three. Enter your account and password as usual; then, if the teacher's authenticator holds your account, tell the teacher the two-digit number on your screen and they confirm it in their app. If you verify by text message, type in the code that arrives. Either way there is nothing to set up again.">这三种情况之后要求验证是正常的。照常输入账号和密码；如果您的账号记在老师的验证器里，把屏幕上的两位数告诉老师，他在验证器里确认一下即可；用短信验证的，输入收到的验证码。都不需要重新设置。</p>
-    </details>
-
-    <details class="faq-item">
-      <summary data-en="I want to switch how I verify (text message ↔ authenticator), or I changed my phone number">我想换一种验证方式（短信 ↔ 验证器），或者换了手机号</summary>
-      <p data-en="Contact <strong>the domain administrator who issued your account</strong> and say which you want. They can clear the old method so that your next sign-in walks you through setting up the new one — the same screens as step 5. Anyone verifying by text message will be moved to the authenticator before February 2027; we will be in touch well ahead of time.">请联系<strong>给您分配账号的域管理员</strong>，说明想换成哪种。他可以在后台清掉旧的验证方式，您下次登录时就会重新走一遍设置——界面和第 5 步一样。用短信验证的用户，我们会在 2027 年 2 月之前帮您换到验证器，届时会提前联系。</p>
-    </details>
-
-    <details class="faq-item">
-      <summary data-en="I forgot my password, or it says the password is wrong">忘记密码，或者提示密码错误</summary>
-      <p data-en="You set the password yourself once, at <strong>the first sign-in</strong> (the &ldquo;Update your password&rdquo; screen in step 5). After that there is <strong>no self-service reset</strong> — &ldquo;Forgot my password&rdquo; leading nowhere, or saying you do not have permission, is normal rather than a fault. If you forget it, contact <strong>the domain administrator who issued your account</strong>; they reset it and send you a new one. Paste what they send rather than typing it, and you will be asked to set a new password of your own again at sign-in.">密码只在<strong>第一次登录</strong>时由您自己设置一次（见第 5 步的「更新密码（Update your password）」）。之后<strong>不能自助重置</strong>——「忘记密码（Forgot my password）」走不通、显示「无权限」都是正常的，不是故障。忘了密码请联系<strong>给您分发账号的域管理员</strong>，由他在后台重置后把新密码发给您；收到后请<strong>复制粘贴</strong>，不要照着敲，登录时会再让您设一个新的。</p>
-    </details>
-
+    <h2 style="margin-bottom:5px;" data-en="Still have questions?">还有问题？</h2>
+    <p class="sub" style="margin-bottom:6px;" data-en="The <a href='/help/teams-faq.html'>Teams &amp; Authenticator Q&amp;A</a> answers the common ones: forgotten passwords, a changed phone, where prompts go, why Android is different, what an administrator scan means.">常见问题都在 <a href="/help/teams-faq.html">微软 Teams 和身份验证器问答</a> 里：忘记密码、换了手机、提示发到哪里、安卓为什么不同、管理员代扫意味着什么。</p>
     <details class="faq-item">
       <summary data-en="I followed every step and still cannot sign in">都按步骤做了，还是登录不上</summary>
-      <p data-en="Take a <strong>screenshot</strong> of the screen or the error you are seeing and send it to <strong>the domain administrator who issued your account</strong>, rather than retrying on your own. A screenshot usually shows at a glance which step you are stuck on.">请把您看到的界面或报错<strong>截图</strong>，发给<strong>为您分配账号的域管理员</strong>，不用自己反复重试。有截图通常一眼就能看出卡在哪一步。</p>
+      <p data-en="Take a <strong>screenshot</strong> of the screen or the error you are seeing and send it to <strong>the administrator who issued your account</strong>, rather than retrying on your own. A screenshot usually shows at a glance which step you are stuck on.">请把您看到的界面或报错<strong>截图</strong>，发给<strong>为您分配账号的管理员</strong>，不用自己反复重试。有截图通常一眼就能看出卡在哪一步。</p>
     </details>
   </div>
 
   <footer class="page">
-    <span data-en="Hive Help · Teams sign-in wizard">蜂巢帮助 · Teams 登录向导</span>
+    <span data-en="Hive Help · Teams &amp; Authenticator wizard">蜂巢帮助 · Teams 和身份验证器设置向导</span>
     <span id="stateLabel"></span>
   </footer>
   </div><!-- /.main -->
-
-  <!-- On a wide screen the explanations ride in the right column, where the
-       page had nothing but margin, and fold back into the step itself on a
-       narrow one (Rick, 2026-09-22). Own scroll box, like /gpa. -->
   <aside class="side" id="sideNotes" hidden></aside>
  </div><!-- /.layout -->
 </div>
@@ -562,15 +646,6 @@
   "use strict";
 
   // ---- language ----
-  // The wizard follows the site's own switch: assets/app.js keeps the choice in
-  // localStorage under "fc-lang", so a reader who set the site to English and
-  // then opened this page gets English here too (Rick, 2026-09-22). The button
-  // in the masthead writes the same key, which means switching here also
-  // switches the rest of the site.
-  //
-  // Static markup carries its English in data-en (and data-en-title /
-  // data-en-label for attributes); everything built in script goes through
-  // T(中文, English).
   var LANG = "zh";
   try {
     var savedLang = localStorage.getItem("fc-lang");
@@ -581,545 +656,247 @@
   (function applyStatic() {
     if (LANG !== "en") return;
     document.documentElement.lang = "en";
-    document.title = "Teams setup and verification · Hive Help";
-    Array.prototype.forEach.call(document.querySelectorAll("[data-en]"), function (el) {
-      el.innerHTML = el.getAttribute("data-en");
-    });
-    Array.prototype.forEach.call(document.querySelectorAll("[data-en-title]"), function (el) {
-      el.title = el.getAttribute("data-en-title");
-    });
-    Array.prototype.forEach.call(document.querySelectorAll("[data-en-label]"), function (el) {
-      el.setAttribute("aria-label", el.getAttribute("data-en-label"));
-    });
+    document.title = "Microsoft Teams & Authenticator setup wizard · Hive Help";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en]"), function (el) { el.innerHTML = el.getAttribute("data-en"); });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en-title]"), function (el) { el.title = el.getAttribute("data-en-title"); });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en-label]"), function (el) { el.setAttribute("aria-label", el.getAttribute("data-en-label")); });
   })();
 
   var langBtn = document.getElementById("langBtn");
   langBtn.textContent = T("EN", "中文");
   langBtn.addEventListener("click", function () {
     try { localStorage.setItem("fc-lang", LANG === "en" ? "zh" : "en"); } catch (e) {}
-    // Switching language mid-wizard should not throw the reader back to step 1,
-    // so the step survives the reload in sessionStorage — for this one hop only.
-    try { sessionStorage.setItem("teamsSetupLangStep", String(state.step || 1)); } catch (e) {}
+    try { sessionStorage.setItem("teamsSetupLangScreen", state.screen || "who"); } catch (e) {}
     location.reload();
   });
 
-  var PHONES = [
-    { id: "ios",     name: T("苹果 iPhone", "iPhone"),        tag: T("最简单：扫码即可", "easiest — just scan") },
-    { id: "huawei",  name: T("华为 / 荣耀", "Huawei / Honor"), tag: T("安卓", "Android") },
-    { id: "xiaomi",  name: T("小米", "Xiaomi"),               tag: T("安卓", "Android") },
-    { id: "oppo",    name: "OPPO",                            tag: T("安卓", "Android") },
-    { id: "vivo",    name: "vivo",                            tag: T("安卓", "Android") },
-    { id: "samsung", name: T("三星", "Samsung"),              tag: T("安卓", "Android") },
-    { id: "other",   name: T("其他品牌 / 不确定", "Another brand / not sure"), tag: T("安卓", "Android") }
-  ];
+  // ---- state & paths ----
+  // who: new | back        dev: ios | android
+  // verifier (android): own | admin      brand (android)      second (ios): win | mac | ipad
+  var state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null };
+  try {
+    var saved = JSON.parse(localStorage.getItem("teamsSetupWizard2") || "null");
+    if (saved && saved.who) state = saved;
+  } catch (e) {}
+  function save() { try { localStorage.setItem("teamsSetupWizard2", JSON.stringify(state)); } catch (e) {} }
 
-  // The customer downloads from the store already on their phone (Rick,
-  // 2026-09-21). Only the store's name changes by brand.
-  // Where each app is actually listed, checked 2026-09-21 (Rick asked for every
-  // step to be verified, not assumed):
-  //   小米应用商店  — "Authenticator" and "Teams", developer 微软（中国）有限公司
-  //                 (app.mi.com; its web download is disabled for every app,
-  //                 WeChat included, and the site itself says to use the phone store).
-  //   华为应用市场  — Teams yes (AppGallery C100427405). Authenticator NO: absent
-  //                 from Microsoft's own list of China channels and confirmed missing
-  //                 on Microsoft Q&A (2023-08). Huawei owners get it from 应用宝, where
-  //                 it is listed as "Authenticator" by 微软（中国）有限公司.
-  //   OPPO / 三星 (and Lenovo) — named by Microsoft as the China download channels.
-  //   荣耀 shares the Huawei row (Rick, 2026-09-22): same no-GMS situation, own
-  //   store; Lenovo owners take 其他品牌.
-  //                 (support.microsoft.com, 在中国下载 Microsoft Authenticator).
-  //   vivo          — no listing reachable from here; try the store, fall back to 应用宝.
-  // `auth` is where the authenticator comes from: "store" or "yyb" (应用宝).
-  var STORE = {
-    huawei:  { store: T("华为应用市场 / 荣耀应用市场", "AppGallery / Honor App Market"), auth: "yyb",   verified: true },
-    xiaomi:  { store: T("小米应用商店", "the Xiaomi GetApps store"),   auth: "store", verified: true },
-    oppo:    { store: T("OPPO 软件商店", "the OPPO App Market"),       auth: "store", verified: true },
-    vivo:    { store: T("vivo 应用商店", "the vivo App Store"),        auth: "store", verified: false },
-    samsung: { store: T("三星应用商店", "the Samsung Galaxy Store"),   auth: "store", verified: true },
-    other:   { store: T("手机自带的应用商店", "the app store already on your phone"), auth: "store", verified: false }
+  // The four routes (Rick, 2026-09-23). Every screen is a <section
+  // data-screen>; the progress bar is built from the current route.
+  function route() {
+    if (state.dev === "android") {
+      return state.verifier === "admin"
+        ? ["who", "dev", "android-verifier", "brand", "signin-admin", "done"]
+        : ["who", "dev", "android-verifier", "ios-auth", "brand", "signin-android", "done"];
+    }
+    return state.who === "back"
+      ? ["who", "dev", "ios-check", "second", "signin-pc", "done"]
+      : ["who", "dev", "ios-install", "second", "signin-pc", "done"];
+  }
+  var LABELS = {
+    "who": T("情况", "You"), "dev": T("手机", "Phone"),
+    "ios-install": T("装软件", "Install"), "ios-check": T("检查验证器", "Check app"),
+    "second": T("另一台设备", "2nd device"), "signin-pc": T("登录绑定", "Sign in"),
+    "android-verifier": T("验证器在哪", "Authenticator"), "ios-auth": T("装验证器", "Install app"),
+    "brand": T("装 Teams", "Install Teams"), "signin-android": T("登录扫码", "Sign in"),
+    "signin-admin": T("管理员扫码", "Admin scans"), "done": T("完成", "Done")
   };
 
-  var DEVICES = [
-    { id: "laptop", name: T("💻 用电脑", "💻 On a computer"), tag: T("推荐：出问题最容易解决", "recommended — easiest to fix if anything goes wrong"),
-      tagAndroid: T("电脑上也要用 Teams 的选这个", "choose this if you will use Teams on a computer too") },
-    { id: "phone",  name: T("📱 只有手机", "📱 Phone only"),  tag: T("也能完成，不用第二部手机", "also works, and no second phone needed"),
-      tagAndroid: T("推荐：大多数人只在手机上用 Teams", "recommended — most people only use Teams on the phone") }
-  ];
-
-  // Android only (Rick, 2026-09-22): the authenticator, or a code by text
-  // message. An iPhone is never asked — it scans, and that is that. The
-  // text-message road closes in February 2027, which is said once on the card
-  // and once in the side note, as a date rather than as a reason.
-  var METHODS = [
-    { id: "helper", name: T("🤝 请老师帮您扫码", "🤝 The teacher scans for you"), tag: T("推荐 · 不用装验证器，两分钟完成", "recommended — nothing to install, two minutes") },
-    { id: "sms",    name: T("💬 手机短信验证码", "💬 Text message code"),         tag: T("自己完成 · 部分手机收不到 · 2027 年 2 月起停用", "on your own — some phones never receive it — ends February 2027") }
-  ];
-
-  var STEP_LABELS = T("选手机,装软件,选设备,无痕窗口,登录验证,完成",
-    "Phone,Install,Device,Private window,Sign in,Done").split(",");
-
-  var state = { phone: null, method: null, device: null, os: null, step: 1 };
-  try {
-    var saved = JSON.parse(localStorage.getItem("teamsSetupWizard") || "null");
-    if (saved && saved.phone) state = saved;
-  } catch (e) {}
-  function save() { try { localStorage.setItem("teamsSetupWizard", JSON.stringify(state)); } catch (e) {} }
-
-  function phoneName(id) {
-    for (var i = 0; i < PHONES.length; i++) if (PHONES[i].id === id) return PHONES[i].name;
-    return "";
+  // What a screen needs before it can make sense; missing → back to where it is asked.
+  function missingFor(id) {
+    var r = route(), i = r.indexOf(id);
+    if (i < 0) return { screen: "who", msg: T("请先从第 1 步开始。", "Start from step 1.") };
+    if (i >= 1 && !state.who) return { screen: "who", msg: T("请先选择您是新用户还是老用户。", "Choose new or returning user first.") };
+    if (i >= 2 && !state.dev) return { screen: "dev", msg: T("请先选择手机类型。", "Choose your phone type first.") };
+    if (state.dev === "android" && i >= 3 && !state.verifier) return { screen: "android-verifier", msg: T("请先选择验证器放在哪里。", "Choose where the authenticator lives first.") };
+    if (state.dev === "android" && r.indexOf("brand") >= 0 && i > r.indexOf("brand") && !state.brand) return { screen: "brand", msg: T("请先选择手机品牌。", "Choose the phone brand first.") };
+    if (state.dev === "ios" && i > r.indexOf("second") && !state.second) return { screen: "second", msg: T("请先选择第二台设备。", "Choose the second device first.") };
+    return null;
   }
-  function isAndroid() { return state.phone && state.phone !== "ios"; }
-  // The text-message route exists only on Android; an iPhone always uses the
-  // authenticator, whatever an old saved state says.
-  function isSMS() { return isAndroid() && state.method === "sms"; }
-  // Android's default: a teacher's or coordinator's authenticator (or the
-  // reader's own iPad/iPhone) scans the code. Nothing but Teams goes on the
-  // Android phone (Rick, 2026-09-23).
-  function isHelper() { return isAndroid() && state.method === "helper"; }
 
   // ---- progress ----
   var progressEl = document.getElementById("progress");
   var progressHintEl = document.getElementById("progressHint");
-  var hintTimer = null;
   var HINT_DEFAULT = progressHintEl.textContent;
+  var hintTimer = null;
+  function resetHint() { clearTimeout(hintTimer); progressHintEl.textContent = HINT_DEFAULT; progressHintEl.removeAttribute("data-tone"); }
+  function showHint(msg) { progressHintEl.textContent = msg; progressHintEl.setAttribute("data-tone", "warn"); clearTimeout(hintTimer); hintTimer = setTimeout(resetHint, 6000); }
 
-  // What each step needs before it can render anything sensible: steps 2 and 3
-  // read the phone brand, steps 4–6 also read whether the reader is on a
-  // computer or a phone. A step whose answer is missing sends them back to the
-  // step that asks for it, rather than showing a half-filled page.
-  function missingFor(step) {
-    if (step >= 2 && !state.phone) return { step: 1, msg: T("请先选择您的手机品牌，后面几步才知道该给您哪套说明。", "Choose your phone brand first — the later steps need it to know which instructions to give you.") };
-    if (step >= 3 && isAndroid() && !state.method) return { step: 2, msg: T("请先选择请老师帮扫还是短信验证，后面几步才知道该给您哪套说明。", "Choose the teacher-scans route or a text message first — the later steps need it to know which instructions to give you.") };
-    if (step >= 4 && !state.device) return { step: 3, msg: T("请先选择用电脑还是手机操作，第 4 步之后才知道该给您哪套说明。", "Choose a computer or a phone first — step 4 onwards needs it to know which instructions to give you.") };
-    return null;
-  }
-  function resetHint() {
-    clearTimeout(hintTimer);
-    progressHintEl.textContent = HINT_DEFAULT;
-    progressHintEl.removeAttribute("data-tone");
-  }
-  function showHint(msg) {
-    progressHintEl.textContent = msg;
-    progressHintEl.setAttribute("data-tone", "warn");
-    clearTimeout(hintTimer);
-    hintTimer = setTimeout(resetHint, 6000);
-  }
-
-  STEP_LABELS.forEach(function (label, i) {
-    var n = i + 1;
-    var li = document.createElement("li");
-    var b = document.createElement("button");
-    b.type = "button";
-    b.innerHTML = '<span class="bar"><span></span></span><span class="label">' + n + ". " + label + "</span>";
-    b.addEventListener("click", function () {
-      var gap = missingFor(n);
-      if (gap) { goTo(gap.step); showHint(gap.msg); return; }
-      resetHint();
-      goTo(n);
-    });
-    li.appendChild(b);
-    progressEl.appendChild(li);
-  });
   function renderProgress() {
-    Array.prototype.forEach.call(progressEl.children, function (li, i) {
-      var n = i + 1;
-      li.dataset.state = n < state.step ? "done" : (n === state.step ? "active" : "");
-      li.firstChild.setAttribute("aria-current", n === state.step ? "step" : "false");
+    var r = route(), cur = r.indexOf(state.screen);
+    progressEl.innerHTML = "";
+    r.forEach(function (id, i) {
+      var li = document.createElement("li");
+      li.dataset.state = i < cur ? "done" : (i === cur ? "active" : "");
+      var b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = '<span class="bar"><span></span></span><span class="label">' + (i + 1) + ". " + LABELS[id] + "</span>";
+      b.setAttribute("aria-current", i === cur ? "step" : "false");
+      b.addEventListener("click", function () {
+        var gap = missingFor(id);
+        if (gap) { goTo(gap.screen); showHint(gap.msg); return; }
+        resetHint(); goTo(id);
+      });
+      li.appendChild(b); progressEl.appendChild(li);
+    });
+    document.getElementById("introAfter").innerHTML = state.who
+      ? T("您的路线共 " + r.length + " 步，大约 10 分钟。整个设置只做一次。", "Your route has " + r.length + " steps, about 10 minutes. You do this once.")
+      : T("先回答两个问题，向导会按您的情况排出步骤。整个设置只做一次，大约 10 分钟。", "Answer two questions and the wizard lays out the steps that fit you. It takes about 10 minutes, once.");
+    // Step numbers on the cards follow the route.
+    Array.prototype.forEach.call(document.querySelectorAll("section[data-screen]"), function (sec) {
+      var n = r.indexOf(sec.dataset.screen);
+      var num = sec.querySelector(".step-num");
+      if (num && n >= 0) num.textContent = T("第 " + (n + 1) + " 步", "Step " + (n + 1));
     });
   }
-
-  // The opening block and the "6 步、10 分钟" line orient a reader who has not
-  // started yet. They belong to step 1 only (Rick, 2026-09-21): once the reader
-  // is on any later step they are simply gone, not folded.
-  var introAfterEl = document.querySelector(".intro-after");
-  var demoLinkEl = document.querySelector(".demo-link");
 
   // ---- side column ----
-  // The step-level explanations are written inline, inside the step they
-  // belong to, and are moved into the right column when there is room for it.
-  // Moving rather than duplicating keeps one copy in the DOM, so a reader who
-  // opened one on a phone and then rotated does not meet two of them.
   var sideEl = document.getElementById("sideNotes");
   var wideMQ = window.matchMedia("(min-width: 1140px)");
   var sideNotes = Array.prototype.map.call(document.querySelectorAll("details.why[data-side]"), function (el) {
-    var slot = document.createElement("span");
-    slot.hidden = true;
+    var slot = document.createElement("span"); slot.hidden = true;
     el.parentNode.insertBefore(slot, el);
-    return { el: el, slot: slot, step: Number(el.getAttribute("data-side")) };
+    return { el: el, slot: slot, screen: el.getAttribute("data-side") };
   });
   function placeNotes() {
-    var wide = wideMQ.matches;
-    var shown = 0;
+    var wide = wideMQ.matches, shown = 0;
     sideNotes.forEach(function (n) {
-      var toSide = wide && n.step === state.step && !n.el.hidden;
+      var toSide = wide && n.screen === state.screen && !n.el.hidden;
       if (toSide) {
-        if (n.el.parentNode !== sideEl) {
-          sideEl.appendChild(n.el);
-          // In the column there is room to read it; the amber trouble block
-          // stays folded, because it is a list of failures, not an intro.
-          if (!n.el.classList.contains("trouble")) n.el.open = true;
-        }
+        if (n.el.parentNode !== sideEl) { sideEl.appendChild(n.el); if (!n.el.classList.contains("trouble")) n.el.open = true; }
         shown++;
       } else if (n.el.parentNode === sideEl) {
-        // The "two apps" introduction stays open wherever it lands: a first
-        // visit needs it read, not found.
-        n.el.open = n.el.hasAttribute("data-keep-open");
+        n.el.open = false;
         n.slot.parentNode.insertBefore(n.el, n.slot.nextSibling);
       }
     });
     sideEl.hidden = !wide || shown === 0;
   }
-  if (wideMQ.addEventListener) wideMQ.addEventListener("change", placeNotes);
-  else if (wideMQ.addListener) wideMQ.addListener(placeNotes);
+  if (wideMQ.addEventListener) wideMQ.addEventListener("change", placeNotes); else if (wideMQ.addListener) wideMQ.addListener(placeNotes);
 
-  function goTo(step) {
-    state.step = step;
-    if (introAfterEl) introAfterEl.hidden = step !== 1;
-    if (demoLinkEl) demoLinkEl.hidden = step !== 1;
-    Array.prototype.forEach.call(document.querySelectorAll("section[data-step]"), function (sec) {
-      sec.hidden = Number(sec.dataset.step) !== step;
-    });
-    if (step === 2) buildStep2();
-    if (step === 3) buildStep3();
-    if (step === 4) buildStep4();
-    if (step === 5) buildStep5();
-    if (step === 6) buildStep6();
-    placeNotes();
-    renderProgress();
-    save();
+  var introAfterEl = document.getElementById("introAfter");
+
+  function goTo(id) {
+    state.screen = id;
+    Array.prototype.forEach.call(document.querySelectorAll("section[data-screen]"), function (sec) { sec.hidden = sec.dataset.screen !== id; });
+    var builders = { "ios-check": buildCheck, "second": buildSecond, "signin-pc": buildSigninPc, "android-verifier": buildVerifier,
+                     "brand": buildBrand, "signin-android": buildSigninAndroid, "signin-admin": buildSigninAdmin, "done": buildDone };
+    if (builders[id]) builders[id]();
+    placeNotes(); renderProgress(); save();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+  function next() { var r = route(), i = r.indexOf(state.screen); if (i < r.length - 1) goTo(r[i + 1]); }
+  function back() { var r = route(), i = r.indexOf(state.screen); if (i > 0) goTo(r[i - 1]); }
+  Array.prototype.forEach.call(document.querySelectorAll("[data-back]"), function (b) { b.addEventListener("click", back); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-next]"), function (b) { b.addEventListener("click", next); });
+  document.getElementById("homeBtn").addEventListener("click", function () { goTo("who"); });
 
-  Array.prototype.forEach.call(document.querySelectorAll("[data-back]"), function (btn) {
-    btn.addEventListener("click", function () {
-      goTo(Math.max(1, Number(btn.closest("section[data-step]").dataset.step) - 1));
+  function pickGroup(el, items, current, onPick) {
+    el.innerHTML = "";
+    items.forEach(function (it) {
+      var b = document.createElement("button");
+      b.type = "button"; b.setAttribute("aria-pressed", it.id === current ? "true" : "false");
+      b.innerHTML = '<span class="name">' + it.name + '</span><span class="tag">' + it.tag + '</span>' + (it.sub ? '<span class="sub">' + it.sub + '</span>' : "");
+      b.addEventListener("click", function () {
+        Array.prototype.forEach.call(el.children, function (c) { c.setAttribute("aria-pressed", "false"); });
+        b.setAttribute("aria-pressed", "true");
+        onPick(it.id);
+      });
+      el.appendChild(b);
     });
-  });
-  Array.prototype.forEach.call(document.querySelectorAll("[data-next]"), function (btn) {
-    btn.addEventListener("click", function () { goTo(Number(btn.dataset.next)); });
-  });
+  }
+  function nextBtn(screen) { return document.querySelector('section[data-screen="' + screen + '"] [data-next]'); }
 
-  // The masthead badge is the way back to the top of the wizard (Rick,
-  // 2026-09-22). It returns to step 1; the phone and device already chosen
-  // stay chosen, so nobody loses their place by clicking it.
-  var homeBtn = document.getElementById("homeBtn");
-  if (homeBtn) homeBtn.addEventListener("click", function () { goTo(1); });
+  // ---- who ----
+  pickGroup(document.getElementById("whoPick"), [
+    { id: "new",  name: T("我是 Teams 新用户，第一次登录", "I am new to Teams — first sign-in"), tag: T("从安装软件开始，一步步做完", "from installing the apps to the first sign-in") },
+    { id: "back", name: T("我曾经登录过 Teams，但被要求做身份验证", "I have used Teams before, and now it asks me to verify"), tag: T("先检查验证器在哪里，再补上验证", "we check where the authenticator is, then complete the verification") }
+  ], state.who, function (id) { state.who = id; nextBtn("who").disabled = false; save(); renderProgress(); });
+  if (state.who) nextBtn("who").disabled = false;
 
-  // ---- step 1 ----
-  var phoneChoicesEl = document.getElementById("phoneChoices");
-  PHONES.forEach(function (p) {
-    var b = document.createElement("button");
-    b.type = "button"; b.className = "choice"; b.setAttribute("aria-pressed", "false");
-    b.innerHTML = '<span class="name">' + p.name + '</span><span class="tag">' + p.tag + "</span>";
-    b.addEventListener("click", function () {
-      state.phone = p.id;
-      Array.prototype.forEach.call(phoneChoicesEl.children, function (c) { c.setAttribute("aria-pressed", "false"); });
-      b.setAttribute("aria-pressed", "true");
-      document.getElementById("s1next").disabled = false;
-      document.getElementById("stateLabel").textContent = T("已选：", "Selected: ") + p.name;
-      save();
-    });
-    phoneChoicesEl.appendChild(b);
+  // ---- dev ----
+  pickGroup(document.getElementById("devPick"), [
+    { id: "ios",     name: T("📱 iPhone 或 iPad", "📱 iPhone or iPad"), tag: T("验证器装在自己的设备上", "the authenticator lives on your own device") },
+    { id: "android", name: T("🤖 安卓手机", "🤖 Android phone"), tag: T("能装 Teams；验证器要放在一部 iPhone / iPad 上", "runs Teams; the authenticator needs an iPhone or iPad") }
+  ], state.dev, function (id) {
+    if (id !== state.dev) { state.verifier = null; state.second = null; state.brand = null; }
+    state.dev = id; nextBtn("dev").disabled = false; save(); renderProgress();
   });
-  document.getElementById("s1next").addEventListener("click", function () { goTo(2); });
+  if (state.dev) nextBtn("dev").disabled = false;
 
-  // ---- step 2 ----
-  var methodPickWrap = document.getElementById("methodPickWrap");
-  var methodPickEl = document.getElementById("methodPick");
-  var methodNoteEl = document.getElementById("methodNote");
-  METHODS.forEach(function (m) {
-    var b = document.createElement("button");
-    b.type = "button"; b.setAttribute("aria-pressed", "false");
-    b.innerHTML = '<span class="name">' + m.name + '</span><span class="tag">' + m.tag + "</span>";
-    b.addEventListener("click", function () {
-      state.method = m.id;
-      save();
-      renderStep2();
-      placeNotes();
-    });
-    methodPickEl.appendChild(b);
-  });
-
-  function buildStep2() {
-    var android = isAndroid();
-    // An iPhone owner is never asked: scanning simply works there.
-    if (!android) state.method = "auth";
-    else if (state.method === "auth") state.method = null;   // the old own-authenticator route no longer exists on Android
-    methodPickWrap.hidden = !android;
-    document.getElementById("s2whyPick").hidden = !android;
-    renderStep2();
+  // ---- ios-check (returning iOS user) ----
+  function buildCheck() {
+    var box = document.getElementById("checkContent");
+    pickGroup(document.getElementById("checkPick"), [
+      { id: "none", name: T("我的 iPhone / iPad 上还没有验证器", "My iPhone or iPad has no authenticator yet"), tag: T("先装好，再用另一台设备登录绑定", "install it, then link it from a second device") },
+      { id: "have", name: T("已经装了验证器，但登录时它没有任何提示", "The authenticator is installed, but nothing appears when I sign in"), tag: T("多半是账号绑在另一台设备上", "most likely the account is linked to another device") }
+    ], state.checked, function (id) { state.checked = id; save(); renderCheck(); });
+    renderCheck();
+    function renderCheck() {
+      var nb = nextBtn("ios-check");
+      if (!state.checked) { box.innerHTML = ""; nb.disabled = true; return; }
+      nb.disabled = false;
+      if (state.checked === "none") {
+        box.innerHTML =
+          '<div class="app-block"><h3>' + T("微软身份验证器（Microsoft Authenticator）", "Microsoft Authenticator") + ' <span class="pill must">' + T("必装", "required") + '</span></h3>' +
+          '<p>' + T("打开 App Store → 搜索 <code>Authenticator</code> → 安装。怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。",
+                    "Open the App Store → search <code>Authenticator</code> → install. It is called <strong>Microsoft Authenticator</strong>, a <strong>blue padlock</strong> icon, developer <strong>Microsoft Corporation</strong>.") + '</p></div>' +
+          '<div class="note good">' + T("<strong>装好就行，先别在验证器里登录。</strong>下一步用另一台设备把它和账号绑起来。",
+                    "<strong>Install it, and do not sign in inside the app.</strong> The next step links it to your account from a second device.") + '</div>';
+      } else {
+        box.innerHTML =
+          '<div class="note warn">' + T("<strong>提示只发到当初绑定的那台设备上。</strong>请先想一想：您是不是在一部老 iPhone / iPad 上设置过验证器？<br>① 老设备还在：打开它上面的验证器，请求就在里面，输入两位数即可，不需要往下走。<br>② 老设备已经不在了：请联系<strong>给您分配账号的管理员</strong>，让他核查并删掉老设备的登记。<strong>等他处理完</strong>，再点下一步，用另一台设备把现在这部 iPhone / iPad 上的验证器重新绑定。",
+                    "<strong>The prompt only goes to the device that was linked.</strong> Think back: did you set up the authenticator on an older iPhone or iPad?<br>① The old device still exists: open its authenticator, the request is waiting there — type the two-digit number and you are done.<br>② The old device is gone: contact <strong>the administrator who issued your account</strong> and ask them to check and remove the old device. <strong>Once they have</strong>, select Next and relink the authenticator on this iPhone or iPad from a second device.") + '</div>';
+      }
+    }
   }
 
-  // Everything below the title depends on the phone and, on Android, on the
-  // verification method: the authenticator route installs two apps, the
-  // text-message route installs Teams alone.
-  function renderStep2() {
-    var title = document.getElementById("s2title");
-    var desc = document.getElementById("s2desc");
-    var box = document.getElementById("s2content");
-    var next = document.getElementById("s2next");
-    var android = isAndroid();
-
-    Array.prototype.forEach.call(methodPickEl.children, function (b, i) {
-      b.setAttribute("aria-pressed", android && METHODS[i].id === state.method ? "true" : "false");
-    });
-
-    if (android && !state.method) {
-      title.textContent = T("先选验证方式，再装软件", "Choose how you verify, then install");
-      desc.innerHTML = T("登录时要确认是您本人。先选用哪种方式确认——选好之后，下面会列出这部手机要装的软件。",
-        "Signing in asks your phone to confirm it is you. Choose how first — once you have, the apps this phone needs are listed below.");
-      methodNoteEl.hidden = true;
-      box.innerHTML = "";
-      next.disabled = true;
-      next.innerHTML = T("装好了，下一步", "Installed — next");
-      return;
-    }
-    next.disabled = false;
-
-    if (android) {
-      methodNoteEl.hidden = false;
-      methodNoteEl.className = "note good";
-      methodNoteEl.innerHTML = isSMS()
-        ? T("<strong>选了短信验证。</strong>这部手机只要装 Teams。以后每次登录，微软会发一条 6 位数的短信到您手机。",
-            "<strong>Text message it is.</strong> This phone only needs Teams. From now on each sign-in sends a 6-digit code to your phone by text message.")
-        : T("<strong>选了请老师帮扫。</strong>这部手机只要装 Teams。登录时老师用他手机上的验证器扫一下您屏幕上的二维码，再帮您确认一个两位数，就完成了。登录后 Teams 会一直保持登录，不用每次都找老师。",
-            "<strong>The teacher scans for you.</strong> This phone only needs Teams. At sign-in the teacher scans the QR code on your screen with the authenticator on their phone and confirms a two-digit number, and that is it. Teams then stays signed in, so this is not needed every time.");
-    } else {
-      methodNoteEl.hidden = true;
-    }
-
-    var noSearchEngine = '<div class="note plain">' + T("<strong>不要在搜索引擎上随便下载安装包</strong>——装到被改过的版本会很危险。只从应用商店装。",
-      "<strong>Do not download an installer from a search engine.</strong> A tampered build is genuinely dangerous. Install from the app store only.") + '</div>';
-
-    if (state.phone === "ios") {
-      title.innerHTML = T("先在手机上装好这两个软件", "Install both apps on your phone");
-      desc.innerHTML = T(
-        "iPhone 上这两个软件都在 App Store 里，<strong>两个都要装</strong>。先装微软身份验证器，它是登录的前提。",
-        "On iPhone both apps come from the App Store, and <strong>you need both</strong>. Install Microsoft Authenticator first — signing in depends on it.");
-      box.innerHTML =
-        '<div class="app-block"><h3>' + T("微软身份验证器（Microsoft Authenticator）", "Microsoft Authenticator") + ' <span class="pill must">' + T("必装", "required") + '</span></h3>' +
-        '<p>' + T("打开 App Store → 搜索 <code>Authenticator</code> → 安装。", "Open the App Store → search <code>Authenticator</code> → install.") + '</p>' +
-        '<p class="identify">' + T("怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。",
-          "How to recognise it: it is called <strong>Microsoft Authenticator</strong>, the icon is a <strong>blue padlock</strong>, and the developer is <strong>Microsoft Corporation</strong>.") + '</p></div>' +
-        '<div class="app-block"><h3>Microsoft Teams <span class="pill must">' + T("必装", "required") + '</span></h3>' +
-        '<p>' + T("打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。<strong>手机和电脑上都要装</strong>。",
-          "Open the App Store → search <code>Microsoft Teams</code> → install. <strong>Install it on the computer as well as the phone.</strong>") + '</p></div>' +
-        '<div class="note good">' + T("<strong>两个都装好就行，先别急着登录。</strong>登录留到第 5 步，跟着提示一次做完，不容易乱。",
-          "<strong>Install both, and do not sign in yet.</strong> Signing in comes in step 5, done in one pass so nothing gets tangled.") + '</div>';
-      next.innerHTML = T("装好了，下一步", "Both installed — next");
-      return;
-    }
-
-    // Android, either route: Teams alone, from the phone's own store. The
-    // authenticator is not installed on a mainland Android at all — on a real
-    // Huawei it could not finish linking by any route (Rick, 2026-09-23) — so
-    // the 应用宝 detour is gone too.
-    var s = STORE[state.phone] || STORE.other;
-    var store = s.auth === "yyb" ? T("手机自带的应用市场", "the store already on your phone") : s.store;
-    var teamsBlock = '<div class="app-block"><h3>Microsoft Teams <span class="pill must">' + T("必装", "required") + '</span></h3>' +
-      '<p>' + T("打开<strong>" + store + "</strong> → 搜索 <code>Teams</code> → 安装。开发者是<strong>微软（中国）有限公司</strong>。",
-        "Open <strong>" + store + "</strong> → search <code>Teams</code> → install. The developer reads <strong>微软（中国）有限公司</strong>.") + '</p>' +
-      '<p class="identify">' + T("怎么认：叫 <strong>Microsoft Teams</strong>，紫色的 T 字图标。要在电脑上也用 Teams 的，电脑上另外装。",
-        "How to recognise it: <strong>Microsoft Teams</strong>, the purple T icon. If you will use Teams on a computer too, install it there separately.") + '</p></div>';
-    title.innerHTML = T("在手机上装好 Teams", "Install Teams on your phone");
-
-    if (isSMS()) {
-      desc.innerHTML = phoneName(state.phone) + T(" 手机，短信验证：<strong>只装一个软件</strong>——Teams。不需要微软身份验证器。",
-        ", text-message verification: <strong>one app to install</strong> — Teams. Microsoft Authenticator is not needed.");
-      box.innerHTML = teamsBlock + noSearchEngine +
-        '<div class="note good">' + T("<strong>装好就行，先别登录。</strong>登录留到第 5 步，验证码短信到那时才会发到您手机。<strong>部分手机 / 运营商收不到微软的短信</strong>——到第 5 步等两分钟还没收到，就回到这里改选「请老师帮您扫码」。",
-          "<strong>Install it, and do not sign in yet.</strong> Signing in comes in step 5; that is when the code is sent to your phone. <strong>Some phones or carriers never receive Microsoft's messages</strong> — if nothing has arrived two minutes into step 5, come back here and choose the teacher-scans route.") + '</div>';
-      next.innerHTML = T("Teams 装好了，下一步", "Teams installed — next");
-      return;
-    }
-
-    // helper route
-    desc.innerHTML = phoneName(state.phone) + T(" 手机：<strong>只装一个软件</strong>——Teams。<strong>您的手机上不用装验证器</strong>：第 5 步登录时，由老师（或蜂巢协调员）手机上的验证器帮您扫码。",
-      ": <strong>one app to install</strong> — Teams. <strong>No authenticator on your phone</strong>: at sign-in in step 5, the authenticator on the teacher's (or a hive coordinator's) phone scans for you.");
-    box.innerHTML = teamsBlock + noSearchEngine +
-      '<div class="note good">' + T("<strong>装好就行，先别登录。</strong>第 5 步登录时需要老师在您身边（或开着视频通话），请先约好时间再开始。",
-        "<strong>Install it, and do not sign in yet.</strong> Step 5 needs the teacher beside you (or on a video call), so agree a time first.") + '</div>';
-    next.innerHTML = T("Teams 装好了，下一步", "Teams installed — next");
-  }
-
-  // ---- step 3 ----
-  var devicePickEl = document.getElementById("devicePick");
-  var deviceNoteEl = document.getElementById("deviceNote");
-  DEVICES.forEach(function (d) {
-    var b = document.createElement("button");
-    b.type = "button"; b.setAttribute("aria-pressed", "false");
-    b.innerHTML = '<span class="name">' + d.name + '</span><span class="tag">' + d.tag + "</span>";
-    b.addEventListener("click", function () {
-      state.device = d.id;
-      Array.prototype.forEach.call(devicePickEl.children, function (x) { x.setAttribute("aria-pressed", "false"); });
-      b.setAttribute("aria-pressed", "true");
-      document.getElementById("s3next").disabled = false;
-      deviceNoteEl.hidden = false;
-      deviceNoteEl.className = "note good";
-      renderDeviceNote();
-      save();
-    });
-    devicePickEl.appendChild(b);
-  });
-  function renderDeviceNote() {
-    if (!state.device) return;
-    if (state.device === "laptop") {
-      deviceNoteEl.innerHTML = isSMS()
-        ? T("<strong>好选择。</strong>电脑屏幕大、复制粘贴方便，出错时换个窗口就能重来。手机只负责收短信。",
-            "<strong>Good choice.</strong> A big screen, easy copy and paste, and if anything goes wrong you just open another window and start again. The phone only has to receive the text message.")
-        : isHelper()
-          ? T("<strong>可以。</strong>二维码会显示在电脑屏幕上，老师用他的手机扫电脑屏幕。登录成功后电脑上的 Teams 一直保持登录。",
-              "<strong>Fine.</strong> The QR code appears on the computer screen and the teacher scans it with their phone. Once signed in, Teams on the computer stays signed in.")
-          : T("<strong>好选择。</strong>电脑屏幕大、复制粘贴方便，出错时换个窗口就能重来。手机只负责显示验证码。",
-              "<strong>Good choice.</strong> A big screen, easy copy and paste, and if anything goes wrong you just open another window and start again. The phone only has to show the code.");
-    } else {
-      deviceNoteEl.innerHTML = isSMS()
-        ? T("<strong>没问题，一部手机就够。</strong>验证码短信会发到这部手机上，收到后输进去就行。",
-            "<strong>That works — one phone is enough.</strong> The code is sent to this phone by text message; type it in when it arrives.")
-        : isHelper()
-          ? T("<strong>好选择。</strong>在手机的 Teams App 里登录，二维码显示在您的手机屏幕上，老师用他的手机扫一下。登录成功后这部手机上的 Teams 一直保持登录。",
-              "<strong>Good choice.</strong> Sign in inside the Teams app; the QR code appears on your phone's screen and the teacher scans it with theirs. Once signed in, Teams on this phone stays signed in.")
-          : T("<strong>没问题，一部手机也能完成。</strong>iPhone 上出现二维码时会自动跳到验证器，跟着提示走即可，<strong>不需要借第二部手机</strong>。",
-              "<strong>That works — one phone is enough.</strong> When the QR code appears, the iPhone jumps to the authenticator by itself; follow the prompts, and there is <strong>no second phone to borrow</strong>.");
-    }
-  }
-  function buildStep3() {
-    // On Android the phone is the natural place to sign in (Rick, 2026-09-23:
-    // most people only ever use Teams on the phone); on iPhone the computer
-    // stays recommended, because the phone's own authenticator scans it.
-    var android = isAndroid();
-    Array.prototype.forEach.call(devicePickEl.children, function (b, i) {
-      b.querySelector(".tag").textContent = android ? DEVICES[i].tagAndroid : DEVICES[i].tag;
-    });
-    document.getElementById("s3desc").innerHTML = android
-      ? T("Teams 装好了。<strong>大多数人只在手机上用 Teams，选「只有手机」就行。</strong>要在电脑上也用 Teams 的，选电脑——登录方法一样。",
-          "Teams is installed. <strong>Most people only use Teams on the phone — choose Phone only.</strong> If you will use Teams on a computer as well, choose the computer; the sign-in works the same way.")
-      : T("手机上的微软身份验证器已经装好了。现在选一台设备来打开 Teams 登录页面——两台都有的话，<strong>强烈建议用电脑</strong>。",
-          "Microsoft Authenticator is now installed on your phone. Choose the device you will use to open the Teams sign-in page — if you have both, <strong>a computer is strongly recommended</strong>.");
-    renderDeviceNote();
-  }
-  document.getElementById("s3next").addEventListener("click", function () { goTo(4); });
-  document.getElementById("s4next").addEventListener("click", function () { goTo(5); });
-
-  // ---- step 4 ----
-  var OSES = [
-    { id: "win", name: "🪟 Windows", tag: T("最佳浏览器：Edge", "best browser: Edge") },
-    { id: "mac", name: T("🍎 Mac（苹果电脑）", "🍎 Mac"), tag: T("最佳浏览器：Chrome 或 Edge", "best browser: Chrome or Edge") }
-  ];
-  var osPickWrap = document.getElementById("osPickWrap");
-  var osPickEl = document.getElementById("osPick");
-  OSES.forEach(function (o) {
-    var b = document.createElement("button");
-    b.type = "button"; b.setAttribute("aria-pressed", "false");
-    b.innerHTML = '<span class="name">' + o.name + '</span><span class="tag">' + o.tag + "</span>";
-    b.addEventListener("click", function () {
-      state.os = o.id;
-      Array.prototype.forEach.call(osPickEl.children, function (x) { x.setAttribute("aria-pressed", "false"); });
-      b.setAttribute("aria-pressed", "true");
-      save();
-      renderBrowsers();
-    });
-    osPickEl.appendChild(b);
-  });
-
+  // ---- second (iOS) ----
   function browserRow(name, how, keys, kind, best) {
-    return '<div class="browser-row' + (kind === "bad" ? " bad" : "") + '">' +
-      '<span class="bname">' + (best ? "★ " : "") + name + (best ? ' <span class="pill must">' + T("最佳选择", "best choice") + '</span>' : "") + '</span>' +
-      '<span class="bhow">' + how + '</span><span class="keys">' + keys + "</span></div>";
+    return '<div class="browser-row' + (kind === "bad" ? " bad" : "") + '"><span class="bname">' + (best ? "★ " : "") + name + (best ? ' <span class="pill must">' + T("最佳选择", "best choice") + '</span>' : "") + '</span><span class="bhow">' + how + '</span><span class="keys">' + keys + "</span></div>";
   }
-
-  function renderBrowsers() {
-    var box = document.getElementById("s4content");
-    var next = document.getElementById("s4next");
-    next.disabled = !state.os;
-    if (!state.os) { box.innerHTML = '<div class="note plain">' + T("请先选择上面的电脑系统，我们会给出对应的最佳浏览器建议。",
-      "Choose your computer's system above and we will name the best browser for it.") + '</div>'; return; }
-
-    if (state.os === "win") {
-      box.innerHTML =
-        '<div class="note good">' + T("<strong>如果这几个浏览器您都有：请用 Edge。</strong>微软官方对 Teams 网页版的支持名单里，Edge 和 Chrome 是完全同等的——但 Edge 是 Windows 自带的，不用下载；而在国内下载 Chrome 要访问谷歌的网站，容易下到被第三方重新打包、捆绑插件的版本。<strong>如果您电脑上已经有正版 Chrome，用 Chrome 一样好。</strong>",
-          "<strong>If you have several of these: use Edge.</strong> Microsoft's own support list puts Edge and Chrome on exactly equal footing for Teams on the web — but Edge ships with Windows, so there is nothing to download, while downloading Chrome in mainland China means reaching Google's site and often lands you a repackaged build with extras bundled in. <strong>If you already have a genuine Chrome, Chrome is just as good.</strong>") + '</div>' +
-        '<div class="browser-list">' +
-          browserRow("Edge", T("右上「…」→ 新建 InPrivate 窗口", "Top right &ldquo;…&rdquo; → New InPrivate window"), "Ctrl+Shift+N", "ok", true) +
-          browserRow(T("Chrome 谷歌浏览器", "Chrome"), T("右上「⋮」→ 打开新的无痕式窗口（已装正版即可用）", "Top right &ldquo;⋮&rdquo; → New Incognito window (fine if you already have a genuine copy)"), "Ctrl+Shift+N", "ok", false) +
-          browserRow(T("Firefox 火狐", "Firefox"), T("右上「☰」→ 新建隐私浏览窗口（官方也支持）", "Top right &ldquo;☰&rdquo; → New private window (also officially supported)"), "Ctrl+Shift+P", "ok", false) +
-          browserRow(T("360 / QQ 浏览器", "360 / QQ browser"), T("菜单 → 无痕（隐私）窗口；并把模式切到<strong>极速模式</strong>", "Menu → private window, and switch the engine to <strong>极速模式 (fast mode)</strong>"), "Ctrl+Shift+N", "ok", false) +
-          browserRow(T("⚠️ IE 浏览器：不要使用", "⚠️ Internet Explorer: do not use"), T("IE 确实有 InPrivate（Ctrl+Shift+P），<strong>但 Teams 早已不支持 IE</strong>，用它一定登录不上",
-            "IE does have InPrivate (Ctrl+Shift+P), <strong>but Teams dropped support for IE long ago</strong> — sign-in will not work"), T("换 Edge", "use Edge"), "bad", false) +
-          browserRow(T("⚠️ Safari：Windows 上没有", "⚠️ Safari: does not exist on Windows"), T("苹果 2012 年就停止为 Windows 开发 Safari，<strong>现在网上的「Windows 版 Safari」都是十几年前的老版本或假安装包</strong>，请不要下载",
-            "Apple stopped building Safari for Windows in 2012. <strong>Anything online calling itself &ldquo;Safari for Windows&rdquo; is a decade-old build or a fake installer</strong> — do not download it"), T("不存在", "n/a"), "bad", false) +
-        "</div>" +
-        '<div class="note warn">' + T("<strong>三个最容易踩的坑：</strong>①桌面上那个蓝色「e」如果是老版 IE，请换成 Edge（蓝绿色漩涡图标）；②360 / QQ 浏览器若停在「兼容模式」，内核其实还是 IE，一样登不上，务必切到「极速模式」；③浏览器<strong>版本太旧也会被拒绝</strong>——微软只支持最新的三个版本，请先让浏览器更新到最新版。",
-          "<strong>Three easy traps:</strong> ① if the blue &ldquo;e&rdquo; on the desktop is old Internet Explorer, switch to Edge (the blue-green swirl icon); ② a 360 or QQ browser left in compatibility mode is still running the IE engine and will fail the same way — switch it to fast mode; ③ <strong>a browser that is simply too old is refused</strong> — Microsoft supports only the three most recent versions, so update first.") + '</div>' +
-        '<div class="note plain">' + T("<strong>如果您的电脑是 Windows 7 或更老的系统：</strong>Chrome 和 Edge 都在 2023 年初停止了对 Win7 的支持，版本停在 109，已经远低于 Teams 的要求，很可能直接提示浏览器不受支持。这种情况建议<strong>回到第 3 步改用手机登录</strong>，不要在老电脑上耗时间。",
-          "<strong>If your computer runs Windows 7 or older:</strong> Chrome and Edge both stopped supporting Win7 in early 2023 and stay at version 109, far below what Teams requires, so you will most likely be told the browser is unsupported. In that case <strong>go back to step 3 and sign in on the phone instead</strong> rather than spending time on the old machine.") + '</div>';
-    } else {
-      box.innerHTML =
-        '<div class="note good">' + T("<strong>如果这几个浏览器您都有：Mac 上请优先用 Chrome 或 Edge。</strong>三个浏览器官方都支持，但 Safari 的支持范围更窄（只支持最新两个版本），而且它的隐私保护机制有时会打断微软登录的多次跳转，中途卡住。Chrome / Edge 更稳。（Mac 上没有 IE，不用担心这个问题。）",
-          "<strong>If you have several of these: prefer Chrome or Edge on a Mac.</strong> All three are officially supported, but Safari's support window is narrower (the two most recent versions only), and its privacy protections sometimes interrupt the several redirects a Microsoft sign-in goes through, leaving you stuck halfway. Chrome and Edge are steadier. (There is no IE on a Mac, so that trap does not apply.)") + '</div>' +
-        '<div class="browser-list">' +
-          browserRow(T("Chrome 谷歌浏览器", "Chrome"), T("右上「⋮」→ 打开新的无痕式窗口", "Top right &ldquo;⋮&rdquo; → New Incognito window"), "⌘+Shift+N", "ok", true) +
-          browserRow("Edge", T("右上「…」→ 新建 InPrivate 窗口", "Top right &ldquo;…&rdquo; → New InPrivate window"), "⌘+Shift+N", "ok", false) +
-          browserRow(T("Safari（Mac 自带）", "Safari (built into macOS)"), T("菜单栏「文件」→ 新建无痕浏览窗口", "Menu bar File → New Private Window"), "⌘+Shift+N", "ok", false) +
-        "</div>" +
-        '<div class="note plain">' + T("如果只有 Safari，也可以直接用，但请先把 macOS 和 Safari 更新到较新版本——万一登录中途卡住或反复跳回登录页，装一个 Chrome 重试即可。",
-          "Safari alone is workable — just update macOS and Safari first. If sign-in hangs midway or keeps bouncing back to the sign-in page, install Chrome and try again.") + '</div>';
+  function buildSecond() {
+    var box = document.getElementById("secondContent");
+    pickGroup(document.getElementById("secondPick"), [
+      { id: "win",  name: "🪟 Windows", tag: T("最佳浏览器：Edge", "best browser: Edge") },
+      { id: "mac",  name: T("🍎 Mac（苹果电脑）", "🍎 Mac"), tag: T("最佳浏览器：Chrome 或 Edge", "best browser: Chrome or Edge") },
+      { id: "ipad", name: T("📱 另一台 iPad 或 iPhone", "📱 Another iPad or iPhone"), tag: T("用 Safari 的无痕标签页", "a private tab in Safari") }
+    ], state.second, function (id) { state.second = id; save(); render(); });
+    render();
+    function render() {
+      var nb = nextBtn("second");
+      nb.disabled = !state.second;
+      if (!state.second) { box.innerHTML = '<div class="note plain">' + T("请先选择上面的设备，我们会给出对应的浏览器建议。", "Choose the device above and we will name the browser to use.") + '</div>'; return; }
+      if (state.second === "win") {
+        box.innerHTML =
+          '<div class="note good">' + T("<strong>如果这几个浏览器您都有：请用 Edge。</strong>它是 Windows 自带的，不用下载；已装正版 Chrome 的用 Chrome 一样好。", "<strong>If you have several: use Edge.</strong> It ships with Windows; a genuine Chrome is just as good.") + '</div>' +
+          '<div class="browser-list">' +
+            browserRow("Edge", T("右上「…」→ 新建 InPrivate 窗口", "Top right &ldquo;…&rdquo; → New InPrivate window"), "Ctrl+Shift+N", "ok", true) +
+            browserRow(T("Chrome 谷歌浏览器", "Chrome"), T("右上「⋮」→ 打开新的无痕式窗口", "Top right &ldquo;⋮&rdquo; → New Incognito window"), "Ctrl+Shift+N", "ok", false) +
+            browserRow(T("Firefox 火狐", "Firefox"), T("右上「☰」→ 新建隐私浏览窗口", "Top right &ldquo;☰&rdquo; → New private window"), "Ctrl+Shift+P", "ok", false) +
+            browserRow(T("360 / QQ 浏览器", "360 / QQ browser"), T("菜单 → 无痕窗口；并切到<strong>极速模式</strong>", "Menu → private window, and switch to <strong>极速模式 (fast mode)</strong>"), "Ctrl+Shift+N", "ok", false) +
+            browserRow(T("⚠️ IE 浏览器：不要使用", "⚠️ Internet Explorer: do not use"), T("Teams 早已不支持 IE，一定登录不上", "Teams dropped IE long ago — sign-in will not work"), T("换 Edge", "use Edge"), "bad", false) +
+          "</div>" +
+          '<div class="note warn">' + T("<strong>三个最容易踩的坑：</strong>①桌面上那个蓝色「e」如果是老版 IE，请换成 Edge；②360 / QQ 浏览器若停在「兼容模式」，内核还是 IE，务必切到「极速模式」；③浏览器<strong>版本太旧也会被拒绝</strong>，先更新到最新版。",
+            "<strong>Three easy traps:</strong> ① if the blue &ldquo;e&rdquo; on the desktop is old Internet Explorer, switch to Edge; ② a 360 or QQ browser left in compatibility mode is still IE — switch to fast mode; ③ <strong>a browser that is too old is refused</strong> — update first.") + '</div>';
+      } else if (state.second === "mac") {
+        box.innerHTML =
+          '<div class="note good">' + T("<strong>Mac 上请优先用 Chrome 或 Edge。</strong>Safari 也支持，但它的隐私机制有时会打断微软登录的多次跳转。", "<strong>Prefer Chrome or Edge on a Mac.</strong> Safari works too, but its privacy protections sometimes interrupt Microsoft's redirects.") + '</div>' +
+          '<div class="browser-list">' +
+            browserRow(T("Chrome 谷歌浏览器", "Chrome"), T("右上「⋮」→ 打开新的无痕式窗口", "Top right &ldquo;⋮&rdquo; → New Incognito window"), "⌘+Shift+N", "ok", true) +
+            browserRow("Edge", T("右上「…」→ 新建 InPrivate 窗口", "Top right &ldquo;…&rdquo; → New InPrivate window"), "⌘+Shift+N", "ok", false) +
+            browserRow(T("Safari（Mac 自带）", "Safari (built into macOS)"), T("菜单栏「文件」→ 新建无痕浏览窗口", "Menu bar File → New Private Window"), "⌘+Shift+N", "ok", false) +
+          "</div>";
+      } else {
+        box.innerHTML =
+          '<div class="browser-list">' +
+            '<div class="browser-row"><span class="bname">Safari</span><span class="bhow">' + T("底部右下「标签页」按钮 → 左下角选「无痕浏览」→ 新建标签页", "Tabs button, bottom right → choose Private at the bottom left → new tab") + '</span><span class="keys">' + T("无痕", "private") + '</span></div>' +
+          '</div>' +
+          '<div class="note plain">' + T("这台 iPad / iPhone 只负责显示二维码；验证器装在您<strong>自己那部</strong>上。两台设备不要弄混。", "This iPad or iPhone only shows the QR code; the authenticator is on <strong>your own</strong> device. Keep the two apart in your mind.") + '</div>';
+      }
     }
   }
 
-  function buildStep4() {
-    var title = document.getElementById("s4title");
-    var desc = document.getElementById("s4desc");
-    var box = document.getElementById("s4content");
-
-    if (state.device === "laptop") {
-      title.textContent = T("选对浏览器，开无痕窗口", "Pick the right browser, open a private window");
-      desc.innerHTML = T("浏览器选错是登录失败最常见的原因之一。先选系统，我们给出最佳浏览器，再照着开一个<strong>无痕窗口</strong>。",
-        "The wrong browser is one of the most common reasons sign-in fails. Choose your system, take the browser we name, and open a <strong>private window</strong> in it.");
-      osPickWrap.hidden = false;
-      renderBrowsers();
-    } else {
-      osPickWrap.hidden = true;
-      document.getElementById("s4next").disabled = false;
-      title.textContent = T("在手机上准备一个干净的窗口", "Get a clean window ready on the phone");
-      desc.innerHTML = T("如果您用<strong>手机 Teams App</strong> 登录，可以直接跳到下一步。只有用手机浏览器登录时，才需要下面这一步。",
-        "If you sign in with the <strong>Teams app</strong> on the phone, go straight to the next step. The step below only matters if you sign in through a phone browser.");
-      box.innerHTML =
-        '<div class="browser-list">' +
-          '<div class="browser-row"><span class="bname">' + T("用 Teams App 登录", "Sign in with the Teams app") + '</span><span class="bhow">' + T("不需要做任何准备，直接下一步", "Nothing to prepare — go to the next step") + '</span><span class="keys">' + T("推荐", "recommended") + '</span></div>' +
-          '<div class="browser-row"><span class="bname">' + T("Safari（iPhone）", "Safari (iPhone)") + '</span><span class="bhow">' + T("底部右下「标签页」→ 无痕浏览 → 新建标签页", "Tabs button, bottom right → Private → new tab") + '</span><span class="keys">' + T("无痕", "private") + '</span></div>' +
-          '<div class="browser-row"><span class="bname">' + T("安卓手机浏览器", "Android phone browser") + '</span><span class="bhow">' + T("标签页按钮 → 无痕 / 隐私模式 → 新建", "Tabs button → incognito / private mode → new tab") + '</span><span class="keys">' + T("无痕", "private") + '</span></div>' +
-        '</div>' +
-        '<div class="note plain">' + T("手机上如果之前登录过别的微软账号，建议先在浏览器里退出，或者直接用无痕标签页，避免账号串号。",
-          "If another Microsoft account has been signed in on this phone before, sign out in the browser first or simply use a private tab, so the accounts do not get crossed.") + '</div>';
-    }
-  }
-
-  // ---- step 5 ----
-  // Three routes (2026-09-23, after Rick's tests on a real Huawei):
-  //   iPhone            — the reader's own authenticator scans the code.
-  //   Android · helper  — a teacher or coordinator scans with the authenticator
-  //                       on THEIR phone (or the reader's own iPad/iPhone). On a
-  //                       mainland Android without Google services the app
-  //                       cannot finish linking at all — scanning, typing the
-  //                       code and URL, and the "other account" TOTP mode all
-  //                       stalled — so nothing is installed on the Android
-  //                       phone but Teams. The old code-and-URL route is gone:
-  //                       it carried the same data as the QR code.
-  //   Android · SMS     — a text-message code, when the phone receives it.
-  // Every label in 「」 is the exact English on screen.
-
-  // A real screenshot from the 2026-09-22 walk-through (Rick, iPhone + Mac,
-  // test account), cropped to the screen the reader is looking for. Expired
-  // codes and the dead QR are pixelated; nothing but the test account shows.
-  // rings: "left,top,width,height" in percent of the picture, one ellipse per
-  // group, several groups separated by ";". Percentages rather than pixels so
-  // the ring follows the image at every width.
-  // tags: "x,y,anchor|中文" groups joined by ";" — anchor c centres the pill on
-  // the point, r starts it there, l ends it there. Width comes last because
-  // the small screens (a 298px wide card) would otherwise be blown up to the
-  // 420px default and go soft.
+  // ---- screenshots ----
   function shot(file, alt, cap, rings, tags, maxw) {
     var marks = "";
     if (rings) {
@@ -1146,286 +923,207 @@
     return '<details class="why trouble inline"><summary>' + summary + '</summary>' + body + '</details>';
   }
 
-  function buildStep5() {
-    var desc = document.getElementById("s5desc");
-    var stepsEl = document.getElementById("s5steps");
-    var tip = document.getElementById("s5tip");
-    var items = [];
-    var sms = isSMS();
-    var helper = isHelper();
-    var onePhone = state.device !== "laptop";
-    // 老师 stands for whoever holds the scanning authenticator: a teacher, a
-    // hive coordinator, or the reader's own second device.
-    var HELPER = T("老师", "the teacher");
 
-    document.getElementById("s5title").innerHTML = sms
-      ? T("登录并设置短信验证", "Sign in and set up text-message verification")
-      : helper
-        ? T("登录，请老师帮您扫码", "Sign in, with the teacher scanning for you")
-        : T("登录并绑定验证器", "Sign in and link the authenticator");
 
-    // The third "stuck" case differs by route.
-    document.getElementById("trouble3").innerHTML = sms
-      ? T('<strong>③ 短信一直收不到。</strong>先等一两分钟，国际短信有时会慢。看一眼手机「信息」里的<strong>骚扰拦截 / 拦截记录</strong>，境外发来的验证码常被拦在那里。核对号码：国家 / 地区是<strong>中国 (+86)</strong>，手机号 11 位、前面<strong>不加 0</strong>。然后点 <strong>「重新发送（Resend）」</strong>。还是收不到的，这部手机可能就是收不到微软的短信——回到第 2 步改选「请老师帮您扫码」。',
-          '<strong>③ The text message never arrives.</strong> Give it a minute or two — an international message is sometimes slow. Check the phone\'s <strong>spam / blocked messages</strong> folder; codes from abroad often land there. Check the number: the country is <strong>China (+86)</strong> and the number has 11 digits with <strong>no leading 0</strong>. Then select <strong>Resend</strong>. If it still does not come, this phone may simply not receive Microsoft\'s messages — go back to step 2 and choose the teacher-scans route.')
-      : helper
-        ? T('<strong>③ 老师的验证器没有弹出提示，或者两位数输错了。</strong>老师直接打开验证器，请求会在里面等着。输错了就在您的屏幕上点「下一步（Next）」，会给一个新的数。还是不行：老师在他的验证器里把您的账号<strong>删掉</strong>，回到出现二维码那一步<strong>重新扫一次</strong>。',
-            '<strong>③ Nothing pops up on the teacher\'s authenticator, or the number was mistyped.</strong> The teacher opens the authenticator; the request is waiting inside. A mistyped number: select <strong>Next</strong> on your screen for a fresh one. Still stuck: the teacher <strong>deletes</strong> your account in the authenticator and you <strong>scan again</strong> from the QR-code item.')
-        : T('<strong>③ 验证码一直不对，或提示已过期。</strong>不用反复试。在微软身份验证器里把这个账号<strong>删掉</strong>，回到本步<strong>重新绑定一次</strong>，绑好马上就能用。如果重新绑定后还是不对，请把手机时间改成<strong>「自动设置」</strong>。',
-            '<strong>③ The verification code keeps being rejected, or says it has expired.</strong> Do not keep trying. <strong>Delete</strong> this account inside Microsoft Authenticator and <strong>link it again</strong> from this step; it works immediately once linked. If it is still wrong after relinking, set the phone\'s clock to <strong>Automatic</strong>.');
-
-    // ---- shared: sign in + first-time password ----
-    var openItem = onePhone
-      ? T('打开手机上的 <strong>Teams App</strong>，输入机构发给您的账号 → 下一步（Next）→ 密码 → 登录（Sign in）（建议长按粘贴，不要手打）',
-          'Open the <strong>Teams app</strong> on the phone, enter the account your school issued → Next → password → Sign in (long-press to paste rather than typing)')
-      : T('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，按回车打开；输入机构发给您的账号（形如 <code>name@yourdomain</code>）→ 下一步（Next）→ 输入密码 → 登录（Sign in）。<strong>密码请复制粘贴</strong>，不要手动敲——里面的符号很容易看错',
-          'In the private window\'s address bar, type <code>teams.microsoft.com</code> and press Enter; enter the account your school issued (it looks like <code>name@yourdomain</code>) → Next → enter the password → Sign in. <strong>Paste the password</strong> rather than typing it — the symbols in it are easy to misread');
-
-    var pwItem = T('出现 <strong>「更新密码（Update your password）」</strong>——<strong>第一次登录都会有这一屏</strong>，是微软要求您把机构发的密码换成自己的。' +
-      '第一格：粘贴机构发的密码；第二格和第三格：输入您<strong>自己设的新密码</strong>，两格一样。新密码至少 8 位，要有大写字母、小写字母和数字。→ 登录（Sign in）。' +
-      '<strong>请把新密码记下来，以后登录都用它。</strong>',
-      '<strong>&ldquo;Update your password&rdquo;</strong> appears — <strong>every first sign-in has this screen</strong>. Microsoft is asking you to replace the password your school issued with one of your own. ' +
-      'First box: paste the issued password. Second and third boxes: type <strong>the new password you choose</strong>, identical in both. It needs at least 8 characters, with an upper-case letter, a lower-case letter and a digit. → Sign in. ' +
-      '<strong>Write the new password down — it is the one you will use from now on.</strong>') +
+  // ---- shared sign-in fragments ----
+  function pwItem(maybe) {
+    var lead = maybe
+      ? T('<strong>如果出现「更新密码（Update your password）」</strong>（第一次登录才有，老用户一般不会再出现）：第一格粘贴机构发的密码，第二、三格输入您自己设的新密码 → 登录（Sign in）。<strong>把新密码记下来。</strong>',
+          '<strong>If &ldquo;Update your password&rdquo; appears</strong> (first sign-ins only; a returning user usually skips it): first box the issued password, second and third boxes a new one of your own → Sign in. <strong>Write the new password down.</strong>')
+      : T('出现 <strong>「更新密码（Update your password）」</strong>——<strong>第一次登录都会有这一屏</strong>，是微软要求您把机构发的密码换成自己的。第一格：粘贴机构发的密码；第二格和第三格：输入您<strong>自己设的新密码</strong>，两格一样。新密码至少 8 位，要有大写字母、小写字母和数字。→ 登录（Sign in）。<strong>请把新密码记下来，以后登录都用它。</strong>',
+          '<strong>&ldquo;Update your password&rdquo;</strong> appears — <strong>every first sign-in has this screen</strong>. First box: paste the issued password. Second and third boxes: type <strong>the new password you choose</strong>, identical in both; at least 8 characters with an upper-case letter, a lower-case letter and a digit. → Sign in. <strong>Write the new password down — it is the one you will use from now on.</strong>');
+    return lead +
       shot('pc-update-password.jpg', T('Update your password 页面：三个输入框', 'The Update your password screen, with three boxes'),
         T('第一格旧密码，第二、三格新密码', 'First box the issued password, second and third the new one'),
-        '0.5,43.5,99,40',
-        T('52,53.5,c|机构发的旧密码;52,64.4,c|您自己设的新密码;52,75.3,c|再输一次新密码',
-          '52,53.5,c|issued password;52,64.4,c|your new password;52,75.3,c|the same again')) +
+        '0.5,43.5,99,40', T('52,53.5,c|机构发的旧密码;52,64.4,c|您自己设的新密码;52,75.3,c|再输一次新密码', '52,53.5,c|issued password;52,64.4,c|your new password;52,75.3,c|the same again')) +
       oops(T('如果提示密码不符合要求', 'If it says the password does not meet the requirements'),
-        '<p>' + T('换一个：长度 8 位以上，同时含大写字母、小写字母、数字，不要包含您的名字或账号。三格里第二、三格必须完全一样。',
-          'Pick another one: 8 characters or more, containing an upper-case letter, a lower-case letter and a digit, and not containing your name or account name. The second and third boxes have to match exactly.') + '</p>');
-
-    var keepSecureShot = shot('pc-keep-secure.jpg', T('第一屏：Let\'s keep your account secure', 'First screen: Let\'s keep your account secure'),
-      T('第一屏：让我们保护你的帐户安全', 'Screen 1 of 3 — just select Next'),
-      '64,84,31,15.4',
-      T('38,34.5,r|让我们保护你的帐户安全;62,91.8,l|下一步', '62,91.8,l|select Next'), 390);
-    var installAuthShot = shot('pc-install-auth.jpg', T('第二屏：Install Microsoft Authenticator', 'Second screen: Install Microsoft Authenticator'),
-      T('第二屏：这里不用装任何东西，直接下一步', 'Screen 2 of 3 — nothing to install here, just Next'),
-      '62,88.5,36,10.5',
-      T('50,42,c|不用装，直接下一步;62,95,l|下一步', '50,42,c|nothing to install;62,95,l|select Next'), 298);
-    var setupInAppShot = shot('pc-setup-in-app.jpg', T('第三屏：Set up your account in app', 'Third screen: Set up your account in app'),
-      T('第三屏：在应用中设置你的帐户', 'Screen 3 of 3'),
-      '64.6,87,32,12.5',
-      T('50,45,c|在应用中设置你的帐户;62,93.9,l|下一步', '62,93.9,l|select Next'), 356);
-    var addAccountShot = function (cap) {
-      return shot('ph-add-account.jpg', T('验证器 Add account：选 Work or school account', 'Authenticator Add account: choose Work or school account'),
-        cap, '1,62,98,21', T('50,72,c|选这一条', '50,72,c|choose this'));
-    };
-
-    // The three "Next" screens. The third one says to add the account in the
-    // app, so that is where the authenticator — the reader's own, or the
-    // teacher's — gets its "+" → Work or school account (Rick, 2026-09-23).
-    function threeNext() {
-      var who = helper
-        ? T('<strong>看到第三屏时，' + HELPER + '在他的验证器里</strong>：右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出「登录（Sign in）」和「扫描 QR 码（Scan QR code）」两个选项，<strong>先停在这里</strong>。然后您点 <strong>下一步（Next）</strong>。',
-            '<strong>At the third screen, ' + HELPER + ' opens their authenticator</strong>: &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, Sign in and Scan QR code. <strong>They stop there.</strong> Then you select <strong>Next</strong>.')
-        : onePhone
-          ? T('<strong>看到第三屏时，先切到微软身份验证器</strong>：右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出「登录（Sign in）」和「扫描 QR 码（Scan QR code）」两个选项，<strong>先停在这里</strong>，切回 Teams 点 <strong>下一步（Next）</strong>。',
-              '<strong>At the third screen, switch to Microsoft Authenticator</strong>: &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, Sign in and Scan QR code. <strong>Stop there</strong>, switch back to Teams and select <strong>Next</strong>.')
-          : T('<strong>看到第三屏时，先拿起手机</strong>：打开微软身份验证器 → 右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出「登录（Sign in）」和「扫描 QR 码（Scan QR code）」两个选项，<strong>先停在这里</strong>，再回电脑点 <strong>下一步（Next）</strong>。',
-              '<strong>At the third screen, pick up the phone</strong>: open Microsoft Authenticator → &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, Sign in and Scan QR code. <strong>Stop there</strong>, go back to the computer and select <strong>Next</strong>.');
-      var secondScreen = helper
-        ? T('（<strong>这里什么都不用装</strong>，验证器在' + HELPER + '的手机上）', '(<strong>nothing to install here</strong> — the authenticator is on ' + HELPER + '\'s phone)')
-        : T('（验证器第 2 步已经装好，<strong>不用点商店图标，也不用点下面的「其他选项（Other options）」</strong>）', '(you installed it in step 2, so <strong>do not tap the store badges or the Other options link</strong>)');
-      return T('接下来三屏都只需点 <strong>下一步（Next）</strong>：「让我们保护你的帐户安全（Let\'s keep your account secure）」→「安装 Microsoft Authenticator（Install Microsoft Authenticator）」' + secondScreen + '→「在应用中设置你的帐户（Set up your account in app）」。',
-        'The next three screens only need <strong>Next</strong>: &ldquo;Let\'s keep your account secure&rdquo; → &ldquo;Install Microsoft Authenticator&rdquo; ' + secondScreen + ' → &ldquo;Set up your account in app&rdquo;.') +
-        keepSecureShot + installAuthShot + setupInAppShot + who +
-        addAccountShot(helper ? T(HELPER + '的验证器：「+」之后选 工作或学校帐户（Work or school account）', HELPER + '\'s authenticator: after &ldquo;+&rdquo;, choose Work or school account')
-                              : T('「+」之后选 工作或学校帐户（Work or school account）', 'After &ldquo;+&rdquo;, choose Work or school account'));
-    }
-
-    var qrShot = shot('pc-scan-qr.jpg', T('Scan the QR code 页面', 'The Scan the QR code page'),
-      T('扫这个二维码', 'Scan this code'), '26,26,48,38', T('97,45,l|扫这个码', '97,45,l|scan this'));
-    var wrongTurn = oops(T('选了「登录（Sign in）」，被要求输账号密码', 'Chose Sign in and it asks for an account and password'),
-      '<p>' + T('不要在这里输，点左上角返回，重新「+」→ 工作或学校帐户（Work or school account）→ 这次选「扫描 QR 码（Scan QR code）」。如果账户列表里已经出现了这个账号，点进去 → <strong>「设置两步验证（Set up 2-step verification）」</strong> 也能进到扫码界面。',
-        'Do not enter anything here — go back with the arrow at the top left and start again: &ldquo;+&rdquo; → Work or school account → this time Scan QR code. If the account is already in the list, open it → <strong>Set up 2-step verification</strong> also reaches the scanner.') + '</p>' +
-      shot('ph-account-2step.jpg', T('账户页底部的 Set up 2-step verification', 'Set up 2-step verification at the bottom of the account page'),
-        T('账户页 → 设置两步验证（Set up 2-step verification）', 'Account page → Set up 2-step verification'), '1,88.4,98,11.2'));
-
-    // ---- the "Let's try it out" number ----
-    var tryShot = function (cap, tag) {
-      return shot('pc-try-it-out.jpg', T('Let\'s try it out 页面，显示一个两位数', 'The Let\'s try it out page, showing a two-digit number'),
-        cap, '40.9,66.3,17,10.6', tag);
-    };
-    var tryOut = helper
-      ? T('屏幕上出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>。<strong>把这个数告诉' + HELPER + '</strong>；' + HELPER + '的验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」（没弹出就打开验证器看）→ 输入这个数 → <strong>是（Yes）</strong>。您的屏幕显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
-          '<strong>Let\'s try it out</strong> appears with a <strong>two-digit number</strong>. <strong>Tell ' + HELPER + ' the number</strong>; their authenticator shows &ldquo;Are you trying to sign in?&rdquo; (or they open the app and find it) → they type the number → <strong>Yes</strong>. Your screen says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
-        tryShot(T('把这个数告诉' + HELPER, 'Tell ' + HELPER + ' this number'), T('63,71.5,r|告诉老师这个数', '63,71.5,r|tell the teacher'))
-      : onePhone
-        ? T('屏幕上出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>，<strong>先把这个数记住</strong>；切到微软身份验证器，里面出现「是否正在尝试登录？（Are you trying to sign in?）」→ 输入刚才那个数 → <strong>是（Yes）</strong>。切回 Teams，显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
-            'The screen shows <strong>Let\'s try it out</strong> and a <strong>two-digit number</strong> — <strong>memorise it first</strong>. Switch to Microsoft Authenticator, where &ldquo;Are you trying to sign in?&rdquo; appears → type that number → <strong>Yes</strong>. Switch back to Teams, which says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
-          tryShot(T('记住这个数，切到验证器输进弹出的框', 'Memorise this number, then type it into the authenticator prompt'), T('63,71.5,r|记住这个数', '63,71.5,r|memorise this'))
-        : T('电脑出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」→ 在框里输入电脑上的那个数 → <strong>是（Yes）</strong>。电脑显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
-            'The computer shows <strong>Let\'s try it out</strong> and a <strong>two-digit number</strong>; the authenticator on the phone shows &ldquo;Are you trying to sign in?&rdquo; → type the number from the computer into the box → <strong>Yes</strong>. The computer says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
-          tryShot(T('把这个数输进手机上弹出的框', 'Type this number into the prompt on your phone'), T('63,71.5,r|输进手机', '63,71.5,r|type on phone'));
-
-    // ---- the text-message route (Android only) ----
-    // Leaves the registration screens at the second one: "Install Microsoft
-    // Authenticator" carries an "Other options" link at the foot (Rick's
-    // walk-through, 2026-09-22). No screenshots yet for the screens after it.
-    function smsItems() {
-      return [
-        T('出现 <strong>「让我们保护你的帐户安全（Let\'s keep your account secure）」</strong> → 点 <strong>下一步（Next）</strong>。',
-          '<strong>&ldquo;Let\'s keep your account secure&rdquo;</strong> appears → select <strong>Next</strong>.') + keepSecureShot,
-        T('出现 <strong>「安装 Microsoft Authenticator（Install Microsoft Authenticator）」</strong>——<strong>这一屏不要点「下一步」</strong>。点页面下方的小字链接 <strong>「其他选项（Other options）」</strong>。',
-          '<strong>&ldquo;Install Microsoft Authenticator&rdquo;</strong> appears — <strong>do not select Next on this screen</strong>. Select the small link near the foot of the page, <strong>Other options</strong>.') +
-          oops(T('不小心点了「下一步」，页面出了二维码', 'Selected Next by mistake and a QR code came up'),
-            '<p>' + T('没关系。点二维码页面下方的 <strong>「其他选项（Other options）」</strong> 或 <strong>「我想设置其他方法（I want to set up a different method）」</strong>，一样能回到选方式的页面。',
-              'No harm done. Select <strong>Other options</strong> or <strong>I want to set up a different method</strong> under the QR code; either takes you back to the choice of methods.') + '</p>'),
-        T('出现 <strong>「添加登录方法（Add a sign-in method）」</strong> → 选 <strong>「电话（Phone）」</strong>。',
-          '<strong>&ldquo;Add a sign-in method&rdquo;</strong> appears → choose <strong>Phone</strong>.'),
-        T('出现 <strong>「添加你的电话号码（Add your phone number）」</strong>：国家 / 地区选 <strong>中国 (+86)</strong>，输入 11 位手机号（前面<strong>不加 0</strong>）。如果让您选接收方式，选<strong>短信验证码（Text me a code）</strong>，不要选来电（Call me）→ <strong>下一步（Next）</strong>。',
-          '<strong>&ldquo;Add your phone number&rdquo;</strong> appears: set the country to <strong>China (+86)</strong> and enter the 11-digit mobile number (<strong>no leading 0</strong>). If asked how to receive the code, choose <strong>Text me a code</strong>, not Call me → <strong>Next</strong>.'),
-        T('手机收到一条来自微软的短信，里面有 <strong>6 位数字</strong>。' + (onePhone ? '看一眼通知栏或短信，记住这 6 位数，切回 Teams 输入' : '在电脑上输入这 6 位数') + ' → <strong>下一步（Next）</strong>。出现 <strong>「短信已验证（SMS verified）」</strong> → 下一步（Next）→ <strong>完成（Done）</strong>，登录完成。',
-          'A text message from Microsoft arrives with a <strong>6-digit code</strong>. ' + (onePhone ? 'Read it from the notification or the messages app, switch back to Teams and type it in' : 'Type it in on the computer') + ' → <strong>Next</strong>. <strong>&ldquo;SMS verified&rdquo;</strong> appears → Next → <strong>Done</strong>, and you are signed in.') +
-          oops(T('短信还没到', 'The message has not arrived'),
-            '<p>' + T('等一两分钟。看一眼「信息」里的<strong>骚扰拦截 / 拦截记录</strong>；核对号码前面是 <strong>+86</strong>、没有多输 0，再点 <strong>「重新发送（Resend）」</strong>。旧短信里的数字过期后会无效，以<strong>最新一条</strong>为准。<strong>部分手机就是收不到微软的短信</strong>——两分钟还没来，就回第 2 步改选「请老师帮您扫码」。',
-              'Give it a minute or two. Check the <strong>spam / blocked messages</strong> folder; make sure the number starts with <strong>+86</strong> with no extra 0, then select <strong>Resend</strong>. A code from an older message stops working — use <strong>the newest one</strong>. <strong>Some phones simply never receive Microsoft\'s messages</strong> — if nothing has come after two minutes, go back to step 2 and choose the teacher-scans route.') + '</p>')
-      ];
-    }
-
-    // ---- assemble ----
-    if (sms) {
-      desc.innerHTML = onePhone
-        ? T("全程只用这一部手机。第一次登录会先要您改密码，然后填手机号收一条短信——按下面的顺序，一次只做一样。",
-            "Everything happens on this one phone. The first sign-in asks you to change the password, then for your phone number and the code it receives — take the items below in order, one at a time.")
-        : T("在刚打开的无痕窗口里操作。手机放在手边，马上要收短信。",
-            "Work in the private window you just opened. Keep the phone within reach — a text message is coming.");
-      items = [openItem, pwItem].concat(smsItems());
-    } else if (helper) {
-      desc.innerHTML = T("这一步需要" + HELPER + "（或蜂巢协调员）在您身边，他的手机上要装好微软身份验证器。不在身边的，开一个视频通话也行。全程大约两分钟。",
-        "This step needs " + HELPER + " (or a hive coordinator) beside you, with Microsoft Authenticator on their phone. If they are not with you, a video call works too. It takes about two minutes.");
-      items.push(openItem);
-      items.push(pwItem);
-      items.push(threeNext());
-      items.push((onePhone
-        ? T('您的手机屏幕上出现<strong>一个二维码</strong>「扫描 QR 码（Scan the QR code）」。<strong>把手机屏幕对准' + HELPER + '手机的摄像头</strong>——' + HELPER + '在他的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」），扫您屏幕上的码。' + HELPER + '的验证器里出现了您的账号，您就点手机上的 <strong>下一步（Next）</strong>。',
-            '<strong>A QR code</strong> appears on your phone — &ldquo;Scan the QR code&rdquo;. <strong>Hold your screen up to the camera of ' + HELPER + '\'s phone</strong>: in their authenticator they choose <strong>Scan QR code</strong> (not Sign in) and scan your screen. Once your account shows up in their authenticator, select <strong>Next</strong> on your phone.')
-        : T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。' + HELPER + '在他的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准您的电脑屏幕扫一下。' + HELPER + '的验证器里出现了您的账号，您就点电脑上的 <strong>下一步（Next）</strong>。',
-            '<strong>Scan the QR code</strong> appears on the computer. In their authenticator, ' + HELPER + ' chooses <strong>Scan QR code</strong> (not Sign in) → points the camera at your computer screen. Once your account shows up in their authenticator, select <strong>Next</strong> on the computer.') + qrShot) +
-        oops(T(HELPER + '不在身边？', HELPER.charAt(0).toUpperCase() + HELPER.slice(1) + ' is not with you?'),
-          '<p>' + T('和' + HELPER + '开一个<strong>视频通话</strong>（微信即可），把屏幕上的二维码对准摄像头，让' + HELPER + '在视频里扫。二维码几分钟后会过期，过期了点「下一步（Next）」会给一个新的。截图发过去是扫不了的——验证器只能用摄像头扫。',
-            'Start a <strong>video call</strong> with ' + HELPER + ' (WeChat is fine), hold the QR code up to the camera and let them scan it from the video. The code expires after a few minutes; select <strong>Next</strong> for a fresh one. A screenshot cannot be scanned — the authenticator only scans with its camera.') + '</p>') +
-        wrongTurn);
-      items.push(tryOut);
-      items.push(T('<strong>以后请不要退出登录。</strong>这部' + (onePhone ? '手机' : '电脑') + '上的 Teams 会一直保持登录状态，日常打开就能用。什么时候会再要求验证：换了新手机、自己点了「退出登录」、或者改了密码——那时再找' + HELPER + '按本步扫一次就行。',
-        '<strong>From now on, do not sign out.</strong> Teams on this ' + (onePhone ? 'phone' : 'computer') + ' stays signed in, and simply opens. Verification is asked for again only when you change phones, sign out yourself, or change the password — then ' + HELPER + ' scans once more, exactly as in this step.'));
-    } else {
-      // iPhone: the reader's own authenticator.
-      desc.innerHTML = onePhone
-        ? T("全程只用这一部手机。第一次登录会先要您改密码，然后绑定验证器——按下面的顺序，一次只做一样。",
-            "Everything happens on this one phone. The first sign-in asks you to change the password, then to link the authenticator — take the items below in order, one at a time.")
-        : T("在刚打开的无痕窗口里操作。手机放在手边，绑定时要用。",
-            "Work in the private window you just opened. Keep the phone within reach — you need it for the linking.");
-      items.push(openItem);
-      items.push(pwItem);
-      items.push(threeNext());
-      if (onePhone) {
-        items.push(T('出现「扫描 QR 码（Scan the QR code）」时手机会自动跳到微软身份验证器，按屏幕提示完成即可；如果没有跳转，点二维码下方的链接让它在验证器里打开。',
-          'When &ldquo;Scan the QR code&rdquo; appears the phone jumps to Microsoft Authenticator by itself; follow the prompts on screen. If it does not jump, use the link under the QR code to open it in the authenticator.'));
-      } else {
-        items.push(T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。回到手机上的<strong>微软身份验证器（Authenticator）</strong>，选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准电脑屏幕扫一下。验证器里出现您的账号后，点电脑上的 <strong>下一步（Next）</strong>。',
-          '<strong>Scan the QR code</strong> appears on the computer. Back in <strong>Microsoft Authenticator</strong> on the phone, choose <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen. Once your account shows up in the authenticator, select <strong>Next</strong> on the computer.') + qrShot + wrongTurn);
-      }
-      items.push(tryOut);
-    }
-
-    stepsEl.innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + "</span></li>"; }).join("");
-    tip.className = "note plain"; tip.hidden = true; tip.innerHTML = "";
+        '<p>' + T('换一个：长度 8 位以上，同时含大写字母、小写字母、数字，不要包含您的名字或账号。第二、三格必须完全一样。', 'Pick another: 8 characters or more with an upper-case letter, a lower-case letter and a digit, not containing your name or account. The second and third boxes must match.') + '</p>');
+  }
+  var keepSecureShot = function () { return shot('pc-keep-secure.jpg', "Let's keep your account secure", T('第一屏：让我们保护你的帐户安全', 'Screen 1 of 3 — just select Next'), '64,84,31,15.4', T('38,34.5,r|让我们保护你的帐户安全;62,91.8,l|下一步', '62,91.8,l|select Next'), 390); };
+  var installAuthShot = function () { return shot('pc-install-auth.jpg', 'Install Microsoft Authenticator', T('第二屏：这里不用装任何东西，直接下一步', 'Screen 2 of 3 — nothing to install here, just Next'), '62,88.5,36,10.5', T('50,42,c|已经装好，直接下一步;62,95,l|下一步', '50,42,c|already installed;62,95,l|select Next'), 298); };
+  var setupInAppShot = function () { return shot('pc-setup-in-app.jpg', 'Set up your account in app', T('第三屏：在应用中设置你的帐户', 'Screen 3 of 3'), '64.6,87,32,12.5', T('50,45,c|在应用中设置你的帐户;62,93.9,l|下一步', '62,93.9,l|select Next'), 356); };
+  var addAccountShot = function (cap) { return shot('ph-add-account.jpg', T('验证器 Add account：选 Work or school account', 'Authenticator Add account: choose Work or school account'), cap, '1,62,98,21', T('50,72,c|选这一条', '50,72,c|choose this')); };
+  var qrShot = function (cap) { return shot('pc-scan-qr.jpg', T('Scan the QR code 页面', 'The Scan the QR code page'), cap, '26,26,48,38', T('97,45,l|扫这个码', '97,45,l|scan this')); };
+  var tryShot = function (cap, tag) { return shot('pc-try-it-out.jpg', "Let's try it out", cap, '40.9,66.3,17,10.6', tag); };
+  var wrongTurn = function () {
+    return oops(T('选了「登录（Sign in）」，被要求输账号密码', 'Chose Sign in and it asks for an account and password'),
+      '<p>' + T('不要在这里输，点左上角返回，重新「+」→ 工作或学校帐户 → 这次选「扫描 QR 码（Scan QR code）」。账户列表里已经有这个账号的，点进去 → <strong>「设置两步验证（Set up 2-step verification）」</strong> 也能进到扫码界面。',
+        'Do not enter anything — go back with the arrow at the top left and start again: &ldquo;+&rdquo; → Work or school account → this time Scan QR code. If the account is already in the list, open it → <strong>Set up 2-step verification</strong> also reaches the scanner.') + '</p>' +
+      shot('ph-account-2step.jpg', 'Set up 2-step verification', T('账户页 → 设置两步验证（Set up 2-step verification）', 'Account page → Set up 2-step verification'), '1,88.4,98,11.2'));
+  };
+  // The three screens that only need Next; at the third, the authenticator
+  // (whoever holds it) adds the account.
+  function threeNext(holder, holderDevice, backTo) {
+    return T('接下来三屏都只需点 <strong>下一步（Next）</strong>：「让我们保护你的帐户安全（Let\'s keep your account secure）」→「安装 Microsoft Authenticator（Install Microsoft Authenticator）」（验证器已经装好了，<strong>不用点商店图标，也不用点下面的「其他选项」</strong>）→「在应用中设置你的帐户（Set up your account in app）」。',
+        'The next three screens only need <strong>Next</strong>: &ldquo;Let\'s keep your account secure&rdquo; → &ldquo;Install Microsoft Authenticator&rdquo; (already installed — <strong>do not tap the store badges or the Other options link</strong>) → &ldquo;Set up your account in app&rdquo;.') +
+      keepSecureShot() + installAuthShot() + setupInAppShot() +
+      T('<strong>看到第三屏时，' + holder + '拿起' + holderDevice + '，打开微软身份验证器</strong>：右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出「登录（Sign in）」和「扫描 QR 码（Scan QR code）」两个选项，<strong>先停在这里</strong>。然后' + backTo + '点 <strong>下一步（Next）</strong>。',
+        '<strong>At the third screen, ' + holder + ' picks up ' + holderDevice + ' and opens Microsoft Authenticator</strong>: &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, Sign in and Scan QR code. <strong>Stop there.</strong> Then ' + backTo + ' select <strong>Next</strong>.') +
+      addAccountShot(T('「+」之后选 工作或学校帐户（Work or school account）', 'After &ldquo;+&rdquo;, choose Work or school account'));
   }
 
-  // ---- step 6 ----
-  var checklistEl = document.getElementById("checklist");
-  var doneNote = document.getElementById("doneNote");
-  function buildStep6() {
-    var sms = isSMS(), helper = isHelper();
+  // ---- signin-pc (iOS: computer or second iPad shows the code) ----
+  function buildSigninPc() {
+    var onPad = state.second === "ipad";
+    var dev = onPad ? T("那台 iPad / iPhone", "that iPad or iPhone") : T("电脑", "the computer");
+    document.getElementById("pcDesc").innerHTML = T("在" + dev + "刚打开的无痕窗口里操作。您自己的 iPhone / iPad 放在手边——它的验证器负责扫码。",
+      "Work in the private window you just opened on " + dev + ". Keep your own iPhone or iPad within reach — its authenticator does the scanning.");
+    var items = [];
+    items.push(T('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，回车；输入机构发给您的账号（形如 <code>name@yourdomain</code>）→ 下一步（Next）→ 输入密码 → 登录（Sign in）。<strong>密码请复制粘贴</strong>，不要手动敲。',
+      'In the private window\'s address bar type <code>teams.microsoft.com</code> and press Enter; enter the account your school issued (like <code>name@yourdomain</code>) → Next → password → Sign in. <strong>Paste the password</strong> rather than typing it.'));
+    items.push(pwItem(state.who === "back"));
+    items.push(threeNext(T("", "you"), T("您自己的 iPhone / iPad", "your own iPhone or iPad"), T("回到" + dev, "back on " + dev)));
+    items.push(T(dev + '上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。在您的 iPhone / iPad 的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准' + dev + '屏幕扫一下。验证器里出现您的账号后，点' + dev + '上的 <strong>下一步（Next）</strong>。',
+      '<strong>Scan the QR code</strong> appears on ' + dev + '. In the authenticator on your iPhone or iPad choose <strong>Scan QR code</strong> (not Sign in) → point the camera at ' + dev + '. Once your account shows up in the authenticator, select <strong>Next</strong> on ' + dev + '.') +
+      qrShot(T('用 iPhone / iPad 的验证器扫这个码', 'Scan this with the authenticator on your iPhone or iPad')) + wrongTurn());
+    items.push(T(dev + '出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>；iPhone / iPad 上验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」（没弹出就打开验证器看）→ 输入那个数 → <strong>是（Yes）</strong>。' + dev + '显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>。',
+      '<strong>Let\'s try it out</strong> appears on ' + dev + ' with a <strong>two-digit number</strong>; the authenticator on your iPhone or iPad shows &ldquo;Are you trying to sign in?&rdquo; (or open the app and find it) → type the number → <strong>Yes</strong>. ' + dev + ' says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>.') +
+      tryShot(T('把这个数输进 iPhone / iPad 上弹出的框', 'Type this number into the prompt on your iPhone or iPad'), T('63,71.5,r|输进验证器', '63,71.5,r|type in the app')));
+    items.push(T('<strong>最后在手机上登录 Teams</strong>：打开 iPhone / iPad 上的 Teams App → 输入账号和<strong>您自己设的</strong>密码 → 验证器弹出提示 → 输入屏幕上的两位数 → 进入 Teams。以后手机上的 Teams 会一直保持登录，<strong>不要点退出</strong>。',
+      '<strong>Finally, sign in to Teams on the phone</strong>: open the Teams app on your iPhone or iPad → your account and <strong>the password you set</strong> → the authenticator prompts → type the two-digit number → you are in. Teams on the phone stays signed in from now on — <strong>do not sign out</strong>.'));
+    document.getElementById("pcSteps").innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + '</span></li>'; }).join("");
+  }
+
+  // ---- android-verifier ----
+  var mustRead = document.getElementById("mustRead");
+  var confirmWrap = document.getElementById("confirmWrap");
+  var confirmOwn = document.getElementById("confirmOwn");
+  function buildVerifier() {
+    pickGroup(document.getElementById("verifierPick"), [
+      { id: "own",   name: T("我有一部 iPhone 或 iPad，用它做验证器", "I have an iPhone or iPad to use as the authenticator"), tag: T("自己的、家里常在的都可以，旧的也行", "your own or one that stays at home — an old one is fine") },
+      { id: "admin", name: T("我没有，需要机构 / 学校的管理员帮忙扫码", "I have none — my institution's administrator will scan for me"), tag: T("只需在安卓手机上装 Teams；以后的验证提示会发到管理员那里", "only Teams on the Android phone; future prompts go to the administrator") }
+    ], state.verifier, function (id) { state.verifier = id; save(); renderProgress(); refresh(); });
+    confirmOwn.checked = false;
+    confirmOwn.onchange = refresh;
+    mustRead.addEventListener("toggle", refresh);
+    refresh();
+    function refresh() {
+      var nb = nextBtn("android-verifier");
+      confirmWrap.hidden = state.verifier !== "own";
+      var readOk = mustRead.open || mustRead.dataset.read === "1";
+      if (mustRead.open) mustRead.dataset.read = "1";
+      nb.disabled = !(state.verifier === "admin" || (state.verifier === "own" && confirmOwn.checked));
+      if (!readOk && state.verifier) showHint(T("请先点开上面的说明读一下，再继续。", "Please open and read the note above first."));
+    }
+  }
+
+  // ---- brand (Android) ----
+  var BRANDS = [
+    { id: "huawei",  name: T("华为 / 荣耀", "Huawei / Honor"), store: T("华为应用市场 / 荣耀应用市场", "AppGallery / Honor App Market") },
+    { id: "xiaomi",  name: T("小米", "Xiaomi"),   store: T("小米应用商店", "the Xiaomi GetApps store") },
+    { id: "oppo",    name: "OPPO",                store: T("OPPO 软件商店", "the OPPO App Market") },
+    { id: "vivo",    name: "vivo",                store: T("vivo 应用商店", "the vivo App Store") },
+    { id: "samsung", name: T("三星", "Samsung"),  store: T("三星应用商店", "the Samsung Galaxy Store") },
+    { id: "other",   name: T("其他品牌 / 不确定", "Another brand / not sure"), store: T("手机自带的应用商店", "the app store already on your phone") }
+  ];
+  function buildBrand() {
+    var grid = document.getElementById("brandPick"), box = document.getElementById("brandContent");
+    grid.innerHTML = "";
+    BRANDS.forEach(function (b) {
+      var btn = document.createElement("button");
+      btn.type = "button"; btn.className = "choice"; btn.setAttribute("aria-pressed", b.id === state.brand ? "true" : "false");
+      btn.innerHTML = '<span class="name">' + b.name + '</span><span class="tag">' + T("安卓", "Android") + '</span>';
+      btn.addEventListener("click", function () {
+        Array.prototype.forEach.call(grid.children, function (c) { c.setAttribute("aria-pressed", "false"); });
+        btn.setAttribute("aria-pressed", "true");
+        state.brand = b.id; save(); render();
+      });
+      grid.appendChild(btn);
+    });
+    render();
+    function render() {
+      var nb = nextBtn("brand"); nb.disabled = !state.brand;
+      if (!state.brand) { box.innerHTML = ""; return; }
+      var b = BRANDS.filter(function (x) { return x.id === state.brand; })[0];
+      box.innerHTML =
+        '<div class="app-block"><h3>Microsoft Teams <span class="pill must">' + T("必装", "required") + '</span></h3>' +
+        '<p>' + T("打开<strong>" + b.store + "</strong> → 搜索 <code>Teams</code> → 安装。开发者是<strong>微软（中国）有限公司</strong>。", "Open <strong>" + b.store + "</strong> → search <code>Teams</code> → install. The developer reads <strong>微软（中国）有限公司</strong>.") + '</p>' +
+        '<p class="identify">' + T("怎么认：叫 <strong>Microsoft Teams</strong>，紫色的 T 字图标。<strong>不要装 Authenticator</strong>——在这部手机上它绑不了账号。", "How to recognise it: <strong>Microsoft Teams</strong>, the purple T icon. <strong>Do not install Authenticator</strong> — it cannot link an account on this phone.") + '</p></div>' +
+        '<div class="note plain">' + T("<strong>不要在搜索引擎上随便下载安装包</strong>——装到被改过的版本会很危险。只从应用商店装。", "<strong>Do not download an installer from a search engine.</strong> A tampered build is dangerous. Install from the app store only.") + '</div>' +
+        '<div class="note good">' + T("<strong>装好就行，先别登录。</strong>登录在下一步，需要" + (state.verifier === "admin" ? "管理员在您身边（或视频通话）" : "您的 iPhone / iPad 在手边") + "。",
+          "<strong>Install it, and do not sign in yet.</strong> Signing in is the next step and needs " + (state.verifier === "admin" ? "the administrator beside you (or on a video call)" : "your iPhone or iPad within reach") + ".") + '</div>';
+    }
+  }
+
+  // ---- signin-android (own iPhone/iPad) ----
+  function buildSigninAndroid() {
+    var items = [];
+    items.push(T('在安卓手机上打开 <strong>Teams App</strong>，输入机构发给您的账号 → 下一步（Next）→ 密码 → 登录（Sign in）（建议长按粘贴，不要手打）。',
+      'On the Android phone open the <strong>Teams app</strong>, enter the account your school issued → Next → password → Sign in (long-press to paste rather than typing).'));
+    items.push(pwItem(state.who === "back"));
+    items.push(threeNext(T("", "you"), T("iPhone / iPad", "the iPhone or iPad"), T("回到安卓手机", "back on the Android phone")));
+    items.push(T('安卓手机屏幕上出现<strong>一个二维码</strong>「扫描 QR 码（Scan the QR code）」。在 iPhone / iPad 的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ <strong>对准安卓手机的屏幕</strong>扫。验证器里出现您的账号后，点安卓手机上的 <strong>下一步（Next）</strong>。',
+      '<strong>A QR code</strong> appears on the Android phone — &ldquo;Scan the QR code&rdquo;. In the authenticator on the iPhone or iPad choose <strong>Scan QR code</strong> (not Sign in) → <strong>point it at the Android screen</strong>. Once your account shows up in the authenticator, select <strong>Next</strong> on the Android phone.') + wrongTurn());
+    items.push(T('安卓手机出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>；iPhone / iPad 上验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」（没弹出就打开验证器看）→ 输入那个数 → <strong>是（Yes）</strong>。安卓手机显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
+      '<strong>Let\'s try it out</strong> appears on the Android phone with a <strong>two-digit number</strong>; the authenticator on the iPhone or iPad shows &ldquo;Are you trying to sign in?&rdquo; (or open the app and find it) → type the number → <strong>Yes</strong>. The Android phone says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
+      tryShot(T('把这个数输进 iPhone / iPad 上弹出的框', 'Type this number into the prompt on the iPhone or iPad'), T('63,71.5,r|输进验证器', '63,71.5,r|type in the app')));
+    items.push(T('<strong>以后：</strong>安卓手机上的 Teams 一直保持登录，<strong>不要点退出</strong>。哪天再要求验证（换手机、退出、改密码），提示会发到<strong>这部 iPhone / iPad</strong> 上——请把它保管好、放在身边。',
+      '<strong>From now on:</strong> Teams on the Android phone stays signed in — <strong>do not sign out</strong>. If verification is asked for again (a new phone, a sign-out, a password change), the prompt goes to <strong>this iPhone or iPad</strong> — keep it safe and close by.'));
+    document.getElementById("androidSteps").innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + '</span></li>'; }).join("");
+  }
+
+  // ---- signin-admin ----
+  function buildSigninAdmin() {
+    var A = T("管理员", "the administrator");
+    var items = [];
+    items.push(T('<strong>约好时间，把两样东西准备好：</strong>您的安卓手机（装好 Teams），以及一台能视频通话的设备（如果管理员不在身边）。管理员那边要有装了微软身份验证器的手机。',
+      '<strong>Agree a time and have two things ready:</strong> your Android phone with Teams installed, and a device for a video call if the administrator is not beside you. The administrator needs Microsoft Authenticator on their phone.'));
+    items.push(T('在安卓手机上打开 <strong>Teams App</strong>，输入机构发给您的账号 → 下一步（Next）→ 密码 → 登录（Sign in）。',
+      'On the Android phone open the <strong>Teams app</strong>, enter the account your school issued → Next → password → Sign in.'));
+    items.push(pwItem(state.who === "back"));
+    items.push(threeNext(A, T("他自己的手机", "their own phone"), T("您在安卓手机上", "you, on the Android phone,")));
+    items.push(T('安卓手机屏幕上出现<strong>一个二维码</strong>。<strong>把屏幕对准管理员手机的摄像头</strong>（视频通话时对准摄像头让他扫）——管理员在他的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」），扫您屏幕上的码。他的验证器里出现您的账号后，您点手机上的 <strong>下一步（Next）</strong>。二维码几分钟后会过期，过期了点「下一步」换新的；截图是扫不了的。',
+      '<strong>A QR code</strong> appears on your Android screen. <strong>Hold the screen up to the camera of the administrator\'s phone</strong> (on a video call, hold it to the camera) — they choose <strong>Scan QR code</strong> (not Sign in) in their authenticator and scan your screen. Once your account shows up in their app, select <strong>Next</strong> on your phone. The code expires after a few minutes — select Next for a fresh one; a screenshot cannot be scanned.') + wrongTurn());
+    items.push(T('安卓手机出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>。<strong>把这个数告诉管理员</strong>；他的验证器弹出「是否正在尝试登录？」→ 他输入这个数 → <strong>是（Yes）</strong>。您的手机显示「已添加 Authenticator」→ <strong>完成（Done）</strong>，登录完成。',
+      '<strong>Let\'s try it out</strong> appears on your phone with a <strong>two-digit number</strong>. <strong>Tell the administrator the number</strong>; their authenticator shows &ldquo;Are you trying to sign in?&rdquo; → they type it → <strong>Yes</strong>. Your phone says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
+      tryShot(T('把这个数告诉管理员', 'Tell the administrator this number'), T('63,71.5,r|告诉管理员', '63,71.5,r|tell the admin')));
+    items.push(T('<strong>以后：</strong>Teams 一直保持登录，<strong>不要点退出</strong>。哪天再要求验证，提示会发到<strong>管理员</strong>那里——在 Teams 里给他发消息，把屏幕上的两位数告诉他，他确认一下即可。',
+      '<strong>From now on:</strong> Teams stays signed in — <strong>do not sign out</strong>. If verification is asked for again, the prompt goes to <strong>the administrator</strong> — message them in Teams with the two-digit number on your screen and they confirm it.'));
+    document.getElementById("adminSteps").innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + '</span></li>'; }).join("");
+  }
+
+  // ---- done ----
+  function buildDone() {
+    var el = document.getElementById("checklist"), note = document.getElementById("doneNote");
+    var admin = state.verifier === "admin", android = state.dev === "android";
     var checks = [
-      state.device === "laptop"
-        ? T("电脑上的 Teams 能正常打开，能看到界面内容", "Teams opens on the computer and I can see the interface")
-        : T("手机上的 Teams 能正常打开，能看到界面内容", "Teams opens on the phone and I can see the interface"),
-      state.device === "laptop"
-        ? T("手机上的 Teams 也已装好，并且登录成功", "Teams is installed on my phone too, and signed in")
-        : T("要在电脑上用 Teams 的，电脑上也装好并登录了（只用手机的可直接打勾）", "If I use Teams on a computer, it is installed and signed in there too (phone-only: just tick this)"),
-      sms ? T("我刚才收到了微软发来的验证码短信，并且登录成功", "The text message from Microsoft arrived and I signed in with its code")
-        : helper ? T("老师（或我自己另一部设备）的验证器里能看到我的账号", "My account is listed in the teacher's (or my own second device's) authenticator")
-        : T("手机上的微软身份验证器里能看到我的机构账号", "My school account is listed in Microsoft Authenticator on my phone"),
-      T("我记下了自己设的新密码", "I have written down the new password I set"),
-      sms ? T("我知道以后每次登录都会收到一条短信，把里面的 6 位数输进去就行", "I know that from now on each sign-in sends me a text message, and I type in its 6-digit code")
-        : helper ? T("我知道不要点「退出登录」；再要求验证时找老师扫一次", "I know not to sign out, and to ask the teacher to scan again if verification is asked for")
-        : T("我知道以后登录只需要在手机上确认一次，不用再重新扫码或重新绑定", "I know that from now on I only confirm once on the phone — no scanning or linking again")
+      android ? T("安卓手机上的 Teams 能正常打开，已登录", "Teams opens on the Android phone, signed in")
+              : T("iPhone / iPad 上的 Teams 能正常打开，已登录", "Teams opens on the iPhone or iPad, signed in"),
+      admin ? T("管理员的验证器里能看到我的账号", "My account is listed in the administrator's authenticator")
+            : T("我的 iPhone / iPad 的验证器里能看到我的账号", "My account is listed in the authenticator on my iPhone or iPad"),
+      T("我记下了自己设的密码", "I have written down the password I set"),
+      admin ? T("我知道不要点退出登录；再要求验证时在 Teams 里找管理员要确认", "I know not to sign out, and to ask the administrator in Teams when verification is asked for")
+            : T("我知道不要点退出登录；以后的验证提示都发到我的 iPhone / iPad 上", "I know not to sign out, and that future prompts go to my iPhone or iPad")
     ];
-    checklistEl.innerHTML = checks.map(function (c, i) {
-      return '<label><input type="checkbox" id="chk' + i + '" data-chk> <span>' + c + '</span></label>';
-    }).join("");
-    doneNote.hidden = true;
-    document.getElementById("dailyTip").hidden = true;
-    doneNote.innerHTML = helper
-      ? T("<strong>设置完成，恭喜！</strong>以后打开 Teams 直接就是登录状态，<strong>不要点「退出登录」</strong>。哪天又要求验证了——换了新手机、退出后重新登录、改了密码——输入账号和<strong>您自己设的</strong>密码后，把屏幕上的两位数告诉老师，老师在他的验证器里确认一下就行。",
-          "<strong>Setup complete — well done!</strong> From now on Teams simply opens signed in — <strong>do not sign out</strong>. If verification is ever asked for again — a new phone, signing back in after a sign-out, a password change — enter your account and <strong>the password you set yourself</strong>, then tell the teacher the two-digit number on your screen and they confirm it in their authenticator.")
-      : sms
-      ? T("<strong>设置完成，恭喜！</strong>以后登录 Teams：打开普通窗口（不用无痕了）输入账号和<strong>您自己设的</strong>密码，页面会说验证码已发到您的手机——看短信，把 <strong>6 位数</strong>输进去就登录了。<strong>换手机号之前</strong>请先联系域管理员，不然会收不到验证码。",
-          "<strong>Setup complete — well done!</strong> From now on, to sign in to Teams: open an ordinary window (no more private window), enter your account and <strong>the password you set yourself</strong>, and the page says a code has been sent to your phone — read the text message and type in the <strong>6-digit number</strong>. <strong>Before changing your phone number</strong>, tell the domain administrator, or the codes will stop reaching you.")
-      : T("<strong>设置完成，恭喜！</strong>以后登录 Teams：打开普通窗口（不用无痕了）输入账号和<strong>您自己设的</strong>密码，看到要验证时看手机——验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」就输入电脑上显示的两位数；如果页面让您输验证码，就把验证器里显示的 6 位数输进去。绑定是一次性的，以后<strong>不需要再扫码、也不需要再输那串长代码</strong>。",
-          "<strong>Setup complete — well done!</strong> From now on, to sign in to Teams: open an ordinary window (no more private window), enter your account and <strong>the password you set yourself</strong>, and look at your phone when verification is asked for. If the authenticator shows &ldquo;Are you trying to sign in?&rdquo;, type the two-digit number shown on the computer; if the page asks for a code, enter the 6-digit number the authenticator displays. The linking was one-time — you will <strong>never need to scan a QR code or type that long code again</strong>.");
-    Array.prototype.forEach.call(checklistEl.querySelectorAll("input[data-chk]"), function (chk) {
+    el.innerHTML = checks.map(function (c, i) { return '<label><input type="checkbox" id="chk' + i + '" data-chk> <span>' + c + '</span></label>'; }).join("");
+    note.hidden = true; document.getElementById("dailyTip").hidden = true;
+    note.innerHTML = admin
+      ? T("<strong>设置完成，恭喜！</strong>以后打开 Teams 直接就是登录状态。哪天又要求验证——换了手机、退出后重新登录、改了密码——输入账号密码后，把屏幕上的两位数发给管理员，他在验证器里确认一下就行。", "<strong>Setup complete — well done!</strong> From now on Teams simply opens signed in. If verification is ever asked for again — a new phone, signing back in, a password change — enter your account and password, send the administrator the two-digit number, and they confirm it.")
+      : T("<strong>设置完成，恭喜！</strong>以后登录 Teams：输入账号和<strong>您自己设的</strong>密码，要验证时看 iPhone / iPad——验证器弹出「是否正在尝试登录？」就输入屏幕上的两位数。绑定是一次性的，以后<strong>不需要再扫码</strong>。", "<strong>Setup complete — well done!</strong> From now on: enter your account and <strong>the password you set</strong>, and when asked to verify look at your iPhone or iPad — the authenticator shows &ldquo;Are you trying to sign in?&rdquo; and you type the two-digit number. The linking was one-time — <strong>no more scanning</strong>.");
+    Array.prototype.forEach.call(el.querySelectorAll("input[data-chk]"), function (chk) {
       chk.addEventListener("change", function () {
-        var all = Array.prototype.every.call(checklistEl.querySelectorAll("input[data-chk]"), function (c) { return c.checked; });
-        doneNote.hidden = !all;
-        document.getElementById("dailyTip").hidden = !all;
+        var all = Array.prototype.every.call(el.querySelectorAll("input[data-chk]"), function (c) { return c.checked; });
+        note.hidden = !all; document.getElementById("dailyTip").hidden = !all;
       });
     });
   }
   document.getElementById("restart").addEventListener("click", function () {
-    state = { phone: null, method: null, device: null, os: null, step: 1 };
-    save();
-    location.reload();
+    state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null };
+    save(); location.reload();
   });
 
   // ---- boot ----
-  function boot(data) {
-    if (data && data.phone) state = data;
-
-    // A page load always starts at step 1. Earlier answers are kept, so the
-    // progress bar above lets the reader jump straight back to where they
-    // were; landing mid-wizard unannounced just confuses someone who opened
-    // the help menu weeks later. The one exception is the reload that the
-    // language button triggers: that should land where the reader was.
-    state.step = 1;
+  function boot() {
+    state.screen = "who";
     try {
-      var hop = sessionStorage.getItem("teamsSetupLangStep");
-      if (hop) {
-        sessionStorage.removeItem("teamsSetupLangStep");
-        var n = Number(hop);
-        if (n >= 1 && n <= 6 && !missingFor(n)) state.step = n;
-      }
+      var hop = sessionStorage.getItem("teamsSetupLangScreen");
+      if (hop) { sessionStorage.removeItem("teamsSetupLangScreen"); if (!missingFor(hop)) state.screen = hop; }
     } catch (e) {}
-
-    if (state.phone) {
-      var pi = PHONES.map(function (p) { return p.id; }).indexOf(state.phone);
-      if (pi >= 0) {
-        phoneChoicesEl.children[pi].setAttribute("aria-pressed", "true");
-        document.getElementById("stateLabel").textContent = T("已选：", "Selected: ") + phoneName(state.phone);
-      }
-      document.getElementById("s1next").disabled = false;
-    }
-    if (state.device) {
-      var di = DEVICES.map(function (d) { return d.id; }).indexOf(state.device);
-      if (di >= 0) devicePickEl.children[di].click();
-    }
-    if (state.os) {
-      var oi = OSES.map(function (o) { return o.id; }).indexOf(state.os);
-      if (oi >= 0) osPickEl.children[oi].setAttribute("aria-pressed", "true");
-    }
-    goTo(state.step || 1);
+    document.getElementById("stateLabel").textContent = "";
+    goTo(state.screen);
   }
-  if (window.claude && window.claude.hot) {
-    window.claude.hot.ready ? window.claude.hot.ready(boot) : boot(window.claude.hot.data || null);
-  } else {
-    boot(null);
-  }
+  boot();
 })();
 </script>
-
 </body>
 </html>
