@@ -1331,7 +1331,7 @@
     // walk-through, 2026-09-22). The pictures carry a Chinese pill on the one
     // thing that matters on each, so nobody has to read the English to know
     // they are on the right screen.
-    var threeNext = T('接下来三屏都只需点 <strong>下一步（Next）</strong>：「让我们保护你的帐户安全（Let\'s keep your account secure）」→「安装 Microsoft Authenticator（Install Microsoft Authenticator）」（验证器第 2 步已经装好，<strong>不用点商店图标，也不用点下面的「其他选项（Other options）」</strong>）→「在应用中设置你的帐户（Set up your account in app）」。',
+    function threeNext(onePhone) { return T('接下来三屏都只需点 <strong>下一步（Next）</strong>：「让我们保护你的帐户安全（Let\'s keep your account secure）」→「安装 Microsoft Authenticator（Install Microsoft Authenticator）」（验证器第 2 步已经装好，<strong>不用点商店图标，也不用点下面的「其他选项（Other options）」</strong>）→「在应用中设置你的帐户（Set up your account in app）」。',
       'The next three screens only need <strong>Next</strong>: &ldquo;Let\'s keep your account secure&rdquo; → &ldquo;Install Microsoft Authenticator&rdquo; (you installed it in step 2, so <strong>do not tap the store badges or the Other options link</strong>) → &ldquo;Set up your account in app&rdquo;.') +
       shot('pc-keep-secure.jpg', T('第一屏：Let\'s keep your account secure', 'First screen: Let\'s keep your account secure'),
         T('第一屏：让我们保护你的帐户安全', 'Screen 1 of 3 — just select Next'),
@@ -1344,7 +1344,18 @@
       shot('pc-setup-in-app.jpg', T('第三屏：Set up your account in app', 'Third screen: Set up your account in app'),
         T('第三屏：在应用中设置你的帐户', 'Screen 3 of 3 — just select Next'),
         '64.6,87,32,12.5',
-        T('50,45,c|在应用中设置你的帐户;62,93.9,l|下一步', '62,93.9,l|select Next'), 356);
+        T('50,45,c|在应用中设置你的帐户;62,93.9,l|下一步', '62,93.9,l|select Next'), 356) +
+      // The third screen is the one that says to add the account in the app, so
+      // the phone-side "+" → Work or school account belongs here, before the QR
+      // code is on the computer (Rick, 2026-09-23).
+      (onePhone
+        ? T('<strong>看到第三屏时，先切到微软身份验证器</strong>：右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出「登录（Sign in）」和「扫描 QR 码（Scan QR code）」两个选项，<strong>先停在这里</strong>，切回 Teams 点 <strong>下一步（Next）</strong>。',
+            '<strong>At the third screen, switch to Microsoft Authenticator</strong>: &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, Sign in and Scan QR code. <strong>Stop there</strong>, switch back to Teams and select <strong>Next</strong>.')
+        : T('<strong>看到第三屏时，先拿起手机</strong>：打开微软身份验证器 → 右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出「登录（Sign in）」和「扫描 QR 码（Scan QR code）」两个选项，<strong>先停在这里</strong>，再回电脑点 <strong>下一步（Next）</strong>。',
+            '<strong>At the third screen, pick up the phone</strong>: open Microsoft Authenticator → &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, Sign in and Scan QR code. <strong>Stop there</strong>, go back to the computer and select <strong>Next</strong>.')) +
+      shot('ph-add-account.jpg', T('验证器 Add account：选 Work or school account', 'Authenticator Add account: choose Work or school account'),
+        T('「+」之后选 工作或学校帐户（Work or school account）', 'After &ldquo;+&rdquo;, choose Work or school account'), '1,62,98,21',
+        T('50,72,c|选这一条', '50,72,c|choose this')); }
 
     // ---- the text-message route (Android only) ----
     // The same registration screens as above, leaving them at the second one:
@@ -1454,22 +1465,19 @@
       if (sms) {
         items = items.concat(smsItems(false));
       } else {
-      items.push(threeNext);
+      items.push(threeNext(false));
       if (android) {
         // Android, computer flow (Rick, 2026-09-22): scan first — most phones
         // bind on the spot — and only fall back to the code + URL route when
         // the scan hangs. The fallback keeps the whole timed-transfer drill,
         // but as an exception exit, not the main road.
-        items.push(T('出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。打开手机上的微软身份验证器 → 右上「+」→ <strong>「工作或学校帐户（Work or school account）」</strong> → <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 对准电脑屏幕扫一下。<strong>大多数手机到这里就绑定成功了</strong>——验证器里出现您的账号，就点电脑上的「下一步（Next）」。',
-          '<strong>Scan the QR code</strong> appears. Open Microsoft Authenticator on the phone → &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen. <strong>On most phones the account is linked right there</strong> — once it shows up in the authenticator, select Next on the computer.') +
-          shot('ph-add-account.jpg', T('验证器 Add account：选 Work or school account', 'Authenticator Add account: choose Work or school account'),
-            T('「+」之后选 工作或学校帐户（Work or school account）', 'After &ldquo;+&rdquo;, choose Work or school account'), '1,62,98,21',
-            T('50,72,c|选这一条', '50,72,c|choose this')) +
+        items.push(T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。手机上选 <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 对准电脑屏幕扫一下。<strong>大多数手机到这里就绑定成功了</strong>——验证器里出现您的账号，就点电脑上的「下一步（Next）」。',
+          '<strong>Scan the QR code</strong> appears on the computer. On the phone choose <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen. <strong>On most phones the account is linked right there</strong> — once it shows up in the authenticator, select Next on the computer.') +
           shot('pc-scan-qr.jpg', T('Scan the QR code 页面', 'The Scan the QR code page'),
             T('扫这个二维码；下面那行链接是备用路', 'Scan this code; the link underneath is the fallback route'),
             '26,26,48,38', T('97,45,l|扫这个码', '97,45,l|scan this')) +
           oops(T('选了「登录（Sign in）」，被要求输账号密码', 'Chose Sign in and it asks for an account and password'),
-            '<p>' + T('不要在这里输，点左上角返回，重新「+」→ Work or school account → Scan QR code。如果账户列表里已经出现了您的账号，点进去 → <strong>「设置两步验证（Set up 2-step verification）」</strong> 也能进到扫码界面。',
+            '<p>' + T('不要在这里输，点左上角返回，重新「+」→ 工作或学校帐户（Work or school account）→ 这次选「扫描 QR 码（Scan QR code）」。如果账户列表里已经出现了您的账号，点进去 → <strong>「设置两步验证（Set up 2-step verification）」</strong> 也能进到扫码界面。',
               'Do not enter anything here — go back with the arrow at the top left and start again: &ldquo;+&rdquo; → Work or school account → Scan QR code. If your account is already in the list, open it → <strong>Set up 2-step verification</strong> also reaches the scanner.') + '</p>' +
             shot('ph-account-2step.jpg', T('账户页底部的 Set up 2-step verification', 'Set up 2-step verification at the bottom of the account page'),
               T('账户页 → 设置两步验证（Set up 2-step verification）', 'Account page → Set up 2-step verification'), '1,88.4,98,11.2')));
@@ -1483,11 +1491,11 @@
             '</ol>' +
           '</details>' + whySpin);
       } else {
-        items.push(T('出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。打开手机上的微软身份验证器 → 右上「+」→ <strong>「工作或学校帐户（Work or school account）」</strong> → <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准电脑屏幕扫一下。',
-          '<strong>Scan the QR code</strong> appears. Open Microsoft Authenticator on the phone → &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen.') +
-          shot('ph-add-account.jpg', T('验证器 Add account：选 Work or school account', 'Authenticator Add account: choose Work or school account'),
-            T('「+」之后选 工作或学校帐户（Work or school account）', 'After &ldquo;+&rdquo;, choose Work or school account'), '1,62,98,21',
-            T('50,72,c|选这一条', '50,72,c|choose this')) +
+        items.push(T('电脑上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。手机上选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准电脑屏幕扫一下。',
+          '<strong>Scan the QR code</strong> appears on the computer. On the phone choose <strong>Scan QR code</strong> (not Sign in) → point the camera at the computer screen.') +
+          shot('pc-scan-qr.jpg', T('Scan the QR code 页面', 'The Scan the QR code page'),
+            T('扫这个二维码', 'Scan this code'),
+            '26,26,48,38', T('97,45,l|扫这个码', '97,45,l|scan this')) +
           oops(T('扫完一直转圈，或者选错了「登录（Sign in）」', 'The scan spins, or you chose Sign in by mistake'),
             '<p>' + T('转圈：点电脑上的「无法扫描 QR 码？（Can\'t scan the QR code?）」，改用手动输入代码——方法见安卓那条路。选错 Sign in：点返回，重新「+」→ Work or school account → Scan QR code。',
               'Spinning: select &ldquo;Can\'t scan the QR code?&rdquo; on the computer and enter the code manually instead — the Android route above describes it. Wrong turn at Sign in: go back, then &ldquo;+&rdquo; → Work or school account → Scan QR code.') + '</p>'));
@@ -1507,14 +1515,14 @@
       if (sms) {
         items = items.concat(smsItems(true));
       } else {
-      items.push(threeNext);
+      items.push(threeNext(true));
       if (android) {
         items.push(T('出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>——同一部手机没法自己扫自己，点二维码下面的 <strong>「无法扫描 QR 码？（Can\'t scan the QR code?）」</strong>，出现 代码（Code）和 URL（网址），各有一个 <strong>复制（Copy）</strong> 按钮。<strong>从这一刻起计时，几分钟内完成。</strong>',
           '<strong>Scan the QR code</strong> appears — one phone cannot scan itself, so select <strong>Can\'t scan the QR code?</strong> underneath it. A <strong>Code</strong> and a <strong>URL</strong> appear, each with a <strong>Copy</strong> button. <strong>The clock starts here; finish within a few minutes.</strong>') + qrSketch('phone'));
         items.push(T('两样都在这部手机上，<strong>用复制（Copy）按钮复制，不用手打</strong>。要把它们分别粘贴到验证器的两个输入框里：',
           'Both values are on this phone. <strong>Use the Copy buttons rather than typing.</strong> They go into the authenticator\'s two fields, one each:') + pasteMap('phone'));
-        items.push(T('<strong>先搬代码：</strong>点 <strong>复制代码（Copy code）</strong> → 切到微软身份验证器 → 「+」→ <strong>「工作或学校帐户（Work or school account）」</strong> → <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 底部 <strong>「手动输入代码（Enter code manually）」</strong> → 粘贴到<strong>第一格</strong>',
-          '<strong>Carry the code first:</strong> select <strong>Copy code</strong> → switch to Microsoft Authenticator → &ldquo;+&rdquo; → <strong>Work or school account</strong> → <strong>Scan QR code</strong> (not Sign in) → <strong>Enter code manually</strong> at the bottom → paste into <strong>the first field</strong>') +
+        items.push(T('<strong>先搬代码：</strong>点 <strong>复制代码（Copy code）</strong> → 切到微软身份验证器（它还停在两个选项上）→ 选 <strong>「扫描 QR 码（Scan QR code）」（不要选「登录（Sign in）」）</strong> → 底部 <strong>「手动输入代码（Enter code manually）」</strong> → 粘贴到<strong>第一格</strong>',
+          '<strong>Carry the code first:</strong> select <strong>Copy code</strong> → switch to Microsoft Authenticator (still on its two options) → <strong>Scan QR code</strong> (not Sign in) → <strong>Enter code manually</strong> at the bottom → paste into <strong>the first field</strong>') +
           shot('ph-enter-code-manually.jpg', T('扫码界面底部的 Enter code manually 按钮', 'The Enter code manually button at the bottom of the scanner'),
             T('扫码界面底部：手动输入代码（Enter code manually）', 'Bottom of the scanner: Enter code manually'), '1.5,60,97,39') +
           oops(T('选了「登录（Sign in）」，被要求输账号密码', 'Chose Sign in and it asks for an account and password'),
