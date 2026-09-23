@@ -430,6 +430,18 @@
     <p class="step-desc" data-en="Choose one; the steps that follow are arranged for your situation.">先选一个，后面的步骤会按您的情况安排。</p>
     <div class="branch-pick stack" id="whoPick" role="group" aria-label="选择您的情况" data-en-label="Choose your situation"></div>
 
+    <!-- Rick, 2026-09-23: a folded article under the choice, in the main column
+         (no data-side), for people asked to verify again. -->
+    <details class="why" id="why-reverify" style="margin-top:14px">
+      <summary data-en="Why, and when, does Microsoft ask my Teams to verify again?">为什么 / 什么情况下，微软会要求我的 Teams 重新做身份验证？</summary>
+      <p data-en="<strong>In short:</strong> Teams stays signed in by holding a few &ldquo;tickets&rdquo; (tokens). When those tickets become void, or they lack the &ldquo;verified&rdquo; stamp your institution now requires, you are asked to verify. It is a normal safety mechanism — it does not mean anything is wrong with your account."><strong>简单说：</strong>Teams 平时靠手里的几张"票"（令牌）保持登录。票作废了，或者票上缺了机构现在要求的"已验证"章，就会要求您重新验证。这是正常的安全机制，并不代表您的账号出了问题。</p>
+      <p data-en="<strong>① The signed-in state was broken.</strong> You tapped Sign out; you changed your password, or the administrator reset it; you have not opened Teams for a long time (about 90 days); you deleted and reinstalled Teams, or cleared its data; or you are signing in on a new phone, computer or browser (a private window counts as new every time it is closed)."><strong>① 登录状态"断了"。</strong>自己点了退出登录；改了密码，或管理员重置了密码；很久（约 90 天）没打开过 Teams；删掉重装了 Teams，或清除了它的数据；在新手机、新电脑或新浏览器上登录（无痕窗口每关一次都算新的）。</p>
+      <p data-en="<strong>② Your institution raised its security requirements.</strong> If you first signed in before any authenticator was linked to your account, Teams may have worked on the password alone. Once the institution requires verification, you will see &ldquo;More information required&rdquo; — follow this wizard to link the authenticator. The administrator may also, for safety, ask everyone to sign in once more."><strong>② 机构提高了安全要求。</strong>如果您当初登录时账号还没有绑定验证器，Teams 可能只凭密码就能用。机构开始要求验证后，您会看到「需要更多信息（More information required）」——按本向导把验证器补绑上即可。管理员也可能出于安全考虑，让所有人重新登录一次。</p>
+      <p data-en="<strong>③ The sign-in looked unusual to Microsoft.</strong> Microsoft decides when to ask based on factors such as location and device. Signing in from a place, network or device you do not normally use (a trip, a new Wi-Fi) may bring one extra check that it is really you."><strong>③ 微软觉得这次登录"不太寻常"。</strong>微软会根据地点、设备等情况决定是否多问一次。在不常用的地点、网络或设备上登录（比如出差、换了 Wi-Fi），可能会再确认一次是不是您本人。</p>
+      <p data-en="<strong>④ Something changed on the authenticator's side.</strong> A new phone, a deleted authenticator, a phone reset to factory settings — the prompts still go to the old one, so nothing arrives. Ask your administrator to remove the old device, then take the &ldquo;signed in before&rdquo; route again. See <a href='/help/teams-faq.html#q-new-phone'>I changed phones</a>."><strong>④ 验证器那边变了。</strong>换了手机、删了身份验证器、手机恢复了出厂设置——提示仍然发往旧的那一个，所以什么也收不到。请管理员删除旧设备，再按「曾经登录过」这条路线重新绑定。见<a href="/help/teams-faq.html#q-new-phone">换了手机怎么办</a>。</p>
+      <p data-en="<strong>One warning:</strong> if a verification prompt appears while you are <strong>not</strong> signing in, do not type any number and do not tap Yes — choose No and tell your administrator. It means someone is trying your password."><strong>一个提醒：</strong>如果您<strong>没有</strong>在登录，手机上却弹出验证请求，不要输入数字，也不要点「是」——选择「否」，并告诉管理员。这说明有人正拿着您的密码在尝试登录。</p>
+    </details>
+
     <!-- The two reading blocks ride in the right column on a wide screen (Rick,
          2026-09-23) and sit under the choice on a phone; open either way. -->
     <details class="intro" data-side="who" data-keep-open open>
