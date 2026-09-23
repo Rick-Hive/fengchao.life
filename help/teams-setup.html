@@ -968,11 +968,15 @@
 
 
   // ---- shared sign-in fragments ----
-  function pwItem(maybe) {
-    var lead = maybe
-      ? T('<strong>如果出现「更新密码（Update your password）」</strong>（第一次登录才有，老用户一般不会再出现）：第一格粘贴机构发的密码，第二、三格输入您自己设的新密码 → 登录（Sign in）。<strong>把新密码记下来。</strong>',
-          '<strong>If &ldquo;Update your password&rdquo; appears</strong> (first sign-ins only; a returning user usually skips it): first box the issued password, second and third boxes a new one of your own → Sign in. <strong>Write the new password down.</strong>')
-      : T('出现 <strong>「更新密码（Update your password）」</strong>——<strong>第一次登录都会有这一屏</strong>，是微软要求您把机构发的密码换成自己的。第一格：粘贴机构发的密码；第二格和第三格：输入您<strong>自己设的新密码</strong>，两格一样。新密码至少 8 位，要有大写字母、小写字母和数字。→ 登录（Sign in）。<strong>请把新密码记下来，以后登录都用它。</strong>',
+  // Returning users (step 1 = "back") already changed the issued password on
+  // their first sign-in, so the Update-your-password step is left out for
+  // them (Rick, 2026-09-23); they sign in with the password they use now.
+  function backSignin(zhPre, enPre) {
+    return T(zhPre + '输入您的账号 → 下一步（Next）→ 输入<strong>您现在用的密码</strong>（第一次登录时自己改过的那个）→ 登录（Sign in）。如果出现「需要更多信息（More information required）」，点 <strong>下一步（Next）</strong>。',
+      enPre + 'enter your account → Next → <strong>the password you use now</strong> (the one you set at your first sign-in) → Sign in. If &ldquo;More information required&rdquo; appears, select <strong>Next</strong>.');
+  }
+  function pwItem() {
+    var lead = T('出现 <strong>「更新密码（Update your password）」</strong>——<strong>第一次登录都会有这一屏</strong>，是微软要求您把机构发的密码换成自己的。第一格：粘贴机构发的密码；第二格和第三格：输入您<strong>自己设的新密码</strong>，两格一样。新密码至少 8 位，要有大写字母、小写字母和数字。→ 登录（Sign in）。<strong>请把新密码记下来，以后登录都用它。</strong>',
           '<strong>&ldquo;Update your password&rdquo;</strong> appears — <strong>every first sign-in has this screen</strong>. First box: paste the issued password. Second and third boxes: type <strong>the new password you choose</strong>, identical in both; at least 8 characters with an upper-case letter, a lower-case letter and a digit. → Sign in. <strong>Write the new password down — it is the one you will use from now on.</strong>');
     return lead +
       shot('pc-update-password.jpg', T('Update your password 页面：三个输入框', 'The Update your password screen, with three boxes'),
@@ -1010,10 +1014,11 @@
     var dev = onPad ? T("那台 iPad / iPhone", "that iPad or iPhone") : T("电脑", "the computer");
     document.getElementById("pcDesc").innerHTML = T("在" + dev + "刚打开的无痕窗口里操作。您自己的 iPhone / iPad 放在手边——它的验证器负责扫码。",
       "Work in the private window you just opened on " + dev + ". Keep your own iPhone or iPad within reach — its authenticator does the scanning.");
-    var items = [];
-    items.push(T('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，回车；输入机构发给您的账号（形如 <code>name@yourdomain</code>）→ 下一步（Next）→ 输入密码 → 登录（Sign in）。<strong>密码请复制粘贴</strong>，不要手动敲。',
+    var items = [], back = state.who === "back";
+    if (back) items.push(backSignin('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，回车；', 'In the private window\'s address bar type <code>teams.microsoft.com</code> and press Enter; '));
+    else items.push(T('在无痕窗口的地址栏输入 <code>teams.microsoft.com</code>，回车；输入机构发给您的账号（形如 <code>name@yourdomain</code>）→ 下一步（Next）→ 输入密码 → 登录（Sign in）。<strong>密码请复制粘贴</strong>，不要手动敲。',
       'In the private window\'s address bar type <code>teams.microsoft.com</code> and press Enter; enter the account your school issued (like <code>name@yourdomain</code>) → Next → password → Sign in. <strong>Paste the password</strong> rather than typing it.'));
-    items.push(pwItem(state.who === "back"));
+    if (!back) items.push(pwItem());
     items.push(threeNext(T("", "you"), T("您自己的 iPhone / iPad", "your own iPhone or iPad"), T("回到" + dev, "back on " + dev)));
     items.push(T(dev + '上出现 <strong>「扫描 QR 码（Scan the QR code）」</strong>。在您的 iPhone / iPad 的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ 对准' + dev + '屏幕扫一下。验证器里出现您的账号后，点' + dev + '上的 <strong>下一步（Next）</strong>。',
       '<strong>Scan the QR code</strong> appears on ' + dev + '. In the authenticator on your iPhone or iPad choose <strong>Scan QR code</strong> (not Sign in) → point the camera at ' + dev + '. Once your account shows up in the authenticator, select <strong>Next</strong> on ' + dev + '.') +
@@ -1090,10 +1095,11 @@
 
   // ---- signin-android (own iPhone/iPad) ----
   function buildSigninAndroid() {
-    var items = [];
-    items.push(T('在安卓手机上打开 <strong>Teams App</strong>，输入机构发给您的账号 → 下一步（Next）→ 密码 → 登录（Sign in）（建议长按粘贴，不要手打）。',
+    var items = [], back = state.who === "back";
+    if (back) items.push(backSignin('在安卓手机上打开 <strong>Teams App</strong>，', 'On the Android phone open the <strong>Teams app</strong>, '));
+    else items.push(T('在安卓手机上打开 <strong>Teams App</strong>，输入机构发给您的账号 → 下一步（Next）→ 密码 → 登录（Sign in）（建议长按粘贴，不要手打）。',
       'On the Android phone open the <strong>Teams app</strong>, enter the account your school issued → Next → password → Sign in (long-press to paste rather than typing).'));
-    items.push(pwItem(state.who === "back"));
+    if (!back) items.push(pwItem());
     items.push(threeNext(T("", "you"), T("iPhone / iPad", "the iPhone or iPad"), T("回到安卓手机", "back on the Android phone")));
     items.push(T('安卓手机屏幕上出现<strong>一个二维码</strong>「扫描 QR 码（Scan the QR code）」。在 iPhone / iPad 的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」）→ <strong>对准安卓手机的屏幕</strong>扫。验证器里出现您的账号后，点安卓手机上的 <strong>下一步（Next）</strong>。',
       '<strong>A QR code</strong> appears on the Android phone — &ldquo;Scan the QR code&rdquo;. In the authenticator on the iPhone or iPad choose <strong>Scan QR code</strong> (not Sign in) → <strong>point it at the Android screen</strong>. Once your account shows up in the authenticator, select <strong>Next</strong> on the Android phone.') + wrongTurn());
@@ -1108,12 +1114,13 @@
   // ---- signin-admin ----
   function buildSigninAdmin() {
     var A = T("管理员", "the administrator");
-    var items = [];
+    var items = [], back = state.who === "back";
     items.push(T('<strong>约好时间，把两样东西准备好：</strong>您的安卓手机（装好 Teams），以及一台能视频通话的设备（如果管理员不在身边）。管理员那边要有装了微软身份验证器的手机。',
       '<strong>Agree a time and have two things ready:</strong> your Android phone with Teams installed, and a device for a video call if the administrator is not beside you. The administrator needs Microsoft Authenticator on their phone.'));
-    items.push(T('在安卓手机上打开 <strong>Teams App</strong>，输入机构发给您的账号 → 下一步（Next）→ 密码 → 登录（Sign in）。',
+    if (back) items.push(backSignin('在安卓手机上打开 <strong>Teams App</strong>，', 'On the Android phone open the <strong>Teams app</strong>, '));
+    else items.push(T('在安卓手机上打开 <strong>Teams App</strong>，输入机构发给您的账号 → 下一步（Next）→ 密码 → 登录（Sign in）。',
       'On the Android phone open the <strong>Teams app</strong>, enter the account your school issued → Next → password → Sign in.'));
-    items.push(pwItem(state.who === "back"));
+    if (!back) items.push(pwItem());
     items.push(threeNext(A, T("他自己的手机", "their own phone"), T("您在安卓手机上", "you, on the Android phone,")));
     items.push(T('安卓手机屏幕上出现<strong>一个二维码</strong>。<strong>把屏幕对准管理员手机的摄像头</strong>（视频通话时对准摄像头让他扫）——管理员在他的验证器里选 <strong>「扫描 QR 码（Scan QR code）」</strong>（不要选「登录（Sign in）」），扫您屏幕上的码。他的验证器里出现您的账号后，您点手机上的 <strong>下一步（Next）</strong>。二维码几分钟后会过期，过期了点「下一步」换新的；截图是扫不了的。',
       '<strong>A QR code</strong> appears on your Android screen. <strong>Hold the screen up to the camera of the administrator\'s phone</strong> (on a video call, hold it to the camera) — they choose <strong>Scan QR code</strong> (not Sign in) in their authenticator and scan your screen. Once your account shows up in their app, select <strong>Next</strong> on your phone. The code expires after a few minutes — select Next for a fresh one; a screenshot cannot be scanned.') + wrongTurn());
@@ -1134,7 +1141,8 @@
               : T("iPhone / iPad 上的 Teams 能正常打开，已登录", "Teams opens on the iPhone or iPad, signed in"),
       admin ? T("管理员的验证器里能看到我的账号", "My account is listed in the administrator's authenticator")
             : T("我的 iPhone / iPad 的验证器里能看到我的账号", "My account is listed in the authenticator on my iPhone or iPad"),
-      T("我记下了自己设的密码", "I have written down the password I set"),
+      state.who === "back" ? T("我记得自己现在用的登录密码", "I know the password I sign in with")
+                           : T("我记下了自己设的密码", "I have written down the password I set"),
       admin ? T("我知道不要点退出登录；再要求验证时在 Teams 里找管理员要确认", "I know not to sign out, and to ask the administrator in Teams when verification is asked for")
             : T("我知道不要点退出登录；以后的验证提示都发到我的 iPhone / iPad 上", "I know not to sign out, and that future prompts go to my iPhone or iPad")
     ];
