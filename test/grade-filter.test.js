@@ -570,7 +570,7 @@ setTimeout(() => {
   check("the support menu also links to the Q&A page, in the same tab",
     (() => { const q = doc.querySelector('a.menu-item[href="/help/teams-faq.html"]');
              return [!!q, q && q.getAttribute("target"), q && q.textContent.trim()]; })(),
-    [true, null, "Teams 和身份验证器问答(Q&A)"]);
+    [true, null, "问答(Q&A)"]);
 
   // ---- G.P.A. calculator (/gpa) — a standalone page beside the wizard ----
   // Entered here through a LEGACY link (#/gpa, the address before paths), which

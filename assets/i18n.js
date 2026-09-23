@@ -656,7 +656,7 @@ window.SITE_MENUS = [
       // A real page, not an SPA route: renderNav()'s click handler lets a
       // root-relative .html href load normally instead of routing it.
       { zh: "Teams 和身份验证器设置",      en: "Teams & Authenticator Setup", url: "/help/teams-setup.html" },
-      { zh: "Teams 和身份验证器问答(Q&A)", en: "Teams & Authenticator Q&A",   url: "/help/teams-faq.html" },
+      { zh: "问答(Q&A)",                  en: "Q&A",                         url: "/help/teams-faq.html" },
     ],
   },
 ];
