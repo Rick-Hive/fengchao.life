@@ -237,6 +237,8 @@
   .check .tick { color: var(--ink-faint); font-weight: 700; flex: none; }
   .check div.on .tick { color: var(--good); }
 
+  /* The flex rows would otherwise beat the browser's own hidden rule. */
+  [hidden] { display: none !important; }
   .dim { opacity: .32; }
   .hl { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
@@ -279,7 +281,7 @@
       <section class="scene" data-scene="1">
         <div class="scene-head"><span class="n" data-en="Step 1">第 1 步</span><span class="t" data-en="Choose your phone">选择您的手机</span></div>
         <div class="chips">
-          <div class="chip" data-chip="ios" data-en="iPhone<span>easiest</span>">苹果 iPhone<span>最简单</span></div>
+          <div class="chip" data-chip="ios" data-en="iPhone<span>easiest — just scan</span>">苹果 iPhone<span>最简单：扫码即可</span></div>
           <div class="chip" data-chip="huawei" data-en="Huawei / Honor<span>Android</span>">华为 / 荣耀<span>安卓</span></div>
           <div class="chip" data-chip="xiaomi" data-en="Xiaomi<span>Android</span>">小米<span>安卓</span></div>
           <div class="chip" data-en="OPPO<span>Android</span>">OPPO<span>安卓</span></div>
@@ -291,8 +293,16 @@
 
       <!-- 2 -->
       <section class="scene" data-scene="2">
-        <div class="scene-head"><span class="n" data-en="Step 2">第 2 步</span><span class="t" data-en="Install two apps on the phone">在手机上装两个软件</span></div>
-        <div class="row">
+        <div class="scene-head"><span class="n" data-en="Step 2">第 2 步</span><span class="t" data-en="Choose how to verify, then install">先选验证方式，再装软件</span></div>
+        <!-- Android only, mirroring the wizard (2026-09-22): the authenticator
+             or a text-message code, chosen before installing. The demo takes
+             the authenticator route; the text-message route is named once. -->
+        <div class="pickpair" id="s2pick" hidden>
+          <div class="chip" data-method="auth" data-en="🔐 Microsoft Authenticator<span>recommended · set up once, works for good</span>">🔐 微软身份验证器<span>推荐 · 设置一次，长期有效</span></div>
+          <div class="chip" data-method="sms" data-en="💬 Text message code<span>nothing to install · ends February 2027</span>">💬 手机短信验证码<span>不用装软件 · 2027 年 2 月起停用</span></div>
+        </div>
+        <div class="note-s" id="s2pnote" data-en="The demo takes the <b>authenticator</b> route. Choose the text message and step 2 installs Teams alone; the wizard has its own route for it." hidden>演示按<b>验证器</b>走。选短信的，第 2 步只装 Teams，向导里有单独一条路。</div>
+        <div class="row" id="s2install">
           <div class="phone">
             <div class="notch"></div>
             <div class="screen">
@@ -313,7 +323,7 @@
             </div>
           </div>
         </div>
-        <div class="note-s" id="s2note" data-en="<b>Huawei and Honor are the exception</b>: their stores do not carry Microsoft Authenticator, so install 应用宝 (Tencent MyApp) first and get it from there." hidden><b>华为手机例外</b>：华为应用市场没有上架微软身份验证器，要先装应用宝，再从应用宝安装。</div>
+        <div class="note-s" id="s2note" data-en="<b>Huawei and Honor are the exception</b>: their own stores do not carry Microsoft Authenticator, so install 应用宝 (Tencent MyApp) first and get it from there." hidden><b>华为 / 荣耀手机例外</b>：自带的应用市场里搜不到微软身份验证器，要先装应用宝，再从应用宝安装。</div>
       </section>
 
       <!-- 3 -->
@@ -343,7 +353,7 @@
 
       <!-- 5 -->
       <section class="scene" data-scene="5">
-        <div class="scene-head"><span class="n" data-en="Step 5">第 5 步</span><span class="t" data-en="Sign in and link the authenticator">登录并绑定验证</span></div>
+        <div class="scene-head"><span class="n" data-en="Step 5">第 5 步</span><span class="t" data-en="Sign in and link the authenticator">登录并绑定验证器</span></div>
         <div class="row">
           <div class="laptop">
             <div class="barbar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
@@ -395,7 +405,7 @@
     <div class="caption" id="caption" data-en="<span class='who'>Demo</span>Select play above to start."><span class="who">演示</span>点上面的播放键开始。</div>
   </div>
 
-  <p class="after" data-en="Once you have seen it, go and do it — the wizard gives the exact steps for your phone, one at a time.">看完就可以照着做了——向导会按您的手机型号，一步一步给出具体操作。</p>
+  <p class="after" data-en="Once you have seen it, go and do it — the wizard gives the exact steps for your phone, one at a time. The demo follows the authenticator route; an Android owner who prefers a text-message code gets that route inside the wizard from step 2.">看完就可以照着做了——向导会按您的手机型号，一步一步给出具体操作。演示走的是验证器路线；安卓手机想用短信验证码的，向导第 2 步起会给出对应的步骤。</p>
   <a class="cta" href="/help/teams-setup.html" data-en="Start the setup →">开始设置 →</a>
 </div>
 
@@ -446,22 +456,43 @@
   // a function that puts the mock UI into the state that caption describes.
   // Keeping state in `enter` (not in transitions) means seeking to any beat
   // rebuilds the picture correctly.
+  // Shared base states, named rather than reached through BEATS[n].enter():
+  // inserting a beat must not silently move what a later beat builds on.
+  function s2search() { reset(); $("s2search").textContent = "Authenticator"; cls($("s2search"), "filled", true); }
+  function s2both() {
+    s2search();
+    cls($("s2auth"), "ok", true); $("s2authgo").textContent = T("已安装", "Installed");
+    op($("s2teams"), "1"); cls($("s2teams"), "hl", true);
+  }
+  function s5signin() {
+    reset();
+    $("s5acct").textContent = "name@yourdomain"; cls($("s5acct"), "filled", true);
+    $("s5pw").textContent = "••••••••••"; cls($("s5pw"), "filled", true);
+  }
+  function s5codes() {
+    s5signin();
+    $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">' + T("请在手机上输入", "Enter on your phone") + '</div>' +
+      '<div class="codebox">' + T("代码：", "Code: ") + 'C7K2 9QXD 4M<br>' + T("网址：", "URL: ") + 'aka.ms/····</div>';
+    op($("s5arrow"), "1"); op($("s5phone"), "1");
+    show($("s5note"), true);
+  }
+
   var BEATS = [
-    { s: 1, d: 3200, c: T("先选您的手机品牌——它决定验证器从哪里下载，以及用哪种方式绑定。", "Start with the make of your phone — it decides where the authenticator comes from and how the linking works."), enter: function () {
+    { s: 1, d: 3200, c: T("先选您的手机品牌——它决定软件从哪里下载，以及能用哪种方式验证。iPhone 最简单：扫码即可。", "Start with the make of your phone — it decides where the apps come from and how you can verify. An iPhone is the simplest: it just scans."), enter: function () {
         reset(); } },
     { s: 1, d: 3600, c: T("这里以<b>华为</b>为例。选好之后，后面每一步都会按您的机型显示。", "<b>Huawei</b> here, as an example. Once chosen, every later step is written for that phone."), enter: function () {
         reset(); pick("huawei"); show($("s1note"), true); } },
 
-    { s: 2, d: 3600, c: T("打开<b>手机自带的应用商店</b>，搜索关键字 <b>Authenticator</b>。", "Open <b>the store already on your phone</b> and search for <b>Authenticator</b>."), enter: function () {
-        reset(); $("s2search").textContent = "Authenticator"; cls($("s2search"), "filled", true); } },
+    { s: 2, d: 4600, c: T("安卓手机先选<b>验证方式</b>：<b>微软身份验证器</b>（推荐，设置一次长期有效），或<b>手机短信验证码</b>（不用装软件，但 2027 年 2 月起停用）。iPhone 不用选，直接扫码。", "An Android phone chooses <b>how to verify</b> first: <b>Microsoft Authenticator</b> (recommended — set up once, works for good) or a <b>text-message code</b> (nothing to install, but it ends in February 2027). An iPhone is not asked — it scans."), enter: function () {
+        reset(); show($("s2pick"), true); show($("s2install"), false); } },
+    { s: 2, d: 3600, c: T("演示按<b>验证器</b>走。选短信的，第 2 步只装 Teams，登录时填手机号收一条短信——向导里有单独一条路。", "The demo takes the <b>authenticator</b> route. Choose the text message and step 2 installs Teams alone, and sign-in asks for your phone number — the wizard has its own route for that."), enter: function () {
+        reset(); show($("s2pick"), true); show($("s2install"), false); pick3("auth"); show($("s2pnote"), true); } },
+    { s: 2, d: 3600, c: T("打开<b>手机自带的应用商店</b>，搜索关键字 <b>Authenticator</b>。", "Open <b>the store already on your phone</b> and search for <b>Authenticator</b>."), enter: s2search },
     { s: 2, d: 4200, c: T("认准开发者是<b>微软（中国）有限公司</b>，然后安装。不是这个开发者的，不要装。", "Check the developer reads <b>微软（中国）有限公司</b>, then install. Anyone else as the developer: do not install it."), enter: function () {
-        BEATS[2].enter(); cls($("s2auth"), "hl", true); } },
-    { s: 2, d: 3400, c: T("装好验证器，再用同样的方法装 <b>Teams</b>。两个都要装。", "With the authenticator installed, get <b>Teams</b> the same way. You need both."), enter: function () {
-        BEATS[2].enter();
-        cls($("s2auth"), "ok", true); $("s2authgo").textContent = T("已安装", "Installed");
-        op($("s2teams"), "1"); cls($("s2teams"), "hl", true); } },
-    { s: 2, d: 4000, c: T("<b>华为手机是例外</b>：华为应用市场没有上架验证器，要先装应用宝，再从应用宝里装。", "<b>Huawei and Honor are the exception</b>: their stores do not carry the authenticator, so install 应用宝 first and get it from there."), enter: function () {
-        BEATS[4].enter(); cls($("s2teams"), "hl", false);
+        s2search(); cls($("s2auth"), "hl", true); } },
+    { s: 2, d: 3400, c: T("装好验证器，再用同样的方法装 <b>Teams</b>。两个都要装。", "With the authenticator installed, get <b>Teams</b> the same way. You need both."), enter: s2both },
+    { s: 2, d: 4000, c: T("<b>华为 / 荣耀手机是例外</b>：自带的应用市场里搜不到验证器，要先装应用宝，再从应用宝里装。", "<b>Huawei and Honor are the exception</b>: their own stores do not carry the authenticator, so install 应用宝 first and get it from there."), enter: function () {
+        s2both(); cls($("s2teams"), "hl", false);
         cls($("s2teams"), "ok", true); $("s2teamsgo").textContent = T("已安装", "Installed");
         show($("s2note"), true); } },
 
@@ -478,29 +509,21 @@
         $("s4menu").innerHTML = '<div style="text-align:center;color:var(--ink-soft);">🕶 <b>' + T("无痕窗口", "Private window") + '</b><div style="font-size:.6rem;margin-top:3px;">' + T("不会保留浏览记录", "keeps no browsing history") + '</div></div>';
         show($("s4note"), true); } },
 
-    { s: 5, d: 3600, c: T("在无痕窗口地址栏输入 <b>teams.microsoft.com</b>，用机构发的账号和密码登录。", "In the private window, go to <b>teams.microsoft.com</b> and sign in with the account and password your school issued."), enter: function () {
-        reset();
-        $("s5acct").textContent = "name@yourdomain"; cls($("s5acct"), "filled", true);
-        $("s5pw").textContent = "••••••••••"; cls($("s5pw"), "filled", true); } },
+    { s: 5, d: 3600, c: T("在无痕窗口地址栏输入 <b>teams.microsoft.com</b>，用机构发的账号和密码登录。", "In the private window, go to <b>teams.microsoft.com</b> and sign in with the account and password your school issued."), enter: s5signin },
     { s: 5, d: 4200, c: T("页面出现二维码——<b>先用验证器扫它</b>，多数手机到此就绑定成功。扫完一直转圈的，点二维码下面的「无法扫描 QR 码？（Can't scan the QR code?）」改手动输入。", "A QR code appears — <b>scan it with the authenticator first</b>; on most phones that links the account there and then. If the scan just spins, select <b>Can't scan the QR code?</b> underneath it and enter the code by hand."), enter: function () {
-        BEATS[10].enter();
+        s5signin();
         $("s5pc").innerHTML = '<div style="text-align:center;padding:6px 0;">' +
           '<div style="width:52px;height:52px;margin:0 auto;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);display:grid;place-items:center;font-size:.55rem;color:var(--ink-faint);">' + T("二维码", "QR code") + '</div>' +
           '<div class="btn-mock ghost hl" style="margin-top:8px;font-size:.58rem;">Can\'t scan the QR code?</div></div>'; } },
-    { s: 5, d: 4400, c: T("（备用路）屏幕给出一组<b>代码</b>和一个<b>网址</b>，各有 Copy 按钮。复制到手机上，<b>不要手打</b>，几分钟内完成。", "(Fallback route) The screen gives a <b>code</b> and a <b>URL</b>, each with a Copy button. Get both onto the phone — <b>do not type them</b> — and finish within a few minutes."), enter: function () {
-        BEATS[10].enter();
-        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">' + T("请在手机上输入", "Enter on your phone") + '</div>' +
-          '<div class="codebox">' + T("代码：", "Code: ") + 'C7K2 9QXD 4M<br>' + T("网址：", "URL: ") + 'aka.ms/····</div>';
-        op($("s5arrow"), "1"); op($("s5phone"), "1");
-        show($("s5note"), true); } },
+    { s: 5, d: 4400, c: T("（备用路）屏幕给出一组<b>代码</b>和一个<b>网址</b>，各有 Copy 按钮。复制到手机上，<b>不要手打</b>，几分钟内完成。", "(Fallback route) The screen gives a <b>code</b> and a <b>URL</b>, each with a Copy button. Get both onto the phone — <b>do not type them</b> — and finish within a few minutes."), enter: s5codes },
     { s: 5, d: 4200, c: T("验证器里：「+」→ <b>工作或学校帐户 → 扫描 QR 码</b>（不要选「登录 Sign in」）→ <b>手动输入代码（Enter code manually）</b>，把代码和网址分别粘贴进去。", "In the authenticator: &ldquo;+&rdquo; → <b>Work or school account → Scan QR code</b> (not Sign in) → <b>Enter code manually</b>, then paste the code and the URL into their own fields."), enter: function () {
-        BEATS[12].enter();
+        s5codes();
         $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;">' + T("手动输入代码", "Enter code manually") + '</div>' +
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">C7K2 9QXD 4M</div>' +
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">aka.ms/····</div>' +
           '<div class="btn-mock">' + T("完成", "Finish") + '</div>'; } },
     { s: 5, d: 4400, c: T("绑定成功。电脑上「让我们试一试（Let\'s try it out）」显示一个两位数，手机上弹出提示——输入那个数，登录完成。", "Linked. The computer shows <b>Let\'s try it out</b> with a two-digit number and the phone pops up a prompt — type that number in, and you are signed in."), enter: function () {
-        BEATS[12].enter();
+        s5codes();
         $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">Let\'s try it out</div>' +
           '<div class="bigcode">29</div>' +
           '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">' + T("把这个数输进手机", "type this on the phone") + '</div>';
@@ -531,7 +554,8 @@
 
   function reset() {
     Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (c) { cls(c, "pick", false); });
-    ["s1note", "s2note", "s3note", "s4note", "s5note", "s6note"].forEach(function (id) { show($(id), false); });
+    ["s1note", "s2note", "s2pnote", "s3note", "s4note", "s5note", "s6note"].forEach(function (id) { show($(id), false); });
+    show($("s2pick"), false); show($("s2install"), true);
     Array.prototype.forEach.call(document.querySelectorAll(".hl"), function (c) { cls(c, "hl", false); });
     Array.prototype.forEach.call(document.querySelectorAll(".check div"), function (c) { cls(c, "on", false); });
 
@@ -547,6 +571,7 @@
   }
   function pick(id) { cls(document.querySelector('[data-chip="' + id + '"]'), "pick", true); }
   function pick2(id) { cls(document.querySelector('[data-pick="' + id + '"]'), "pick", true); }
+  function pick3(id) { cls(document.querySelector('[data-method="' + id + '"]'), "pick", true); }
 
   // ---- transport ----
   var bars = $("bars"), segs = [];
