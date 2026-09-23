@@ -808,6 +808,10 @@
                      "brand": buildBrand, "signin-android": buildSigninAndroid, "signin-admin": buildSigninAdmin, "done": buildDone };
     if (builders[id]) builders[id]();
     placeNotes(); renderProgress(); save();
+    // Remembered for this browser tab only, so leaving for 流程图 or 问答(Q&A)
+    // and coming back lands on the same step (Rick, 2026-09-23). A visit in a
+    // new tab or days later still opens at step 1, with the answers kept.
+    try { sessionStorage.setItem("teamsSetupScreen", id); } catch (e) {}
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function next() { var r = route(), i = r.indexOf(state.screen); if (i < r.length - 1) goTo(r[i + 1]); }
@@ -844,7 +848,7 @@
     { id: "ios",     name: T("📱 iPhone 或 iPad", "📱 iPhone or iPad"), tag: T("验证器装在自己的设备上", "the authenticator lives on your own device") },
     { id: "android", name: T("🤖 安卓手机", "🤖 Android phone"), tag: T("能装 Teams；验证器要放在一部 iPhone / iPad 上", "runs Teams; the authenticator needs an iPhone or iPad") }
   ], state.dev, function (id) {
-    if (id !== state.dev) { state.verifier = null; state.second = null; state.brand = null; }
+    if (id !== state.dev) { state.verifier = null; state.second = null; state.brand = null; state.confirmed = false; }
     state.dev = id; nextBtn("dev").disabled = false; save(); renderProgress();
   });
   if (state.dev) nextBtn("dev").disabled = false;
@@ -1018,10 +1022,10 @@
     pickGroup(document.getElementById("verifierPick"), [
       { id: "own",   name: T("我有一部 iPhone 或 iPad，用它做验证器", "I have an iPhone or iPad to use as the authenticator"), tag: T("自己的、家里常在的都可以，旧的也行", "your own or one that stays at home — an old one is fine") },
       { id: "admin", name: T("我没有，需要机构 / 学校的管理员帮忙扫码", "I have none — my institution's administrator will scan for me"), tag: T("只需在安卓手机上装 Teams；以后的验证提示会发到管理员那里", "only Teams on the Android phone; future prompts go to the administrator") }
-    ], state.verifier, function (id) { state.verifier = id; save(); renderProgress(); refresh(); });
-    confirmOwn.checked = false;
-    confirmOwn.onchange = refresh;
-    mustRead.addEventListener("toggle", refresh);
+    ], state.verifier, function (id) { if (id !== state.verifier) state.confirmed = false; state.verifier = id; confirmOwn.checked = !!state.confirmed; save(); renderProgress(); refresh(); });
+    confirmOwn.checked = !!state.confirmed;
+    confirmOwn.onchange = function () { state.confirmed = confirmOwn.checked; save(); refresh(); };
+    mustRead.ontoggle = refresh;
     refresh();
     function refresh() {
       var nb = nextBtn("android-verifier");
@@ -1140,7 +1144,8 @@
     });
   }
   document.getElementById("restart").addEventListener("click", function () {
-    state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null };
+    state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null, confirmed: false };
+    try { sessionStorage.removeItem("teamsSetupScreen"); } catch (e) {}
     save(); location.reload();
   });
 
@@ -1148,8 +1153,9 @@
   function boot() {
     state.screen = "who";
     try {
-      var hop = sessionStorage.getItem("teamsSetupLangScreen");
-      if (hop) { sessionStorage.removeItem("teamsSetupLangScreen"); if (!missingFor(hop)) state.screen = hop; }
+      var hop = sessionStorage.getItem("teamsSetupLangScreen") || sessionStorage.getItem("teamsSetupScreen");
+      sessionStorage.removeItem("teamsSetupLangScreen");
+      if (hop && !missingFor(hop)) state.screen = hop;
     } catch (e) {}
     document.getElementById("stateLabel").textContent = "";
     goTo(state.screen);
