@@ -40,6 +40,7 @@
   </div>
   <nav class="helpnav" aria-label="帮助页面" data-en-label="Help pages">
     <a href="/help/teams-setup.html" aria-current="page" data-en="Setup wizard">设置向导</a>
+    <a href="/help/teams-flow.html" data-en="Setup flowchart">设置流程图</a>
     <a href="/help/teams-faq.html" data-en="Teams &amp; Authenticator Q&amp;A">微软 Teams 和身份验证器问答</a>
   </nav>
 <style>
@@ -534,7 +535,7 @@
       <summary data-en="Stuck signing in? Three things that actually happen">登录卡住了？三种常见情况</summary>
       <p data-en="<strong>① The Teams sign-in page (<code>teams.microsoft.com</code>) will not open, spins forever, or comes up blank.</strong> This is not something you did wrong. Microsoft's servers are outside mainland China and the cross-border links are congested. Try another time of day (early morning and late evening are usually smoother), switch between Wi-Fi and mobile data, and type <code>teams.microsoft.com</code> straight into the address bar."><strong>① Teams 登录页面（<code>teams.microsoft.com</code>）打不开、一直转圈或显示空白。</strong>这不是您的操作问题。微软的服务器在境外，跨境线路常常拥堵。可以换个时段（清早和深夜通常顺畅得多）、宽带 Wi-Fi 和手机流量互换、在地址栏直接输入 <code>teams.microsoft.com</code>。</p>
       <p data-en="<strong>② An error string in English appears, such as AADSTS900561.</strong> Stale cache or an old link. Close the page, open a fresh private window, and <strong>type</strong> <code>teams.microsoft.com</code> yourself — do not use an old bookmark."><strong>② 弹出一串英文报错，比如 AADSTS900561。</strong>来自浏览器里的旧缓存或旧链接。关掉页面，重新开一个无痕窗口，在地址栏<strong>手动输入</strong> <code>teams.microsoft.com</code>，不要用收藏夹里的旧链接。</p>
-      <p data-en="<strong>③ The authenticator shows nothing when the two-digit number appears.</strong> Open the authenticator by hand; the request is usually waiting inside. If not, your account may be linked to another device — see the note &ldquo;Where did my verification go?&rdquo; and contact your administrator."><strong>③ 出现两位数时验证器没有任何提示。</strong>先手动打开验证器，请求通常就在里面。还是没有，您的账号可能绑在另一台设备上——见「我的验证码发到哪里了」那条，联系管理员。</p>
+      <p data-en="<strong>③ The authenticator shows nothing when the two-digit number appears.</strong> Open the authenticator by hand; the request is usually waiting inside. If not, your account may be linked to another device — read <a href='/help/teams-faq.html#q-where-prompt' target='_blank' rel='noopener'>Where did my verification go?</a> and contact your administrator."><strong>③ 出现两位数时验证器没有任何提示。</strong>先手动打开验证器，请求通常就在里面。还是没有，您的账号可能绑在另一台设备上——请看 <a href="/help/teams-faq.html#q-where-prompt" target="_blank" rel="noopener">我的验证码发到哪里了？</a>，并联系管理员。</p>
     </details>
 
     <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. This is the one time the linking happens; from now on it is a two-digit number.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。绑定只做这一次，以后每次就是输一个两位数。</span></div>
@@ -601,7 +602,7 @@
       <summary data-en="Stuck signing in? Three things that actually happen">登录卡住了？三种常见情况</summary>
       <p data-en="<strong>① Teams will not open or spins forever.</strong> Cross-border congestion, not your fault. Try another time of day, switch between Wi-Fi and mobile data."><strong>① Teams 打不开或一直转圈。</strong>跨境线路拥堵，不是您的问题。换个时段，Wi-Fi 和流量互换。</p>
       <p data-en="<strong>② The QR code expired before the scan.</strong> Select <strong>Next</strong> on the Android phone; a fresh code appears."><strong>② 还没扫完二维码就过期了。</strong>在安卓手机上点「下一步（Next）」，会给一个新的码。</p>
-      <p data-en="<strong>③ The iPhone or iPad shows nothing when the two-digit number appears.</strong> Open the authenticator by hand; the request is usually waiting inside. If a wrong number was typed, select Next on the Android phone for a fresh one."><strong>③ 出现两位数时 iPhone / iPad 上没有提示。</strong>手动打开验证器，请求通常就在里面。数字输错了，在安卓手机上点「下一步」换一个新的。</p>
+      <p data-en="<strong>③ The iPhone or iPad shows nothing when the two-digit number appears.</strong> Open the authenticator by hand; the request is usually waiting inside. If a wrong number was typed, select Next on the Android phone for a fresh one. Still nothing: read <a href='/help/teams-faq.html#q-where-prompt' target='_blank' rel='noopener'>Where did my verification go?</a>"><strong>③ 出现两位数时 iPhone / iPad 上没有提示。</strong>手动打开验证器，请求通常就在里面。数字输错了，在安卓手机上点「下一步」换一个新的。还是没有：请看 <a href="/help/teams-faq.html#q-where-prompt" target="_blank" rel="noopener">我的验证码发到哪里了？</a></p>
     </details>
 
     <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Two devices, once — then Teams stays signed in on the phone.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。两台设备配合一次，之后手机上的 Teams 一直保持登录。</span></div>
@@ -857,8 +858,8 @@
                     "<strong>Install it, and do not sign in inside the app.</strong> The next step links it to your account from a second device.") + '</div>';
       } else {
         box.innerHTML =
-          '<div class="note warn">' + T("<strong>提示只发到当初绑定的那台设备上。</strong>请先想一想：您是不是在一部老 iPhone / iPad 上设置过验证器？<br>① 老设备还在：打开它上面的验证器，请求就在里面，输入两位数即可，不需要往下走。<br>② 老设备已经不在了：请联系<strong>给您分配账号的管理员</strong>，让他核查并删掉老设备的登记。<strong>等他处理完</strong>，再点下一步，用另一台设备把现在这部 iPhone / iPad 上的验证器重新绑定。",
-                    "<strong>The prompt only goes to the device that was linked.</strong> Think back: did you set up the authenticator on an older iPhone or iPad?<br>① The old device still exists: open its authenticator, the request is waiting there — type the two-digit number and you are done.<br>② The old device is gone: contact <strong>the administrator who issued your account</strong> and ask them to check and remove the old device. <strong>Once they have</strong>, select Next and relink the authenticator on this iPhone or iPad from a second device.") + '</div>';
+          '<div class="note warn">' + T("<strong>提示只发到当初绑定的那台设备上。</strong>请先想一想：您是不是在一部老 iPhone / iPad 上设置过验证器？<br>① 老设备还在：打开它上面的验证器，请求就在里面，输入两位数即可，不需要往下走。<br>② 老设备已经不在了：请联系<strong>给您分配账号的管理员</strong>，让他核查并删掉老设备的登记（参见 <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">我换了手机，怎么办？</a>）。<strong>等他处理完</strong>，再点下一步，用另一台设备把现在这部 iPhone / iPad 上的验证器重新绑定。",
+                    "<strong>The prompt only goes to the device that was linked.</strong> Think back: did you set up the authenticator on an older iPhone or iPad?<br>① The old device still exists: open its authenticator, the request is waiting there — type the two-digit number and you are done.<br>② The old device is gone: contact <strong>the administrator who issued your account</strong> and ask them to check and remove the old device (see <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">I changed my phone — what now?</a>). <strong>Once they have</strong>, select Next and relink the authenticator on this iPhone or iPad from a second device.") + '</div>';
       }
     }
   }

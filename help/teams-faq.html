@@ -73,7 +73,7 @@
   .toc b { display: block; margin-bottom: 6px; color: var(--accent-ink); }
   .toc a { color: var(--accent-ink); text-decoration: none; margin-right: 14px; white-space: nowrap; }
   .toc a:hover { text-decoration: underline; }
-  details.q { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 10px 0; box-shadow: var(--shadow); }
+  details.q { scroll-margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 10px 0; box-shadow: var(--shadow); }
   details.q summary { cursor: pointer; font-weight: 700; font-size: 1.02rem; list-style: none; display: flex; gap: 10px; align-items: flex-start; }
   details.q summary::-webkit-details-marker { display: none; }
   details.q summary::before { content: "＋"; color: var(--accent); flex: none; font-weight: 700; }
@@ -94,6 +94,7 @@
   </div>
   <nav class="helpnav" aria-label="帮助页面" data-en-label="Help pages">
     <a href="/help/teams-setup.html" data-en="Setup wizard">设置向导</a>
+    <a href="/help/teams-flow.html" data-en="Setup flowchart">设置流程图</a>
     <a href="/help/teams-faq.html" aria-current="page" data-en="Teams &amp; Authenticator Q&amp;A">微软 Teams 和身份验证器问答</a>
   </nav>
 
@@ -114,19 +115,19 @@
 
   <h2 id="teams" data-en="About Teams">关于 Teams</h2>
 
-  <details class="q">
+  <details class="q" id="q-what">
     <summary data-en="What is Teams, and who uses it?">Teams 是什么？谁在用？</summary>
     <p data-en="<strong>Microsoft Teams</strong> is Microsoft's platform for working together — messaging, meetings, shared files — and it is where <strong>your institution or school</strong> holds lessons, posts announcements, shares materials and keeps teachers and students in touch. By Microsoft's own figures it has <strong>over 300 million monthly active users</strong> and is used by <strong>more than a million organisations</strong> worldwide — universities and schools, hospitals, research laboratories, and nearly every Fortune 100 company. Some <strong>180,000 educational institutions</strong> teach in it."><strong>Microsoft Teams</strong> 是微软的协作与沟通平台——消息、会议、共享文件都在一处；也是<strong>您所在机构或学校</strong>上课、发课堂通知、共享课程资料、师生沟通的地方。按微软公布的数字，它有<strong>全球 3 亿多月活跃用户</strong>，<strong>100 多万家机构</strong>在用——大学和中小学、医院、实验室，以及几乎所有财富 100 强企业。<strong>18 万多所教育机构</strong>用它上课。</p>
     <p data-en="It is the same product a hospital or a Fortune 100 company signs in to every morning — which is also why its sign-in rules are the same for everyone.">您登录的和一家医院、一家财富 100 强企业每天早上登录的是同一个产品——这也是为什么它的登录规则对所有人一样。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-wechat">
     <summary data-en="WeChat is so easy — why is Teams sign-in so much stricter?">我用微信很方便，为什么 Teams 登录这么"讲究"？</summary>
     <p data-en="WeChat is a <strong>personal, social</strong> app — chatting, Moments, keeping up with family and friends: the account is yours, your phone number is the key, and if it is lost mostly you are affected. Teams is an <strong>organisation's</strong> tool: the account was issued to you by the school or institution, and it opens the classroom, the shared files, the directory and everyone else's information. One stolen account can hurt many people.">微信是<strong>个人社交</strong>工具：聊天、朋友圈、和亲友联系，账号属于您自己，手机号就是钥匙，丢了主要影响您一个人。Teams 是<strong>机构</strong>的工具：账号是学校 / 机构发给您的，打开的是课堂、共享文件、通讯录和其他所有人的信息。一个账号被盗，受害的可能是很多人。</p>
     <p data-en="So Microsoft requires <strong>a password plus a second confirmation</strong> on every work and school account in the world. Microsoft's own figure: this second step blocks more than 99% of account-takeover attacks. It is the same rule for a Fortune 100 company as for us — not something aimed at you, and not something the institution can switch off.">所以微软对全球所有工作 / 学校账号一律要求<strong>"密码 + 第二重确认"</strong>。微软自己的数字：这第二步能挡住 99% 以上的账号盗用攻击。财富 100 强企业和我们是同一条规矩——不是针对谁，也不是机构想关就能关的。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-cost">
     <summary data-en="Does Teams cost money? Where did my account come from?">Teams 要花钱吗？我的账号是怎么来的？</summary>
     <p data-en="Businesses pay for Teams <strong>per person, per month</strong> — from about US$4 for the basic plan, and more for plans that include Office. Schools and non-profits get education pricing, but every account still has to be applied for, licensed and opened by an administrator, one at a time.">商业版 Teams <strong>按人按月收费</strong>——基础版每人每月约 4 美元起，含 Office 的套餐更高。学校和公益机构有教育优惠，但每一个账号仍然要机构申请、分配许可、由管理员逐个开通。</p>
     <p data-en="And since 2026 Microsoft has been shutting down the <strong>free personal edition</strong> of Teams in mainland China — the mobile app first, then desktop and web in the summer. A work or school account is now the only way to use Teams here. The account in your hands is not something you could sign up for yourself. Ten minutes on verification is a small price for keeping it.">而 2026 年起，微软陆续停止了中国大陆<strong>个人版（免费版）Teams</strong> 的服务——手机版先停，电脑和网页版夏天停。现在在国内只有工作 / 学校账号还能用 Teams。您手里的这个账号，是自己注册不来的。花十分钟做好身份验证，是保住它的很小的代价。</p>
@@ -134,81 +135,81 @@
 
   <h2 id="auth" data-en="Verification">关于身份验证</h2>
 
-  <details class="q">
+  <details class="q" id="q-authenticator">
     <summary data-en="What is the authenticator, and what does it do at sign-in?">身份验证器是什么？它在登录里做什么？</summary>
     <p data-en="<strong>Microsoft Authenticator</strong> is a small app that proves <em>you</em> are the one signing in. When Teams needs to be sure, the authenticator on your device shows &ldquo;Are you trying to sign in?&rdquo;; you type the two-digit number shown on the screen you are signing in from, tap Yes, and you are through. Only the device the app is linked to can answer, which is what makes the account yours."><strong>微软身份验证器（Microsoft Authenticator）</strong>是一个小软件，用来证明登录的是<em>您本人</em>。Teams 需要确认时，您设备上的验证器会弹出「是否正在尝试登录？」；您输入正在登录的那个屏幕上显示的两位数，点"是"，就通过了。只有绑定了这个软件的设备能回应，这就是账号"属于您"的凭据。</p>
     <p data-en="It replaces text-message codes, which often never reach mainland phones and which Microsoft stops offering in February 2027.">它取代的是短信验证码——短信常常到不了国内手机，而且微软将于 2027 年 2 月停止短信验证。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-password-right">
     <summary data-en="My password is right — why am I still asked to verify?">密码明明正确，为什么还要验证？</summary>
     <p data-en="Because a correct password only gets you <strong>tokens</strong> — think of them as tickets. When you sign in, Microsoft hands your Teams app a short ticket (about an hour) that fetches your messages, and a long ticket that quietly renews the short one. From then on Teams shows tickets, not your password; that is why you can go months without typing it.">因为密码正确只是换到了几张<strong>令牌</strong>——可以理解为"票"。登录时，微软发给您的 Teams 一张短票（约一小时）用来取消息，一张长票用来悄悄续短票。此后 Teams 每次出示的都是票，不是密码——所以您可以几个月不输密码。</p>
     <p data-en="Every ticket carries a stamp for what was checked. A password-only sign-in gives a &ldquo;password&rdquo; stamp; completing verification adds a &ldquo;verified&rdquo; stamp. When the institution requires the verified stamp, a ticket without it is sent back — and you see &ldquo;please verify&rdquo; even though the password was fine. Once the stamp is on, the ticket keeps renewing quietly again.">每张票上都盖着"查过什么"的章。只用密码登录，票上只有"密码"章；做过身份验证，多一个"已验证"章。机构要求有"已验证"章时，没有这个章的票就被打回——于是您密码没错，却看到"请验证"。章一盖上，票又会安静地续下去。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-when">
     <summary data-en="When will I be asked to verify?">什么时候会被要求验证？</summary>
     <p data-en="Not every day. Typically: <strong>the first sign-in</strong>; signing in on <strong>a new phone or computer</strong>; after <strong>you sign out</strong> yourself; after <strong>a password change</strong> (yours or a reset by the administrator); after a long gap — roughly <strong>90 days</strong> — without opening Teams; and when the institution <strong>tightens its security settings</strong>. Between those, Teams simply opens.">不是每天。通常是：<strong>第一次登录</strong>；在<strong>新手机或新电脑</strong>上登录；<strong>自己点了退出登录</strong>之后；<strong>改了密码</strong>（自己改或管理员重置）之后；很久——大约 <strong>90 天</strong>——没打开过 Teams；以及机构<strong>调整了安全要求</strong>的时候。除此之外，Teams 打开就是登录状态。</p>
     <p data-en="A practical consequence: <strong>do not sign out</strong> of Teams on your phone unless you have to. Signing out throws the tickets away, and the next sign-in asks for verification again.">一个实际的推论：手机上的 Teams <strong>不要随手点退出登录</strong>。退出就是把票扔掉，下次登录又要验证。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-second-device">
     <summary data-en="Why can't I scan the QR code with the same phone?">为什么不能用同一部手机扫自己屏幕上的二维码？</summary>
     <p data-en="Linking the authenticator works by <strong>scanning a QR code with the app's camera</strong>. A phone cannot point its camera at its own screen. So the QR code has to appear on <strong>another device</strong> — a computer, or a second iPad or iPhone — and the phone with the authenticator scans that. The wizard's &ldquo;second device&rdquo; step exists for exactly this reason. After the linking, the phone signs in to Teams on its own; the second device is no longer needed.">绑定验证器靠<strong>用它的摄像头扫二维码</strong>。一部手机没法把摄像头对准自己的屏幕。所以二维码得显示在<strong>另一台设备</strong>上——电脑，或者另一台 iPad / iPhone——由装着验证器的手机去扫。向导里"另一台设备"那一步就是为此而设。绑定完成后，手机自己就能登录 Teams，第二台设备不再需要。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-private-window">
     <summary data-en="Why a private (incognito) window for the first sign-in?">为什么第一次登录要用无痕窗口？</summary>
     <p data-en="A private window carries no history. It avoids the three commonest failures at once: another Microsoft account already signed in (which quietly pushes you onto the wrong one), a cached old sign-in page (the source of those AADSTS error strings), and an old password auto-filled. Once set up, go back to an ordinary window for daily use — a private window forgets you when it closes.">无痕窗口不带任何记录。它能一次避开三个最常见的失败原因：浏览器里已经登录着别的微软账号（会把您顶到错的账号上）、旧的缓存登录页（那串 AADSTS 英文报错的来源）、自动填充的旧密码。设置完成后日常改回普通窗口——无痕窗口一关就不记得登录状态。</p>
   </details>
 
   <h2 id="android" data-en="About Android phones">关于安卓手机</h2>
 
-  <details class="q">
+  <details class="q" id="q-android">
     <summary data-en="Why can't the authenticator run on my Android phone?">为什么验证器不能装在我的安卓手机上？</summary>
     <p data-en="Android phones sold in mainland China ship <strong>without Google services</strong>. Microsoft Authenticator links a work account through a Google channel; without that channel the linking spins forever. We tested this on a real Huawei by every route Microsoft offers — scanning the QR code, typing the code and URL by hand, the app's own code-only mode — and none of them finished. Microsoft's own support answers say the same: push notifications do not work on Android phones in China.">国内销售的安卓手机<strong>出厂不带谷歌服务</strong>。微软身份验证器绑定工作账号要经过谷歌的通道，没有这条通道，绑定就一直转圈。我们在华为真机上把微软提供的每条路都试了——扫二维码、手动输入代码和网址、验证器自己的验证码模式——没有一条走得通。微软自己的支持问答也是这么说的：中国的安卓手机收不到推送。</p>
     <p data-en="<strong>Teams itself installs and runs fine</strong> on these phones. Only the authenticator has to live elsewhere: an iPhone or iPad of yours (an old one is fine), or your administrator's phone. It is not a fault in your phone, and there is no need to buy a new one."><strong>Teams 本身在这些手机上安装、使用都没问题。</strong>只是验证器得放在别处：您自己的 iPhone 或 iPad（旧的也行），或者管理员的手机。这不是您手机的毛病，也不用买新手机。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-admin-scan">
     <summary data-en="What does it mean when the administrator scans for me?">管理员帮我扫码，意味着什么？</summary>
     <p data-en="Your account's authenticator then lives on <strong>the administrator's phone</strong>. Day to day nothing changes for you — Teams on your phone stays signed in. When Teams asks to verify again (a new phone, a sign-out, a password change), <strong>the prompt goes to the administrator</strong>: message them in Teams, tell them the two-digit number on your screen, and they confirm it. Even then, nobody can sign in as you without the number from your own screen.">您账号的验证器就记在<strong>管理员的手机</strong>上。日常对您没有任何区别——手机上的 Teams 一直保持登录。哪天 Teams 又要求验证（换手机、退出登录、改密码），<strong>提示会发到管理员那里</strong>：在 Teams 里给他发消息，把您屏幕上的两位数告诉他，他确认一下即可。即便如此，没有您屏幕上的数字，谁也不能以您的身份登录。</p>
     <p data-en="If you later get an iPhone or iPad of your own, ask the administrator to move the authenticator: they remove their entry, and you link your own device following the wizard.">以后如果您有了自己的 iPhone 或 iPad，可以请管理员把验证器"搬"过来：他删掉他手机上的登记，您按向导在自己的设备上重新绑定。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-no-sms">
     <summary data-en="Why not a text-message code?">为什么不用短信验证码？</summary>
     <p data-en="Two reasons. In our tests, Microsoft's messages often never reached mainland phones (a Huawei on a Shenzhen carrier received nothing), and Microsoft <strong>stops offering text-message verification in February 2027</strong>. A method that works for some people for a few more months is not one we can build the sign-in on.">两个原因。我们测试时，微软的短信常常到不了国内手机（一部深圳运营商的华为一条都没收到）；而且微软<strong>将于 2027 年 2 月停止短信验证</strong>。一个只对部分人、只再管几个月的办法，不能拿来当登录的根基。</p>
   </details>
 
   <h2 id="where" data-en="Where the prompts go">提示发到哪里</h2>
 
-  <details class="q">
+  <details class="q" id="q-where-prompt">
     <summary data-en="Where did my verification prompt go? Why do I get nothing?">我的验证提示发到哪里了？为什么收不到？</summary>
     <p data-en="The prompt goes to <strong>the device whose authenticator was linked to your account</strong> — not to whichever phone you are holding. The commonest case: you set it up on an old iPhone or iPad, later changed phones and installed the authenticator again on the new one. The new app knows nothing about your account; the prompt still goes to the old device.">提示只会发到<strong>当初和您账号绑定的那台设备的验证器</strong>上，不是您手里正拿着的这部。最常见的情况：当初在一部老 iPhone / iPad 上设置的，后来换了手机、在新手机上又装了验证器——新验证器里并没有您的账号，提示仍然发往老设备。</p>
     <p data-en="<strong>If the old device is still around</strong>, open its authenticator: the request is waiting there. <strong>If it is gone</strong>, contact the administrator who issued your account, ask them to remove the old device, and then link the authenticator on the new device by following the wizard (choose &ldquo;I have used Teams before&rdquo;).">老设备还在，打开它上面的验证器，请求就在里面。老设备已经没了，请联系给您分配账号的管理员，让他把老设备删掉，然后按向导在新设备上重新绑定（选「我曾经登录过 Teams」那条路）。</p>
     <p data-en="Also check the simple things: is the iPhone or iPad online, and is the authenticator allowed to show notifications? If nothing pops up, open the app by hand — the request is usually inside.">也检查一下简单的事：那部 iPhone / iPad 有没有联网、验证器有没有被允许通知。没弹出就手动打开验证器——请求通常就在里面。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-new-phone">
     <summary data-en="I changed my phone. What now?">我换了手机，怎么办？</summary>
     <p data-en="<strong>Teams</strong>: install it on the new phone and sign in; you will be asked to verify — the prompt goes to your authenticator device. <strong>The authenticator</strong>: if it lived on the phone you replaced, contact the administrator to remove the old device, then relink on the new one by following the wizard. Installing the app on the new phone by itself does nothing — the account is not in it until it is linked again."><strong>Teams</strong>：在新手机上装好、登录，会要求验证——提示发到您的验证器设备上。<strong>验证器</strong>：如果它装在被换掉的那部手机上，请联系管理员删掉老设备，再按向导在新设备上重新绑定。只在新手机上装验证器是没用的——不重新绑定，账号不会自己出现在里面。</p>
   </details>
 
   <h2 id="trouble" data-en="When you are stuck">卡住了</h2>
 
-  <details class="q">
+  <details class="q" id="q-forgot-password">
     <summary data-en="I forgot my password, or it says the password is wrong">忘记密码，或者提示密码错误</summary>
     <p data-en="You set the password yourself once, at the first sign-in (the &ldquo;Update your password&rdquo; screen). After that there is <strong>no self-service reset</strong> — &ldquo;Forgot my password&rdquo; leading nowhere is normal, not a fault. Contact <strong>the administrator who issued your account</strong>; they reset it and send you a new one. Paste it rather than typing it, and you will be asked to set your own again.">密码只在第一次登录时由您自己设置一次（「更新密码（Update your password）」那一屏）。之后<strong>不能自助重置</strong>——「忘记密码」走不通是正常的，不是故障。请联系<strong>给您分配账号的管理员</strong>，由他重置后发给您新密码；收到后复制粘贴、不要照着敲，登录时会再让您设一个自己的。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-page-error">
     <summary data-en="The sign-in page will not open, or shows an English error">登录页面打不开，或者弹出一串英文报错</summary>
     <p data-en="<strong>Will not open, spins, or blank:</strong> Microsoft's servers are outside mainland China and the cross-border links are congested. Try another time of day (early morning and late evening are usually smoother), switch between Wi-Fi and mobile data, and type <code>teams.microsoft.com</code> straight into the address bar."><strong>打不开、转圈、空白：</strong>微软的服务器在境外，跨境线路常常拥堵。换个时段（清早和深夜通常顺畅得多）、Wi-Fi 和手机流量互换、在地址栏直接输入 <code>teams.microsoft.com</code>。</p>
     <p data-en="<strong>An error string such as AADSTS900561:</strong> stale cache or an old link. Close the page, open a fresh private window, and type the address yourself — do not use an old bookmark."><strong>AADSTS900561 这类英文报错：</strong>来自旧缓存或旧链接。关掉页面，重新开一个无痕窗口，手动输入地址，不要用收藏夹里的旧链接。</p>
   </details>
 
-  <details class="q">
+  <details class="q" id="q-still-stuck">
     <summary data-en="I followed every step and still cannot sign in">都按步骤做了，还是登录不上</summary>
     <p data-en="Take a <strong>screenshot</strong> of the screen or the error and send it to <strong>the administrator who issued your account</strong>, rather than retrying on your own. A screenshot usually shows at a glance which step you are stuck on.">请把您看到的界面或报错<strong>截图</strong>，发给<strong>为您分配账号的管理员</strong>，不用自己反复重试。有截图通常一眼就能看出卡在哪一步。</p>
   </details>
@@ -236,7 +237,14 @@
     location.reload();
   });
   // A link with a hash opens that question.
-  if (location.hash) { var t = document.querySelector(location.hash); if (t && t.tagName === "DETAILS") t.open = true; }
+  // A link with a hash (from the wizard) opens that question and brings it into view.
+  function openHash() {
+    if (!location.hash) return;
+    var t = document.getElementById(location.hash.slice(1));
+    if (t && t.tagName === "DETAILS") { t.open = true; setTimeout(function () { t.scrollIntoView({ block: "start" }); }, 0); }
+  }
+  openHash();
+  window.addEventListener("hashchange", openHash);
 })();
 </script>
 </body>
