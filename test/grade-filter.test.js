@@ -552,7 +552,7 @@ setTimeout(() => {
              const en = doc.getElementById("cartLbl").textContent; click(pick("#langBtn")); return [zh, en]; })(),
     ["购物车", "Cart"]);
 
-  // ---- 帮助 → Teams 安装和身份验证 (/help/teams-setup.html) ----
+  // ---- 帮助 → 微软 Teams 和身份验证器设置向导 (/help/teams-setup.html) + 问答 ----
   // A real page in the repo, not an SPA route: the nav handler must NOT
   // intercept it, or the browser would never leave the wizard.
   const helpLink = doc.querySelector('a.menu-item[href="/help/teams-setup.html"]');
@@ -567,6 +567,10 @@ setTimeout(() => {
     (() => { const ev = new window.MouseEvent("click", { bubbles: true, cancelable: true });
              helpLink.dispatchEvent(ev); return ev.defaultPrevented; })(),
     false);
+  check("the support menu also links to the Q&A page, in the same tab",
+    (() => { const q = doc.querySelector('a.menu-item[href="/help/teams-faq.html"]');
+             return [!!q, q && q.getAttribute("target"), q && q.textContent.trim()]; })(),
+    [true, null, "微软 Teams 和身份验证器问答"]);
 
   // ---- G.P.A. calculator (/gpa) — a standalone page beside the wizard ----
   // Entered here through a LEGACY link (#/gpa, the address before paths), which
