@@ -307,6 +307,7 @@
   .note.warn  { color: var(--warn); background: var(--warn-soft); border: 1px solid var(--warn-line); }
   .note.good  { color: var(--good); background: var(--good-soft); border: 1px solid var(--good-line); }
   .note strong { color: inherit; }
+  .note a, .app-block a { color: var(--accent-ink); font-weight: 700; }
 
   .pill { font-size: .71rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
   .pill.must { color: var(--warn); background: var(--warn-soft); }
@@ -472,8 +473,15 @@
       <p data-en="Open the App Store → search <code>Authenticator</code> → install.">打开 App Store → 搜索 <code>Authenticator</code> → 安装。</p>
       <p class="identify" data-en="How to recognise it: <strong>Microsoft Authenticator</strong>, a <strong>blue padlock</strong> icon, developer <strong>Microsoft Corporation</strong>.">怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。</p></div>
     <div class="app-block"><h3>Microsoft Teams <span class="pill must" data-en="required">必装</span></h3>
-      <p data-en="Open the App Store → search <code>Microsoft Teams</code> → install.">打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。</p></div>
-    <div class="note good" data-en="<strong>Install both, and do not sign in yet.</strong> The first sign-in happens on another device in the next two steps; the phone joins in at the end."><strong>两个都装好就行，先别登录。</strong>第一次登录要在另一台设备上做（接下来两步），手机最后再登。</div>
+      <p data-en="<strong>On the iPhone or iPad:</strong> open the App Store → search <code>Microsoft Teams</code> → install."><strong>iPhone / iPad 上：</strong>打开 App Store → 搜索 <code>Microsoft Teams</code> → 安装。</p>
+      <p data-en="<strong>On a computer (optional, recommended if you use one):</strong> download the installer straight from Microsoft's site — <a href='https://www.microsoft.com/en-us/microsoft-teams/download-app' target='_blank' rel='noopener noreferrer'>microsoft.com › Download Teams</a> → &ldquo;Download Microsoft Teams for Windows&rdquo; or &ldquo;for Mac&rdquo;. Install it after setup is finished; the first sign-in below uses a browser."><strong>电脑上（可选，常用电脑的建议装）：</strong>直接从微软官网下载安装包——<a href="https://www.microsoft.com/zh-cn/microsoft-teams/download-app" target="_blank" rel="noopener noreferrer">微软官网 › 下载 Teams</a>（中文页面）→ 点「下载 Microsoft Teams for Windows」或「for Mac」。设置完成后再装；下面的第一次登录用浏览器就行。</p></div>
+    <div class="note good" data-en="<strong>Install both, and do not sign in on the phone yet.</strong> The first sign-in happens on another device (the next two steps); the phone signs in last."><strong>两个都装好就行，手机上先别登录。</strong>第一次登录要在另一台设备上做（接下来两步），手机最后再登。</div>
+    <details class="why" data-side="ios-install" open>
+      <summary data-en="Why sign in on another device first, and the phone last?">为什么先在另一台设备上登录，手机最后再登？</summary>
+      <p data-en="The first sign-in ends with a <strong>QR code</strong> that the authenticator must scan with its camera. The code appears on <strong>whatever screen you are signing in on</strong>. If that screen is this iPhone, the code is on the very phone that has to scan it — and a phone cannot point its camera at its own screen.">第一次登录的最后，屏幕上会出现一个<strong>二维码</strong>，要由验证器用摄像头去扫。这个二维码显示在<strong>您正在登录的那块屏幕上</strong>。如果是在这部 iPhone 上登录，二维码就在这部手机上——而要扫它的也是这部手机，手机没法用摄像头拍自己的屏幕。</p>
+      <p data-en="So the QR code is put on a <strong>second screen</strong> — a computer, or another iPad — and your iPhone scans it. That is the one-time linking. After it, the phone <strong>already holds the linked authenticator</strong>, so signing in to Teams on it is just the password and one tap to confirm.">所以让二维码显示在<strong>第二块屏幕</strong>上——电脑或另一台 iPad——由您的 iPhone 来扫，这就是一次性的"绑定"。绑定完成后，手机上<strong>已经有了绑好的验证器</strong>，再在手机上登录 Teams，只需输密码、点一下确认。</p>
+      <p data-en="Doing it in this order also means that if anything goes wrong, you are looking at a big screen with a private window you can simply close and reopen.">按这个顺序做还有一个好处：出了问题，您面对的是一块大屏幕和一个无痕窗口，关掉重开就能重来。</p>
+    </details>
 
     <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Two apps, once — then everyday sign-in is one tap.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。两个软件装一次，以后日常登录只是手机上确认一下。</span></div>
     <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="Both installed — next">装好了，下一步</button></div>
@@ -622,8 +630,8 @@
     <p class="step-desc" data-en="Tick all of these and the setup is completely finished.">下面几项都打上勾，说明已经彻底设置好了。</p>
     <div class="checklist" id="checklist"></div>
     <div class="note good" id="doneNote" hidden></div>
-    <div class="note plain" id="dailyTip" data-en="<strong>One tip for daily use:</strong> if you use Teams on a computer often, install the <strong>Teams desktop app</strong>. The web version reloads everything each time, which is slow over cross-border links; the desktop app caches content locally and opens faster." hidden>
-      <strong>日常使用的小建议：</strong>如果您经常在电脑上用 Teams，建议装一个 <strong>Teams 桌面版</strong>。网页版每次都要重新加载全部内容，在跨境线路上容易慢；桌面版会把内容缓存在本地，日常打开更快更稳。
+    <div class="note plain" id="dailyTip" data-en="<strong>One tip for daily use:</strong> if you use Teams on a computer often, install the <strong>Teams desktop app</strong> from <a href='https://www.microsoft.com/en-us/microsoft-teams/download-app' target='_blank' rel='noopener noreferrer'>microsoft.com › Download Teams</a>. The web version reloads everything each time, which is slow over cross-border links; the desktop app caches content locally and opens faster." hidden>
+      <strong>日常使用的小建议：</strong>如果您经常在电脑上用 Teams，建议从<a href="https://www.microsoft.com/zh-cn/microsoft-teams/download-app" target="_blank" rel="noopener noreferrer">微软官网 › 下载 Teams</a>装一个 <strong>Teams 桌面版</strong>。网页版每次都要重新加载全部内容，在跨境线路上容易慢；桌面版会把内容缓存在本地，日常打开更快更稳。
     </div>
     <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" id="restart" data-en="Start over">从头再走一遍</button></div>
   </section>
@@ -1043,7 +1051,8 @@
       box.innerHTML =
         '<div class="app-block"><h3>Microsoft Teams <span class="pill must">' + T("必装", "required") + '</span></h3>' +
         '<p>' + T("打开<strong>" + b.store + "</strong> → 搜索 <code>Teams</code> → 安装。开发者是<strong>微软（中国）有限公司</strong>。", "Open <strong>" + b.store + "</strong> → search <code>Teams</code> → install. The developer reads <strong>微软（中国）有限公司</strong>.") + '</p>' +
-        '<p class="identify">' + T("怎么认：叫 <strong>Microsoft Teams</strong>，紫色的 T 字图标。<strong>不要装 Authenticator</strong>——在这部手机上它绑不了账号。", "How to recognise it: <strong>Microsoft Teams</strong>, the purple T icon. <strong>Do not install Authenticator</strong> — it cannot link an account on this phone.") + '</p></div>' +
+        '<p class="identify">' + T("怎么认：叫 <strong>Microsoft Teams</strong>，紫色的 T 字图标。<strong>不要装 Authenticator</strong>——在这部手机上它绑不了账号。", "How to recognise it: <strong>Microsoft Teams</strong>, the purple T icon. <strong>Do not install Authenticator</strong> — it cannot link an account on this phone.") + '</p>' +
+        '<p class="identify">' + T("电脑上也要用 Teams 的：直接从<a href=\"https://www.microsoft.com/zh-cn/microsoft-teams/download-app\" target=\"_blank\" rel=\"noopener noreferrer\">微软官网 › 下载 Teams</a>（中文页面）下载「Microsoft Teams for Windows」或「for Mac」安装包。", "Using Teams on a computer too: download &ldquo;Microsoft Teams for Windows&rdquo; or &ldquo;for Mac&rdquo; straight from <a href=\"https://www.microsoft.com/en-us/microsoft-teams/download-app\" target=\"_blank\" rel=\"noopener noreferrer\">microsoft.com › Download Teams</a>.") + '</p></div>' +
         '<div class="note plain">' + T("<strong>不要在搜索引擎上随便下载安装包</strong>——装到被改过的版本会很危险。只从应用商店装。", "<strong>Do not download an installer from a search engine.</strong> A tampered build is dangerous. Install from the app store only.") + '</div>' +
         '<div class="note good">' + T("<strong>装好就行，先别登录。</strong>登录在下一步，需要" + (state.verifier === "admin" ? "管理员在您身边（或视频通话）" : "您的 iPhone / iPad 在手边") + "。",
           "<strong>Install it, and do not sign in yet.</strong> Signing in is the next step and needs " + (state.verifier === "admin" ? "the administrator beside you (or on a video call)" : "your iPhone or iPad within reach") + ".") + '</div>';
