@@ -1444,13 +1444,18 @@
     // One phone and no computer means there is no "look at the other screen":
     // the same screen shows the number and then the prompt (Rick's one-phone
     // route, 2026-09-22), so the wording changes with the device.
+    // No Google services means no push: the request is there when the app is
+    // opened, so the Android wording says to open it (Rick, 2026-09-23).
+    var noPush = android
+      ? T('（国内安卓手机可能<strong>不会自动弹出</strong>：自己打开验证器，请求就在里面）', ' (a mainland Android phone may <strong>not pop this up by itself</strong>: open the authenticator and the request is waiting there)')
+      : '';
     var tryOut = state.device === "laptop"
-      ? T('电脑出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」→ 在框里输入电脑上的那个数 → <strong>是（Yes）</strong>。电脑显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
-          'The computer shows <strong>Let\'s try it out</strong> and a <strong>two-digit number</strong>; the authenticator on the phone pops up &ldquo;Are you trying to sign in?&rdquo; → type the number from the computer into the box → <strong>Yes</strong>. The computer says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
+      ? T('电脑出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>；手机上验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」' + noPush + '→ 在框里输入电脑上的那个数 → <strong>是（Yes）</strong>。电脑显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
+          'The computer shows <strong>Let\'s try it out</strong> and a <strong>two-digit number</strong>; the authenticator on the phone shows &ldquo;Are you trying to sign in?&rdquo;' + noPush + ' → type the number from the computer into the box → <strong>Yes</strong>. The computer says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
         shot('pc-try-it-out.jpg', T('Let\'s try it out 页面，显示一个两位数', 'The Let\'s try it out page, showing a two-digit number'),
           T('把这个数输进手机上弹出的框', 'Type this number into the prompt on your phone'),
           '40.9,66.3,17,10.6', T('63,71.5,r|输进手机', '63,71.5,r|type on phone'))
-      : T('屏幕上出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>，<strong>先把这个数记住</strong>；切到微软身份验证器，弹出「是否正在尝试登录？（Are you trying to sign in?）」→ 输入刚才那个数 → <strong>是（Yes）</strong>。切回 Teams，显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
+      : T('屏幕上出现 <strong>「让我们试一试（Let\'s try it out）」</strong> 和一个<strong>两位数</strong>，<strong>先把这个数记住</strong>；切到微软身份验证器，里面出现「是否正在尝试登录？（Are you trying to sign in?）」→ 输入刚才那个数 → <strong>是（Yes）</strong>。切回 Teams，显示「已添加 Authenticator（Authenticator Added）」→ <strong>完成（Done）</strong>，登录完成。',
           'The screen shows <strong>Let\'s try it out</strong> and a <strong>two-digit number</strong> — <strong>memorise it first</strong>. Switch to Microsoft Authenticator, where &ldquo;Are you trying to sign in?&rdquo; appears → type that number → <strong>Yes</strong>. Switch back to Teams, which says &ldquo;Authenticator Added&rdquo; → <strong>Done</strong>, and you are signed in.') +
         shot('pc-try-it-out.jpg', T('Let\'s try it out 页面，显示一个两位数', 'The Let\'s try it out page, showing a two-digit number'),
           T('记住这个数，切到验证器输进弹出的框', 'Memorise this number, then type it into the authenticator prompt'),

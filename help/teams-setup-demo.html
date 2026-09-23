@@ -477,6 +477,17 @@
     show($("s5note"), true);
   }
 
+  function s5tryout() {
+    s5codes();
+    show($("s5note"), false);
+    $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">Let\'s try it out</div>' +
+      '<div class="bigcode">29</div>' +
+      '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">' + T("把这个数输进手机", "type this on the phone") + '</div>';
+    $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;">' + T("微软身份验证器", "Microsoft Authenticator") + '</div>' +
+      '<div class="field" style="text-align:center;">' + T("没有弹出提示？", "No pop-up?") + '</div>' +
+      '<div class="btn-mock ghost hl">' + T("自己打开验证器看", "Open the app and look") + '</div>';
+  }
+
   var BEATS = [
     { s: 1, d: 3200, c: T("先选您的手机品牌——它决定软件从哪里下载，以及能用哪种方式验证。iPhone 最简单：扫码即可。", "Start with the make of your phone — it decides where the apps come from and how you can verify. An iPhone is the simplest: it just scans."), enter: function () {
         reset(); } },
@@ -522,11 +533,12 @@
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">C7K2 9QXD 4M</div>' +
           '<div class="field filled" style="font-family:ui-monospace,Menlo,monospace;">aka.ms/····</div>' +
           '<div class="btn-mock">' + T("完成", "Finish") + '</div>'; } },
-    { s: 5, d: 4400, c: T("绑定成功。电脑上「让我们试一试（Let\'s try it out）」显示一个两位数，手机上弹出提示——输入那个数，登录完成。", "Linked. The computer shows <b>Let\'s try it out</b> with a two-digit number and the phone pops up a prompt — type that number in, and you are signed in."), enter: function () {
-        s5codes();
-        $("s5pc").innerHTML = '<div style="font-size:.6rem;font-weight:700;">Let\'s try it out</div>' +
-          '<div class="bigcode">29</div>' +
-          '<div style="text-align:center;font-size:.55rem;color:var(--ink-faint);">' + T("把这个数输进手机", "type this on the phone") + '</div>';
+    // A Huawei has no Google services, so nothing pops up on its own: the
+    // reader opens the authenticator and finds the request waiting there
+    // (Rick, 2026-09-23). Two beats — the empty phone, then the request.
+    { s: 5, d: 4200, c: T("绑定成功。电脑上「让我们试一试（Let\'s try it out）」显示一个两位数。<b>华为这类没有谷歌服务的手机不会自动弹出提示</b>——自己打开验证器，请求就在里面。", "Linked. The computer shows <b>Let\'s try it out</b> with a two-digit number. <b>A phone without Google services, like this Huawei, gets no pop-up</b> — open the authenticator yourself and the request is waiting there."), enter: s5tryout },
+    { s: 5, d: 4400, c: T("验证器里出现「是否正在尝试登录？（Are you trying to sign in?）」——输入电脑上那个数 → <b>是（Yes）</b>，登录完成。", "The authenticator shows <b>Are you trying to sign in?</b> — type the number from the computer → <b>Yes</b>, and you are signed in."), enter: function () {
+        s5tryout();
         $("s5ph").innerHTML = '<div style="font-weight:700;margin-bottom:5px;font-size:.62rem;">Are you trying to sign in?</div>' +
           '<div style="font-size:.55rem;color:var(--ink-faint);">name@yourdomain</div>' +
           '<div class="field filled hl" style="text-align:center;font-family:ui-monospace,Menlo,monospace;letter-spacing:.1em;">29</div>' +
