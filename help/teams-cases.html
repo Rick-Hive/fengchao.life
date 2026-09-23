@@ -129,6 +129,12 @@
   .toc-cat:first-of-type { margin-top: 2px; }
   .toc-more { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--line); font-weight: 400; }
   .toc-more a { display: inline; margin: 0 16px 0 0; }
+  .fix-box { margin: 8px 0 12px; padding: 12px 16px 10px; background: var(--good-soft); border: 1px solid var(--good-line); border-radius: 12px; font-size: .94rem; }
+  .fix-box b { color: var(--good); }
+  .fix-box ol { margin: 6px 0 0; padding-left: 22px; color: var(--ink-soft); }
+  .fix-box li { margin: 4px 0; }
+  .fix-box li strong { color: var(--ink); }
+  .fix-box a { color: var(--accent-ink); }
 </style>
 </head>
 <body>
@@ -166,6 +172,14 @@
   <!-- ===================== 1 ===================== -->
   <h2 class="cat" id="cat-1" data-en="1　No prompt arrives; the sign-in cannot be approved">1　收不到验证提示，批准不了登录</h2>
   <p class="cat-note" data-en="A verification request only ever goes to <strong>the one device the authenticator was linked on</strong>. If that device is gone, or you are looking at a different one, nothing will pop up.">验证请求只会发往<strong>当初绑定验证器的那一台设备</strong>。那台设备不在了，或者您在另一台设备上找，就什么也不会弹出。</p>
+  <div class="fix-box">
+    <b data-en="The usual fix for this kind of problem">这一类问题的通用解决办法</b>
+    <ol>
+      <li data-en="<strong>Find the old phone first.</strong> If it still switches on, approve the sign-in with its authenticator, then link your new phone."><strong>先找旧手机。</strong>还能开机，就用它上面的验证器批准登录，登录后再把新手机绑上。</li>
+      <li data-en="<strong>Old phone gone?</strong> Contact <strong>the administrator who issued your account</strong> and ask them to remove the authenticator registered on it."><strong>找不到旧手机，</strong>联系<strong>为您分配账号的管理员</strong>，请他删除登记在旧手机上的验证器。</li>
+      <li data-en="<strong>After the administrator has removed it,</strong> open the <a href='/help/teams-setup.html'>setup wizard</a>, choose &ldquo;I have used Teams before, and now it asks me to verify&rdquo;, and follow the steps to link your new phone."><strong>管理员删除后，</strong>打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按提示用新手机重新绑定。</li>
+    </ol>
+  </div>
 
   <details class="case" id="case-old-phone">
     <summary><span class="num">1.1</span><span class="ttl" data-en="After a password reset, verification went to an old phone">重置密码后，验证提示发到了早就不用的旧手机</span></summary>
@@ -309,7 +323,7 @@
     <p data-en="All in the Microsoft Entra admin centre → Users → the person → <strong>Authentication methods</strong>.">都在 Microsoft Entra 管理中心 → 用户 → 选中此人 → <strong>身份验证方法</strong>。</p>
     <ul>
       <li data-en="<strong>See where the authenticator is:</strong> the list shows the device model. If it is not the phone the person uses now, they have changed phones."><strong>看验证器在哪：</strong>列表显示设备型号。和本人现在用的手机对不上，就是换过手机。</li>
-      <li data-en="<strong>Delete an old or dead method:</strong> &ldquo;⋯&rdquo; at the end of the row → Delete. The person is asked to link a new one at the next sign-in. Devices already signed in stay signed in — do not also revoke sessions."><strong>删除旧的或失效的方法：</strong>行末「⋯」→ 删除。本人下次登录时会被要求重新绑定。已经登录的设备不会因此退出，不要顺手点「撤销会话」。</li>
+      <li data-en="<strong>Delete an old or dead method:</strong> &ldquo;⋯&rdquo; at the end of the row → Delete. The person is asked to link a new one at the next sign-in. Devices already signed in stay signed in — do not also revoke sessions. Then send the person the link to the <a href='/help/teams-setup.html'>setup wizard</a> and ask them to choose &ldquo;I have used Teams before&rdquo;."><strong>删除旧的或失效的方法：</strong>行末「⋯」→ 删除。本人下次登录时会被要求重新绑定。已经登录的设备不会因此退出，不要顺手点「撤销会话」。删除后，把<a href="/help/teams-setup.html">设置向导</a>的链接发给本人，请他选「我曾经登录过 Teams」那一项。</li>
       <li data-en="<strong>Reset a password and check the methods together:</strong> a reset makes every device verify again, so remove any device the person no longer has in the same sitting."><strong>重置密码时一并检查：</strong>重置会让所有设备重新验证，本人已经没有的设备，趁这次一起删掉。</li>
     </ul>
   </section>
