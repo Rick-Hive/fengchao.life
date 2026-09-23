@@ -555,7 +555,7 @@ setTimeout(() => {
   // ---- 帮助 → Teams 和身份验证器设置 (/help/teams-setup.html) + 问答(Q&A) ----
   // A real page in the repo, not an SPA route: the nav handler must NOT
   // intercept it, or the browser would never leave the wizard.
-  const helpLink = doc.querySelector('a.menu-item[href="/help/teams-setup.html"]');
+  const helpLink = doc.querySelector('a.menu-item[href="/help/teams-setup.html?from=menu"]');
   check("the support menu links to the Teams page in the same tab (an in-site page, no ↗)",
     [!!helpLink, helpLink && helpLink.getAttribute("target"), helpLink && !!helpLink.querySelector(".ext-ic")],
     [true, null, false]);
