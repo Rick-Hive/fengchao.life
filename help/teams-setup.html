@@ -535,7 +535,7 @@
     <details class="why" data-side="ios-check">
       <summary data-en="Where did my verification go? Why do I get nothing?">我的验证码发到哪里了？为什么收不到？</summary>
       <p data-en="The prompt goes to <strong>the device whose authenticator was linked to your account</strong> — not to whichever phone you are holding. The most common case: you set it up on an old iPhone or iPad, later changed phones and installed the authenticator again on the new one. The new app knows nothing about your account; the prompt still goes to the old device.">提示只会发到<strong>当初和您账号绑定的那台设备的验证器</strong>上，不是您手里正拿着的这部。最常见的情况：当初在一部老 iPhone / iPad 上设置的，后来换了手机、在新手机上又装了验证器——新验证器里并没有您的账号，提示仍然发往老设备。</p>
-      <p data-en="If the old device is still around, open its authenticator: the request is waiting there. If it is gone, contact <strong>the administrator who issued your account</strong>, ask them to remove the old device, and then link the authenticator on the new one following this wizard.">老设备还在，打开它上面的验证器，请求就在里面。老设备已经没了，请联系<strong>给您分配账号的管理员</strong>，让他把老设备删掉，然后按本向导在新设备上重新绑定。</p>
+      <p data-en="If the old device is still around, open its authenticator: the request is waiting there. To make the new device the one that gets prompts, move the authenticator over yourself with the old device (step 3, &ldquo;My old device is still here&rdquo;). If it is gone, contact <strong>the administrator who issued your account</strong>, ask them to remove the old device, and then link the authenticator on the new one following this wizard.">老设备还在，打开它上面的验证器，请求就在里面。想让以后的提示发到新设备上，就用老设备自己把验证器转过去（第 3 步选「老设备还在」）。老设备已经没了，请联系<strong>给您分配账号的管理员</strong>，让他把老设备删掉，然后按本向导在新设备上重新绑定。</p>
     </details>
 
     <div class="branch-pick stack" id="checkPick" role="group" aria-label="验证器状态" data-en-label="Authenticator status"></div>
@@ -893,12 +893,12 @@
     pickGroup(document.getElementById("checkPick"), [
       { id: "none", name: T("我的 iPhone / iPad 上还没有验证器", "My iPhone or iPad has no authenticator yet"), tag: T("先装好，再用另一台设备登录绑定", "install it, then link it from a second device") },
       { id: "have", name: T("已经装了验证器，但登录时它没有任何提示", "The authenticator is installed, but nothing appears when I sign in"), tag: T("多半是账号绑在另一台设备上", "most likely the account is linked to another device") }
-    ], state.checked, function (id) { if (id !== state.checked) { state.adminDone = false; state.cleanDone = false; } state.checked = id; save(); renderCheck(); });
+    ], state.checked, function (id) { if (id !== state.checked) { state.oldDev = null; state.adminDone = false; state.cleanDone = false; } state.checked = id; save(); renderCheck(); });
     renderCheck();
     function renderCheck() {
       var nb = nextBtn("ios-check");
       if (!state.checked) { box.innerHTML = ""; nb.disabled = true; return; }
-      nb.disabled = state.checked === "have" && !(state.adminDone && state.cleanDone);
+      nb.disabled = state.checked === "have" && !(state.oldDev === "gone" && state.adminDone && state.cleanDone);
       if (state.checked === "none") {
         box.innerHTML =
           '<div class="app-block"><h3>' + T("微软身份验证器（Microsoft Authenticator）", "Microsoft Authenticator") + ' <span class="pill must">' + T("必装", "required") + '</span></h3>' +
@@ -907,16 +907,58 @@
           '<div class="note good">' + T("<strong>装好就行，先别在验证器里登录。</strong>下一步用另一台设备把它和账号绑起来。",
                     "<strong>Install it, and do not sign in inside the app.</strong> The next step links it to your account from a second device.") + '</div>';
       } else {
+        // Two ways on, and which one depends only on whether the old device
+        // still switches on (Rick, 2026-09-24):
+        //  - it does: the person moves the authenticator over themselves on
+        //    the Security info page, approving with the old device — no
+        //    administrator, and no further wizard steps;
+        //  - it does not: the administrator deletes it, then the wizard's
+        //    linking steps — Next waits for the two confirmations.
         box.innerHTML =
-          '<div class="note warn">' + T("<strong>提示只发到当初绑定的那台设备上。</strong>请先想一想：您是不是在一部老 iPhone / iPad 上设置过验证器？<br>① 老设备还在：打开它上面的验证器，请求就在里面，输入两位数即可，不需要往下走。<br>② 老设备已经不在了：请联系<strong>给您分配账号的管理员</strong>，让他核查并删掉老设备的登记（参见 <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">我换了手机，怎么办？</a>）。<strong>等他处理完</strong>，再点下一步，用另一台设备把现在这部 iPhone / iPad 上的验证器重新绑定。",
-                    "<strong>The prompt only goes to the device that was linked.</strong> Think back: did you set up the authenticator on an older iPhone or iPad?<br>① The old device is still around: open its authenticator; the request is waiting there — type the two-digit number and you are done.<br>② The old device is gone: contact <strong>the administrator who issued your account</strong> and ask them to check and remove the old device (see <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">I changed my phone — what now?</a>). <strong>Once they have</strong>, select Next and link the authenticator on this iPhone or iPad again from a second device.") + '</div>' +
-          // Two things must be true before linking again, or the next steps
-          // cannot work: the old registration is gone (otherwise the sign-in
-          // keeps asking the old device and no QR code ever appears), and this
-          // device's authenticator holds no stale entry for the account (a
-          // "Connected account" or leftover entry that would sit beside the new
-          // one). Next stays off until both are ticked (Rick, 2026-09-24).
-          '<p class="check-lead">' + T("<strong>老设备已经不在、要往下走的，先确认下面两件事：</strong>", "<strong>If the old device is gone and you are going on, first confirm both of these:</strong>") + '</p>' +
+          '<div class="note warn">' + T("<strong>提示只发到当初绑定的那台设备上。</strong>您多半是在一部老手机或 iPad 上设置过验证器。老设备还在不在，决定下一步怎么做：",
+                    "<strong>The prompt only goes to the device that was linked.</strong> Most likely you set up the authenticator on an older phone or iPad. Whether that old device is still around decides what to do next:") + '</div>' +
+          '<div class="branch-pick stack" id="oldDevPick" role="group" aria-label="' + T("老设备还在吗", "Is the old device still around") + '"></div>' +
+          '<div id="oldDevContent"></div>';
+        pickGroup(document.getElementById("oldDevPick"), [
+          { id: "have", name: T("老设备还在，能开机", "My old device is still here and switches on"), tag: T("自己把验证器转到新设备上，不用找管理员", "move the authenticator to the new device yourself — no administrator needed") },
+          { id: "gone", name: T("老设备已经不在了（丢了、坏了、送人了）", "My old device is gone (lost, broken, given away)"), tag: T("请管理员删除老设备，再重新绑定", "the administrator removes it, then you link again") }
+        ], state.oldDev, function (id) { if (id !== state.oldDev) { state.adminDone = false; state.cleanDone = false; } state.oldDev = id; save(); renderOld(); });
+        renderOld();
+      }
+      function renderOld() {
+        var oc = document.getElementById("oldDevContent");
+        if (!oc) return;
+        nb.disabled = !(state.oldDev === "gone" && state.adminDone && state.cleanDone);
+        if (!state.oldDev) { oc.innerHTML = ""; return; }
+        if (state.oldDev === "have") {
+          var li = function (zh, en) { return '<li><span class="txt">' + T(zh, en) + "</span></li>"; };
+          oc.innerHTML =
+            '<div class="note good">' + T("<strong>先加新设备，再删老设备。</strong>按下面的顺序做完，验证器就转到新设备上了，<strong>不需要再点下一步</strong>。",
+                      "<strong>Add the new device first, then remove the old one.</strong> Follow these steps in order and the authenticator moves to the new device — <strong>you do not need to select Next</strong>.") + '</div>' +
+            '<ol class="steps inner">' +
+              li("新设备的验证器里如果已经有学校账号（点进去只有「连接的帐户」的那种），先删掉：点进账号 → 右上角齿轮 →<strong>「删除账户」</strong>。没有就跳过。",
+                 "If the new device's authenticator already lists the school account (one that shows only &ldquo;Connected account&rdquo;), remove it first: open the account → gear icon at the top right → <strong>Remove account</strong>. If it does not, skip this.") +
+              li("在电脑上用浏览器无痕窗口打开 <code>mysignins.microsoft.com/security-info</code>，用学校账号登录，用<strong>老设备</strong>批准。（没有电脑，也可以用老设备的浏览器打开这个页面。）",
+                 "On a computer, open <code>mysignins.microsoft.com/security-info</code> in a private window, sign in with your school account, and approve with the <strong>old</strong> device. (No computer? Open the page in the old device's browser.)") +
+              li("点<strong>「添加登录方法」</strong>→ Microsoft Authenticator，一直点下一步到出现二维码。新设备的验证器里点「+」→「工作或学校帐户」→<strong>「扫描 QR 码」</strong>，再输入两位数。",
+                 "<strong>Add sign-in method</strong> → Microsoft Authenticator → Next until a QR code appears. In the new device&#39;s authenticator: &ldquo;+&rdquo; → Work or school account → <strong>Scan QR code</strong>, then type the two-digit number.") +
+              li("如果这一页的<strong>「默认登录方法」</strong>还是老设备，点「更改」，改成新设备的 Authenticator。",
+                 "If the <strong>default sign-in method</strong> on that page is still the old device, select Change and pick the new device&#39;s Authenticator.") +
+              li("在列表里找到写着<strong>老设备型号</strong>的那一条，点<strong>「删除」</strong>。到这一步，微软那边才真正解除老设备的绑定。",
+                 "In the list, find the entry with the <strong>old device&#39;s model</strong> and select <strong>Delete</strong>. This is what actually unlinks the old device.") +
+              li("最后，在老设备的验证器里删掉学校账号：点进账号 → 右上角齿轮 →<strong>「删除账户」</strong>。",
+                 "Last, in the old device&#39;s authenticator: open the school account → gear icon (top right) → <strong>Remove account</strong>.") +
+              li("在新设备上登录 Teams，提示会发到新设备上。",
+                 "Sign in to Teams on the new device; the prompt now goes to it.") +
+            '</ol>' +
+            '<p class="check-lead">' + T("<strong>为什么是这个顺序：</strong>只在老设备的验证器里删账号是不够的，微软那边还记着老设备，请求会继续发往那里。所以在老设备上删除，一定放在最后。详见 <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">我换了手机，怎么办？</a>",
+                      "<strong>Why this order:</strong> removing the account only from the old device&#39;s authenticator is not enough — Microsoft still has the old device on record and keeps sending requests there. That is why removing it from the old device must come last. See <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">I changed my phone — what now?</a>") + '</p>';
+          return;
+        }
+        oc.innerHTML =
+          '<div class="note plain">' + T("请联系<strong>为您分配账号的管理员</strong>，请他删除您的老设备。<strong>等他告诉您处理好了</strong>，再往下走：用另一台设备把这部 iPhone / iPad 上的验证器重新绑定。",
+                    "Contact <strong>the administrator who issued your account</strong> and ask them to remove your old device. <strong>Once they tell you it is done</strong>, go on: link the authenticator on this iPhone or iPad again from a second device.") + '</div>' +
+          '<p class="check-lead">' + T("<strong>往下走之前，先确认下面两件事：</strong>", "<strong>Before you go on, confirm both of these:</strong>") + '</p>' +
           '<label class="confirm"><input type="checkbox" id="chkAdmin"' + (state.adminDone ? " checked" : "") + '> <span>' +
             T("管理员已经告诉我：我的老设备删掉了。", "The administrator has told me my old device has been removed.") + '</span></label>' +
           '<label class="confirm"><input type="checkbox" id="chkClean"' + (state.cleanDone ? " checked" : "") + '> <span>' +
@@ -1201,7 +1243,7 @@
     });
   }
   document.getElementById("restart").addEventListener("click", function () {
-    state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null, confirmed: false, adminDone: false, cleanDone: false };
+    state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null, confirmed: false, oldDev: null, adminDone: false, cleanDone: false };
     try { sessionStorage.removeItem("teamsSetupScreen"); } catch (e) {}
     save(); location.reload();
   });
