@@ -13,7 +13,7 @@
        mainland China, which is this page's whole audience). */
     .site-back {
       max-width: 1132px; margin: 0 auto 12px; padding-inline: 20px;
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
       font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: .9rem;
     }
     .site-back a { color: #1d4a83; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
@@ -37,6 +37,7 @@
 <body>
   <div class="site-back">
     <a href="/" data-en="<img src='/assets/logo-mark.png' alt='' width='512' height='512' /> Back to Hive home"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
+    <button type="button" class="lang-btn" id="langBtn">EN</button>
   </div>
   <nav class="helpnav" aria-label="帮助页面" data-en-label="Help pages">
     <a href="/help/teams-setup.html" aria-current="page" data-en="Setup wizard">设置向导</a>
@@ -143,11 +144,13 @@
      a Chinese-only page (Rick, 2026-09-22). */
   .mast-top { display: flex; align-items: center; gap: 10px; }
   .lang-btn {
-    font: inherit; font-size: .76rem; font-weight: 700; letter-spacing: .04em;
-    margin-bottom: 11px; padding: 3px 12px; border-radius: 999px; cursor: pointer;
-    color: var(--ink-soft); background: var(--surface); border: 1px solid var(--line);
+    /* Same look and place as the site header's language switch (assets/app.css):
+       top right, white pill, regular weight (Rick, 2026-09-24). */
+    font: inherit; font-size: .85rem; line-height: 1.4; padding: 6px 16px; border-radius: 999px;
+    cursor: pointer; white-space: nowrap; flex: none;
+    color: var(--ink); background: var(--surface, #fff); border: 1px solid var(--line);
   }
-  .lang-btn:hover { color: var(--accent-ink); border-color: var(--accent-soft-line); }
+  .lang-btn:hover { border-color: var(--accent); color: var(--accent-ink); }
   .lang-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   .masthead { margin-bottom: 8px; }
   .sub { color: var(--ink-soft); margin-top: 9px; font-size: .97rem; max-width: 58ch; }
@@ -410,10 +413,6 @@
 <div class="wrap">
  <div class="head">
   <div class="masthead">
-    <div class="mast-top">
-      <button type="button" class="eyebrow" id="homeBtn" title="回到向导开头" data-en-title="Back to the start" data-en="Hive Help">蜂巢帮助</button>
-      <button type="button" class="lang-btn" id="langBtn">EN</button>
-    </div>
     <h1 data-en="Microsoft Teams &amp; Authenticator setup wizard">微软 Teams 和身份验证器设置向导</h1>
   </div>
   <p class="sub intro-after" id="introAfter" data-en="Answer two questions and the wizard lays out the steps that fit you. It takes about 10 minutes, once.">先回答两个问题，向导会按您的情况排出步骤。整个设置只做一次，大约 10 分钟。</p>
@@ -831,7 +830,6 @@
   function back() { var r = route(), i = r.indexOf(state.screen); if (i > 0) goTo(r[i - 1]); }
   Array.prototype.forEach.call(document.querySelectorAll("[data-back]"), function (b) { b.addEventListener("click", back); });
   Array.prototype.forEach.call(document.querySelectorAll("[data-next]"), function (b) { b.addEventListener("click", next); });
-  document.getElementById("homeBtn").addEventListener("click", function () { goTo("who"); });
 
   function pickGroup(el, items, current, onPick) {
     el.innerHTML = "";
