@@ -7,6 +7,7 @@
   <meta name="description" content="微软 Teams 和身份验证器设置向导的完整流程图：新用户 / 老用户、iPhone / 安卓、自己的 iPad 或管理员代扫，以及以后再次被要求验证时怎么走。" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+<link rel="stylesheet" href="/assets/site-header.css" />
 <style>
   :root {
     --bg: #f2f4f8; --surface: #ffffff; --surface-2: #f8fafc;
@@ -40,13 +41,11 @@
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
-    line-height: 1.75; padding: 26px 20px 60px;
+    line-height: 1.75; padding: 0;
   }
-  .wrap { max-width: 1180px; margin: 0 auto; }
-  .site-back { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9rem; margin-bottom: 12px; }
-  .site-back a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
-  .site-back a:hover { text-decoration: underline; }
-  .site-back img { width: 26px; height: 26px; display: block; }
+  /* The site header runs edge to edge above; the column keeps its gutters (Rick, 2026-09-24). */
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 22px 20px 60px; }
+  html { scroll-padding-top: calc(var(--header-h, 96px) + 12px); }
   .helpnav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
   .helpnav a {
     text-decoration: none; font-size: .86rem; font-weight: 600; padding: 6px 15px; border-radius: 999px;
@@ -60,14 +59,6 @@
     color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-soft-line);
     padding: 3px 11px; border-radius: 999px; margin-bottom: 11px;
   }
-  .lang-btn {
-    /* Same look and place as the site header's language switch (assets/app.css):
-       top right, white pill, regular weight (Rick, 2026-09-24). */
-    font: inherit; font-size: .85rem; line-height: 1.4; padding: 6px 16px; border-radius: 999px;
-    cursor: pointer; white-space: nowrap; flex: none;
-    color: var(--ink); background: var(--surface, #fff); border: 1px solid var(--line);
-  }
-  .lang-btn:hover { border-color: var(--accent); color: var(--accent-ink); }
   h1, h2 { font-family: "Songti SC", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC", serif; margin: 0; text-wrap: balance; }
   h1 { font-size: clamp(1.4rem, 1.1rem + 1.3vw, 1.85rem); font-weight: 700; }
   h2 { font-size: 1.15rem; font-weight: 700; margin: 30px 0 8px; color: var(--accent-ink); }
@@ -91,7 +82,7 @@
 
   /* ---- flowchart page ---- */
   .toolbar {
-    position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    position: sticky; top: var(--header-h, 0px); z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
     margin: 18px 0 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line);
     border-radius: 12px 12px 0 0; border-bottom: 0;
   }
@@ -109,7 +100,7 @@
   /* The chart keeps a white ground in dark mode too — its colours are light by design. */
   .viewport {
     background: #ffffff; border: 1px solid var(--line); border-radius: 0 0 12px 12px;
-    height: calc(100vh - 150px); min-height: 420px; overflow: auto; cursor: grab;
+    height: calc(100vh - 150px - var(--header-h, 0px)); min-height: 420px; overflow: auto; cursor: grab;
     box-shadow: var(--shadow); overscroll-behavior: contain; touch-action: pan-x pan-y;
   }
   .viewport.dragging { cursor: grabbing; user-select: none; }
@@ -126,15 +117,14 @@
   .legend .l-side { background: #f8fafc; border-color: #c3d3e5; border-style: dashed; }
   .after { margin-top: 18px; font-size: .93rem; color: var(--ink-soft); }
   .after a { color: var(--accent-ink); font-weight: 700; }
-  @media (max-width: 640px) { .toolbar .hint { display: none; } .toolbar input[type=range] { width: 110px; } .viewport { height: calc(100vh - 190px); } }
+  @media (max-width: 640px) { .toolbar .hint { display: none; } .toolbar input[type=range] { width: 110px; } .viewport { height: calc(100vh - 190px - var(--header-h, 0px)); } }
 </style>
 </head>
 <body>
+<header class="site-header" data-site-header></header>
+<script src="/assets/i18n.js"></script>
+<script src="/assets/site-header.js"></script>
 <div class="wrap">
-  <div class="site-back">
-    <a href="/" data-en="<img src='/assets/logo-mark.png' alt='' width='512' height='512' /> Back to Hive home"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
-    <button type="button" class="lang-btn" id="langBtn">EN</button>
-  </div>
   <nav class="helpnav" aria-label="帮助页面" data-en-label="Help pages">
     <a href="/help/teams-setup.html" data-en="Setup wizard">设置向导</a>
     <a href="/help/teams-flow.html" aria-current="page" data-en="Flowchart">流程图</a>

@@ -7,21 +7,15 @@
   <meta name="description" content="微软 Teams 与身份验证器（Microsoft Authenticator）的安装、首次登录与身份验证向导，按新用户 / 老用户、iPhone / 安卓分路，专为中国大陆用户设计。" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/assets/site-header.css" />
   <style>
     /* Page chrome tying the wizard back to the site. The wizard below keeps
        its own self-contained styles; no Google Fonts (unreachable in
        mainland China, which is this page's whole audience). */
-    .site-back {
-      max-width: 1132px; margin: 0 auto 12px; padding-inline: 20px;
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: .9rem;
-    }
-    .site-back a { color: #1d4a83; text-decoration: none; display: inline-flex; align-items: center; gap: 7px; }
-    .site-back a:hover { text-decoration: underline; }
-    .site-back img { width: 26px; height: 26px; display: block; }
     /* The help pages share one menu bar: wizard, Q&A, demo (Rick, 2026-09-23). */
+    /* Under the site header, aligned with the wizard's column (Rick, 2026-09-24). */
     .helpnav {
-      max-width: 1132px; margin: 0 auto 18px; padding-inline: 20px;
+      max-width: 1172px; margin: 22px auto 18px; padding-inline: 20px;
       display: flex; gap: 8px; flex-wrap: wrap;
       font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
     }
@@ -35,10 +29,9 @@
   </style>
 </head>
 <body>
-  <div class="site-back">
-    <a href="/" data-en="<img src='/assets/logo-mark.png' alt='' width='512' height='512' /> Back to Hive home"><img src="/assets/logo-mark.png" alt="" width="512" height="512" /> 返回蜂巢首页</a>
-    <button type="button" class="lang-btn" id="langBtn">EN</button>
-  </div>
+<header class="site-header" data-site-header></header>
+<script src="/assets/i18n.js"></script>
+<script src="/assets/site-header.js"></script>
   <nav class="helpnav" aria-label="帮助页面" data-en-label="Help pages">
     <a href="/help/teams-setup.html" aria-current="page" data-en="Setup wizard">设置向导</a>
     <a href="/help/teams-flow.html" data-en="Flowchart">流程图</a>
@@ -101,9 +94,10 @@
   body {
     background: var(--bg); color: var(--ink);
     font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
-    line-height: 1.7; padding-inline: 20px; padding-block: 26px 60px;
+    line-height: 1.7; margin: 0; padding: 0;
   }
-  .wrap { max-width: 1132px; margin: 0 auto; }
+  .wrap { max-width: 1172px; margin: 0 auto; padding: 0 20px 60px; }
+  html { scroll-padding-top: calc(var(--header-h, 96px) + 12px); }
   /* One column on a phone. On a wide screen the reading column keeps its
      720px measure — long lines are harder to read, so the answer to the empty
      margins is a second column, not a wider paragraph — and the explanations
@@ -114,8 +108,8 @@
   @media (min-width: 1140px) {
     .layout { grid-template-columns: minmax(0, 720px) 340px; gap: 32px; align-items: start; }
     .side {
-      display: block; position: sticky; top: 18px;
-      max-height: calc(100vh - 36px); overflow-y: auto; overscroll-behavior: contain;
+      display: block; position: sticky; top: calc(var(--header-h, 0px) + 18px);
+      max-height: calc(100vh - 36px - var(--header-h, 0px)); overflow-y: auto; overscroll-behavior: contain;
       scrollbar-width: thin; padding: 2px 4px 12px; margin: 0 -4px;
     }
     .side[hidden] { display: none; }
@@ -140,18 +134,9 @@
   button.eyebrow:hover { background: var(--accent-soft-line); }
   button.eyebrow:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   /* The page follows the site's language switch (localStorage fc-lang) and
-     carries its own button, so a reader who lands here in English never meets
+     uses the site header's button, so a reader who lands here in English never meets
      a Chinese-only page (Rick, 2026-09-22). */
   .mast-top { display: flex; align-items: center; gap: 10px; }
-  .lang-btn {
-    /* Same look and place as the site header's language switch (assets/app.css):
-       top right, white pill, regular weight (Rick, 2026-09-24). */
-    font: inherit; font-size: .85rem; line-height: 1.4; padding: 6px 16px; border-radius: 999px;
-    cursor: pointer; white-space: nowrap; flex: none;
-    color: var(--ink); background: var(--surface, #fff); border: 1px solid var(--line);
-  }
-  .lang-btn:hover { border-color: var(--accent); color: var(--accent-ink); }
-  .lang-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
   .masthead { margin-bottom: 8px; }
   .sub { color: var(--ink-soft); margin-top: 9px; font-size: .97rem; max-width: 58ch; }
 

@@ -1,0 +1,244 @@
+/* fengchao.life — the site header, shared by the course site (index.html),
+   the admin page and the help pages under /help (Rick, 2026-09-24).
+
+   The help pages are self-contained documents with their own palette, a dark
+   mode and a 16px root, so everything here is written to look the same on
+   any page: the header pins its own light palette, font and base size, and
+   sizes inside it are in em (relative to that base) rather than rem. On the
+   course site these values are exactly the ones app.css uses, so nothing
+   there changes. Linked BEFORE app.css, which keeps the cascade as it was
+   when these rules sat at the top of that file. */
+
+/* Latin UI face. Google Sans is proprietary, so Inter stands in for it — the
+   closest open face by measured overlap with it. One self-hosted 48 KB file
+   (Google Fonts is unreachable in mainland China); the variable axis covers
+   every weight used below. `unicode-range` keeps it to Latin so 中文 still
+   comes from PingFang SC / YaHei. SIL OFL 1.1, see fonts/Inter-OFL.txt. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/inter-latin-var.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* The header's own ground rules — the site palette, the site font and the
+   17px base the rest of the header's em sizes hang from. */
+.site-header {
+  --card: #ffffff; --ink: #1c1c1c; --muted: #333333; --line: #dde3ec;
+  --accent: #1d4a83; --accent-dark: #123a63;
+  font-size: 17px; line-height: 1.6; color: var(--ink);
+  font-family: "Inter", "Segoe UI Variable Text", "Segoe UI", -apple-system,
+               BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial,
+               "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.site-header *, .site-header *::before, .site-header *::after { box-sizing: border-box; }
+/* The mark and the lockup together are the way home, on every page. */
+.brand-home {
+  display: flex; align-items: center; gap: 13px; min-width: 0;
+  color: inherit; text-decoration: none; border-radius: 12px;
+}
+.brand-home:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 560px) { .brand-home { gap: 8px; } }
+html[lang="en"] .brand-home { gap: 10px; }
+/* A cart that is a link (on the help pages it opens the course site). */
+a.cart-btn { text-decoration: none; }
+
+/* Header */
+/* Brand header. The 蜂巢 mark is gold; the rest of the UI stays blue, so the
+   header carries the only warm accent on the page — a hairline under it picks
+   up the logo's honey tone and ties the two palettes together. */
+.site-header {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(224, 168, 32, 0.28), 0 6px 18px -12px rgba(15, 32, 60, 0.28);
+}
+.header-inner {
+  /* The header sits on the 1080px content column — but as a floor, not a
+     cap. When the row's content is wider than the column (the English
+     tagline beside the English nav), the row grows to whatever width puts
+     it all on one line, keeps its right edge on the column, and extends
+     LEFT: the mark, wordmark, values and tagline slide left together until
+     the tagline fits, rather than the tagline wrapping or losing words
+     (Rick, 2026-09-17). Chinese never needs the room, so it lays out
+     exactly as before. Below the content's width the row is the viewport
+     and the lockup wraps as a normal flex item. */
+  width: max-content;
+  min-width: min(100%, 1080px);
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: max(0px, calc((100% - 1080px) / 2));
+  padding: 13px 20px;
+  display: flex; align-items: center; gap: 13px;
+  /* anchors the mobile nav panel, which drops out of the header */
+  position: relative;
+}
+.logo-mark {
+  /* 46px matched the two-line lockup exactly, which is tidy but left the mark
+     reading as a small ornament and the bee too small to make out at all.
+     The mark is the brand, so it now sets the header's height rather than
+     fitting inside the text block (Rick, 2026-09-16). */
+  width: 72px; height: 72px; flex: none;
+  /* the mark is a flat honeycomb; a whisper of shadow lifts it off the header */
+  filter: drop-shadow(0 1px 2px rgba(146, 100, 12, 0.22));
+}
+/* A hair of optical spacing: the wordmark sits slightly tighter to the mark
+   than the tagline, so the lockup reads as one unit. */
+.brand-lockup { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.brand-name {
+  white-space: nowrap;
+  font-size: 1.32em; font-weight: 700; line-height: 1.05;
+  letter-spacing: 0.14em; text-indent: 0.14em;
+  color: var(--ink);
+}
+.brand-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+/* The four values sit beside the wordmark, quieter than it but warmer than the
+   tagline — they are a statement of principle, not a description. */
+.brand-values {
+  font-size: 0.76em; letter-spacing: 0.08em; color: #a9781a;
+  white-space: nowrap;
+}
+.brand-tag {
+  font-size: 0.79em; line-height: 1.25; color: var(--muted);
+  letter-spacing: 0.02em;
+  padding-left: 10px;
+  border-left: 2px solid rgba(224, 168, 32, 0.55);
+}
+
+/* ---- site menus ---- */
+.site-nav { display: flex; align-items: center; gap: 2px; }
+.menu-group { position: relative; }
+.menu-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid transparent; background: none; color: var(--ink);
+  font: inherit; font-size: 0.88em; border-radius: 999px;
+  padding: 7px 13px; cursor: pointer; white-space: nowrap;
+}
+.menu-btn:hover { background: #eef1f6; }
+/* Top-level plain link (no dropdown) — same pill, no underline. */
+a.menu-link { text-decoration: none; }
+a.menu-link .ext-ic { font-size: 0.886em; }
+.menu-group.open > .menu-btn { background: #e8eef5; border-color: #c3d2e0; }
+.menu-btn .caret { transition: transform 0.15s ease; flex: none; }
+.menu-group.open .caret { transform: rotate(180deg); }
+.menu-panel {
+  display: none; position: absolute; right: 0; top: calc(100% + 6px);
+  min-width: 250px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 12px 32px -10px rgba(15, 32, 60, 0.3);
+  padding: 6px; z-index: 40;
+}
+.menu-group.open .menu-panel { display: block; }
+.menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; font-size: 0.89em;
+  color: var(--ink); text-decoration: none;
+}
+a.menu-item:hover { background: #eef1f6; }
+.menu-item .ext-ic { color: var(--muted); font-size: 0.899em; }
+/* Planned features read as unavailable rather than broken. */
+.menu-item.is-soon { color: var(--muted); cursor: default; }
+.soon-tag {
+  font-size: 0.764em; color: #a9781a; background: #fdf6e6;
+  border: 1px solid #f0e0b8; border-radius: 999px; padding: 1px 7px;
+  white-space: nowrap; flex: none;
+}
+.nav-toggle {
+  display: none; align-items: center; gap: 6px; flex: none; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 999px; padding: 6px 13px; font: inherit; font-size: 0.85em; cursor: pointer;
+}
+
+/* The menus stay in the bar on a computer, never behind 菜单 (Rick,
+   2026-09-24); only a narrow screen collapses them behind a Menu button into
+   one stacked list. */
+@media (max-width: 900px) {
+  .nav-toggle { display: inline-flex; }
+  .site-nav {
+    display: none; position: absolute; left: 0; right: 0; top: 100%;
+    flex-direction: column; align-items: stretch; gap: 0;
+    background: var(--card); border-top: 1px solid var(--line);
+    box-shadow: 0 14px 30px -12px rgba(15, 32, 60, 0.3);
+    padding: 8px; max-height: 70vh; overflow-y: auto;
+  }
+  .site-nav.expanded { display: flex; }
+  .menu-btn { width: 100%; justify-content: space-between; border-radius: 10px; }
+  .menu-panel {
+    position: static; display: block; min-width: 0; border: none;
+    box-shadow: none; padding: 0 0 6px 10px;
+  }
+  .menu-panel .menu-item { font-size: 0.86em; }
+}
+/* Between that and the width the whole row needs (about 1065px in Chinese
+   since 首页 joined the menus, 1280px in English), the values and the tagline
+   step aside so the menus keep one line; the mark and 蜂巢 stay, as on a
+   phone. They come back as soon as there is room. */
+@media (min-width: 901px) and (max-width: 1080px) {
+  .brand-tag, .brand-values { display: none; }
+}
+@media (min-width: 901px) and (max-width: 1290px) {
+  html[lang="en"] .brand-tag, html[lang="en"] .brand-values { display: none; }
+}
+/* On a computer the mark and 蜂巢 never give way to the menus. */
+@media (min-width: 901px) { .brand-home { flex: none; } }
+/* The last ~40px before 菜单 takes over, English needs a little more room:
+   a smaller mark, and the basket without its word, as on a phone. */
+@media (min-width: 901px) and (max-width: 940px) {
+  html[lang="en"] .header-inner { gap: 6px; }
+  html[lang="en"] .menu-btn { padding: 7px 7px; }
+  html[lang="en"] .logo-mark { width: 56px; height: 56px; }
+  html[lang="en"] .cart-lbl { display: none; }
+}
+@media (max-width: 560px) {
+  .header-inner { padding: 10px 14px; gap: 8px; }
+  .logo-mark { width: 56px; height: 56px; }
+  .brand-name { font-size: 1.14em; letter-spacing: 0.1em; text-indent: 0.1em; }
+  /* With the menu, cart and language buttons all in the bar, a phone leaves
+     the lockup ~30px: the tagline broke into one character per line. The mark
+     and wordmark are the brand on a phone; values and tagline return on wider
+     screens. */
+  .brand-tag, .brand-values { display: none; }
+}
+.header-spacer { flex: 1; }
+.lang-btn {
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  border-radius: 999px; padding: 6px 16px; font-size: 0.85em; cursor: pointer;
+  white-space: nowrap; flex: none;   /* 中文 was breaking into two lines when squeezed */
+}
+/* English runs ~60% longer than Chinese in the nav and the tagline, and the
+   header is one flex row. Three small English-only tightenings (menu labels
+   were also shortened in SITE_MENUS) keep the row as compact as it can be;
+   whatever width the full tagline still needs beyond the content column,
+   .header-inner grows leftward to give it (see above). */
+html[lang="en"] .header-inner { gap: 10px; }
+html[lang="en"] .menu-btn { padding: 7px 9px; font-size: 0.86em; }
+html[lang="en"] .brand-tag { font-size: 0.76em; letter-spacing: 0; }
+.lang-btn:hover { border-color: var(--accent); color: var(--accent-dark); }
+/* The cart lives in the header, top right, and is ALWAYS there — a parent
+   learns where it is before they need it, and one glance at the number on the
+   basket answers "did I pick anything?" without opening it (Rick, after
+   Amazon's, 2026-09-16). The word beside the icon is deliberate: a basket on
+   its own is ambiguous, and doubly so in Chinese. The count is honey gold —
+   the logo's colour — so it reads as brand, not as an alert. */
+.cart-btn {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  border: none; background: none; color: var(--ink);
+  border-radius: 10px; padding: 3px 8px 3px 6px; font: inherit; cursor: pointer;
+}
+.cart-btn:hover { background: #eef1f6; }
+.cart-ic { position: relative; width: 34px; height: 30px; display: block; }
+.cart-ic svg { display: block; }
+.cart-btn-n {
+  position: absolute; left: 62%; top: -3px; transform: translateX(-50%);
+  min-width: 14px; text-align: center; line-height: 1;
+  font-size: 1em; font-weight: 800; color: #b8811a; letter-spacing: -0.02em;
+}
+.cart-btn-n.zero { color: #9aa3b0; }
+.cart-lbl { font-weight: 700; font-size: 0.95em; line-height: 1; padding-top: 6px; }
+@media (max-width: 560px) { .cart-lbl { display: none; } }

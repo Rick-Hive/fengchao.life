@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>蜂巢 · 选课平台</title>
-  <meta name="description" content="蜂巢选课平台：浏览幼儿园至十二年级课程与毕业要求，提交选课订单。" />
+  <title>蜂巢 Hive · 以线上资源推动C教育生态重建</title>
+  <meta name="description" content="蜂巢：以线上资源推动C教育生态重建。幼儿园至十二年级课程与选课、G.P.A. 计算器等教育工具、教育服务，以及 Teams 和身份验证器帮助。" />
+  <link rel="stylesheet" href="/assets/site-header.css" />
   <link rel="stylesheet" href="/assets/app.css" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
@@ -12,14 +13,16 @@
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <img class="logo-mark" src="/assets/logo-mark.png" width="512" height="512" alt="蜂巢" />
-      <div class="brand-lockup">
-        <div class="brand-line">
-          <span class="brand-name">蜂巢</span>
-          <span class="brand-values" id="brandValues"></span>
+      <a class="brand-home" id="brandHome" href="/" aria-label="蜂巢首页">
+        <img class="logo-mark" src="/assets/logo-mark.png" width="512" height="512" alt="" />
+        <div class="brand-lockup">
+          <div class="brand-line">
+            <span class="brand-name">蜂巢</span>
+            <span class="brand-values" id="brandValues"></span>
+          </div>
+          <div class="brand-tag" id="brandTag">以线上资源推动C教育生态重建</div>
         </div>
-        <div class="brand-tag" id="brandTag">以线上资源推动C教育生态重建</div>
-      </div>
+      </a>
       <div class="header-spacer"></div>
       <nav class="site-nav" id="siteNav" aria-label="site"></nav>
       <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="siteNav">

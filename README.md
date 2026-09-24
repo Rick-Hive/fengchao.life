@@ -1,13 +1,28 @@
-# fengchao.life — 蜂巢 Hive K-12 选课平台
+# fengchao.life — 蜂巢 Hive · 以线上资源推动C教育生态重建
 
-Parent-facing course-ordering site for CEFF's Hive platform, covering **K–G12**.
-K–G8 parents browse the catalog directly; high-school parents choose a graduation
-track and pedagogy, read the requirements, then pick courses. Orders are posted to
-a Microsoft Teams channel via Power Automate. No payment happens on the site.
+The website of CEFF's Hive (蜂巢) platform: rebuilding the offline C-education
+ecosystem through online resources. It is bilingual (中文/EN) and serves families,
+teachers and schools with:
+
+- **Courses and ordering (K–G12)** — parents choose a pedagogy and a learning
+  stage, see graduation tracks and credit requirements (high school), browse the
+  catalog and course map, and submit a course order. Orders are posted to a
+  Microsoft Teams channel via Power Automate; no payment happens on the site.
+- **Tools** — the G.P.A. calculator (`/gpa`), the Microsoft Teams for Education
+  application form, contact.
+- **Services and the Hive ecosystem** — college programmes, international
+  C-schools, testing, dual enrolment, teaching and joining or starting a hive
+  (listed in the menus, marked "coming soon" until each one launches).
+- **Help** — customer-facing guides under `/help`: the Microsoft Teams and
+  Authenticator setup wizard, flowchart, Q&A and case studies.
+
+The menus are defined once, in `window.SITE_MENUS` (`assets/i18n.js`), and every
+page — the course site, the calculator and the help pages — wears the same header
+(`assets/site-header.css`; the help pages draw it with `assets/site-header.js`).
 
 ## Architecture
 
-- **Frontend**: static bilingual (中文/EN) wizard — `index.html`, `assets/`
+- **Frontend**: static bilingual (中文/EN) site — `index.html`, `assets/`; help pages in `help/`
   - Compact course cards (name, language, teacher, price, schedule) with a
     Select button; clicking a card opens a full-detail modal; teacher names
     open a teacher-profile popup.

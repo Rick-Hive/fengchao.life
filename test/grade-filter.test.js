@@ -552,6 +552,14 @@ setTimeout(() => {
              const en = doc.getElementById("cartLbl").textContent; click(pick("#langBtn")); return [zh, en]; })(),
     ["购物车", "Cart"]);
 
+  // ---- 首页 / Home: the way back, first in the bar (Rick, 2026-09-24) ----
+  const homeLink = doc.querySelector('#siteNav a.menu-link[href="/"]');
+  check("首页 is the first entry in the menu bar, a plain link home in the same tab",
+    [!!homeLink, homeLink && homeLink.textContent.trim(), homeLink === doc.querySelector("#siteNav > *"), homeLink && homeLink.getAttribute("target")],
+    [true, "首页", true, null]);
+  check("the logo and name are a link home too",
+    [doc.getElementById("brandHome") && doc.getElementById("brandHome").getAttribute("href")], ["/"]);
+
   // ---- 帮助 → Teams 和身份验证器设置 (/help/teams-setup.html) + 问答(Q&A) ----
   // A real page in the repo, not an SPA route: the nav handler must NOT
   // intercept it, or the browser would never leave the wizard.

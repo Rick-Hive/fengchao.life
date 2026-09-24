@@ -617,6 +617,10 @@ window.WEEKDAY_ORDER = ["Monday","Tuesday","Wednesday","Thursday","Friday","Satu
 // nav bar rather than a dropdown — used for destinations that have nothing to
 // group under them (教材 / Textbooks).
 window.SITE_MENUS = [
+  // First, so the way home is always one click away, on every page — the
+  // course site, the calculator and the help pages alike (Rick, 2026-09-24).
+  // The logo is a link home too; this is the one people can read.
+  { zh: "首页", en: "Home", url: "/" },
   { zh: "教材", en: "Textbooks", url: "https://www.equipme.cloud/product-types/" },
   {
     zh: "教育工具", en: "Tools",

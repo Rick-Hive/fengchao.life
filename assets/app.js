@@ -1987,6 +1987,8 @@
     document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en";
     document.getElementById("brandTag").textContent = t().brandTag;
     document.getElementById("langBtn").textContent = t().langBtn;
+    var bh = document.getElementById("brandHome");
+    if (bh) bh.setAttribute("aria-label", state.lang === "zh" ? "蜂巢首页" : "Hive home");
     var bv = document.getElementById("brandValues");
     if (bv) bv.textContent = (t().brandValues || []).join(state.lang === "zh" ? " · " : " · ");
     renderNav();
@@ -2390,6 +2392,14 @@
   // Nav listeners are attached once and survive re-renders, because renderNav()
   // only replaces the markup inside #siteNav, never the element itself.
   bindNavOnce();
+  // The mark and the lockup are a link home (Rick, 2026-09-24): routed in
+  // place like the 首页 menu entry, so the selection and cart stay put.
+  on("brandHome", "click", function (e) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+    e.preventDefault();
+    closeMenus();
+    navigate("/");
+  });
   bindStepperOnce();
   bindCartOnce();
   render();
