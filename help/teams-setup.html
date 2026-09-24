@@ -26,6 +26,10 @@
     }
     .helpnav a:hover { border-color: var(--accent, #1d4a83); }
     .helpnav a[aria-current="page"] { background: var(--accent, #1d4a83); color: #fff; border-color: var(--accent, #1d4a83); }
+    /* Centred, four equal tabs (Rick, 2026-09-24); two by two on a phone. */
+    .helpnav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 680px; /* 640 + its 20px gutters */ margin-left: auto; margin-right: auto; }
+    .helpnav a { text-align: center; white-space: nowrap; }
+    @media (max-width: 480px) { .helpnav { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 400px; } }
   </style>
 </head>
 <body>

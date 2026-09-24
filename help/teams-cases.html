@@ -53,6 +53,10 @@
   }
   .helpnav a:hover { border-color: var(--accent); }
   .helpnav a[aria-current="page"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* Centred, four equal tabs (Rick, 2026-09-24); two by two on a phone. */
+  .helpnav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 640px; margin-left: auto; margin-right: auto; }
+  .helpnav a { text-align: center; white-space: nowrap; }
+  @media (max-width: 480px) { .helpnav { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 360px; } }
   .mast-top { display: flex; align-items: center; gap: 10px; }
   .eyebrow {
     display: inline-block; font-size: .76rem; font-weight: 600; letter-spacing: .09em;
@@ -133,7 +137,21 @@
   table.log { width: 100%; border-collapse: collapse; font-size: .9rem; color: var(--ink-soft); }
   table.log th, table.log td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
   table.log th { background: var(--surface-2); color: var(--ink); font-weight: 700; }
-  table.log td:first-child { white-space: nowrap; color: var(--ink); }
+  table.log td:first-child { color: var(--ink); min-width: 10.5em; }
+  table.log .ts { white-space: nowrap; }
+  .tbl-wrap + p { margin-top: 10px; }
+  /* On a phone each record becomes a small card: time, what happened, result. */
+  @media (max-width: 560px) {
+    table.log thead { display: none; }
+    table.log, table.log tbody, table.log tr, table.log td { display: block; width: auto; }
+    table.log tr { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; padding: 7px 11px; background: var(--surface); }
+    table.log td { border: 0; padding: 2px 0; }
+    table.log td:first-child { font-weight: 700; min-width: 0; font-size: .85rem; }
+    table.log td:last-child { color: var(--ink); }
+    table.log td:last-child::before { content: "→ "; color: var(--ink-faint); }
+  }
+  .log-note { font-size: .82rem; color: var(--ink-faint); margin: 0 0 4px; }
+  table.log .ec { color: var(--ink-faint); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -153,13 +171,13 @@
   <nav class="toc cases-toc" aria-label="案例目录" data-en-label="Cases">
     <b data-en="Cases">案例目录</b>
     <div class="toc-cat" data-en="1　No prompt arrives; the sign-in cannot be approved">1　收不到验证提示，批准不了登录</div>
-    <a href="#case-old-phone"><span class="num">1.1</span><span data-en="After a password reset, verification went to an old phone">重置密码后，验证提示发到了早就不用的旧手机</span></a>
+    <a href="#case-old-phone"><span class="num">1.1</span><span data-en="After a password reset, the code it wants is on an old phone">重置密码后，要的验证码在早就不用的旧手机上</span></a>
     <a href="#case-new-phone"><span class="num">1.2</span><span data-en="Changed to a new phone; verification still goes to the old iPhone">换了新手机，验证请求还发往旧 iPhone</span></a>
     <a href="#case-many-devices"><span class="num">1.3</span><span data-en="The authenticator was on another iPhone; three devices at once made it worse">验证器在另一部 iPhone 上，三台设备同时登录越试越乱</span></a>
     <div class="toc-cat" data-en="2　Cannot link an authenticator; stuck at &ldquo;More information required&rdquo;">2　绑不上验证器，一直停在「需要更多信息」</div>
     <a href="#case-android-only"><span class="num">2.1</span><span data-en="Only a mainland Android phone; stuck at &ldquo;More information required&rdquo;">只有一部国内安卓手机，一直停在「需要更多信息」</span></a>
     <div class="toc-cat" data-en="3　The code is not accepted">3　验证码不被接受</div>
-    <a href="#case-other-app"><span class="num">3.1</span><span data-en="Codes from a different code app suddenly stopped working">用的是其他验证码 App，验证码突然不被接受</span></a>
+    <a href="#case-other-app"><span class="num">3.1</span><span data-en="The six-digit codes from a code app suddenly stopped working">验证码 App 里的 6 位数字突然不被接受</span></a>
     <div class="toc-cat" data-en="4　Forgot the password">4　忘记密码</div>
     <a href="#case-forgot"><span class="num">4.1</span><span data-en="&ldquo;Forgot password&rdquo; keeps sending you back">点「忘记密码」一直被挡回来</span></a>
     <div class="toc-cat toc-more"><a href="#lessons" data-en="What the cases have in common">共同的经验</a><a href="#for-admins" data-en="For administrators">给管理员</a></div>
@@ -178,18 +196,30 @@
   </div>
 
   <details class="case" id="case-old-phone">
-    <summary><span class="num">1.1</span><span class="ttl" data-en="After a password reset, verification went to an old phone">重置密码后，验证提示发到了早就不用的旧手机</span></summary>
+    <summary><span class="num">1.1</span><span class="ttl" data-en="After a password reset, the code it wants is on an old phone">重置密码后，要的验证码在早就不用的旧手机上</span></summary>
     <div class="case-body">
       <h3 data-en="What happened">遇到了什么</h3>
-      <p data-en="After the administrator reset Parent A's password, Teams asked for &ldquo;the code in your authenticator app&rdquo;. He tried signing in inside the authenticator to find the code — and the authenticator asked for a code too. No way in.">管理员给家长 A 重置密码后，Teams 要求输入「验证器里的验证码」。他在验证器里登录账号想找验证码，验证器也要验证码，怎么都进不去。</p>
+      <p data-en="The school's administrator reset Parent A's password. He signed in with the temporary one and set a new password; then Teams asked for &ldquo;the code in your authenticator app&rdquo;. He tried signing in inside the authenticator to find the code — and the authenticator asked for a code too. No way in.">学校管理员给家长 A 重置了密码。他用临时密码登录、改好新密码后，Teams 要求输入「验证器里的验证码」。他在验证器里登录账号想找验证码，验证器也要验证码，怎么都进不去。</p>
+      <h3 data-en="What the admin records show">后台记录里看到的</h3>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
+      <div class="tbl-wrap"><table class="log">
+        <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ts">2026-09-23 09:55:51</span></td><td data-en="The school's administrator reset the password, to be changed at next sign-in">学校管理员重置密码，设为下次登录必须修改</td><td data-en="Every device's sign-in is voided and must sign in again">所有设备的登录状态作废，要重新登录</td></tr>
+          <tr><td><span class="ts">2026-09-23 10:05:34</span></td><td data-en="He signed in with the temporary password and set his own">本人用临时密码登录，改成自己的新密码</td><td data-en="Password changed; then asked for a code">改密码成功，接着被要求输入验证码</td></tr>
+          <tr><td><span class="ts">2026-09-23 10:32:51</span></td><td data-en="The administrator deleted the authenticator registered on the old Android phone (a code-only one)">管理员删除登记在旧安卓手机上的验证器（只出验证码的那种）</td><td data-en="Deleted">删除成功</td></tr>
+          <tr><td><span class="ts">2026-09-23 10:38:03</span> – <span class="ts">10:38:14</span></td><td data-en="He signed in again, saw &ldquo;More information required&rdquo; and linked an authenticator on an iPhone following the wizard">本人重新登录，看到「需要更多信息」，按向导在一部 iPhone 上绑定验证器</td><td data-en="New authenticator registered (notifications + codes)">新的验证器登记成功（通知 + 验证码）</td></tr>
+          <tr><td><span class="ts">2026-09-23 10:40:05</span></td><td data-en="Linking complete">绑定完成</td><td data-en="Signs in normally since">此后正常登录</td></tr>
+        </tbody>
+      </table></div>
       <h3 data-en="Why">为什么</h3>
-      <p data-en="Months earlier his authenticator had been linked on an Android phone he could no longer use. A password reset makes every device verify again, and the request went only to that old phone. Signing in <em>inside</em> the authenticator needs a verification too, hence the loop.">他的验证器几个月前绑在一部安卓手机上，那部手机现在已经用不了。重置密码会让所有设备重新验证，而验证请求只发往那部旧手机。在验证器里点「登录」本身也要先验证，所以绕成了死循环。</p>
+      <p data-en="His authenticator had been linked on a mainland Android phone that he could no longer use. Such phones do not receive Microsoft's push notifications, so that authenticator could only produce six-digit codes — which is why Teams asked for a code. A password reset makes every device verify again, and only that old phone could supply the code. Signing in <em>inside</em> the authenticator needs a verification too, hence the loop.">他的验证器以前绑在一部国内安卓手机上，那部手机现在已经用不了。国内安卓手机收不到微软的推送，那台上的验证器只能出 6 位验证码，所以 Teams 要的是它上面的验证码。重置密码会让所有设备重新验证，而这个验证码只有那部旧手机能给。在验证器里点「登录」本身也要先验证，所以绕成了死循环。</p>
       <h3 data-en="How it was solved">怎么解决的</h3>
       <ol class="fix">
-        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Found the account in the admin centre and <strong>deleted the authenticator registered on the old phone</strong>.">在后台找到他的账号，<strong>删除了登记在旧手机上的验证器</strong>。</span></li>
-        <li><span class="role user" data-en="Parent">本人</span><span data-en="Signed in again, saw &ldquo;More information required&rdquo;, and followed the <a href='/help/teams-setup.html'>setup wizard</a> to link a family iPhone by <strong>Scan QR code</strong>.">重新登录，看到「需要更多信息」后按<a href="/help/teams-setup.html">设置向导</a>操作，用家里的 iPhone<strong>「扫描 QR 码」</strong>重新绑定。</span></li>
+        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Found the account in the admin centre and <strong>deleted the old phone</strong> from its authentication methods.">在后台找到他的账号，<strong>删除了登记在旧手机上的这台设备</strong>。</span></li>
+        <li><span class="role user" data-en="Parent">本人</span><span data-en="Signed in again, saw &ldquo;More information required&rdquo;, opened the <a href='/help/teams-setup.html'>setup wizard</a>, chose &ldquo;I have used Teams before, and now it asks me to verify&rdquo; and followed it to install the authenticator on an iPhone and link the account.">重新登录，看到「需要更多信息」后，打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按向导在一部 iPhone 上完成验证器的安装和账户关联。</span></li>
       </ol>
-      <p class="result" data-en="About five minutes from start to finish; Teams has worked normally since.">前后约 5 分钟，此后一直正常。</p>
+      <p class="result" data-en="About seven minutes from the deletion to a finished link; Teams has worked normally since.">从管理员删除到绑定完成约 7 分钟，此后一直正常。</p>
       <h3 data-en="Next time">以后注意</h3>
       <ul class="avoid">
         <li data-en="Changing phones? Add the new phone first, then remove the old one — see <a href='/help/teams-faq.html#q-new-phone'>I changed my phone</a>.">换手机时，先把新手机加上，再删掉旧手机，步骤见<a href="/help/teams-faq.html#q-new-phone">我换了手机，怎么办</a>。</li>
@@ -202,19 +232,33 @@
     <summary><span class="num">1.2</span><span class="ttl" data-en="Changed to a new phone; verification still goes to the old iPhone">换了新手机，验证请求还发往旧 iPhone</span></summary>
     <div class="case-body">
       <h3 data-en="What happened">遇到了什么</h3>
-      <p data-en="Teams on Parent E's phone and Mac suddenly signed out. On every new sign-in the password was right, but the page stayed on &ldquo;Approve sign-in request&rdquo; and nothing popped up on the phone. Only the family's Windows laptop still worked.">家长 E 手机和 Mac 上的 Teams 突然退出。重新登录时密码都对，页面却一直停在「批准登录请求」，手机上什么也没弹出。只有家里的 Windows 笔记本还能正常用。</p>
+      <p data-en="Teams on Parent E's phone and Mac suddenly signed out. On every new sign-in the password was right, but the page stayed on &ldquo;Approve sign-in request&rdquo; and nothing popped up on the phone. She also tried typing a code, tapping <strong>Create a passkey</strong> in the authenticator, and opening the Security info page on a computer — every route asked for the approval first. Only the family's Windows laptop still worked.">家长 E 手机和 Mac 上的 Teams 突然退出。重新登录时密码都对，页面却一直停在「批准登录请求」，手机上什么也没弹出。她又试过输验证码、在验证器里点「创建密钥」、在电脑上打开「安全信息」页，每一条路都要先批准登录。只有家里的 Windows 笔记本还能正常用。</p>
+      <h3 data-en="What the sign-in records show">登录记录里看到的</h3>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
+      <div class="tbl-wrap"><table class="log">
+        <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ts">2026-09-23 07:38:34</span> – <span class="ts">11:37:16</span></td><td data-en="Teams on the new iPhone renewed in the background and was refused 89 times">新 iPhone 上的 Teams 在后台续期，被拒 89 次</td><td data-en="Multi-factor verification required; Teams signed out <span class='ec'>50076</span>">要求多重身份验证，Teams 退出 <span class="ec">50076</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 11:31:53</span> – <span class="ts">2026-09-24 00:07:35</span></td><td data-en="Signed in to Teams on the new iPhone 27 times; the password was right every time">在新 iPhone 上重新登录 Teams 27 次，密码每次都对</td><td data-en="Stopped at &ldquo;Approve sign-in request&rdquo; every time; nobody approved, or it timed out <span class='ec'>50074 / 500121</span>">每次停在「批准登录请求」，无人批准或超时 <span class="ec">50074 / 500121</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 11:40:48</span> – <span class="ts">18:46:55</span></td><td data-en="Signed in to Teams on the Mac 9 times">在 Mac 上登录 Teams 9 次</td><td data-en="The same <span class='ec'>50074 / 500121</span>">同上 <span class="ec">50074 / 500121</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 11:40:48</span>, <span class="ts">11:49:03</span>, <span class="ts">13:32:40</span></td><td data-en="Chose &ldquo;enter a code&rdquo; instead, 3 times">改选「输入验证码」3 次</td><td data-en="The new phone had no valid code to give; not completed <span class='ec'>50074</span>">新手机上拿不出有效的验证码，未完成 <span class="ec">50074</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 18:38:50</span>, <span class="ts">18:44:41</span></td><td data-en="Tapped <strong>Create a passkey</strong> in the new iPhone's authenticator">在新 iPhone 的验证器里点「创建密钥」</td><td data-en="Asked for the same approval first <span class='ec'>50074</span>">同样要求先批准登录 <span class="ec">50074</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 18:52:28</span></td><td data-en="Opened the Security info page in a Mac browser to add the new phone">在 Mac 浏览器打开「安全信息」页，想添加新手机</td><td data-en="Asked for the approval first; could not get in <span class='ec'>50074</span>">也要先批准登录，进不去 <span class="ec">50074</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 18:17:25</span> – <span class="ts">20:47:11</span></td><td data-en="Teams on the Windows laptop renewed in the background 80 times">Windows 笔记本上的 Teams 在后台续期 80 次</td><td data-en="All succeeded <span class='ec'>0</span>">全部成功 <span class="ec">0</span></td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="In all, 36 sign-ins by hand on two devices, and not one passed verification. The password was never wrong and the account was never locked; the only obstacle was that the old iPhone receiving the approval requests was not in her hands.">两台设备一共 36 次手动登录，没有一次通过验证。密码从没错过，账号也没有被锁；卡住的只有一件事：批准请求发往的旧 iPhone 不在她手上。</p>
       <h3 data-en="Why">为什么</h3>
-      <p data-en="The authenticator was registered on her <strong>previous iPhone</strong>, so every request went there. The authenticator on her new phone did list the account, but opening it showed only &ldquo;Connected account&rdquo; — no &ldquo;Sign-in notifications&rdquo;, no &ldquo;One-time password code&rdquo;. An entry like that cannot approve anything. The laptop had been verified before and was still signed in, so it was not affected.">她的验证器登记在<strong>以前那部 iPhone</strong> 上，请求都发往旧手机。新手机的验证器里虽然有她的账号，但点进去只有「连接的帐户」，没有「登录通知」和「一次性密码代码」，这样的账号不能用来验证。笔记本以前验证过、一直保持着登录，所以没受影响。</p>
+      <p data-en="The authenticator was registered on her <strong>previous iPhone</strong>, so every request went there. The authenticator on her new phone did list the account, but opening it showed only &ldquo;Connected account&rdquo; — no &ldquo;Sign-in notifications&rdquo;, no &ldquo;One-time password code&rdquo;. An entry like that cannot approve anything. The Security info page needs a verification too, so she could not add the new phone herself. The laptop had been verified before and was still signed in, so it was not affected.">她的验证器登记在<strong>以前那部 iPhone</strong> 上，请求都发往旧手机。新手机的验证器里虽然有她的账号，但点进去只有「连接的帐户」，没有「登录通知」和「一次性密码代码」，这样的账号不能用来验证。「安全信息」页也要先验证，所以她没法自己把新手机加上。笔记本以前验证过、一直保持着登录，所以没受影响。</p>
       <div class="shots">
-        <figure><img src="/help/img/case-connected-only.jpg" alt="只有「连接的帐户」的账号页（账号已模糊）" data-en-alt="An account page with only Connected account (account blurred)" width="520" height="536" loading="lazy" /><figcaption data-en="Not linked: only &ldquo;Connected account&rdquo;.">没绑好：只有「连接的帐户」。</figcaption></figure>
-        <figure><img src="/help/img/case-otp-code.jpg" alt="有登录通知和一次性密码代码的账号页（账号已模糊）" data-en-alt="An account page with sign-in notifications and a one-time password code (account blurred)" width="520" height="692" loading="lazy" /><figcaption data-en="Linked: &ldquo;Sign-in notifications&rdquo; and a &ldquo;One-time password code&rdquo;.">绑好了：有「登录通知」和「一次性密码代码」。</figcaption></figure>
+        <figure><img src="/help/img/case-otp-code.jpg" alt="有登录通知和一次性密码代码的账号页（账号已模糊）" data-en-alt="An account page with sign-in notifications and a one-time password code (account blurred)" width="520" height="692" loading="lazy" /><figcaption data-en="Linked: &ldquo;Sign-in notifications&rdquo; and a &ldquo;One-time password code&rdquo;. An entry showing only &ldquo;Connected account&rdquo; is not linked.">绑好的样子：有「登录通知」和「一次性密码代码」。只有「连接的帐户」的，就是没绑好。</figcaption></figure>
       </div>
-      <h3 data-en="How it was solved">怎么解决的</h3>
+      <h3 data-en="How to solve it">怎么解决</h3>
       <ol class="fix">
-        <li><span class="role user" data-en="Parent">本人</span><span data-en="<strong>First, look for the old iPhone.</strong> If it can still be switched on, open its authenticator and approve the request by typing the two-digit number — or enter the six-digit one-time password code shown there."><strong>先找旧手机。</strong>以前那部 iPhone 还在、能开机的话，打开它上面的验证器，输入两位数批准登录；没弹出就输账号里的 6 位「一次性密码代码」。</span></li>
-        <li><span class="role user" data-en="Parent">本人</span><span data-en="<strong>Old iPhone found:</strong> once signed in, link the new phone: on a computer open <code>mysignins.microsoft.com/security-info</code> → <strong>Add sign-in method</strong> → Microsoft Authenticator, and scan the QR code with <strong>Scan QR code</strong> on the new phone. The old iPhone can then be deleted on the same page."><strong>找到了：</strong>登录后把新手机绑上。在电脑上打开 <code>mysignins.microsoft.com/security-info</code> →<strong>「添加登录方法」</strong>→ Microsoft Authenticator，用新手机的验证器<strong>「扫描 QR 码」</strong>。绑好后，在同一页删掉旧 iPhone。</span></li>
-        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="<strong>Old iPhone not found:</strong> contact <strong>the administrator who issued your account</strong>. The administrator deletes the authenticator registered on the old iPhone — without revoking sessions, so the laptop stays signed in."><strong>找不到：</strong>联系<strong>为您分配账号的管理员</strong>。管理员删除登记在旧 iPhone 上的验证器，不点「撤销会话」，笔记本就不会被退出。</span></li>
-        <li><span class="role user" data-en="Parent">本人</span><span data-en="Then link the new phone: in its authenticator remove the &ldquo;Connected account&rdquo; entry (gear icon → Remove account); on the laptop open <code>teams.microsoft.com</code> in a private window, sign in and select Next until a QR code appears; in the new phone's authenticator choose &ldquo;+&rdquo; → Work or school account → <strong>Scan QR code</strong> and type the two-digit number.">然后用新手机重新绑定：先在新手机验证器里删掉那条只有「连接的帐户」的账号（齿轮 → 删除账户）；再在笔记本上用无痕窗口打开 <code>teams.microsoft.com</code> 登录，一直点「下一步」到出现二维码；最后在新手机验证器里点「+」→「工作或学校帐户」→<strong>「扫描 QR 码」</strong>，输入两位数。</span></li>
+        <li><span class="role user" data-en="Parent">本人</span><span data-en="<strong>First, look for the old iPhone.</strong> If it can still be switched on, open its authenticator and approve by typing the two-digit number — or enter the six-digit one-time password code shown there."><strong>先找旧 iPhone。</strong>还能开机的话，打开它上面的验证器，输入两位数批准登录；没弹出就输账号里的 6 位「一次性密码代码」。</span></li>
+        <li><span class="role user" data-en="Parent">本人</span><span data-en="<strong>Old iPhone found:</strong> follow the &ldquo;old phone still works&rdquo; steps in <a href='/help/teams-faq.html#q-new-phone'>I changed my phone</a> to install the authenticator on the new phone and link the account, then remove the old iPhone."><strong>找到了：</strong>按<a href="/help/teams-faq.html#q-new-phone">我换了手机，怎么办</a>里「旧手机还能用」的步骤，在新手机上完成验证器的安装和账户关联，最后删掉旧 iPhone。</span></li>
+        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="<strong>Old iPhone not found:</strong> contact <strong>the administrator who issued your account</strong>. The administrator deletes the old iPhone from the account — without revoking sessions, so the laptop stays signed in."><strong>找不到：</strong>联系<strong>为您分配账号的管理员</strong>。管理员在后台删除旧 iPhone 这台设备，不点「撤销会话」，笔记本就不会被退出。</span></li>
+        <li><span class="role user" data-en="Parent">本人</span><span data-en="Once it is deleted, open the <a href='/help/teams-setup.html'>setup wizard</a>, choose &ldquo;I have used Teams before, and now it asks me to verify&rdquo; and follow it to install the authenticator on the new phone and link the account. Remove the &ldquo;Connected account&rdquo; entry from the new phone's authenticator before scanning.">管理员删除后，打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按向导完成新手机上验证器的安装和账户关联。新手机验证器里那条只有「连接的帐户」的账号，扫码前先删掉。</span></li>
         <li><span class="role user" data-en="Parent">本人</span><span data-en="Check that the account shows both lines, turn off the VPN, and sign in to Teams on the phone first, then the Mac.">确认账号里出现了「登录通知」和「一次性密码代码」，关掉加速器，先登录手机上的 Teams，再登录 Mac。</span></li>
       </ol>
       <h3 data-en="Next time">以后注意</h3>
@@ -230,14 +274,26 @@
     <summary><span class="num">1.3</span><span class="ttl" data-en="The authenticator was on another iPhone; three devices at once made it worse">验证器在另一部 iPhone 上，三台设备同时登录越试越乱</span></summary>
     <div class="case-body">
       <h3 data-en="What happened">遇到了什么</h3>
-      <p data-en="Teams on two of Parent D's family devices signed out. The family tried on three Apple devices at once — some signing in to Teams, some tapping <strong>Sign in</strong> inside the authenticator. In half an hour six or seven requests went out, each with a different two-digit number. Over thirty attempts that day, none succeeded.">家长 D 家里两台设备上的 Teams 突然退出。家人在三台苹果设备上同时尝试：有的登录 Teams，有的在验证器里点<strong>「登录」</strong>。半小时里发出六七个验证请求，每个的两位数都不一样。那天试了三十多次，都没成功。</p>
+      <p data-en="Teams on two of Parent D's family devices signed out. The family tried on three Apple devices at once — some signing in to Teams, some tapping <strong>Sign in</strong> inside the authenticator. In about twenty minutes 20 sign-in requests went out, each with a different two-digit number. Of 34 attempts that day, none succeeded.">家长 D 家里两台设备上的 Teams 突然退出。家人在三台苹果设备上同时尝试：有的登录 Teams，有的在验证器里点<strong>「登录」</strong>。二十多分钟里发出了 20 个登录请求，每个的两位数都不一样。那天一共试了 34 次，都没成功。</p>
+      <h3 data-en="What the sign-in records show">登录记录里看到的</h3>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
+      <div class="tbl-wrap"><table class="log">
+        <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ts">2026-09-23 09:57:47</span> – <span class="ts">17:19:02</span></td><td data-en="Teams on two devices renewed in the background and was refused 276 times">两台设备上的 Teams 在后台续期，被拒 276 次</td><td data-en="Multi-factor verification required; Teams signed out <span class='ec'>50076</span>">要求多重身份验证，Teams 退出 <span class="ec">50076</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 10:09:48</span> – <span class="ts">11:03:54</span></td><td data-en="Signed in to Teams on two devices 7 times; one wrong password at 11:03:44">两台设备登录 Teams 7 次，其中 11:03:44 输错一次密码</td><td data-en="Never approved; one verification refused at 11:03:54 <span class='ec'>50074 / 500121</span>">没有批准成功；11:03:54 一次验证被拒 <span class="ec">50074 / 500121</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 16:08:04</span> – <span class="ts">16:32:29</span></td><td data-en="Three devices at once: 10 Teams sign-ins and 10 taps on <strong>Sign in</strong> in the authenticator">三台设备同时尝试：登录 Teams 10 次，在验证器里点「登录」10 次</td><td data-en="None passed; a wrong code at 16:11:34 <span class='ec'>50074 / 500121</span>">一次也没通过；16:11:34 输入的验证码不对 <span class="ec">50074 / 500121</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 16:59:49</span> – <span class="ts">17:10:44</span></td><td data-en="Five more sign-ins">又登录 5 次</td><td data-en="Still none passed <span class='ec'>50074</span>">仍未通过 <span class="ec">50074</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 11:00:51</span>, <span class="ts">16:53:30</span>, <span class="ts">18:02:00</span></td><td data-en="A sign-in page left open too long">登录页放太久</td><td data-en="The page expired <span class='ec'>50089</span>">页面过期 <span class="ec">50089</span></td></tr>
+        </tbody>
+      </table></div>
       <h3 data-en="Why">为什么</h3>
-      <p data-en="The authenticator was linked on a family <strong>iPhone XR</strong>, but everyone was looking on the other devices. With several devices signing in at once, the numbers got mixed up.">验证器绑在家里一部 <strong>iPhone XR</strong> 上，家人却一直在别的设备上找。几台设备同时登录，数字也互相串了。</p>
-      <h3 data-en="How it was solved">怎么解决的</h3>
+      <p data-en="The authenticator was registered on a family <strong>iPhone XR</strong>, and requests go only to that one. With several devices signing in by turns, every sign-in sent a new request with a new number and voided the one before; tapping <strong>Sign in</strong> in the authenticator sent yet another. The number on screen and the request in the authenticator never matched, so not one approval went through.">验证器登记在家里一部 <strong>iPhone XR</strong> 上，验证请求只发往这一部。几台设备轮流登录，每登录一次就发出一个新请求、换一个新数字，前一个随即作废；在验证器里点「登录」也会再发出一个。屏幕上的数字和验证器里的请求总对不上，所以一次也没批准成功。</p>
+      <h3 data-en="How to solve it">怎么解决</h3>
       <ol class="fix">
         <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Saw that the authenticator was registered on an &ldquo;iPhone XR&rdquo; and asked the family to find it (Settings → General → About → Model Name).">在后台看到验证器登记在「iPhone XR」上，请家长找出这部手机（设置 → 通用 → 关于本机 → 型号名称）。</span></li>
         <li><span class="role user" data-en="Family">本人</span><span data-en="<strong>XR at hand:</strong> stop on every other device; on the XR open the authenticator and tap the school account. Sign in to Teams on one other device only, and type the two-digit number when the XR prompts — or the six-digit one-time password code if nothing pops up."><strong>XR 在手边：</strong>其他设备全部停下，只在 XR 上打开验证器，点进学校账号。只用另一台设备登录 Teams，XR 弹出提示就输两位数，没弹就输 6 位「一次性密码代码」。</span></li>
-        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="<strong>XR gone:</strong> delete that device in the admin centre; the family links a new phone with two devices following the wizard — one shows the QR code, the other scans."><strong>XR 不在了：</strong>在后台删除这台设备，家长用两台设备按向导重新绑定：一台显示二维码，另一台扫。</span></li>
+        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="<strong>XR gone:</strong> the administrator deletes that device; the family opens the <a href='/help/teams-setup.html'>setup wizard</a>, chooses &ldquo;I have used Teams before, and now it asks me to verify&rdquo; and follows it to install the authenticator and link the account — one device shows the QR code, the other scans."><strong>XR 不在了：</strong>管理员在后台删除这台设备；家长打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按向导完成验证器的安装和账户关联：一台设备显示二维码，另一台扫。</span></li>
       </ol>
       <div class="shots">
         <figure><img src="/help/img/case-account-list.jpg" alt="验证器的账号列表（账号已模糊）" data-en-alt="The authenticator account list (accounts blurred)" width="520" height="800" loading="lazy" /><figcaption data-en="Tap your school account.">点进自己的学校账号。</figcaption></figure>
@@ -262,24 +318,27 @@
       <h3 data-en="What happened">遇到了什么</h3>
       <p data-en="Teams on User F's phone suddenly signed out. Over a day and a half he signed in more than thirty times, and every time it stopped at &ldquo;More information required&rdquo;. He installed the authenticator on the same phone and tapped <strong>Sign in</strong> in it — back to the same page. His password also expired along the way, and he changed it.">用户 F 手机上的 Teams 突然退出。一天多里他重新登录了三十多次，每次都停在「需要更多信息」。他在这部手机上装了验证器，又在验证器里点<strong>「登录」</strong>，还是绕回原点。中间密码过期，他也改过一次。</p>
       <h3 data-en="What the sign-in records show">登录记录里看到的</h3>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
       <div class="tbl-wrap"><table class="log">
-        <thead><tr><th data-en="When">时间</th><th data-en="What he did">做了什么</th><th data-en="Result">结果</th></tr></thead>
+        <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
         <tbody>
-          <tr><td data-en="Day 1, afternoon">第一天下午</td><td data-en="Teams on the phone was refused in the background and told to register a verification method first; he signed in 3 times">手机上的 Teams 在后台续期时被拒，要求先登记验证方式；他打开 Teams 登录了 3 次</td><td data-en="Every time: &ldquo;More information required&rdquo;">每次都停在「需要更多信息」</td></tr>
-          <tr><td data-en="Day 1, evening">第一天晚上</td><td data-en="21 attempts in about half an hour; twice he reached the registration pages">半小时里集中试了 21 次，其中两次进入了登记页面</td><td data-en="Neither finished; once the page expired after being left open">都没完成；有一次登记页放太久过期了</td></tr>
-          <tr><td data-en="Day 2, early morning">第二天清早</td><td data-en="Two more attempts">又试了 2 次</td><td data-en="Same page">同上</td></tr>
-          <tr><td data-en="Day 2, morning">第二天上午</td><td data-en="Installed the authenticator on the same phone and tapped <strong>Sign in</strong> in it, 3 times">在同一部手机上装了验证器，并在验证器里点<strong>「登录」</strong>，共 3 次</td><td data-en="Told to register a verification method first — the loop">被要求先登记验证方式，绕回原点</td></tr>
-          <tr><td data-en="Same morning">同一时间</td><td data-en="One wrong password, then &ldquo;password expired&rdquo;; he set a new one">输错一次密码，接着提示「密码已过期」，他改了新密码</td><td data-en="Password changed">改密码成功</td></tr>
-          <tr><td data-en="After that">之后</td><td data-en="Signed in with the new password; reached the registration pages twice more">用新密码再登录，又两次进入登记页面</td><td data-en="Still not finished">仍然没有完成</td></tr>
+          <tr><td><span class="ts">2026-09-23 16:14:52</span> – <span class="ts">2026-09-24 10:29:54</span></td><td data-en="Teams on the phone was refused in the background and told to register a verification method first">手机上的 Teams 在后台续期被拒，要求先登记验证方式</td><td data-en="Refused 307 times <span class='ec'>50079</span>">共被拒 307 次 <span class="ec">50079</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 16:14:58</span> – <span class="ts">16:15:07</span></td><td data-en="He opened Teams and signed in 3 times">他打开 Teams 登录了 3 次</td><td data-en="Every time: &ldquo;More information required&rdquo; <span class='ec'>50072</span>">每次都停在「需要更多信息」 <span class="ec">50072</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 21:20:08</span> – <span class="ts">21:51:14</span></td><td data-en="21 attempts in half an hour; he reached the registration pages at 21:20 and 21:24">半小时里试了 21 次；21:20、21:24 两次进入了登记页面</td><td data-en="Neither finished; at 21:34 the page expired after being left open <span class='ec'>50072 / 70008</span>">都没完成；21:34 登记页放太久过期了 <span class="ec">50072 / 70008</span></td></tr>
+          <tr><td><span class="ts">2026-09-24 06:27:22</span> – <span class="ts">06:27:27</span></td><td data-en="Two more attempts">又试了 2 次</td><td data-en="Same page <span class='ec'>50072</span>">同上 <span class="ec">50072</span></td></tr>
+          <tr><td><span class="ts">2026-09-24 09:40:53</span> – <span class="ts">09:41:00</span></td><td data-en="Signed in again and reached the registration pages">再次登录，进入登记页面</td><td data-en="Not finished <span class='ec'>50072</span>">没有完成 <span class="ec">50072</span></td></tr>
+          <tr><td><span class="ts">2026-09-24 09:42:59</span> – <span class="ts">09:51:20</span></td><td data-en="Installed the authenticator on the same phone and tapped <strong>Sign in</strong> in it 3 times">在同一部手机上装了验证器，在验证器里点<strong>「登录」</strong>3 次</td><td data-en="Told to register a verification method first — the loop <span class='ec'>50072</span>">被要求先登记验证方式，绕回原点 <span class="ec">50072</span></td></tr>
+          <tr><td><span class="ts">2026-09-24 09:47:24</span> – <span class="ts">09:49:02</span></td><td data-en="One wrong password, then &ldquo;password expired&rdquo;; he set a new one">输错一次密码，接着提示「密码已过期」，他改了新密码</td><td data-en="Password changed <span class='ec'>50126 / 50055 / 0</span>">改密码成功 <span class="ec">50126 / 50055 / 0</span></td></tr>
+          <tr><td><span class="ts">2026-09-24 09:49:06</span> – <span class="ts">09:55:10</span></td><td data-en="Signed in with the new password 3 times; reached the registration pages again at 09:49 and 09:55">用新密码登录 3 次，09:49、09:55 又两次进入登记页面</td><td data-en="Still not finished <span class='ec'>50072</span>">仍然没有完成 <span class="ec">50072</span></td></tr>
         </tbody>
       </table></div>
-      <p data-en="In all, 36 sign-ins by hand and not one finished registration. In the background, Teams also retried on its own more than 300 times, each refused for the same reason. The account was never locked or disabled and the password was right — the only thing missing was a verification method.">一共 36 次手动登录，没有一次完成登记。另外，Teams 在后台还自动重试了 300 多次，都因为同一原因被拒。账号没有被锁、没有被禁用，密码也正确，唯一缺的就是验证方式。</p>
+      <p data-en="In all, 36 sign-ins by hand and not one finished registration. The 307 automatic retries by Teams in the background were all refused for the same reason. The account was never locked or disabled and the password was right — the only thing missing was a verification method.">一共 36 次手动登录，没有一次完成登记。Teams 在后台自动重试的 307 次，也都因为同一原因被拒。账号没有被锁、没有被禁用，密码也正确，唯一缺的就是验证方式。</p>
       <h3 data-en="Why">为什么</h3>
       <p data-en="His account had <strong>never had an authenticator linked</strong>; he had been using Teams on his password alone, so once the school required verification he was stopped. His only device was a mainland Android phone, and every route was closed: without Google services the authenticator cannot be linked on it; one phone cannot scan its own screen; and signing in inside the authenticator needs a verification first.">他的账号<strong>从来没有绑定过验证器</strong>，以前只凭密码就能用 Teams，学校开始要求验证后就被拦住了。他手上只有一部国内安卓手机，三条路都走不通：没有谷歌服务，验证器在这部手机上绑不上；一部手机扫不了自己屏幕上的二维码；在验证器里点「登录」又要先通过验证。</p>
       <h3 data-en="How to solve it">怎么解决</h3>
       <ol class="fix">
         <li><span class="role user" data-en="User">本人</span><span data-en="Open the <a href='/help/teams-setup.html'>setup wizard</a> and choose &ldquo;I am new to Teams — first sign-in&rdquo; → &ldquo;Android phone&rdquo;.">打开<a href="/help/teams-setup.html">设置向导</a>，选「我是 Teams 新用户，第一次登录」→「安卓手机」。</span></li>
-        <li><span class="role user" data-en="User">本人</span><span data-en="With an iPhone or iPad at home, put the authenticator on it. Without one, choose &ldquo;I have none — my institution&#39;s administrator will scan for me&rdquo; and book a time with the administrator.">家里有 iPhone 或 iPad，就把验证器装在它上面；没有的话，选「我没有，需要机构 / 学校的管理员帮忙扫码」，和管理员约时间代扫。</span></li>
+        <li><span class="role user" data-en="User">本人</span><span data-en="With an iPhone or iPad at home, follow the wizard to install the authenticator on it and link the account. Without one, choose &ldquo;I have none — my institution&#39;s administrator will scan for me&rdquo; and schedule a time with the administrator.">家里有 iPhone 或 iPad，就按向导把验证器装在它上面、完成账户关联；没有的话，选「我没有，需要机构 / 学校的管理员帮忙扫码」，和管理员约时间代扫。</span></li>
         <li><span class="role user" data-en="User">本人</span><span data-en="Uninstall the authenticator from the Android phone; that phone only needs Teams.">安卓手机上的验证器可以卸载，这部手机只装 Teams。</span></li>
       </ol>
       <h3 data-en="Next time">以后注意</h3>
@@ -294,17 +353,28 @@
   <h2 class="cat" id="cat-3" data-en="3　The code is not accepted">3　验证码不被接受</h2>
 
   <details class="case" id="case-other-app">
-    <summary><span class="num">3.1</span><span class="ttl" data-en="Codes from a different code app suddenly stopped working">用的是其他验证码 App，验证码突然不被接受</span></summary>
+    <summary><span class="num">3.1</span><span class="ttl" data-en="The six-digit codes from a code app suddenly stopped working">验证码 App 里的 6 位数字突然不被接受</span></summary>
     <div class="case-body">
       <h3 data-en="What happened">遇到了什么</h3>
-      <p data-en="Parent C had always used a code app that is not made by Microsoft. One day its six-digit codes were no longer accepted.">家长 C 一直用一个不是微软出品的验证码 App。某天，App 里的 6 位数字输进去不再被接受。</p>
+      <p data-en="Parent C had always signed in with six-digit codes from a code app. One day the codes were no longer accepted.">家长 C 一直在一个验证码 App 里看 6 位数字登录。某天，这些数字输进去不再被接受。</p>
+      <h3 data-en="What the admin records show">后台记录里看到的</h3>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
+      <div class="tbl-wrap"><table class="log">
+        <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ts">2026-09-23 17:08:06</span></td><td data-en="Started registering text-message verification">开始登记短信验证</td><td data-en="Not finished">没有完成</td></tr>
+          <tr><td><span class="ts">2026-09-23 22:34:17</span> – <span class="ts">22:34:49</span></td><td data-en="Registered again and added her mobile number (text messages)">再次登记，添加了自己的手机号（短信）</td><td data-en="Registered">登记成功</td></tr>
+          <tr><td><span class="ts">2026-09-23 22:35:12</span></td><td data-en="The system confirmed all required security info was in place">系统确认必需的安全信息已经齐全</td><td data-en="Done">成功</td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="Before the text messages, her account had only one method: a &ldquo;software code&rdquo; — an account added by hand to a code app, which can only produce six-digit numbers.">登记短信之前，她的账号上只有一种验证方式：「软件验证码」，也就是在验证码 App 里手动添加、只能出 6 位数字的那种。</p>
       <h3 data-en="Why">为什么</h3>
-      <p data-en="Her school supports only <strong>Microsoft Authenticator</strong>; other code apps have been switched off.">她的学校只支持<strong>微软身份验证器（Microsoft Authenticator）</strong>，其他验证码 App 已经停用。</p>
-      <h3 data-en="How it was solved">怎么解决的</h3>
+      <p data-en="The school has switched off &ldquo;software codes&rdquo; in favour of <strong>Microsoft Authenticator</strong>. However correct the app's numbers, Microsoft no longer accepts them. Fortunately she had registered her mobile number, so she could sign in with a text message for now.">学校已经停用「软件验证码」这种方式，改用<strong>微软身份验证器（Microsoft Authenticator）</strong>。App 里的数字再对，微软也不再接受。好在她已经登记了手机号，可以先用短信验证登录。</p>
+      <h3 data-en="How to solve it">怎么解决</h3>
       <ol class="fix">
-        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Deleted the switched-off code app from her account and asked her to switch to Microsoft Authenticator.">从她的账号上删除了那个已停用的验证码 App，通知她改用微软验证器。</span></li>
-        <li><span class="role user" data-en="Parent">本人</span><span data-en="On a computer, in a private window, opened <code>mysignins.microsoft.com/security-info</code> and signed in, verifying with a text message to the mobile number she had registered.">在电脑的无痕窗口打开 <code>mysignins.microsoft.com/security-info</code> 登录。她之前登记过手机号，用短信验证码验证。</span></li>
-        <li><span class="role user" data-en="Parent">本人</span><span data-en="<strong>Add sign-in method</strong> → Microsoft Authenticator; when the QR code appeared, scanned it with <strong>Scan QR code</strong> in the phone's authenticator and typed the two-digit number. The account in the old app can then be deleted."><strong>「添加登录方法」</strong>→ Microsoft Authenticator，出现二维码后，用手机验证器<strong>「扫描 QR 码」</strong>，再输入两位数。旧 App 里的学校账号可以删掉。</span></li>
+        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Deleted the switched-off software code from her account and asked her to switch to Microsoft Authenticator.">从她的账号上删除了那个已停用的软件验证码，通知她改用微软验证器。</span></li>
+        <li><span class="role user" data-en="Parent">本人</span><span data-en="Install Microsoft Authenticator on an iPhone as the <a href='/help/teams-setup.html'>setup wizard</a> shows. Then, in a private window on a computer, open <code>mysignins.microsoft.com/security-info</code>, sign in with a text message, and choose <strong>Add sign-in method</strong> → Microsoft Authenticator; scan with <strong>Scan QR code</strong> to link the account (the same as steps 2–3 in <a href='/help/teams-faq.html#q-new-phone'>I changed my phone</a>).">按<a href="/help/teams-setup.html">设置向导</a>在 iPhone 上装好微软验证器。再在电脑的无痕窗口打开 <code>mysignins.microsoft.com/security-info</code>，用短信验证登录，点<strong>「添加登录方法」</strong>→ Microsoft Authenticator，用验证器<strong>「扫描 QR 码」</strong>完成账户关联（和<a href="/help/teams-faq.html#q-new-phone">我换了手机，怎么办</a>里第 2–3 步相同）。</span></li>
+        <li><span class="role user" data-en="Parent">本人</span><span data-en="The school account in the old app can then be deleted.">旧 App 里的学校账号可以删掉。</span></li>
       </ol>
       <h3 data-en="Next time">以后注意</h3>
       <ul class="avoid">
@@ -322,14 +392,24 @@
     <summary><span class="num">4.1</span><span class="ttl" data-en="&ldquo;Forgot password&rdquo; keeps sending you back">点「忘记密码」一直被挡回来</span></summary>
     <div class="case-body">
       <h3 data-en="What happened">遇到了什么</h3>
-      <p data-en="On his iPad, Student B tapped &ldquo;Forgot password&rdquo;; the page said the password could not be reset here and to contact the administrator. Two more tries on other networks gave the same answer.">学生 B 在 iPad 上点「忘记密码」，页面提示无法在这里重置、请联系管理员。换了两个网络再试，结果一样。</p>
+      <p data-en="Student B tapped &ldquo;Forgot password&rdquo;; the page said the password could not be reset here and to contact the administrator. Two more tries hours later gave the same answer.">学生 B 点「忘记密码」，页面提示无法在这里重置、请联系管理员。隔了几个小时又试了两次，结果一样。</p>
+      <h3 data-en="What the admin records show">后台记录里看到的</h3>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
+      <div class="tbl-wrap"><table class="log">
+        <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ts">2026-09-23 15:41:12</span></td><td data-en="Entered the account on the &ldquo;Forgot password&rdquo; page">在「忘记密码」页输入账号</td><td data-en="Refused: password reset is not enabled for this account">被拒：这个账号没有开通密码重置</td></tr>
+          <tr><td><span class="ts">2026-09-23 19:15:42</span></td><td data-en="Tried again">再试</td><td data-en="The same">同上</td></tr>
+          <tr><td><span class="ts">2026-09-23 19:19:37</span></td><td data-en="Tried again">再试</td><td data-en="The same">同上</td></tr>
+        </tbody>
+      </table></div>
       <h3 data-en="Why">为什么</h3>
       <p data-en="The school has not switched on self-service password reset; only the administrator can reset a password.">学校没有开通自助重置密码，只能由管理员重置。</p>
-      <h3 data-en="How it was solved">怎么解决的</h3>
+      <h3 data-en="How to solve it">怎么解决</h3>
       <ol class="fix">
-        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Set a temporary password (to be changed at next sign-in) and gave it to the student.">设了一个临时密码（下次登录必须修改），告诉学生。</span></li>
-        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Checked which device the authenticator was on at the same time. A reset makes every device verify again; if that device is gone, delete it now so the student is not stuck twice (see 1.1).">同时查看他的验证器登记在哪台设备上。重置密码后所有设备都要重新验证，如果那台设备已经不在，就一并删除，免得他改完密码又卡住（见 1.1）。</span></li>
-        <li><span class="role user" data-en="Student">本人</span><span data-en="Signed in with the temporary password, set and wrote down a new one, then completed the verification. If a new link is needed, the QR code must show on another device — an iPad cannot scan its own screen.">用临时密码登录，改成自己的新密码并记下来，再按提示完成验证。如果需要重新绑定，二维码要显示在另一台设备上，iPad 扫不了自己的屏幕。</span></li>
+        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Set a temporary password (to be changed at next sign-in) and give it to the student.">设一个临时密码（下次登录必须修改），告诉学生。</span></li>
+        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Check at the same time which device the authenticator is on. A reset makes every device verify again; if that device is gone, delete it now so the student is not stuck twice (see 1.1).">同时查看他的验证器登记在哪台设备上。重置密码后所有设备都要重新验证，如果那台设备已经不在，就一并删除，免得他改完密码又卡住（见 1.1）。</span></li>
+        <li><span class="role user" data-en="Student">本人</span><span data-en="Sign in with the temporary password, set and write down a new one. If it then asks you to verify or link again, open the <a href='/help/teams-setup.html'>setup wizard</a>, choose &ldquo;I have used Teams before, and now it asks me to verify&rdquo; and follow it. The QR code must show on another device — a device cannot scan its own screen.">用临时密码登录，改成自己的新密码并记下来。如果接着被要求验证或重新绑定，打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按向导完成。二维码要显示在另一台设备上，一台设备扫不了自己的屏幕。</span></li>
       </ol>
       <h3 data-en="Next time">以后注意</h3>
       <ul class="avoid">
