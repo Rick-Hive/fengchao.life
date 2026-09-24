@@ -181,6 +181,8 @@
     <a href="#case-other-app"><span class="num">3.1</span><span data-en="The six-digit codes from a code app suddenly stopped working">验证码 App 里的 6 位数字突然不被接受</span></a>
     <div class="toc-cat" data-en="4　Forgot the password">4　忘记密码</div>
     <a href="#case-forgot"><span class="num">4.1</span><span data-en="&ldquo;Forgot password&rdquo; keeps sending you back">点「忘记密码」一直被挡回来</span></a>
+    <div class="toc-cat" data-en="5　Teams signed in with a personal account">5　Teams 登录成了个人账号</div>
+    <a href="#case-personal-account"><span class="num">5.1</span><span data-en="Teams on Windows stuck at &ldquo;Teams for personal use is no longer available&rdquo;">Windows 上的 Teams 卡在「个人使用的 Teams 不再可用」</span></a>
     <div class="toc-cat toc-more"><a href="#lessons" data-en="What the cases have in common">共同的经验</a><a href="#for-admins" data-en="For administrators">给管理员</a></div>
   </nav>
 
@@ -416,6 +418,36 @@
       <ul class="avoid">
         <li data-en="Forgot the password? Contact <strong>the administrator who issued your account</strong> — retrying does not help. See <a href='/help/teams-faq.html#q-forgot-password'>I forgot my password</a>.">忘了密码，直接联系<strong>为您分配账号的管理员</strong>，反复重试没有用。见<a href="/help/teams-faq.html#q-forgot-password">忘记密码怎么办</a>。</li>
         <li data-en="Every password change means verifying again — have the authenticator device ready.">每次改密码后都要重新验证，先把装验证器的设备准备好。</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ===================== 5 ===================== -->
+  <h2 class="cat" id="cat-5" data-en="5　Teams signed in with a personal account">5　Teams 登录成了个人账号</h2>
+  <p class="cat-note" data-en="Teams for personal use is no longer offered in mainland China. If Teams opens with a personal Microsoft account, it stops on a page with no way out — the school account itself is fine.">个人版 Teams 在中国大陆已经不能用了。Teams 一打开就用了个人微软账号，就会停在一个出不去的页面；学校账号本身没有问题。</p>
+
+  <details class="case" id="case-personal-account">
+    <summary><span class="num">5.1</span><span class="ttl" data-en="Teams on Windows stuck at &ldquo;Teams for personal use is no longer available&rdquo;">Windows 上的 Teams 卡在「个人使用的 Teams 不再可用」</span></summary>
+    <div class="case-body">
+      <h3 data-en="What happened">遇到了什么</h3>
+      <p data-en="Teacher G opened Teams on her Windows computer and saw only &ldquo;Teams for personal use is no longer available — Teams for personal use is no longer available in your location&rdquo; and a <strong>Learn more</strong> button. There was no sign-out and no way to switch accounts, so she could not sign in with her school account.">国内的老师 G 打开 Windows 电脑上的 Teams，只看到「个人使用的 Teams 不再可用——Teams 个人版在你所在的位置不再可用」和一个<strong>「了解详细信息」</strong>按钮。页面上没有退出，也没有切换账号的地方，学校账号登不进去。</p>
+      <h3 data-en="What the records show">记录里看到的</h3>
+      <p data-en="There is nothing to tabulate here, and that is itself the clue. The sign-in used her personal Microsoft account, which never passes through the school, so it does not appear in the school's sign-in records. When someone says they cannot sign in but the school sees no attempt at all, they are most likely signed in to an account outside the school.">这个案例没有可列的记录，而这本身就是线索：这次登录用的是她的个人微软账号，不经过学校，学校后台的登录记录里不会出现。本人说登不上、学校后台却一次尝试都看不到，多半就是登录到了学校以外的账号。</p>
+      <h3 data-en="Why">为什么</h3>
+      <p data-en="She had signed in to Office on this computer with her personal Microsoft account. The new Teams app starts with the Microsoft account already signed in on the computer, so it picked the personal one. Teams for personal use has stopped in mainland China, so it stopped on that page. Nothing was wrong with her school account.">她以前在这台电脑上用个人微软账号登录过 Office。新版 Teams 启动时会自动用电脑上已经登录的微软账号，于是用了个人账号。个人版 Teams 在中国大陆已经停止服务，就停在了这一页。她的学校账号本身没有问题。</p>
+      <h3 data-en="How to solve it">怎么解决</h3>
+      <ol class="fix">
+        <li><span class="role user" data-en="Teacher">本人</span><span data-en="<strong>Get working straight away:</strong> open a private window in a browser, go to <code>teams.microsoft.com</code> and sign in with the school account."><strong>先让自己马上能用：</strong>在浏览器里开一个无痕窗口，打开 <code>teams.microsoft.com</code>，用学校账号登录。</span></li>
+        <li><span class="role user" data-en="Teacher">本人</span><span data-en="<strong>Quit the desktop app completely:</strong> right-click the Teams icon in the system tray (bottom right) → Quit, or end Teams in Task Manager. Closing the window is not enough."><strong>彻底退出桌面版 Teams：</strong>屏幕右下角托盘里的 Teams 图标右键 →「退出」；找不到就在任务管理器里结束 Teams。只关窗口不算退出。</span></li>
+        <li><span class="role user" data-en="Teacher">本人</span><span data-en="In Settings → Apps → Installed apps, search for Teams: uninstall <strong>Microsoft Teams (free)</strong> if it is there (the personal edition built into Windows); on <strong>Microsoft Teams</strong> choose &ldquo;⋯&rdquo; → Advanced options → <strong>Reset</strong> to clear the accounts it remembers. If Microsoft Teams is not installed, get it from <a href='https://www.microsoft.com/zh-cn/microsoft-teams/download-app' target='_blank' rel='noopener noreferrer'>Microsoft&#39;s download page</a>.">在「设置 → 应用 → 已安装的应用」里搜 Teams：有 <strong>Microsoft Teams (free)</strong>（Windows 自带的个人版）就卸载；在 <strong>Microsoft Teams</strong> 旁的「⋯」→「高级选项」→<strong>「重置」</strong>，清掉它记住的账号。没有装 Microsoft Teams 的，从<a href="https://www.microsoft.com/zh-cn/microsoft-teams/download-app" target="_blank" rel="noopener noreferrer">微软的下载页</a>下载安装。</span></li>
+        <li><span class="role user" data-en="Teacher">本人</span><span data-en="In Settings → Accounts → Email &amp; accounts, remove the personal Microsoft account under &ldquo;Accounts used by other apps&rdquo;. If it is the account that signs in to Windows itself, it cannot be removed — skip this step.">在「设置 → 账户 → 电子邮件和账户」里，把「其他应用使用的账户」中的个人微软账号删掉。如果 Windows 就是用这个账号登录的，删不掉，跳过这一步。</span></li>
+        <li><span class="role user" data-en="Teacher">本人</span><span data-en="Open Teams and, at the list of accounts, choose <strong>Use another account</strong> and enter the school account. If it asks you to verify, follow the <a href='/help/teams-setup.html'>setup wizard</a>.">打开 Teams，出现账号列表时选<strong>「使用其他账户」</strong>，输入学校账号。需要验证时，按<a href="/help/teams-setup.html">设置向导</a>完成。</span></li>
+        <li><span class="role user" data-en="Teacher">本人</span><span data-en="<strong>Still lands on that page?</strong> Quit Teams, type <code>%LocalAppData%\Packages\MSTeams_8wekyb3d8bbwe\LocalCache\Microsoft\MSTeams</code> into the File Explorer address bar, delete that folder (Teams&#39; cache) and open Teams again."><strong>打开后还是直接跳到这一页：</strong>先退出 Teams，在文件资源管理器地址栏输入 <code>%LocalAppData%\Packages\MSTeams_8wekyb3d8bbwe\LocalCache\Microsoft\MSTeams</code>，删掉这个文件夹（Teams 的缓存），再打开 Teams。</span></li>
+      </ol>
+      <h3 data-en="Next time">以后注意</h3>
+      <ul class="avoid">
+        <li data-en="Seeing &ldquo;Teams for personal use is no longer available&rdquo; means Teams opened a personal account — not that the school account is broken.">看到「个人使用的 Teams 不再可用」，说明 Teams 用的是个人账号，不是学校账号出了问题。</li>
+        <li data-en="When a computer also holds a personal Microsoft account, check which account you are choosing: the school account ends with the school&#39;s domain.">电脑上还登录着个人微软账号时，登录 Teams 要看清选的是哪个账号：学校账号以学校的域名结尾。</li>
       </ul>
     </div>
   </details>
