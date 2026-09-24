@@ -853,7 +853,7 @@
   // ---- who ----
   pickGroup(document.getElementById("whoPick"), [
     { id: "new",  name: T("我是 Teams 新用户，第一次登录", "I am new to Teams — first sign-in"), tag: T("从安装软件开始，一步步做完", "from installing the apps to the first sign-in") },
-    { id: "back", name: T("我曾经登录过 Teams，但被要求做身份验证", "I have used Teams before, and now it asks me to verify"), tag: T("先检查验证器在哪里，再补上验证", "we check where the authenticator is, then complete the verification") }
+    { id: "back", name: T("我曾经登录过 Teams，但被要求做身份验证", "I have used Teams before, now it asks me to input Authenticator verification code"), tag: T("先检查验证器在哪里，再补上验证", "we check where the authenticator is, then complete the verification") }
   ], state.who, function (id) { state.who = id; nextBtn("who").disabled = false; save(); renderProgress(); });
   if (state.who) nextBtn("who").disabled = false;
 

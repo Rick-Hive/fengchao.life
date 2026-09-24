@@ -560,7 +560,7 @@ setTimeout(() => {
   check("the logo and name are a link home too",
     [doc.getElementById("brandHome") && doc.getElementById("brandHome").getAttribute("href")], ["/"]);
 
-  // ---- 帮助 → Teams 和身份验证器设置 (/help/teams-setup.html) + 问答(Q&A) ----
+  // ---- 帮助 → Teams 和身份验证器设置 (/help/teams-setup.html) ----
   // A real page in the repo, not an SPA route: the nav handler must NOT
   // intercept it, or the browser would never leave the wizard.
   const helpLink = doc.querySelector('a.menu-item[href="/help/teams-setup.html?from=menu"]');
@@ -575,10 +575,8 @@ setTimeout(() => {
     (() => { const ev = new window.MouseEvent("click", { bubbles: true, cancelable: true });
              helpLink.dispatchEvent(ev); return ev.defaultPrevented; })(),
     false);
-  check("the support menu also links to the Q&A page, in the same tab",
-    (() => { const q = doc.querySelector('a.menu-item[href="/help/teams-faq.html"]');
-             return [!!q, q && q.getAttribute("target"), q && q.textContent.trim()]; })(),
-    [true, null, "问答(Q&A)"]);
+  check("the support menu no longer lists 问答(Q&A) — it is a tab on the help pages (Rick, 2026-09-24)",
+    !!doc.querySelector('#siteNav a.menu-item[href="/help/teams-faq.html"]'), false);
 
   // ---- G.P.A. calculator (/gpa) — a standalone page beside the wizard ----
   // Entered here through a LEGACY link (#/gpa, the address before paths), which
