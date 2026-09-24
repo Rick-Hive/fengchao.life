@@ -271,7 +271,14 @@
     .shot .pic { container-type: inline-size; }
     .shot .tag { font-size: clamp(.5rem, 3.1cqw, .66rem); padding: 1px 0.6em; }
   }
-  .shot figcaption { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; }
+  .shot figcaption { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; text-align: center; }
+  /* Pictures sit centred in the column; a run of screens that belong together
+     (the three Next screens) sits side by side in equal columns, one above the
+     other on a phone (Rick, 2026-09-24). */
+  .shot .pic { margin-inline: auto; }
+  .shot-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; align-items: start; margin: 10px 0 4px; }
+  .shot-row .shot { margin: 0; }
+  .shot-row .shot .pic { width: 100% !important; max-width: 420px; }
   .why.inline .shot .pic { width: min(100%, 360px); }
 
   details.why p { margin-top: 9px; color: var(--ink-soft); }
@@ -990,7 +997,7 @@
   function threeNext(holder, holderDevice, backTo) {
     return T('接下来三屏都只需点 <strong>下一步（Next）</strong>：「让我们保护你的帐户安全（Let\'s keep your account secure）」→「安装 Microsoft Authenticator（Install Microsoft Authenticator）」（验证器已经装好了，<strong>不用点商店图标，也不用点下面的「其他选项」</strong>）→「在应用中设置你的帐户（Set up your account in app）」。',
         'The next three screens only need <strong>Next</strong>: &ldquo;Let\'s keep your account secure&rdquo; → &ldquo;Install Microsoft Authenticator&rdquo; (already installed — <strong>do not tap the store badges or the Other options link</strong>) → &ldquo;Set up your account in app&rdquo;.') +
-      keepSecureShot() + installAuthShot() + setupInAppShot() +
+      '<div class="shot-row">' + keepSecureShot() + installAuthShot() + setupInAppShot() + '</div>' +
       T('<strong>看到第三屏时，' + holder + '拿起' + holderDevice + '，打开微软身份验证器</strong>：右上「+」→ 选 <strong>「工作或学校帐户（Work or school account）」</strong> → 弹出「登录（Sign in）」和「扫描 QR 码（Scan QR code）」两个选项，<strong>先停在这里</strong>。然后' + backTo + '点 <strong>下一步（Next）</strong>。',
         '<strong>At the third screen, ' + holder + ' picks up ' + holderDevice + ' and opens Microsoft Authenticator</strong>: &ldquo;+&rdquo; at the top right → <strong>Work or school account</strong> → two options appear, Sign in and Scan QR code. <strong>Stop there.</strong> Then ' + backTo + ' select <strong>Next</strong>.') +
       addAccountShot(T('「+」之后选 工作或学校帐户（Work or school account）', 'After &ldquo;+&rdquo;, choose Work or school account'));
