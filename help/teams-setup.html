@@ -149,6 +149,8 @@
   .masthead h1 { text-align: center; }
   .check-lead { margin: 14px 0 6px; }
   #checkContent label.confirm { margin-top: 8px; }
+  #oldDevContent { margin: 2px 0 8px; }
+  #oldDevContent:empty { display: none; }
   h2 { font-size: 1.28rem; font-weight: 700; }
   h3 { font-size: 1rem; font-weight: 700; margin: 0; }
   p { margin: 0; }
@@ -928,6 +930,10 @@
       function renderOld() {
         var oc = document.getElementById("oldDevContent");
         if (!oc) return;
+        // The steps open right under the card that was picked, not below both
+        // cards (Rick, 2026-09-24).
+        var pressed = document.querySelector('#oldDevPick button[aria-pressed="true"]');
+        if (pressed) pressed.insertAdjacentElement("afterend", oc);
         nb.disabled = !(state.oldDev === "gone" && state.adminDone && state.cleanDone);
         if (!state.oldDev) { oc.innerHTML = ""; return; }
         if (state.oldDev === "have") {
