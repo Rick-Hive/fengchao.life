@@ -772,6 +772,18 @@
     if (i >= 2 && !state.dev) return { screen: "dev", msg: T("请先选择手机类型。", "Choose your phone type first.") };
     if (state.dev === "android" && i >= 3 && !state.verifier) return { screen: "android-verifier", msg: T("请先选择验证器放在哪里。", "Choose where the authenticator lives first.") };
     if (state.dev === "android" && r.indexOf("brand") >= 0 && i > r.indexOf("brand") && !state.brand) return { screen: "brand", msg: T("请先选择手机品牌。", "Choose the phone brand first.") };
+    // The progress bar must not jump past step 3's check for a returning
+    // iPhone/iPad user: the linking steps only work once the old device is
+    // gone from the account (Rick, 2026-09-24).
+    var ci = r.indexOf("ios-check");
+    if (ci >= 0 && i > ci) {
+      if (!state.checked) return { screen: "ios-check", msg: T("请先在这一步选择您的验证器是哪种情况。", "First choose which applies to your authenticator in this step.") };
+      if (state.checked === "have") {
+        if (!state.oldDev) return { screen: "ios-check", msg: T("请先选择老设备还在不在。", "First choose whether your old device is still around.") };
+        if (state.oldDev === "have") return { screen: "ios-check", msg: T("老设备还在：按这一步的步骤把验证器转到新设备上就好，不需要往下走。", "Your old device is still around: follow the steps here to move the authenticator — there is nothing further to do.") };
+        if (!(state.adminDone && state.cleanDone)) return { screen: "ios-check", msg: T("请先确认管理员已经删除了您的老设备（勾选这一步的两项）。", "First confirm that the administrator has removed your old device (tick both boxes in this step).") };
+      }
+    }
     if (state.dev === "ios" && i > r.indexOf("second") && !state.second) return { screen: "second", msg: T("请先选择第二台设备。", "Choose the second device first.") };
     return null;
   }
@@ -1268,7 +1280,9 @@
       }
       var hop = sessionStorage.getItem("teamsSetupLangScreen") || sessionStorage.getItem("teamsSetupScreen");
       sessionStorage.removeItem("teamsSetupLangScreen");
-      if (hop && !missingFor(hop)) state.screen = hop;
+      // A saved step that is not reachable yet (a check left undone) resumes
+      // at the step that still needs an answer, not at step 1.
+      if (hop) { var gap = missingFor(hop); state.screen = gap ? gap.screen : hop; }
     } catch (e) {}
     document.getElementById("stateLabel").textContent = "";
     goTo(state.screen);
