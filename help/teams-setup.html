@@ -150,7 +150,27 @@
   .check-lead { margin: 14px 0 6px; }
   #checkContent label.confirm { margin-top: 8px; }
   #oldDevContent { margin: 2px 0 8px; }
+  #checkContent { margin: 2px 0 6px; }
+  #checkContent:empty { display: none; }
+  .todo { border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 10px 10px 0; padding: 12px 16px 14px; }
+  .todo-head { margin: 0 0 4px; }
   #oldDevContent:empty { display: none; }
+  /* Step 3's second-level question: radio rows, indented, lighter than the
+     first-level cards (Rick, 2026-09-24). */
+  .sub-q { font-weight: 700; margin: 14px 0 8px; }
+  .branch-pick.radio { gap: 8px; margin-left: 4px; padding-left: 14px; border-left: 2px solid var(--line); }
+  .branch-pick.radio > button {
+    position: relative; background: var(--surface); border-width: 1px; border-radius: 8px;
+    padding: 10px 14px 10px 44px; gap: 2px;
+  }
+  .branch-pick.radio > button::before {
+    content: ""; position: absolute; left: 14px; top: 13px; width: 18px; height: 18px;
+    border-radius: 50%; border: 2px solid var(--ink-faint); background: var(--surface); box-sizing: border-box;
+  }
+  .branch-pick.radio > button .name { font-size: .96rem; }
+  .branch-pick.radio > button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .branch-pick.radio > button[aria-checked="true"]::before { border-color: var(--accent); box-shadow: inset 0 0 0 3px var(--surface); background: var(--accent); }
+  .branch-pick.radio > button[aria-checked="true"] .tag { color: var(--accent-ink); }
   h2 { font-size: 1.28rem; font-weight: 700; }
   h3 { font-size: 1rem; font-weight: 700; margin: 0; }
   p { margin: 0; }
@@ -536,14 +556,14 @@
 
     <details class="why" data-side="ios-check">
       <summary data-en="Where did my verification go? Why do I get nothing?">我的验证码发到哪里了？为什么收不到？</summary>
-      <p data-en="The prompt goes to <strong>the device whose authenticator was linked to your account</strong> — not to whichever phone you are holding. The most common case: you set it up on an old iPhone or iPad, later changed phones and installed the authenticator again on the new one. The new app knows nothing about your account; the prompt still goes to the old device.">提示只会发到<strong>当初和您账号绑定的那台设备的验证器</strong>上，不是您手里正拿着的这部。最常见的情况：当初在一部老 iPhone / iPad 上设置的，后来换了手机、在新手机上又装了验证器——新验证器里并没有您的账号，提示仍然发往老设备。</p>
-      <p data-en="If the old device is still around, open its authenticator: the request is waiting there. To make the new device the one that gets prompts, move the authenticator over yourself with the old device (step 3, &ldquo;My old device is still here&rdquo;). If it is gone, contact <strong>the administrator who issued your account</strong>, ask them to remove the old device, and then link the authenticator on the new one following this wizard.">老设备还在，打开它上面的验证器，请求就在里面。想让以后的提示发到新设备上，就用老设备自己把验证器转过去（第 3 步选「老设备还在」）。老设备已经没了，请联系<strong>给您分配账号的管理员</strong>，让他把老设备删掉，然后按本向导在新设备上重新绑定。</p>
+      <p data-en="The verification code goes to <strong>the device whose authenticator was linked to your account</strong> — not to whichever phone you are holding. The most common case: you set it up on an old iPhone or iPad, later changed phones and installed the authenticator again on the new one. The new app knows nothing about your account; the verification code still goes to the old device.">验证码只会发到<strong>当初和您账号绑定的那台设备的验证器</strong>上，不是您手里正拿着的这部。最常见的情况：当初在一部老 iPhone / iPad 上设置的，后来换了手机、在新手机上又装了验证器——新验证器里并没有您的账号，验证码仍然发往老设备。</p>
+      <p data-en="If the old device is still around, open its authenticator: the request is waiting there. To have verification codes go to the new device from now on, move the authenticator over with the old device (step 3, &ldquo;My old device is still here&rdquo; — the wizard walks you through it). If it is gone, contact <strong>the administrator who issued your account</strong>, ask them to remove the old device, and then link the authenticator on the new one following this wizard.">老设备还在，打开它上面的验证器，请求就在里面。想让以后的验证码发到新设备上，就用老设备把验证器转过去（第 3 步选「老设备还在」，向导会一步步带您做）。老设备已经没了，请联系<strong>给您分配账号的管理员</strong>，让他把老设备删掉，然后按本向导在新设备上重新绑定。</p>
     </details>
 
     <div class="branch-pick stack" id="checkPick" role="group" aria-label="验证器状态" data-en-label="Authenticator status"></div>
     <div id="checkContent"></div>
 
-    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. A prompt that only your own device can answer is what makes the account yours.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。只有您自己的设备能回应的提示，才让这个账号真正属于您。</span></div>
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Verification codes go only to your own device — that is what makes the account yours.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。验证码只发到您自己的设备上，这才让这个账号真正属于您。</span></div>
     <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next disabled data-en="Next">下一步</button></div>
   </section>
 
@@ -581,6 +601,47 @@
 
     <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. This is the one time the linking happens; from now on it is a two-digit number.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。绑定只做这一次，以后每次就是输一个两位数。</span></div>
     <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="I'm signed in">登录成功了</button></div>
+  </section>
+
+  <!-- ===== move-add (returning iOS, old device still here) =====
+       Moving the authenticator to a new device without the administrator,
+       one screen at a time (Rick, 2026-09-24: "我们是Wizard"). Microsoft's
+       order: add the new device first, delete the old one last. -->
+  <section class="card" data-screen="move-add" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Add the new device on the Security info page">在「安全信息」页上加上新设备</h2></div>
+    <p class="step-desc" id="moveAddDesc"></p>
+    <ol class="steps" id="moveAddSteps"></ol>
+
+    <details class="why trouble" data-side="move-add">
+      <summary data-en="Stuck? Three things that actually happen">卡住了？三种常见情况</summary>
+      <p data-en="<strong>① The old device shows nothing when the two-digit number appears.</strong> Open the authenticator on the old device by hand; the request is usually waiting inside. If your account is not in it at all, the old device is not the linked one: go back to step 3 and choose &ldquo;My old device is gone&rdquo;."><strong>① 出现两位数时，老设备没有任何提示。</strong>先手动打开老设备上的验证器，请求通常就在里面。如果老设备的验证器里根本没有您的账号，说明绑定的不是它：回到第 3 步，选「老设备已经不在了」。</p>
+      <p data-en="<strong>② The page will not open, or an English error string such as AADSTS appears.</strong> Close it, open a fresh private window and <strong>type</strong> <code>mysignins.microsoft.com/security-info</code> yourself — do not use an old bookmark."><strong>② 页面打不开，或弹出一串英文报错（比如 AADSTS…）。</strong>关掉页面，重新开一个无痕窗口，在地址栏<strong>手动输入</strong> <code>mysignins.microsoft.com/security-info</code>，不要用收藏夹里的旧链接。</p>
+      <p data-en="<strong>③ After scanning, the new device shows the account but no two-digit prompt ever comes.</strong> On the new device remove that account (open it → gear icon → Remove account), then on the Security info page select Add sign-in method again and scan the new QR code."><strong>③ 扫完码，新设备里有了账号，却一直等不到两位数。</strong>在新设备上把这个账号删掉（点进账号 → 右上角齿轮 →「删除账户」），再在安全信息页上重新点「添加登录方法」，扫新出现的二维码。</p>
+    </details>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. Only the device already linked may approve adding a new one — nobody else can slip their phone in.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。只有已经绑定的老设备才能批准加新设备，别人没法把自己的手机加进来。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="New device added — next">新设备加好了，下一步</button></div>
+  </section>
+
+  <!-- ===== move-remove (returning iOS, old device still here) ===== -->
+  <section class="card" data-screen="move-remove" hidden>
+    <div class="step-head"><span class="step-num"></span><h2 data-en="Remove the old device">删掉老设备</h2></div>
+    <p class="step-desc" data-en="Still on the same Security info page. This is the step people miss — and without it the verification codes keep going to the old device.">还在同一个「安全信息」页上。这一步最容易漏——少了它，验证码还会继续发到老设备上。</p>
+    <ol class="steps">
+      <li><span class="txt" data-en="The list now has <strong>two</strong> Microsoft Authenticator entries, each with a device model under it. Find the one with the <strong>old device&#39;s model</strong> → <strong>Delete</strong> → OK. (Not sure which is which? On an iPhone or iPad: Settings → General → About → Model Name.)">列表里现在有<strong>两条</strong> Microsoft Authenticator，下面各写着一个设备型号。找到写着<strong>老设备型号</strong>的那一条 → <strong>删除（Delete）</strong>→ 确定（OK）。（分不清哪条是哪台？在 iPhone / iPad 上打开 设置 → 通用 → 关于本机，看「型号名称」。）</span></li>
+      <li><span class="txt" data-en="Refresh the page and check that only <strong>the new device&#39;s</strong> Microsoft Authenticator is left. If the page has a <strong>Default sign-in method</strong> line that still names something else, select Change and pick the Authenticator.">刷新页面，确认列表里只剩<strong>新设备</strong>那一条 Microsoft Authenticator。如果页面上方的<strong>「默认登录方法（Default sign-in method）」</strong>不是它，点「更改（Change）」改成 Authenticator。</span></li>
+      <li><span class="txt" data-en="<strong>Last</strong>, pick up the old device and remove the school account from its authenticator: open the account → gear icon (top right) → <strong>Remove account</strong>."><strong>最后</strong>，拿起老设备，在它的验证器里删掉学校账号：点进账号 → 右上角齿轮 →<strong>「删除账户（Remove account）」</strong>。</span></li>
+      <li><span class="txt" data-en="Close the private window. On the new device open Teams (not installed yet? App Store → <code>Microsoft Teams</code>) → your account and <strong>the password you use now</strong> → the <strong>new device&#39;s</strong> authenticator asks → type the two-digit number → you are in.">关掉无痕窗口。在新设备上打开 Teams（还没装的话：App Store → 搜索 <code>Microsoft Teams</code>）→ 输入账号和<strong>您现在用的</strong>密码 → <strong>新设备</strong>的验证器弹出提示 → 输入屏幕上的两位数 → 进入 Teams。</span></li>
+    </ol>
+
+    <details class="why" data-side="move-remove">
+      <summary data-en="Why delete on the web page first, and on the old device last?">为什么先在网页上删，最后才在老设备上删？</summary>
+      <p data-en="Removing the account only inside the old device&#39;s authenticator is not enough: Microsoft still has the old device on record and keeps sending verification codes there. Deleting it on the Security info page is what actually unlinks it.">只在老设备的验证器里删账号是不够的：微软那边还记着老设备，验证码会继续发往那里。在「安全信息」页上删掉它，才是真正解除绑定。</p>
+      <p data-en="The old device goes last so that, if anything before it did not work, you can still approve a sign-in with it and try again. More in <a href='/help/teams-faq.html#q-new-phone' target='_blank' rel='noopener'>I changed my phone — what now?</a>">老设备上的删除放在最后，是为了万一前面哪一步没成功，您还能用它批准登录、回头重来。详见 <a href="/help/teams-faq.html#q-new-phone" target="_blank" rel="noopener">我换了手机，怎么办？</a></p>
+    </details>
+
+    <div class="sec-tip" data-en="🔒 <span><b>Why all this trouble?</b> For safety. An old phone that is sold or lost can no longer approve your sign-ins.</span>">🔒 <span><b>为什么要这么大费周章？</b>答案：为了安全。老手机以后卖了、丢了，也没法再替您批准登录。</span></div>
+    <div class="actions"><button class="btn btn-ghost" data-back data-en="Back">上一步</button><button class="btn btn-primary" data-next data-en="Done — next">删好了，下一步</button></div>
   </section>
 
   <!-- ===== android-verifier ===== -->
@@ -751,9 +812,21 @@
         ? ["who", "dev", "android-verifier", "brand", "signin-admin", "done"]
         : ["who", "dev", "android-verifier", "ios-auth", "brand", "signin-android", "done"];
     }
+    // Returning, and the old device still switches on: the wizard walks the
+    // person through moving the authenticator themselves, a screen per step
+    // (Rick, 2026-09-24).
+    if (state.who === "back" && isMove()) return ["who", "dev", "ios-check", "second", "move-add", "move-remove", "done"];
     return state.who === "back"
       ? ["who", "dev", "ios-check", "second", "signin-pc", "done"]
       : ["who", "dev", "ios-install", "second", "signin-pc", "done"];
+  }
+  function isMove() { return state.checked === "have" && state.oldDev === "have"; }
+  // Step 3's two confirmations, for whichever old-device answer was given.
+  function checkDone() {
+    if (state.checked !== "have") return !!state.checked;
+    if (state.oldDev === "gone") return !!(state.adminDone && state.cleanDone);
+    if (state.oldDev === "have") return !!(state.oldOn && state.cleanDone);
+    return false;
   }
   var LABELS = {
     "who": T("情况", "You"), "dev": T("手机", "Phone"),
@@ -761,7 +834,8 @@
     "second": T("另一台设备", "2nd device"), "signin-pc": T("登录绑定", "Sign in"),
     "android-verifier": T("验证器在哪", "Authenticator"), "ios-auth": T("装验证器", "Install app"),
     "brand": T("装 Teams", "Install Teams"), "signin-android": T("登录扫码", "Sign in"),
-    "signin-admin": T("管理员扫码", "Admin scans"), "done": T("完成", "Done")
+    "signin-admin": T("管理员扫码", "Admin scans"), "done": T("完成", "Done"),
+    "move-add": T("加新设备", "Add new"), "move-remove": T("删老设备", "Remove old")
   };
 
   // What a screen needs before it can make sense; missing → back to where it is asked.
@@ -780,8 +854,8 @@
       if (!state.checked) return { screen: "ios-check", msg: T("请先在这一步选择您的验证器是哪种情况。", "First choose which applies to your authenticator in this step.") };
       if (state.checked === "have") {
         if (!state.oldDev) return { screen: "ios-check", msg: T("请先选择老设备还在不在。", "First choose whether your old device is still around.") };
-        if (state.oldDev === "have") return { screen: "ios-check", msg: T("老设备还在：按这一步的步骤把验证器转到新设备上就好，不需要往下走。", "Your old device is still around: follow the steps here to move the authenticator — there is nothing further to do.") };
-        if (!(state.adminDone && state.cleanDone)) return { screen: "ios-check", msg: T("请先确认管理员已经删除了您的老设备（勾选这一步的两项）。", "First confirm that the administrator has removed your old device (tick both boxes in this step).") };
+        if (state.oldDev === "have" && !checkDone()) return { screen: "ios-check", msg: T("请先确认这一步的两项：老设备在手边能开机；新设备上的旧账号已删掉。", "First confirm both items in this step: the old device is at hand and switches on; any old entry on the new device is removed.") };
+        if (!checkDone()) return { screen: "ios-check", msg: T("请先确认管理员已经删除了您的老设备（勾选这一步的两项）。", "First confirm that the administrator has removed your old device (tick both boxes in this step).") };
       }
     }
     if (state.dev === "ios" && i > r.indexOf("second") && !state.second) return { screen: "second", msg: T("请先选择第二台设备。", "Choose the second device first.") };
@@ -853,7 +927,7 @@
   function goTo(id) {
     state.screen = id;
     Array.prototype.forEach.call(document.querySelectorAll("section[data-screen]"), function (sec) { sec.hidden = sec.dataset.screen !== id; });
-    var builders = { "ios-check": buildCheck, "second": buildSecond, "signin-pc": buildSigninPc, "android-verifier": buildVerifier,
+    var builders = { "ios-check": buildCheck, "second": buildSecond, "signin-pc": buildSigninPc, "move-add": buildMoveAdd, "android-verifier": buildVerifier,
                      "brand": buildBrand, "signin-android": buildSigninAndroid, "signin-admin": buildSigninAdmin, "done": buildDone };
     if (builders[id]) builders[id]();
     placeNotes(); renderProgress(); save();
@@ -868,15 +942,21 @@
   Array.prototype.forEach.call(document.querySelectorAll("[data-back]"), function (b) { b.addEventListener("click", back); });
   Array.prototype.forEach.call(document.querySelectorAll("[data-next]"), function (b) { b.addEventListener("click", next); });
 
-  function pickGroup(el, items, current, onPick) {
+  // radio: a second-level choice nested under a first-level one, drawn as
+  // radio buttons so it reads as a sub-question, not another set of cards
+  // (Rick, 2026-09-24).
+  function pickGroup(el, items, current, onPick, radio) {
     el.innerHTML = "";
+    var attr = radio ? "aria-checked" : "aria-pressed";
+    if (radio) el.setAttribute("role", "radiogroup");
     items.forEach(function (it) {
       var b = document.createElement("button");
-      b.type = "button"; b.setAttribute("aria-pressed", it.id === current ? "true" : "false");
+      b.type = "button"; if (radio) b.setAttribute("role", "radio");
+      b.setAttribute(attr, it.id === current ? "true" : "false");
       b.innerHTML = '<span class="name">' + it.name + '</span><span class="tag">' + it.tag + '</span>' + (it.sub ? '<span class="sub">' + it.sub + '</span>' : "");
       b.addEventListener("click", function () {
-        Array.prototype.forEach.call(el.children, function (c) { c.setAttribute("aria-pressed", "false"); });
-        b.setAttribute("aria-pressed", "true");
+        Array.prototype.forEach.call(el.children, function (c) { if (c.tagName === "BUTTON") c.setAttribute(attr, "false"); });
+        b.setAttribute(attr, "true");
         onPick(it.id);
       });
       el.appendChild(b);
@@ -907,84 +987,92 @@
     pickGroup(document.getElementById("checkPick"), [
       { id: "none", name: T("我的 iPhone / iPad 上还没有验证器", "My iPhone or iPad has no authenticator yet"), tag: T("先装好，再用另一台设备登录绑定", "install it, then link it from a second device") },
       { id: "have", name: T("已经装了验证器，但登录时它没有任何提示", "The authenticator is installed, but nothing appears when I sign in"), tag: T("多半是账号绑在另一台设备上", "most likely the account is linked to another device") }
-    ], state.checked, function (id) { if (id !== state.checked) { state.oldDev = null; state.adminDone = false; state.cleanDone = false; } state.checked = id; save(); renderCheck(); });
+    ], state.checked, function (id) { if (id !== state.checked) { state.oldDev = null; state.adminDone = false; state.cleanDone = false; state.oldOn = false; } state.checked = id; save(); renderProgress(); renderCheck(); });
     renderCheck();
     function renderCheck() {
       var nb = nextBtn("ios-check");
       if (!state.checked) { box.innerHTML = ""; nb.disabled = true; return; }
-      nb.disabled = state.checked === "have" && !(state.oldDev === "gone" && state.adminDone && state.cleanDone);
+      nb.disabled = !checkDone();
+      var pressedCheck = document.querySelector('#checkPick button[aria-pressed="true"]');
+      if (pressedCheck) pressedCheck.insertAdjacentElement("afterend", box);
       if (state.checked === "none") {
+        // An instruction, not a choice: numbered steps with an accent rule,
+        // opening right under the card picked, so it cannot be mistaken for a
+        // third option (Rick, 2026-09-24).
+        var li0 = function (zh, en) { return '<li><span class="txt">' + T(zh, en) + "</span></li>"; };
         box.innerHTML =
-          '<div class="app-block"><h3>' + T("微软身份验证器（Microsoft Authenticator）", "Microsoft Authenticator") + ' <span class="pill must">' + T("必装", "required") + '</span></h3>' +
-          '<p>' + T("打开 App Store → 搜索 <code>Authenticator</code> → 安装。怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。",
-                    "Open the App Store → search <code>Authenticator</code> → install. How to recognize it: <strong>Microsoft Authenticator</strong>, a <strong>blue padlock</strong> icon, developer <strong>Microsoft Corporation</strong>.") + '</p></div>' +
-          '<div class="note good">' + T("<strong>装好就行，先别在验证器里登录。</strong>下一步用另一台设备把它和账号绑起来。",
-                    "<strong>Install it, and do not sign in inside the app.</strong> The next step links it to your account from a second device.") + '</div>';
+          '<div class="todo"><p class="todo-head">' + T("<strong>这一步要做的：</strong>在这部 iPhone / iPad 上装好微软身份验证器（Microsoft Authenticator）。",
+                    "<strong>What to do in this step:</strong> install Microsoft Authenticator on this iPhone or iPad.") + '</p>' +
+          '<ol class="steps inner">' +
+            li0("打开 App Store → 搜索 <code>Authenticator</code> → 安装。",
+                "Open the App Store → search <code>Authenticator</code> → install.") +
+            li0("怎么认：叫 <strong>Microsoft Authenticator</strong>，图标是<strong>蓝色的锁形</strong>，开发者是 <strong>Microsoft Corporation</strong>。",
+                "How to recognize it: <strong>Microsoft Authenticator</strong>, a <strong>blue padlock</strong> icon, developer <strong>Microsoft Corporation</strong>.") +
+            li0("<strong>装好就行，先别在验证器里登录。</strong>下一步用另一台设备把它和账号绑起来。",
+                "<strong>Install it, and do not sign in inside the app.</strong> The next step links it to your account from a second device.") +
+          '</ol></div>';
       } else {
         // Two ways on, and which one depends only on whether the old device
         // still switches on (Rick, 2026-09-24):
-        //  - it does: the person moves the authenticator over themselves on
-        //    the Security info page, approving with the old device — no
-        //    administrator, and no further wizard steps;
-        //  - it does not: the administrator deletes it, then the wizard's
-        //    linking steps — Next waits for the two confirmations.
+        //  - it does: the wizard walks the person through moving the
+        //    authenticator themselves (screens move-add, move-remove);
+        //  - it does not: the administrator deletes it, then the usual
+        //    linking steps.
+        // Either way Next waits for two confirmations. The sub-question is a
+        // radio group, so it reads as second-level.
         box.innerHTML =
-          '<div class="note warn">' + T("<strong>提示只发到当初绑定的那台设备上。</strong>您多半是在一部老手机或 iPad 上设置过验证器。老设备还在不在，决定下一步怎么做：",
-                    "<strong>The prompt only goes to the device that was linked.</strong> Most likely you set up the authenticator on an older phone or iPad. Whether that old device is still around decides what to do next:") + '</div>' +
-          '<div class="branch-pick stack" id="oldDevPick" role="group" aria-label="' + T("老设备还在吗", "Is the old device still around") + '"></div>' +
+          '<div class="note warn">' + T("<strong>验证码只发到当初绑定的那台设备上。</strong>您多半是在一部老手机或 iPad 上设置过验证器。",
+                    "<strong>The verification code only goes to the device that was linked.</strong> Most likely you set up the authenticator on an older phone or iPad.") + '</div>' +
+          '<p class="sub-q" id="oldDevQ">' + T("老设备还在吗？", "Is that old device still around?") + '</p>' +
+          '<div class="branch-pick stack radio" id="oldDevPick" aria-labelledby="oldDevQ"></div>' +
           '<div id="oldDevContent"></div>';
         pickGroup(document.getElementById("oldDevPick"), [
-          { id: "have", name: T("老设备还在，能开机", "My old device is still here and switches on"), tag: T("自己把验证器转到新设备上，不用找管理员", "move the authenticator to the new device yourself — no administrator needed") },
+          { id: "have", name: T("老设备还在，能开机", "My old device is still here and switches on"), tag: T("向导带您自己把验证器转到新设备上，不用找管理员", "the wizard walks you through moving the authenticator yourself — no administrator needed") },
           { id: "gone", name: T("老设备已经不在了（丢了、坏了、送人了）", "My old device is gone (lost, broken, given away)"), tag: T("请管理员删除老设备，再重新绑定", "the administrator removes it, then you link again") }
-        ], state.oldDev, function (id) { if (id !== state.oldDev) { state.adminDone = false; state.cleanDone = false; } state.oldDev = id; save(); renderOld(); });
+        ], state.oldDev, function (id) { if (id !== state.oldDev) { state.adminDone = false; state.cleanDone = false; state.oldOn = false; } state.oldDev = id; save(); renderProgress(); renderOld(); }, true);
         renderOld();
+      }
+      function confirmRow(id, on, zh, en) {
+        return '<label class="confirm"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + '> <span>' + T(zh, en) + '</span></label>';
       }
       function renderOld() {
         var oc = document.getElementById("oldDevContent");
         if (!oc) return;
-        // The steps open right under the card that was picked, not below both
-        // cards (Rick, 2026-09-24).
-        var pressed = document.querySelector('#oldDevPick button[aria-pressed="true"]');
-        if (pressed) pressed.insertAdjacentElement("afterend", oc);
-        nb.disabled = !(state.oldDev === "gone" && state.adminDone && state.cleanDone);
+        // The follow-up opens right under the option picked, not below both
+        // (Rick, 2026-09-24).
+        var picked = document.querySelector('#oldDevPick button[aria-checked="true"]');
+        if (picked) picked.insertAdjacentElement("afterend", oc);
+        nb.disabled = !checkDone();
         if (!state.oldDev) { oc.innerHTML = ""; return; }
+        var clean = confirmRow("chkClean", state.cleanDone,
+          "这部新 iPhone / iPad 的验证器里如果已经有学校账号，我已经把它删掉了（点进账号 → 右上角齿轮 →「删除账户」）；没有的话直接勾选。",
+          "If the authenticator on this new iPhone or iPad already lists the school account, I have removed it (open the account → gear icon at the top right → <strong>Remove account</strong>); if it does not, just tick this.");
+        var first;
         if (state.oldDev === "have") {
-          var li = function (zh, en) { return '<li><span class="txt">' + T(zh, en) + "</span></li>"; };
+          // No list of operations here: the steps come one screen at a time
+          // after Next (Rick, 2026-09-24: "我们是Wizard").
           oc.innerHTML =
-            '<div class="note good">' + T("<strong>先加新设备，再删老设备。</strong>按下面的顺序做完，验证器就转到新设备上了，<strong>不需要再点下一步</strong>。",
-                      "<strong>Add the new device first, then remove the old one.</strong> Follow these steps in order and the authenticator moves to the new device — <strong>you do not need to select Next</strong>.") + '</div>' +
-            '<ol class="steps inner">' +
-              li("新设备的验证器里如果已经有学校账号（点进去只有「连接的帐户」的那种），先删掉：点进账号 → 右上角齿轮 →<strong>「删除账户」</strong>。没有就跳过。",
-                 "If the new device's authenticator already lists the school account (one that shows only &ldquo;Connected account&rdquo;), remove it first: open the account → gear icon at the top right → <strong>Remove account</strong>. If it does not, skip this.") +
-              li("在电脑上用浏览器无痕窗口打开 <code>mysignins.microsoft.com/security-info</code>，用学校账号登录，用<strong>老设备</strong>批准。（没有电脑，也可以用老设备的浏览器打开这个页面。）",
-                 "On a computer, open <code>mysignins.microsoft.com/security-info</code> in a private window, sign in with your school account, and approve with the <strong>old</strong> device. (No computer? Open the page in the old device's browser.)") +
-              li("点<strong>「添加登录方法」</strong>→ Microsoft Authenticator，一直点下一步到出现二维码。新设备的验证器里点「+」→「工作或学校帐户」→<strong>「扫描 QR 码」</strong>，再输入两位数。",
-                 "<strong>Add sign-in method</strong> → Microsoft Authenticator → Next until a QR code appears. In the new device&#39;s authenticator: &ldquo;+&rdquo; → Work or school account → <strong>Scan QR code</strong>, then type the two-digit number.") +
-              li("如果这一页的<strong>「默认登录方法」</strong>还是老设备，点「更改」，改成新设备的 Authenticator。",
-                 "If the <strong>default sign-in method</strong> on that page is still the old device, select Change and pick the new device&#39;s Authenticator.") +
-              li("在列表里找到写着<strong>老设备型号</strong>的那一条，点<strong>「删除」</strong>。到这一步，微软那边才真正解除老设备的绑定。",
-                 "In the list, find the entry with the <strong>old device&#39;s model</strong> and select <strong>Delete</strong>. This is what actually unlinks the old device.") +
-              li("最后，在老设备的验证器里删掉学校账号：点进账号 → 右上角齿轮 →<strong>「删除账户」</strong>。",
-                 "Last, in the old device&#39;s authenticator: open the school account → gear icon (top right) → <strong>Remove account</strong>.") +
-              li("在新设备上登录 Teams，提示会发到新设备上。",
-                 "Sign in to Teams on the new device; the prompt now goes to it.") +
-            '</ol>' +
-            '<p class="check-lead">' + T("<strong>为什么是这个顺序：</strong>只在老设备的验证器里删账号是不够的，微软那边还记着老设备，请求会继续发往那里。所以在老设备上删除，一定放在最后。详见 <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">我换了手机，怎么办？</a>",
-                      "<strong>Why this order:</strong> removing the account only from the old device&#39;s authenticator is not enough — Microsoft still has the old device on record and keeps sending requests there. That is why removing it from the old device must come last. See <a href=\"/help/teams-faq.html#q-new-phone\" target=\"_blank\" rel=\"noopener\">I changed my phone — what now?</a>") + '</p>';
-          return;
+            '<div class="note good">' + T("<strong>好办：您自己就能把验证器转到这部新设备上，不用找管理员。</strong>接下来向导一步一步带您做：准备一块显示二维码的屏幕 → 加上新设备 → 删掉老设备。",
+                      "<strong>Good news: you can move the authenticator to this new device yourself — no administrator needed.</strong> The wizard takes you through it one step at a time: a screen to show the QR code → add the new device → remove the old one.") + '</div>' +
+            '<p class="check-lead">' + T("<strong>开始之前，先确认下面两件事：</strong>", "<strong>Before you start, confirm both of these:</strong>") + '</p>' +
+            confirmRow("chkOldOn", state.oldOn, "老设备就在我手边，已经开机，能打开它上面的验证器。", "The old device is here with me, switched on, and I can open its authenticator.") +
+            clean;
+          first = document.getElementById("chkOldOn");
+        } else {
+          oc.innerHTML =
+            '<div class="note plain">' + T("请联系<strong>为您分配账号的管理员</strong>，请他删除您的老设备。<strong>等他告诉您处理好了</strong>，再往下走：用另一台设备把这部 iPhone / iPad 上的验证器重新绑定。",
+                      "Contact <strong>the administrator who issued your account</strong> and ask them to remove your old device. <strong>Once they tell you it is done</strong>, go on: link the authenticator on this iPhone or iPad again from a second device.") + '</div>' +
+            '<p class="check-lead">' + T("<strong>往下走之前，先确认下面两件事：</strong>", "<strong>Before you go on, confirm both of these:</strong>") + '</p>' +
+            confirmRow("chkAdmin", state.adminDone, "管理员已经告诉我：我的老设备删掉了。", "The administrator has told me my old device has been removed.") +
+            clean;
+          first = document.getElementById("chkAdmin");
         }
-        oc.innerHTML =
-          '<div class="note plain">' + T("请联系<strong>为您分配账号的管理员</strong>，请他删除您的老设备。<strong>等他告诉您处理好了</strong>，再往下走：用另一台设备把这部 iPhone / iPad 上的验证器重新绑定。",
-                    "Contact <strong>the administrator who issued your account</strong> and ask them to remove your old device. <strong>Once they tell you it is done</strong>, go on: link the authenticator on this iPhone or iPad again from a second device.") + '</div>' +
-          '<p class="check-lead">' + T("<strong>往下走之前，先确认下面两件事：</strong>", "<strong>Before you go on, confirm both of these:</strong>") + '</p>' +
-          '<label class="confirm"><input type="checkbox" id="chkAdmin"' + (state.adminDone ? " checked" : "") + '> <span>' +
-            T("管理员已经告诉我：我的老设备删掉了。", "The administrator has told me my old device has been removed.") + '</span></label>' +
-          '<label class="confirm"><input type="checkbox" id="chkClean"' + (state.cleanDone ? " checked" : "") + '> <span>' +
-            T("这部 iPhone / iPad 的验证器里如果已经有学校账号，我已经把它删掉了（点进账号 → 右上角齿轮 →「删除账户」）；没有的话直接勾选。",
-              "If the authenticator on this iPhone or iPad already lists the school account, I have removed it (open the account → gear icon at the top right → <strong>Remove account</strong>); if it does not, just tick this.") + '</span></label>';
-        var ca = document.getElementById("chkAdmin"), cc = document.getElementById("chkClean");
-        var sync = function () { state.adminDone = ca.checked; state.cleanDone = cc.checked; save(); nb.disabled = !(state.adminDone && state.cleanDone); };
-        ca.onchange = sync; cc.onchange = sync;
+        var cc = document.getElementById("chkClean");
+        var sync = function () {
+          if (state.oldDev === "have") state.oldOn = first.checked; else state.adminDone = first.checked;
+          state.cleanDone = cc.checked; save(); nb.disabled = !checkDone();
+        };
+        first.onchange = sync; cc.onchange = sync;
       }
     }
   }
@@ -993,12 +1081,22 @@
   function browserRow(name, how, keys, kind, best) {
     return '<div class="browser-row' + (kind === "bad" ? " bad" : "") + '"><span class="bname">' + (best ? "★ " : "") + name + (best ? ' <span class="pill must">' + T("最佳选择", "best choice") + '</span>' : "") + '</span><span class="bhow">' + how + '</span><span class="keys">' + keys + "</span></div>";
   }
+  // On the move route the same screen gets the Security info page ready, and
+  // the old device itself may be the second screen.
+  var secSec = document.querySelector('section[data-screen="second"]');
+  var secH2 = secSec.querySelector("h2"), secDesc = secSec.querySelector(".step-desc");
+  var SEC_H2 = secH2.innerHTML, SEC_DESC = secDesc.innerHTML;
   function buildSecond() {
-    var box = document.getElementById("secondContent");
+    var box = document.getElementById("secondContent"), move = isMove();
+    secH2.innerHTML = move ? T("准备一块屏幕，打开「安全信息」页", "Get a screen ready for the Security info page") : SEC_H2;
+    secDesc.innerHTML = move
+      ? T("新设备的验证器要<strong>扫一个二维码</strong>，二维码显示在<strong>另一块屏幕</strong>上。用电脑最方便；没有电脑，<strong>老设备本身</strong>也行——选「老设备或另一台 iPad / iPhone」。先在那块屏幕上开一个无痕窗口。",
+          "The new device's authenticator will <strong>scan a QR code</strong> shown on <strong>another screen</strong>. A computer is easiest; without one, <strong>the old device itself</strong> works — choose &ldquo;The old device or another iPad / iPhone&rdquo;. First open a private window on that screen.")
+      : SEC_DESC;
     pickGroup(document.getElementById("secondPick"), [
       { id: "win",  name: "🪟 Windows", tag: T("最佳浏览器：Edge", "best browser: Edge") },
       { id: "mac",  name: T("🍎 Mac（苹果电脑）", "🍎 Mac"), tag: T("最佳浏览器：Chrome 或 Edge", "best browser: Chrome or Edge") },
-      { id: "ipad", name: T("📱 另一台 iPad 或 iPhone", "📱 Another iPad or iPhone"), tag: T("用 Safari 的无痕标签页", "a private tab in Safari") }
+      { id: "ipad", name: move ? T("📱 老设备或另一台 iPad / iPhone", "📱 The old device or another iPad / iPhone") : T("📱 另一台 iPad 或 iPhone", "📱 Another iPad or iPhone"), tag: T("用 Safari 的无痕标签页", "a private tab in Safari") }
     ], state.second, function (id) { state.second = id; save(); render(); });
     render();
     function render() {
@@ -1030,7 +1128,9 @@
           '<div class="browser-list">' +
             '<div class="browser-row"><span class="bname">Safari</span><span class="bhow">' + T("底部右下「标签页」按钮 → 左下角选「无痕浏览」→ 新建标签页", "Tabs button, bottom right → choose Private at the bottom left → new tab") + '</span><span class="keys">' + T("无痕", "private") + '</span></div>' +
           '</div>' +
-          '<div class="note plain">' + T("这台 iPad / iPhone 只负责显示二维码；验证器装在您<strong>自己那部</strong>上。两台设备不要弄混。", "This iPad or iPhone only shows the QR code; the authenticator is on <strong>your own</strong> device. Do not mix up the two devices.") + '</div>';
+          '<div class="note plain">' + (isMove()
+            ? T("这台设备只负责显示网页和二维码；扫码用的是<strong>新设备</strong>上的验证器。两台设备不要弄混。", "This device only shows the page and the QR code; the scanning is done by the authenticator on the <strong>new</strong> device. Do not mix up the two.")
+            : T("这台 iPad / iPhone 只负责显示二维码；验证器装在您<strong>自己那部</strong>上。两台设备不要弄混。", "This iPad or iPhone only shows the QR code; the authenticator is on <strong>your own</strong> device. Do not mix up the two devices.")) + '</div>';
       }
     }
   }
@@ -1126,6 +1226,28 @@
     items.push(T('<strong>最后在手机上登录 Teams</strong>：打开 iPhone / iPad 上的 Teams App → 输入账号和<strong>您自己设的</strong>密码 → 验证器弹出提示 → 输入屏幕上的两位数 → 进入 Teams。以后手机上的 Teams 会一直保持登录，<strong>不要点退出</strong>。',
       '<strong>Finally, sign in to Teams on the phone</strong>: open the Teams app on your iPhone or iPad → enter your account and <strong>the password you set</strong> → the authenticator prompts → type the two-digit number → you are in. Teams on the phone stays signed in from now on — <strong>do not sign out</strong>.'));
     document.getElementById("pcSteps").innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + '</span></li>'; }).join("");
+  }
+
+  // ---- move-add (old device still here) ----
+  function buildMoveAdd() {
+    var onPad = state.second === "ipad";
+    var dev = onPad ? T("那台设备", "that device") : T("电脑", "the computer");
+    document.getElementById("moveAddDesc").innerHTML = T("在" + dev + "刚打开的无痕窗口里操作。两台设备都放在手边：<strong>老设备</strong>负责批准登录，<strong>新设备</strong>负责扫码。",
+      "Work in the private window you just opened on " + dev + ". Keep both devices within reach: the <strong>old</strong> one approves the sign-in, the <strong>new</strong> one scans.");
+    var items = [
+      T('在无痕窗口的地址栏输入 <code>mysignins.microsoft.com/security-info</code>，回车；输入您的账号 → 下一步（Next）→ 输入<strong>您现在用的密码</strong> → 登录（Sign in）。',
+        'In the private window\'s address bar type <code>mysignins.microsoft.com/security-info</code> and press Enter; enter your account → Next → <strong>the password you use now</strong> → Sign in.'),
+      T('屏幕上出现一个<strong>两位数</strong>，<strong>老设备</strong>的验证器弹出「是否正在尝试登录？（Are you trying to sign in?）」（没弹出就打开老设备的验证器看）→ 输入那个数 → <strong>是（Yes）</strong>。随后进入<strong>「安全信息（Security info）」</strong>页。',
+        'A <strong>two-digit number</strong> appears; the authenticator on the <strong>old</strong> device shows &ldquo;Are you trying to sign in?&rdquo; (or open it and find the request) → type the number → <strong>Yes</strong>. The <strong>Security info</strong> page opens.'),
+      T('点 <strong>「+ 添加登录方法（Add sign-in method）」</strong>→ 选 <strong>Microsoft Authenticator</strong> → 一直点 <strong>下一步（Next）</strong>，直到出现<strong>二维码</strong>。',
+        'Select <strong>+ Add sign-in method</strong> → <strong>Microsoft Authenticator</strong> → keep selecting <strong>Next</strong> until a <strong>QR code</strong> appears.'),
+      T('拿起<strong>新设备</strong>，打开验证器 → 右上角 <strong>「+」</strong>→<strong>「工作或学校帐户（Work or school account）」</strong>→<strong>「扫描 QR 码（Scan QR code）」</strong>→ 对准' + dev + '屏幕扫一下。新设备的验证器里出现您的账号后，点' + dev + '上的 <strong>下一步（Next）</strong>。',
+        'Pick up the <strong>new</strong> device and open its authenticator → <strong>+</strong> (top right) → <strong>Work or school account</strong> → <strong>Scan QR code</strong> → point the camera at ' + dev + '. Once your account shows up in the new device\'s authenticator, select <strong>Next</strong> on ' + dev + '.') +
+        qrShot(T('用新设备的验证器扫这个码', 'Scan this with the new device\'s authenticator')),
+      T(dev + '上又出现一个两位数，这次是<strong>新设备</strong>的验证器弹出提示 → 输入那个数 → <strong>是（Yes）</strong>→ 完成（Done）。安全信息列表里多了一条 Microsoft Authenticator，下面写着<strong>新设备的型号</strong>。',
+        'Another two-digit number appears on ' + dev + '; this time the <strong>new</strong> device\'s authenticator asks → type the number → <strong>Yes</strong> → Done. The Security info list now has another Microsoft Authenticator entry, with <strong>the new device\'s model</strong> under it.')
+    ];
+    document.getElementById("moveAddSteps").innerHTML = items.map(function (t) { return '<li><span class="txt">' + t + '</span></li>'; }).join("");
   }
 
   // ---- android-verifier ----
@@ -1241,8 +1363,9 @@
       state.who === "back" ? T("我记得自己现在用的登录密码", "I know the password I sign in with")
                            : T("我记下了自己设的密码", "I have written down the password I set"),
       admin ? T("我知道不要点退出登录；再要求验证时在 Teams 里找管理员要确认", "I know not to sign out, and to ask the administrator in Teams when verification is asked for")
-            : T("我知道不要点退出登录；以后的验证提示都发到我的 iPhone / iPad 上", "I know not to sign out, and that future prompts go to my iPhone or iPad")
+            : T("我知道不要点退出登录；以后的验证码都发到我的 iPhone / iPad 上", "I know not to sign out, and that future verification codes go to my iPhone or iPad")
     ];
+    if (state.who === "back" && isMove()) checks.splice(2, 0, T("「安全信息」页上只剩新设备；老设备的验证器里也删掉了学校账号", "Only the new device is left on the Security info page, and the school account is removed from the old device's authenticator"));
     el.innerHTML = checks.map(function (c, i) { return '<label><input type="checkbox" id="chk' + i + '" data-chk> <span>' + c + '</span></label>'; }).join("");
     note.hidden = true; document.getElementById("dailyTip").hidden = true;
     var notify = android
@@ -1261,7 +1384,7 @@
     });
   }
   document.getElementById("restart").addEventListener("click", function () {
-    state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null, confirmed: false, oldDev: null, adminDone: false, cleanDone: false };
+    state = { who: null, dev: null, verifier: null, brand: null, second: null, screen: "who", checked: null, confirmed: false, oldDev: null, adminDone: false, cleanDone: false, oldOn: false };
     try { sessionStorage.removeItem("teamsSetupScreen"); } catch (e) {}
     save(); location.reload();
   });
