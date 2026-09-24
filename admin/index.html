@@ -76,7 +76,7 @@
           $("cCourses").textContent = d.counts ? d.counts.courses : (d.courses || []).length;
           $("cSubjects").textContent = d.counts ? d.counts.subjects : (d.subjects || []).length;
         }).catch(function () {
-          $("lastSync").textContent = "尚未同步 Never";
+          $("lastSync").textContent = "尚未同步 Not synced yet";
         });
       }
       loadStatus();

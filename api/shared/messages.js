@@ -86,8 +86,8 @@ const DEFAULT_TEMPLATES = {
         "",
         "What happens next",
         "The institution offering these courses ({{schoolNames}}) will contact you directly within " +
-          "{{replyDays}} working days to confirm the start date, payment and enrolment. Payment and " +
-          "enrolment are handled between you and that institution; Hive does not collect fees.",
+          "{{replyDays}} working days to confirm the start date, payment method and enrollment. Payment and " +
+          "enrollment are handled between you and that institution; Hive does not collect any fees.",
         "",
         "If you have not heard from anyone within {{replyDays}} working days, reply to this email with " +
           "your order number and we will follow up for you.",
@@ -142,7 +142,7 @@ const DEFAULT_TEMPLATES = {
         "· Teams: {{teamsAccount}}",
         "· Preferred language: {{langName}}",
         "",
-        "Order",
+        "Order details",
         "· Submitted: {{submittedAt}}",
         "· Track: {{trackName}}",
         "· Institution: {{schoolNames}}",
@@ -152,7 +152,7 @@ const DEFAULT_TEMPLATES = {
         "",
         "Total: {{totalPrice}}",
         "",
-        "Please contact the family within {{replyDays}} working days to confirm the start date, payment and enrolment.",
+        "Please contact the family within {{replyDays}} working days to confirm the start date, payment method and enrollment.",
         "They have already received an automatic confirmation email telling them you will be in touch.",
       ].join("\n"),
     },
