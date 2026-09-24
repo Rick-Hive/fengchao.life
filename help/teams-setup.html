@@ -31,7 +31,8 @@
        bar and the card are 720px wide at the left of the page — spread evenly
        across it, rather than centred on the whole window (Rick, 2026-09-24).
        The left margin lines the bar up with .wrap below it. */
-    .helpnav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 760px; /* 720 + its 20px gutters */ margin-left: max(0px, calc((100% - 1172px) / 2)); margin-right: auto; }
+    .helpnav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 760px; /* 720 + its 20px gutters */ margin-left: max(0px, calc((100% - 1132px) / 2)); margin-right: auto; }
+    @media (max-width: 1139px) { .helpnav { margin-left: auto; } }
     .helpnav a { text-align: center; white-space: nowrap; }
     @media (max-width: 480px) { .helpnav { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   </style>
@@ -104,7 +105,11 @@
     font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
     line-height: 1.7; margin: 0; padding: 0;
   }
-  .wrap { max-width: 1172px; margin: 0 auto; padding: 0 20px 60px; }
+  /* 1132 = the two columns (720 + 32 + 340) plus the 20px gutters, so the
+     wizard block sits centred under the site header (Rick, 2026-09-24). */
+  .wrap { max-width: 1132px; margin: 0 auto; padding: 0 20px 60px; }
+  /* One column (no side panel): the 720px column is centred too. */
+  @media (max-width: 1139px) { .head, .main { margin-inline: auto; } }
   html { scroll-padding-top: calc(var(--header-h, 96px) + 12px); }
   /* One column on a phone. On a wide screen the reading column keeps its
      720px measure — long lines are harder to read, so the answer to the empty
