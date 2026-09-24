@@ -100,7 +100,7 @@
   .result { margin-top: 8px !important; padding: 8px 12px; background: var(--good-soft); border: 1px solid var(--good-line); border-radius: 8px; color: var(--good) !important; font-weight: 600; }
   ul.avoid { margin: 4px 0 0; padding-left: 20px; color: var(--ink-soft); font-size: .95rem; }
   ul.avoid li { margin: 3px 0; }
-  /* Centred, equal widths (Rick, 2026-09-24). */
+  /* Centred, equal widths; pictures shown together are the same size on disk (Rick, 2026-09-24). */
   .shots { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; margin: 12px 0 2px; }
   .shots figure { margin: 0; flex: 0 1 250px; min-width: 0; }
   .shots img { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--line); }
@@ -252,7 +252,7 @@
       <h3 data-en="Why">为什么</h3>
       <p data-en="The authenticator was registered on her <strong>previous iPhone</strong>, so every request went there. The authenticator on her new phone did list the account, but opening it showed only &ldquo;Connected account&rdquo; — no &ldquo;Sign-in notifications&rdquo;, no &ldquo;One-time password code&rdquo;. An entry like that cannot approve anything. The Security info page needs a verification too, so she could not add the new phone herself. The laptop had been verified before and was still signed in, so it was not affected.">她的验证器登记在<strong>以前那部 iPhone</strong> 上，请求都发往旧手机。新手机的验证器里虽然有她的账号，但点进去只有「连接的帐户」，没有「登录通知」和「一次性密码代码」，这样的账号不能用来验证。「安全信息」页也要先验证，所以她没法自己把新手机加上。笔记本以前验证过、一直保持着登录，所以没受影响。</p>
       <div class="shots">
-        <figure><img src="/help/img/case-otp-code.jpg" alt="有登录通知和一次性密码代码的账号页（账号已模糊）" data-en-alt="An account page with sign-in notifications and a one-time password code (account blurred)" width="520" height="692" loading="lazy" /><figcaption data-en="Linked: &ldquo;Sign-in notifications&rdquo; and a &ldquo;One-time password code&rdquo;. An entry showing only &ldquo;Connected account&rdquo; is not linked.">绑好的样子：有「登录通知」和「一次性密码代码」。只有「连接的帐户」的，就是没绑好。</figcaption></figure>
+        <figure><img src="/help/img/case-otp-code.jpg" alt="有登录通知和一次性密码代码的账号页（账号已模糊）" data-en-alt="An account page with sign-in notifications and a one-time password code (account blurred)" width="520" height="689" loading="lazy" /><figcaption data-en="Linked: &ldquo;Sign-in notifications&rdquo; and a &ldquo;One-time password code&rdquo;. An entry showing only &ldquo;Connected account&rdquo; is not linked.">绑好的样子：有「登录通知」和「一次性密码代码」。只有「连接的帐户」的，就是没绑好。</figcaption></figure>
       </div>
       <h3 data-en="How to solve it">怎么解决</h3>
       <ol class="fix">
@@ -297,8 +297,8 @@
         <li><span class="role admin" data-en="Admin">管理员</span><span data-en="<strong>XR gone:</strong> the administrator deletes that device; the family opens the <a href='/help/teams-setup.html'>setup wizard</a>, chooses &ldquo;I have used Teams before, and now it asks me to verify&rdquo; and follows it to install the authenticator and link the account — one device shows the QR code, the other scans."><strong>XR 不在了：</strong>管理员在后台删除这台设备；家长打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按向导完成验证器的安装和账户关联：一台设备显示二维码，另一台扫。</span></li>
       </ol>
       <div class="shots">
-        <figure><img src="/help/img/case-account-list.jpg" alt="验证器的账号列表（账号已模糊）" data-en-alt="The authenticator account list (accounts blurred)" width="520" height="800" loading="lazy" /><figcaption data-en="Tap your school account.">点进自己的学校账号。</figcaption></figure>
-        <figure><img src="/help/img/case-otp-code.jpg" alt="账号页里的一次性密码代码（账号已模糊）" data-en-alt="The one-time password code on the account page (account blurred)" width="520" height="692" loading="lazy" /><figcaption data-en="The six-digit code changes every 30 seconds.">6 位代码每 30 秒换一次。</figcaption></figure>
+        <figure><img src="/help/img/case-account-list.jpg" alt="验证器的账号列表（账号已模糊）" data-en-alt="The authenticator account list (accounts blurred)" width="520" height="689" loading="lazy" /><figcaption data-en="Tap your school account.">点进自己的学校账号。</figcaption></figure>
+        <figure><img src="/help/img/case-otp-code.jpg" alt="账号页里的一次性密码代码（账号已模糊）" data-en-alt="The one-time password code on the account page (account blurred)" width="520" height="689" loading="lazy" /><figcaption data-en="The six-digit code changes every 30 seconds.">6 位代码每 30 秒换一次。</figcaption></figure>
       </div>
       <h3 data-en="Next time">以后注意</h3>
       <ul class="avoid">

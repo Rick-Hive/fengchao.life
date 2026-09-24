@@ -139,7 +139,7 @@ The institution offering these courses ({{schoolNames}}) will contact you direct
 If you have not heard from anyone within {{replyDays}} working days, reply to this email with your order number and we will follow up for you.
 
 Hive
-Rebuilding the C-education ecosystem with online resources
+Rebuilding the C education ecosystem
 https://www.fengchao.life
 ```
 

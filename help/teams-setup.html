@@ -274,7 +274,8 @@
   .shot figcaption { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; text-align: center; }
   /* Pictures sit centred in the column; a run of screens that belong together
      (the three Next screens) sits side by side in equal columns, one above the
-     other on a phone (Rick, 2026-09-24). */
+     other on a phone (Rick, 2026-09-24). The three are the same size on disk
+     (390 × 376), so the columns hold identical pictures. */
   .shot .pic { margin-inline: auto; }
   .shot-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; align-items: start; margin: 10px 0 4px; }
   .shot-row .shot { margin: 0; }
@@ -981,8 +982,8 @@
         '<p>' + T('换一个：长度 8 位以上，同时含大写字母、小写字母、数字，不要包含您的名字或账号。第二、三格必须完全一样。', 'Pick another: 8 characters or more with an upper-case letter, a lower-case letter and a digit, not containing your name or account. The second and third boxes must match.') + '</p>');
   }
   var keepSecureShot = function () { return shot('pc-keep-secure.jpg', "Let's keep your account secure", T('第一屏：让我们保护你的帐户安全', 'Screen 1 of 3 — just select Next'), '64,84,31,15.4', T('38,34.5,r|让我们保护你的帐户安全;62,91.8,l|下一步', '62,91.8,l|select Next'), 390); };
-  var installAuthShot = function () { return shot('pc-install-auth.jpg', 'Install Microsoft Authenticator', T('第二屏：这里不用装任何东西，直接下一步', 'Screen 2 of 3 — nothing to install here, just Next'), '62,88.5,36,10.5', T('50,42,c|已经装好，直接下一步;62,95,l|下一步', '50,42,c|already installed;62,95,l|select Next'), 298); };
-  var setupInAppShot = function () { return shot('pc-setup-in-app.jpg', 'Set up your account in app', T('第三屏：在应用中设置你的帐户', 'Screen 3 of 3'), '64.6,87,32,12.5', T('50,45,c|在应用中设置你的帐户;62,93.9,l|下一步', '62,93.9,l|select Next'), 356); };
+  var installAuthShot = function () { return shot('pc-install-auth.jpg', 'Install Microsoft Authenticator', T('第二屏：这里不用装任何东西，直接下一步', 'Screen 2 of 3 — nothing to install here, just Next'), '59.2,88.5,27.5,10.5', T('50,42,c|已经装好，直接下一步;59.2,95,l|下一步', '50,42,c|already installed;59.2,95,l|select Next'), 390); };
+  var setupInAppShot = function () { return shot('pc-setup-in-app.jpg', 'Set up your account in app', T('第三屏：在应用中设置你的帐户', 'Screen 3 of 3'), '63.3,87,29.2,12.5', T('50,45,c|在应用中设置你的帐户;61.0,93.9,l|下一步', '61.0,93.9,l|select Next'), 390); };
   var addAccountShot = function (cap) { return shot('ph-add-account.jpg', T('验证器 Add account：选 Work or school account', 'Authenticator Add account: choose Work or school account'), cap, '1,62,98,21', T('50,72,c|选这一条', '50,72,c|choose this')); };
   var qrShot = function (cap) { return shot('pc-scan-qr.jpg', T('Scan the QR code 页面', 'The Scan the QR code page'), cap, '26,26,48,38', T('97,45,l|扫这个码', '97,45,l|scan this')); };
   var tryShot = function (cap, tag) { return shot('pc-try-it-out.jpg', "Let's try it out", cap, '40.9,66.3,17,10.6', tag); };

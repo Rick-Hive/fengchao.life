@@ -241,7 +241,7 @@ window.I18N = {
     },
   },
   en: {
-    brandTag: "Rebuilding the C-education ecosystem with online resources",
+    brandTag: "Rebuilding the C education ecosystem",
     brandValues: ["Open", "Autonomous", "Collaborative"],
     menuLabel: "Menu",
     comingSoon: "Coming soon",

@@ -176,13 +176,13 @@ a.menu-item:hover { background: #eef1f6; }
   .menu-panel .menu-item { font-size: 0.86em; }
 }
 /* Between that and the width the whole row needs (about 1065px in Chinese
-   since 首页 joined the menus, 1280px in English), the values and the tagline
+   since 首页 joined the menus, 1200px in English), the values and the tagline
    step aside so the menus keep one line; the mark and 蜂巢 stay, as on a
    phone. They come back as soon as there is room. */
 @media (min-width: 901px) and (max-width: 1080px) {
   .brand-tag, .brand-values { display: none; }
 }
-@media (min-width: 901px) and (max-width: 1290px) {
+@media (min-width: 901px) and (max-width: 1210px) {
   html[lang="en"] .brand-tag, html[lang="en"] .brand-values { display: none; }
 }
 /* On a computer the mark and 蜂巢 never give way to the menus. */
