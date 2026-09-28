@@ -152,6 +152,23 @@
     table.log td:last-child::before { content: "→ "; color: var(--ink-faint); }
   }
   .log-note { font-size: .82rem; color: var(--ink-faint); margin: 0 0 4px; }
+  /* Data tables with more than three columns: on a phone each row becomes a card, each cell labelled by its column (Rick, 2026-09-28). */
+  .case h4 { margin: 14px 0 4px; font-size: .9rem; color: var(--ink); }
+  table.grid { width: 100%; border-collapse: collapse; font-size: .88rem; color: var(--ink-soft); }
+  table.grid th, table.grid td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  table.grid th { background: var(--surface-2); color: var(--ink); font-weight: 700; white-space: nowrap; }
+  table.grid.compact td:not(:first-child), table.grid.compact th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+  table.grid td:first-child { color: var(--ink); }
+  table.grid .ts { white-space: nowrap; }
+  @media (max-width: 560px) {
+    table.grid:not(.compact) thead { display: none; }
+    table.grid:not(.compact), table.grid:not(.compact) tbody, table.grid:not(.compact) tr, table.grid:not(.compact) td { display: block; width: auto; }
+    table.grid:not(.compact) tr { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; padding: 7px 11px; background: var(--surface); }
+    table.grid:not(.compact) td { border: 0; padding: 2px 0; display: flex; gap: 8px; }
+    table.grid:not(.compact) td::before { content: attr(data-l); flex: 0 0 6.6em; color: var(--ink-faint); font-size: .8rem; }
+    table.grid:not(.compact) td:first-child { font-weight: 700; }
+    table.grid.compact th { white-space: normal; }
+  }
   table.log .ec { color: var(--ink-faint); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 </style>
 </head>
@@ -463,19 +480,104 @@
     <div class="case-body">
       <h3 data-en="What happened">遇到了什么</h3>
       <p data-en="Looking at Teacher H&#39;s account, the administrator found two Microsoft Authenticator entries under authentication methods: an iPhone 13 and an iPhone SE (3rd generation). Why would one person have two? Had someone else linked an authenticator to her account?">管理员在后台查看老师 H 的账号，「身份验证方法」里列着两台 Microsoft Authenticator：一部 iPhone 13，一部 iPhone SE（第三代）。一个人为什么会有两台？是不是有别人把验证器绑到了她的账号上？</p>
+      <h3 data-en="Conclusion">结论</h3>
+      <p data-en="Both authenticator devices were registered by the teacher herself, and she has confirmed they are hers. The <strong>iPhone SE</strong> is the original device: unused after 30 May 2026, it was brought back on 23 September to complete a verification. The <strong>iPhone 13</strong> is her main phone now: she added it herself on 26 September at 15:56, approving on the iPhone SE. She did not remove the SE afterwards, so the portal shows two. No administrator action and no third party was involved.">两台验证器设备都是老师 H 本人登记的，本人也已确认。<strong>iPhone SE</strong> 是原来的设备，2026 年 5 月 30 日之后没用过，9 月 23 日为完成一次验证重新拿出来。<strong>iPhone 13</strong> 是现在的主力机，9 月 26 日 15:56 由本人添加，添加时在 iPhone SE 上批准。加完没有删掉 SE，所以后台显示两台。整个过程没有管理员操作，也没有第三方参与。</p>
       <h3 data-en="What the admin records show">后台记录里看到的</h3>
-      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records of 21–28 September 2026 (the audit log also reaches back to 30 May). Accounts, IP addresses, device names and exact places are left out.">时间为北京时间（UTC+8），取自 2026 年 9 月 21 日至 28 日的原始记录（审计日志还能看到 5 月 30 日）；账号、IP 地址、设备名和具体地点已略去。</p>
+      <h4 data-en="① The records examined">① 查了哪些记录</h4>
+      <div class="tbl-wrap"><table class="grid">
+        <thead><tr><th data-en="Record">记录</th><th data-en="Entries">条数</th><th data-en="Used for">用来看什么</th></tr></thead>
+        <tbody>
+          <tr><td data-en="Interactive sign-ins (typing the password, approving a request)">交互式登录（本人输入密码、批准请求）</td><td>8</td><td data-en="Every sign-in and approval by hand">每一次手动登录和批准</td></tr>
+          <tr><td data-en="Non-interactive sign-ins (apps renewing in the background)">非交互式登录（App 在后台续期）</td><td>1426</td><td data-en="Telling devices, networks and errors apart">区分设备、网络和报错</td></tr>
+          <tr><td data-en="Audit log">审计日志</td><td>6</td><td data-en="When, and by whom, each authenticator was registered — the deciding record">验证器是什么时候、由谁登记的，这是判断的关键</td></tr>
+          <tr><td data-en="Managed-identity sign-ins">托管身份登录</td><td>0</td><td data-en="None">没有记录</td></tr>
+          <tr><td data-en="Application sign-ins">应用登录</td><td>332</td><td data-en="Not counted: all calls made by one of the school&#39;s integration apps, unrelated to her">不计入：全是学校一个集成应用自己的调用，和本人无关</td></tr>
+        </tbody>
+      </table></div>
+      <h4 data-en="② How the authenticator list changed (audit log)">② 验证器登记的变化（审计日志）</h4>
+      <p data-en="Each &ldquo;Update user&rdquo; event in the audit log lists every authenticator device on the account with its model, authenticator version and last verification. Comparing before and after shows which device was added when.">审计日志的「Update user」事件会列出账号上每台验证器设备的型号、验证器版本和上次验证时间。前后对比，就能看出哪台是什么时候加上的。</p>
+      <div class="tbl-wrap"><table class="grid">
+        <thead><tr><th data-en="Time">时间</th><th data-en="Device">设备</th><th data-en="Authenticator version">验证器版本</th><th data-en="Last verified">上次验证时间</th><th data-en="What it means">说明</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ts">2026-09-23 10:00:13</span></td><td>iPhone SE</td><td>6.8.47 → 6.8.53</td><td data-en="30 May 12:38:57 → 23 Sep 10:00:13">5/30 12:38:57 → 9/23 10:00:13</td><td data-en="First approval after nearly four months unused">闲置近四个月后第一次批准</td></tr>
+          <tr><td><span class="ts">2026-09-26 15:56:05</span></td><td>iPhone SE</td><td>6.8.53 → 6.8.55</td><td data-en="23 Sep 10:00:13 → 26 Sep 15:56:05">9/23 10:00:13 → 9/26 15:56:05</td><td data-en="Approved adding the new phone">批准添加新手机</td></tr>
+          <tr><td><span class="ts">2026-09-26 15:56:42</span></td><td data-en="iPhone 13 (new)">iPhone 13（新增）</td><td>6.8.55</td><td data-en="26 Sep 15:56:42">9/26 15:56:42</td><td data-en="&ldquo;User registered security info&rdquo;, performed by the teacher herself; one device became two">「登记了安全信息」，操作人为本人；设备从 1 台变成 2 台</td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="Both are registered for push notifications and six-digit codes, so either can approve a sign-in. No administrator changed this account&#39;s verification methods; the other entries were written automatically by Microsoft&#39;s verification service.">两台都登记为「推送通知 + 6 位验证码」，都能批准登录。审计日志里没有任何管理员改动过这个账号的验证方式，其余几条都是微软验证服务自动写入的。</p>
+      <h4 data-en="③ The four devices on this account">③ 这个账号关联的四台设备</h4>
+      <div class="tbl-wrap"><table class="grid">
+        <thead><tr><th data-en="Device">设备</th><th data-en="System">系统</th><th data-en="Entries">记录</th><th data-en="Seen">出现时间</th><th data-en="Network">网络</th><th data-en="Mainly used for">主要用途</th></tr></thead>
+        <tbody>
+          <tr><td>iPhone 13</td><td>iOS 26.6.2</td><td>393</td><td data-en="21 Sep 09:14 – 28 Sep 08:10">9/21 09:14 – 9/28 08:10</td><td data-en="Home broadband and mobile data, often through an accelerator">本地宽带和手机流量，常开加速器</td><td data-en="Teams, Outlook, Assignments, the authenticator">Teams、Outlook、作业、验证器</td></tr>
+          <tr><td data-en="iPhone SE (3rd generation)">iPhone SE（第三代）</td><td>iOS 26.5.2</td><td>75</td><td data-en="21 Sep 13:34 – 26 Sep 19:07">9/21 13:34 – 9/26 19:07</td><td data-en="Home broadband only">只用本地宽带</td><td data-en="Almost only Teams">基本只有 Teams</td></tr>
+          <tr><td data-en="Windows computer 1">Windows 电脑甲</td><td>Windows 10</td><td>793</td><td data-en="21 Sep 09:25 – 27 Sep 23:09">9/21 09:25 – 9/27 23:09</td><td data-en="Home broadband, often through an accelerator">本地宽带，常开加速器</td><td data-en="Teams, Office, OneDrive, Forms">Teams、Office、OneDrive、Forms</td></tr>
+          <tr><td data-en="Windows computer 2">Windows 电脑乙</td><td>Windows 10</td><td>4</td><td data-en="22 Sep 09:37 – 27 Sep 05:01">9/22 09:37 – 9/27 05:01</td><td data-en="A fixed network abroad">境外的固定网络</td><td data-en="New Outlook syncing in the background">新版 Outlook 后台同步</td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="The two computers are &ldquo;registered devices&rdquo; in Entra and have nothing to do with the authenticator; the portal&#39;s &ldquo;two devices&rdquo; means the two iPhones only. Another 165 iOS entries reported no exact version and are not counted above.">两台电脑是 Entra 里的「已注册设备」，和验证器无关；门户里说的「两台设备」只指两部 iPhone。另有 165 条 iOS 记录没有报出具体版本，没有计入上表。</p>
+      <h4 data-en="④ Why it is two phones, not one phone that was updated">④ 为什么说是两部手机，不是一部升级了系统</h4>
+      <p data-en="The system version, kernel (Darwin 25.6 against 25.5) and network library (CFNetwork 3860.700 against 3860.600) reported by the Teams and authenticator apps all differ, and both appear throughout the week. Entries per day:">Teams 和验证器 App 报出的系统版本、内核（Darwin 25.6 / 25.5）和网络库（CFNetwork 3860.700 / 3860.600）都不一样，而且整周交替出现。每天的记录条数：</p>
+      <div class="tbl-wrap"><table class="grid compact">
+        <thead><tr><th data-en="Date">日期</th><th data-en="iPhone 13 (iOS 26.6.2)">iPhone 13（iOS 26.6.2）</th><th data-en="iPhone SE (iOS 26.5.2)">iPhone SE（iOS 26.5.2）</th></tr></thead>
+        <tbody>
+          <tr><td data-en="21 Sep">9/21</td><td>32</td><td>24</td></tr>
+          <tr><td data-en="22 Sep">9/22</td><td>42</td><td>6</td></tr>
+          <tr><td data-en="23 Sep">9/23</td><td>77</td><td>19</td></tr>
+          <tr><td data-en="24 Sep">9/24</td><td>63</td><td>12</td></tr>
+          <tr><td data-en="25 Sep">9/25</td><td>51</td><td>1</td></tr>
+          <tr><td data-en="26 Sep">9/26</td><td>65</td><td>13</td></tr>
+          <tr><td data-en="27 Sep">9/27</td><td>42</td><td>0</td></tr>
+          <tr><td data-en="28 Sep (to 08:10)">9/28（到 08:10）</td><td>21</td><td>0</td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="They also swap back and forth within a day. On 24 September: 12:26 SE (home broadband) → 13:37 iPhone 13 (accelerator) → 16:23 SE → 16:26 iPhone 13 → 18:58 SE → 19:07 iPhone 13. One phone cannot switch system versions like that.">同一天里也来回切换，例如 9 月 24 日：12:26 SE（本地宽带）→ 13:37 iPhone 13（加速器）→ 16:23 SE → 16:26 iPhone 13 → 18:58 SE → 19:07 iPhone 13。一部手机不可能这样来回换系统版本。</p>
+      <p data-en="Two entries show the system as &ldquo;iOS 18.7&rdquo;. That is not a third phone either: on iOS 26, web pages report the system frozen at 18.x, and the very next step of the same sign-in shows 26.6.2.">另有 2 条记录的系统显示为「iOS 18.7」，也不是第三部手机：iOS 26 上网页报出的系统版本停在 18.x，同一次登录的下一步就显示 26.6.2。</p>
+      <h4 data-en="⑤ Full timeline">⑤ 完整时间线</h4>
       <div class="tbl-wrap"><table class="log">
         <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
         <tbody>
           <tr><td><span class="ts">2026-05-30 12:38:57</span></td><td data-en="The authenticator on the old iPhone SE approved a sign-in for the last time">旧 iPhone SE 上的验证器最后一次批准登录</td><td data-en="Then unused for nearly four months">此后闲置近四个月</td></tr>
-          <tr><td><span class="ts">2026-09-23 10:00:13</span></td><td data-en="She signed in to Teams on a computer; the request went to the old iPhone SE">在电脑上登录 Teams，批准请求发到旧 iPhone SE</td><td data-en="Approved on the SE with the two-digit number <span class='ec'>0</span>">在 SE 上输入两位数批准，成功 <span class="ec">0</span></td></tr>
-          <tr><td><span class="ts">2026-09-23 18:38:26</span> – <span class="ts">19:04:48</span></td><td data-en="Added the school account in the authenticator on the new iPhone 13">在新 iPhone 13 的验证器里添加学校账号</td><td data-en="Asked to verify first; at 19:04:15 she chose to type a code instead, which did not pass; nothing was registered that day <span class='ec'>50078 / 50076 / 50074</span>">要求先验证；19:04:15 改为输入验证码，没通过；当天没有登记成功 <span class="ec">50078 / 50076 / 50074</span></td></tr>
-          <tr><td><span class="ts">2026-09-26 15:55:49</span> – <span class="ts">15:56:05</span></td><td data-en="Tried again on the iPhone 13; the request went to the old iPhone SE">再次在 iPhone 13 上添加，批准请求发到旧 iPhone SE</td><td data-en="Approved on the SE <span class='ec'>0</span>">在 SE 上批准，成功 <span class="ec">0</span></td></tr>
-          <tr><td><span class="ts">2026-09-26 15:56:42</span></td><td data-en="The records show &ldquo;User registered security info&rdquo;, performed by the teacher herself">系统记下「登记了安全信息」，操作人是本人</td><td data-en="The device list changed from &ldquo;iPhone SE&rdquo; to &ldquo;iPhone SE + iPhone 13&rdquo;">设备列表从「iPhone SE」变为「iPhone SE + iPhone 13」</td></tr>
+          <tr><td><span class="ts">2026-09-23 07:21:48</span></td><td data-en="The school began requiring verification; Teams on the SE sent an approval request">学校开始要求验证；SE 上的 Teams 发出批准请求</td><td data-en="Not approved; the sign-in page expired at 09:59:50 <span class='ec'>50074 / 50089</span>">没人批准，登录页 09:59:50 过期 <span class="ec">50074 / 50089</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 09:41:36</span> – <span class="ts">10:00:23</span></td><td data-en="Teams on computer 1 renewed in the background and was refused 54 times">电脑甲上的 Teams 在后台续期，被拒 54 次</td><td data-en="Multi-factor verification required <span class='ec'>50076</span>">要求多重身份验证 <span class="ec">50076</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 10:00:13</span></td><td data-en="Signed in to Teams on computer 1; the request went to the SE and she typed the two-digit number there">电脑甲登录 Teams，请求发到 SE，本人在 SE 上输入两位数</td><td data-en="Approved, number matched <span class='ec'>0</span>; the SE&#39;s authenticator updated to 6.8.53">批准成功，数字匹配正确 <span class="ec">0</span>；SE 的验证器更新到 6.8.53</td></tr>
+          <tr><td><span class="ts">2026-09-23 07:21:43</span> – <span class="ts">2026-09-26 19:07:47</span></td><td data-en="Teams on the SE renewed in the background and was refused 34 times">SE 上的 Teams 在后台续期，被拒 34 次</td><td data-en="Multi-factor verification required <span class='ec'>50076</span>">要求多重身份验证 <span class="ec">50076</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 18:38:26</span>、<span class="ts">18:57:27</span>、<span class="ts">19:03:28</span></td><td data-en="Signed in to the school account in the new iPhone 13&#39;s authenticator, 3 times">在新 iPhone 13 的验证器里登录学校账号，3 次</td><td data-en="The earlier verification had expired; asked to verify again <span class='ec'>50078</span>">已有的验证已过期，要求重新验证 <span class="ec">50078</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 19:04:13</span> – <span class="ts">19:04:15</span></td><td data-en="A 4th try, choosing to type the six-digit code">第 4 次，改选输入 6 位验证码</td><td data-en="Did not pass <span class='ec'>50076 / 50074</span>">没通过 <span class="ec">50076 / 50074</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 19:04:48</span></td><td data-en="A 5th try">第 5 次</td><td data-en="Signed in <span class='ec'>0</span>, but nothing was registered that day: the new phone was not added">登录成功 <span class="ec">0</span>，但当天没有登记记录：新手机没有加上</td></tr>
+          <tr><td><span class="ts">2026-09-26 15:55:49</span> – <span class="ts">15:55:51</span></td><td data-en="Signed in again in the iPhone 13&#39;s authenticator">再次在 iPhone 13 的验证器里登录</td><td data-en="Asked to verify again <span class='ec'>50078 ×2 / 50076</span>">要求重新验证 <span class="ec">50078 ×2 / 50076</span></td></tr>
+          <tr><td><span class="ts">2026-09-26 15:56:05</span> – <span class="ts">15:56:06</span></td><td data-en="The request went to the SE; she approved there">请求发到 SE，本人在 SE 上批准</td><td data-en="Number matched <span class='ec'>0</span>; the SE&#39;s authenticator updated to 6.8.55">数字匹配正确 <span class="ec">0</span>；SE 的验证器更新到 6.8.55</td></tr>
+          <tr><td><span class="ts">2026-09-26 15:56:37</span></td><td data-en="The iPhone 13&#39;s authenticator contacted Microsoft&#39;s verification registration service">iPhone 13 的验证器连接微软的多重验证登记服务</td><td data-en="Succeeded <span class='ec'>0</span>">成功 <span class="ec">0</span></td></tr>
+          <tr><td><span class="ts">2026-09-26 15:56:42</span></td><td data-en="She registered security info">本人登记安全信息</td><td data-en="The device list became iPhone SE + iPhone 13">设备列表变为 iPhone SE + iPhone 13</td></tr>
+          <tr><td><span class="ts">2026-09-26 19:07:47</span></td><td data-en="The SE appeared in the sign-in records for the last time">SE 最后一次出现在登录记录里</td><td data-en="Only the iPhone 13 in use since (records up to 28 Sep 08:10)">此后只有 iPhone 13 在用（记录到 9/28 08:10）</td></tr>
         </tbody>
       </table></div>
-      <p data-en="Both phones were in use that week: 393 sign-in records from the iPhone 13 (Teams, Outlook, the authenticator) and 75 from the SE, almost all Teams. The two phones run different iOS versions that alternate within the same day, so they are two devices, not one phone that was updated. The places in the records spread over several countries; matched by time and device, that is the same devices with an accelerator (VPN) switched on, not anyone signing in abroad. Microsoft&#39;s risk detection flagged nothing.">那一周两部手机都在用：iPhone 13 上有 393 条登录记录（Teams、Outlook、验证器），旧 SE 上有 75 条，基本只有 Teams。两部手机的系统版本不同，同一天里交替出现，所以是两部设备，不是一部手机升级了系统。登录记录里的位置分布在好几个国家；对照时间和设备看，是同一批设备开着加速器，出口在境外，并不是有人在国外登录。微软的风险检测一次也没有标记。</p>
+      <h4 data-en="⑥ Networks and places">⑥ 网络和位置</h4>
+      <div class="tbl-wrap"><table class="grid">
+        <thead><tr><th data-en="Network">网络</th><th data-en="IPs">IP 数</th><th data-en="Entries">记录</th><th data-en="Reading">判读</th></tr></thead>
+        <tbody>
+          <tr><td data-en="Local broadband and mobile data">本地电信宽带和手机流量</td><td>16</td><td>866</td><td data-en="Where she actually is">本人所在地</td></tr>
+          <tr><td data-en="Accelerator exits (Japan)">加速器出口（日本）</td><td>5</td><td>437</td><td data-en="The iPhone 13 and computer 1 with an accelerator on; alternates with the local network in the same hours">iPhone 13 和电脑甲开着加速器；同一时段和本地网络交替出现</td></tr>
+          <tr><td data-en="Accelerator exits (USA)">加速器出口（美国）</td><td>3</td><td>126</td><td data-en="Only on computer 1">只出现在电脑甲上</td></tr>
+          <tr><td data-en="A fixed network abroad">境外固定网络</td><td>1</td><td>4</td><td data-en="Computer 2">电脑乙</td></tr>
+          <tr><td data-en="Microsoft&#39;s own servers">微软自己的服务器</td><td>1</td><td>2</td><td data-en="Windows Search calls made server-side, not a user location">Windows Search 在服务器端的调用，不是用户所在地</td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="All 1435 sign-in entries have risk state &ldquo;none&rdquo;; Microsoft&#39;s risk detection flagged nothing.">1435 条登录记录的风险状态全部是「无」（none），没有一次被标记为可疑。</p>
+      <h4 data-en="⑦ Errors in the background records">⑦ 后台记录里的报错</h4>
+      <p data-en="Of the 1426 non-interactive entries, 1281 succeeded and 145 returned an error. Every one can be explained:">非交互式的 1426 条里，1281 条成功，145 条报错，每一条都能解释：</p>
+      <div class="tbl-wrap"><table class="grid">
+        <thead><tr><th data-en="Code">错误码</th><th data-en="Count">次数</th><th data-en="Meaning">含义</th><th data-en="On this account">在这个账号上</th></tr></thead>
+        <tbody>
+          <tr><td>50076</td><td>98</td><td data-en="Multi-factor verification required">需要多重身份验证</td><td data-en="Computer 1: 54 (23 Sep 09:41–10:00, stopped once the SE approved); Teams on the SE: 34, plus 8 unversioned iOS entries at the same moment; adding the iPhone 13: 2">电脑甲 54 次（9/23 09:41–10:00，SE 批准后停止）；SE 上的 Teams 34 次，另有 8 次同一时刻的 iOS 记录没报版本；添加 iPhone 13 时 2 次</td></tr>
+          <tr><td>230017</td><td>20</td><td data-en="Token cache briefly found no data">令牌缓存暂时找不到数据</td><td data-en="Recovered by itself">随后自动恢复</td></tr>
+          <tr><td>65002</td><td>10</td><td data-en="Consent between Microsoft&#39;s own apps">微软自家应用之间的授权</td><td data-en="Windows Search internals, invisible to the user">Windows Search 内部调用，用户感觉不到</td></tr>
+          <tr><td>230140</td><td>9</td><td data-en="Backup auth service does not support double brokering">备用认证服务不支持双重代理</td><td data-en="Microsoft&#39;s internal fallback">微软内部容错记录</td></tr>
+          <tr><td>50078</td><td>6</td><td data-en="The earlier verification has expired">已有的验证已过期</td><td data-en="5 during the two attempts to add the iPhone 13 (adding an authenticator needs a fresh verification), 1 an Outlook renewal">5 次在两次添加 iPhone 13 的过程里（添加验证器要重新验证），1 次是 Outlook 续期</td></tr>
+          <tr><td>500131</td><td>2</td><td data-en="Token audience mismatch">令牌受众不匹配</td><td data-en="Office Search internals">Office Search 内部调用</td></tr>
+        </tbody>
+      </table></div>
       <h3 data-en="Why">为什么</h3>
       <p data-en="She had only ever used the authenticator on the old iPhone SE. After moving to the iPhone 13 as her main phone, she added the school account in the new phone&#39;s authenticator. Microsoft asked for approval from the authenticator she already had; she approved on the SE, and the new phone was registered. The first try, on 23 September, failed when she switched to typing a code; the second, three days later, worked. She did not remove the SE, so the account shows two. This is exactly the right way to change phones: add the new one, approve with the old one, then decide whether to keep the old one.">她原来只在旧 iPhone SE 上用验证器。换成 iPhone 13 当主力手机后，她在新手机的验证器里添加学校账号。微软要求先用已有的验证器批准，她在 SE 上批准了，新手机随即登记成功。第一次（9 月 23 日）改选输入验证码没通过，三天后第二次才加上。她没有删旧 SE，所以账号上有两台。这正是换手机的正确做法：先加新的，用旧的批准，再决定旧的留不留。</p>
       <h3 data-en="How it was solved">怎么解决的</h3>
@@ -490,6 +592,14 @@
         <li data-en="Keeping the old phone as a backup is a good idea: if the new one is lost or broken, the old one can still approve a sign-in and link the next phone, without waiting for the administrator. Switch it on and connect it now and then so the authenticator stays up to date.">旧手机留作备用是好事：新手机丢了或坏了，还能用它批准登录、绑定下一部手机，不用等管理员。备用机要偶尔开机联网，让验证器保持更新。</li>
         <li data-en="No longer using the old phone? Remove it, so requests do not go to a phone lying in a drawer — yourself at <code>mysignins.microsoft.com/security-info</code>, or ask the administrator.">旧手机不用了，就把它删掉，免得批准请求发到闲置的手机上。可以自己在 <code>mysignins.microsoft.com/security-info</code> 删，也可以请管理员删。</li>
         <li data-en="Administrators: an extra device is not proof of misuse. Check in the audit log who added it and when before deleting anything — see <a href='#for-admins'>For administrators</a>.">管理员：多出来的设备不等于被盗用。删之前先在审计日志里看是谁、什么时候加的，方法见<a href="#for-admins">给管理员</a>。</li>
+      </ul>
+      <h3 data-en="For administrators: how to read these records">给管理员：判读要点</h3>
+      <ul class="avoid">
+        <li data-en="<strong>&ldquo;iOS 18.7&rdquo; is not necessarily another phone.</strong> On iOS 26, web pages report the system frozen at 18.x. When Entra can only read the web page&#39;s user agent it shows 18.7; the next step of the same sign-in (same correlation ID) usually shows the real version."><strong>「iOS 18.7」不一定是另一部手机。</strong>iOS 26 的网页把系统版本停在 18.x。Entra 只能从网页识别系统时就显示 18.7；同一次登录（同一个 correlation ID）的下一步通常会显示真实版本。</li>
+        <li data-en="<strong>Tell phones apart by the app&#39;s user agent.</strong> Teams and the authenticator report the real version, kernel and network library (for example <code>OS 26_5_2</code>, <code>Darwin/25.5</code>, <code>CFNetwork/3860.600</code>). Two versions alternating on the same day means two devices; one after the other means an update."><strong>区分两部手机看 App 报出的信息。</strong>Teams 和验证器会报出真实的系统版本、内核和网络库（例如 <code>OS 26_5_2</code>、<code>Darwin/25.5</code>、<code>CFNetwork/3860.600</code>）。两个版本同一天交替出现，就是两部设备；一前一后出现，才是升级。</li>
+        <li data-en="<strong>What adding an authenticator looks like in the sign-in records:</strong> the Microsoft Authenticator App signs in to Microsoft Graph with a session policy of <code>ngcMfa</code>, then contacts the Azure Multi-Factor Auth Connector, usually with 50078 and 50076 along the way."><strong>添加验证器在登录记录里的痕迹：</strong>「Microsoft Authenticator App」登录 Microsoft Graph，会话策略为 <code>ngcMfa</code>，随后访问「Azure Multi-Factor Auth Connector」，中间常伴有 50078 和 50076。</li>
+        <li data-en="<strong>The audit log has the final word.</strong> The <code>StrongAuthenticationPhoneAppDetail</code> field in &ldquo;Update user&rdquo; lists each device&#39;s name, authenticator version and last verification; comparing old and new values shows when each device was added. The actor on &ldquo;User registered security info&rdquo; shows whether the person or an administrator added it."><strong>最终以审计日志为准。</strong>「Update user」事件里的 <code>StrongAuthenticationPhoneAppDetail</code> 列出每台设备的名称、验证器版本和上次验证时间，新旧值一比就知道哪台是什么时候加上的；「User registered security info」的操作人说明是本人还是管理员添加的。</li>
+        <li data-en="<strong>Exporting application sign-ins per person does not help here.</strong> They record apps signing in as themselves (service principals), not the person, so the export is the same for everyone."><strong>按人导出「应用登录」没有用。</strong>它记录的是应用以自己的身份登录（服务主体），不是这个人，所以每个人导出来的内容都一样。</li>
       </ul>
     </div>
   </details>
@@ -535,6 +645,13 @@
     Array.prototype.forEach.call(document.querySelectorAll("[data-en-label]"), function (el) { el.setAttribute("aria-label", el.getAttribute("data-en-label")); });
     Array.prototype.forEach.call(document.querySelectorAll("[data-en-alt]"), function (el) { el.setAttribute("alt", el.getAttribute("data-en-alt")); });
   }
+  // Label each cell of a data table with its column heading, in the page's language, for the phone card layout.
+  Array.prototype.forEach.call(document.querySelectorAll("table.grid"), function (t) {
+    var hs = Array.prototype.map.call(t.querySelectorAll("thead th"), function (h) { return h.textContent; });
+    Array.prototype.forEach.call(t.querySelectorAll("tbody tr"), function (tr) {
+      Array.prototype.forEach.call(tr.children, function (c, i) { if (hs[i]) c.setAttribute("data-l", hs[i]); });
+    });
+  });
   var b = document.getElementById("langBtn");
   b.textContent = LANG === "en" ? "中文" : "EN";
   b.addEventListener("click", function () {
