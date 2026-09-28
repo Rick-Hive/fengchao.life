@@ -205,6 +205,25 @@ function asText(v) {
   return "";
 }
 
+// Class times, read from the course's own "Class time/上课时间" field since the
+// Class Periods table was deleted (2026-09-28). The field may be single line or
+// long text, a multiple select, or a lookup — each time range becomes one
+// schedule entry shaped like the old period objects ({number, range}), so the
+// front end's periodTime() renders it unchanged. Several ranges in one cell can
+// be separated by line breaks, ";" or "," (full-width too). Leftover record ids
+// (a link that pointed at the deleted table) are ignored, never published.
+function scheduleFromText(v) {
+  const items = (Array.isArray(v) ? v : [v]).map(asText).filter(Boolean);
+  const parts = [];
+  for (const item of items) {
+    for (const piece of item.split(/[\n;；,，]+/)) {
+      const t = piece.trim();
+      if (t && !/^rec[A-Za-z0-9]{14}$/.test(t) && !parts.includes(t)) parts.push(t);
+    }
+  }
+  return parts.map((range, i) => ({ number: i + 1, range }));
+}
+
 function isTruthyAvailable(v) {
   if (v === undefined || v === null || v === "") return true; // unset -> include
   if (typeof v === "boolean") return v;
@@ -248,14 +267,16 @@ module.exports = async function (context, req) {
   const earlyWarnings = [];
 
   try {
-    const [trackRecs, courseRecs, subjectRecs, gradeRecs, teacherRecs, periodRecs, textbookRecs, schoolRecs] =
+    // The Class Periods table was deleted from the base (Rick, 2026-09-28); class
+    // times now come from each course's own "Class time/上课时间" text — see
+    // scheduleFromText() — so that table is no longer fetched.
+    const [trackRecs, courseRecs, subjectRecs, gradeRecs, teacherRecs, textbookRecs, schoolRecs] =
       await Promise.all([
         fetchAllRecords(cfg.tables.tracks.id, pat),
         fetchAllRecords(cfg.tables.courses.id, pat),
         fetchAllRecords(cfg.tables.subjects.id, pat),
         fetchAllRecords(cfg.tables.grades.id, pat),
         fetchAllRecords(cfg.tables.teachers.id, pat),
-        fetchAllRecords(cfg.tables.classPeriods.id, pat),
         fetchAllRecords(cfg.tables.textbooks.id, pat),
         fetchAllRecords(cfg.tables.schools.id, pat),
       ]);
@@ -322,20 +343,6 @@ module.exports = async function (context, req) {
 
     const gradeByRec = new Map();
     for (const r of gradeRecs) gradeByRec.set(r.id, f(r.fields, cfg.tables.grades.display) || r.id);
-
-    const pf = cfg.classPeriodFields;
-    const periodByRec = new Map();
-    for (const r of periodRecs) {
-      periodByRec.set(r.id, {
-        number: f(r.fields, pf.number) ?? null,
-        title: f(r.fields, pf.title) || "",
-        shortName: f(r.fields, pf.shortName) || "",
-        start: f(r.fields, pf.start) || "",
-        end: f(r.fields, pf.end) || "",
-        minutes: f(r.fields, pf.minutes) ?? null,
-        range: f(r.fields, pf.range) || "",
-      });
-    }
 
     const xf = cfg.textbookFields;
     const textbookByRec = new Map();
@@ -574,10 +581,7 @@ module.exports = async function (context, req) {
           if (Array.isArray(v)) return v.filter(Boolean).map(String);
           return v ? [String(v)] : [];
         })(),
-        schedule: linkedIds(f(fields, cf.classTime))
-          .map((id) => periodByRec.get(id))
-          .filter(Boolean)
-          .sort((a, b) => (a.number ?? 99) - (b.number ?? 99)),
+        schedule: scheduleFromText(f(fields, cf.classTime)),
         subjects: subjectIds.map((id) => subjectByRec.get(id)).filter(Boolean),
         trackIds: linkedIds(f(fields, cf.tracks))
           .map((id) => trackIdByRec.get(id))
@@ -906,7 +910,6 @@ module.exports = async function (context, req) {
         subjects: subjects.length,
         grades: grades.length,
         teachers: teacherProfiles.length,
-        classPeriods: periodRecs.length,
         textbooks: textbookRecs.length,
         schools: schoolRecs.length,
       },

@@ -28,7 +28,8 @@ module.exports = {
     subjects:     { id: "tblvQaPpgBRZSuT48", display: "Subject Name", displayZh: "学科", abbr: "Abbreviation/简写", filterEn: "Subject filter", filterZh: "学科筛选键值" },
     grades:       { id: "tblQBtt6PSLLGeULf", display: "Title/年级名称" },
     teachers:     { id: "tbltGNxS4Hdy2YiGA", display: "Name / 姓名" },
-    classPeriods: { id: "tblaC1VEnTdYvCFOo" },
+    // classPeriods (tblaC1VEnTdYvCFOo) was deleted from the base on 2026-09-28;
+    // class times are read from the course's own "Class time/上课时间" text.
     textbooks:    { id: "tblboTRWTZ8cKvv1a" },
     schools:      { id: "tblRVfq00Q5QKkR5h" },
     // Customer-facing message copy (order confirmation email, Teams
@@ -149,7 +150,7 @@ module.exports = {
     price: "Course Price/课程价格",
     numClasses: "Number of Classes/课时数",
     teachers: "Teacher/授课老师",
-    classTime: "Class time/上课时间",   // now a LINK to Class Periods
+    classTime: "Class time/上课时间",   // text on the course (the Class Periods table it linked to was deleted 2026-09-28)
     // Multiple select on the Course table: Monday…Friday (English values).
     // Weekdays are a property of the course, not of the class period, so they
     // are read here and rendered alongside every period's time.
@@ -215,18 +216,6 @@ module.exports = {
     organization: /^Organization/i,
   },
 
-  classPeriodFields: {
-    number: /^Class Number/i,
-    title: /^Title/i,
-    shortName: /^Short Name/i,
-    start: /^Start Time/i,
-    end: /^End Time/i,
-    minutes: /^Length/i,
-    // Single line text, e.g. "10:50 - 11:35". This is the field the Course
-    // table's "Class time/上课时间" link shows, so it is what parents expect to
-    // see; the site prefers it over composing the range from start/end.
-    range: /^Class Start-?End/i,
-  },
 
   // Textbook table: public-safe fields only (sales/order fields never synced).
   textbookFields: {
