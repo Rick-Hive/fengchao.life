@@ -183,6 +183,8 @@
     <a href="#case-forgot"><span class="num">4.1</span><span data-en="&ldquo;Forgot password&rdquo; keeps sending you back">点「忘记密码」一直被挡回来</span></a>
     <div class="toc-cat" data-en="5　Teams signed in with a personal account">5　Teams 登录成了个人账号</div>
     <a href="#case-personal-account"><span class="num">5.1</span><span data-en="Teams on Windows stuck at &ldquo;Teams for personal use is no longer available&rdquo;">Windows 上的 Teams 卡在「个人使用的 Teams 不再可用」</span></a>
+    <div class="toc-cat" data-en="6　More than one authenticator device on an account">6　账号上有不止一台验证器设备</div>
+    <a href="#case-two-phones"><span class="num">6.1</span><span data-en="Two authenticator devices on one account — both turned out to be the owner&#39;s">后台看到两台验证器设备，查下来都是本人的</span></a>
     <div class="toc-cat toc-more"><a href="#lessons" data-en="What the cases have in common">共同的经验</a><a href="#for-admins" data-en="For administrators">给管理员</a></div>
   </nav>
 
@@ -452,6 +454,46 @@
     </div>
   </details>
 
+  <!-- ===================== 6 ===================== -->
+  <h2 class="cat" id="cat-6" data-en="6　More than one authenticator device on an account">6　账号上有不止一台验证器设备</h2>
+  <p class="cat-note" data-en="One account can have the authenticator registered on several phones; Microsoft sets no fixed limit. At each sign-in the approval request usually pops up on only one of them. If an extra device appears, do not delete it straight away — first find out when it was added, and by whom.">一个账号可以在几部手机上登记验证器，微软没有规定上限。每次登录，批准请求通常只在其中一台上弹出。看到多出来的设备，先别急着删，查清楚是什么时候、由谁加上的。</p>
+
+  <details class="case" id="case-two-phones">
+    <summary><span class="num">6.1</span><span class="ttl" data-en="Two authenticator devices on one account — both turned out to be the owner&#39;s">后台看到两台验证器设备，查下来都是本人的</span></summary>
+    <div class="case-body">
+      <h3 data-en="What happened">遇到了什么</h3>
+      <p data-en="Looking at Teacher H&#39;s account, the administrator found two Microsoft Authenticator entries under authentication methods: an iPhone 13 and an iPhone SE (3rd generation). Why would one person have two? Had someone else linked an authenticator to her account?">管理员在后台查看老师 H 的账号，「身份验证方法」里列着两台 Microsoft Authenticator：一部 iPhone 13，一部 iPhone SE（第三代）。一个人为什么会有两台？是不是有别人把验证器绑到了她的账号上？</p>
+      <h3 data-en="What the admin records show">后台记录里看到的</h3>
+      <p class="log-note" data-en="Times are Beijing time (UTC+8), from the original records. Accounts, IP addresses and places are left out.">时间为北京时间（UTC+8），取自原始记录；账号、IP 和地点已略去。</p>
+      <div class="tbl-wrap"><table class="log">
+        <thead><tr><th data-en="Time">时间</th><th data-en="What happened">发生了什么</th><th data-en="Result">结果</th></tr></thead>
+        <tbody>
+          <tr><td><span class="ts">2026-05-30 12:38:57</span></td><td data-en="The authenticator on the old iPhone SE approved a sign-in for the last time">旧 iPhone SE 上的验证器最后一次批准登录</td><td data-en="Then unused for nearly four months">此后闲置近四个月</td></tr>
+          <tr><td><span class="ts">2026-09-23 10:00:13</span></td><td data-en="She signed in to Teams on a computer; the request went to the old iPhone SE">在电脑上登录 Teams，批准请求发到旧 iPhone SE</td><td data-en="Approved on the SE with the two-digit number <span class='ec'>0</span>">在 SE 上输入两位数批准，成功 <span class="ec">0</span></td></tr>
+          <tr><td><span class="ts">2026-09-23 18:38:26</span> – <span class="ts">19:04:48</span></td><td data-en="Added the school account in the authenticator on the new iPhone 13">在新 iPhone 13 的验证器里添加学校账号</td><td data-en="Asked to verify first; at 19:04:15 she chose to type a code instead, which did not pass; nothing was registered that day <span class='ec'>50078 / 50076 / 50074</span>">要求先验证；19:04:15 改为输入验证码，没通过；当天没有登记成功 <span class="ec">50078 / 50076 / 50074</span></td></tr>
+          <tr><td><span class="ts">2026-09-26 15:55:49</span> – <span class="ts">15:56:05</span></td><td data-en="Tried again on the iPhone 13; the request went to the old iPhone SE">再次在 iPhone 13 上添加，批准请求发到旧 iPhone SE</td><td data-en="Approved on the SE <span class='ec'>0</span>">在 SE 上批准，成功 <span class="ec">0</span></td></tr>
+          <tr><td><span class="ts">2026-09-26 15:56:42</span></td><td data-en="The records show &ldquo;User registered security info&rdquo;, performed by the teacher herself">系统记下「登记了安全信息」，操作人是本人</td><td data-en="The device list changed from &ldquo;iPhone SE&rdquo; to &ldquo;iPhone SE + iPhone 13&rdquo;">设备列表从「iPhone SE」变为「iPhone SE + iPhone 13」</td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="Both phones were in use that week: 393 sign-in records from the iPhone 13 (Teams, Outlook, the authenticator) and 75 from the SE, almost all Teams. The two phones run different iOS versions that alternate within the same day, so they are two devices, not one phone that was updated. The places in the records spread over several countries; matched by time and device, that is the same devices with an accelerator (VPN) switched on, not anyone signing in abroad. Microsoft&#39;s risk detection flagged nothing.">那一周两部手机都在用：iPhone 13 上有 393 条登录记录（Teams、Outlook、验证器），旧 SE 上有 75 条，基本只有 Teams。两部手机的系统版本不同，同一天里交替出现，所以是两部设备，不是一部手机升级了系统。登录记录里的位置分布在好几个国家；对照时间和设备看，是同一批设备开着加速器，出口在境外，并不是有人在国外登录。微软的风险检测一次也没有标记。</p>
+      <h3 data-en="Why">为什么</h3>
+      <p data-en="She had only ever used the authenticator on the old iPhone SE. After moving to the iPhone 13 as her main phone, she added the school account in the new phone&#39;s authenticator. Microsoft asked for approval from the authenticator she already had; she approved on the SE, and the new phone was registered. The first try, on 23 September, failed when she switched to typing a code; the second, three days later, worked. She did not remove the SE, so the account shows two. This is exactly the right way to change phones: add the new one, approve with the old one, then decide whether to keep the old one.">她原来只在旧 iPhone SE 上用验证器。换成 iPhone 13 当主力手机后，她在新手机的验证器里添加学校账号。微软要求先用已有的验证器批准，她在 SE 上批准了，新手机随即登记成功。第一次（9 月 23 日）改选输入验证码没通过，三天后第二次才加上。她没有删旧 SE，所以账号上有两台。这正是换手机的正确做法：先加新的，用旧的批准，再决定旧的留不留。</p>
+      <h3 data-en="How it was solved">怎么解决的</h3>
+      <ol class="fix">
+        <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Checked the audit log: the iPhone 13 was added by the teacher herself on 26 September at 15:56, approved from her own existing iPhone SE. No administrator did it, and no one else was involved.">在审计日志里查到：iPhone 13 是 9 月 26 日 15:56 由本人添加的，批准来自她自己原有的 iPhone SE。不是管理员操作，也没有别人参与。</span></li>
+        <li><span class="role user" data-en="Teacher">本人</span><span data-en="Confirmed both phones are hers and chose to keep the iPhone SE as a backup.">确认两部手机都是自己的，决定把 iPhone SE 留作备用。</span></li>
+      </ol>
+      <p class="result" data-en="Nothing needed fixing; both devices stay on the account.">没有需要修复的问题，两台设备都保留。</p>
+      <h3 data-en="Next time">以后注意</h3>
+      <ul class="avoid">
+        <li data-en="Changing phones: add the school account in the new phone&#39;s authenticator and approve on the old phone. Once the new one is in, decide whether to keep the old one.">换手机时，在新手机的验证器里添加学校账号，用旧手机批准。新手机加好以后，再决定旧手机留不留。</li>
+        <li data-en="Keeping the old phone as a backup is a good idea: if the new one is lost or broken, the old one can still approve a sign-in and link the next phone, without waiting for the administrator. Switch it on and connect it now and then so the authenticator stays up to date.">旧手机留作备用是好事：新手机丢了或坏了，还能用它批准登录、绑定下一部手机，不用等管理员。备用机要偶尔开机联网，让验证器保持更新。</li>
+        <li data-en="No longer using the old phone? Remove it, so requests do not go to a phone lying in a drawer — yourself at <code>mysignins.microsoft.com/security-info</code>, or ask the administrator.">旧手机不用了，就把它删掉，免得批准请求发到闲置的手机上。可以自己在 <code>mysignins.microsoft.com/security-info</code> 删，也可以请管理员删。</li>
+        <li data-en="Administrators: an extra device is not proof of misuse. Check in the audit log who added it and when before deleting anything — see <a href='#for-admins'>For administrators</a>.">管理员：多出来的设备不等于被盗用。删之前先在审计日志里看是谁、什么时候加的，方法见<a href="#for-admins">给管理员</a>。</li>
+      </ul>
+    </div>
+  </details>
+
   <!-- ===================== lessons ===================== -->
   <section class="lessons" id="lessons">
     <h2 data-en="What the cases have in common">共同的经验</h2>
@@ -466,12 +508,13 @@
   </section>
 
   <section class="admin-box" id="for-admins">
-    <h2 data-en="For administrators: the three actions used above">给管理员：上面用到的三个操作</h2>
-    <p data-en="All in the Microsoft Entra admin center → Users → the person → <strong>Authentication methods</strong>.">都在 Microsoft Entra 管理中心 → 用户 → 选中此人 → <strong>身份验证方法</strong>。</p>
+    <h2 data-en="For administrators: the four actions used above">给管理员：上面用到的四个操作</h2>
+    <p data-en="The first three are in the Microsoft Entra admin center → Users → the person → <strong>Authentication methods</strong>; the fourth is <strong>Audit logs</strong> on the same person&#39;s menu.">前三个都在 Microsoft Entra 管理中心 → 用户 → 选中此人 → <strong>身份验证方法</strong>；第四个在同一个人左侧菜单的<strong>审计日志</strong>里。</p>
     <ul>
       <li data-en="<strong>See where the authenticator is:</strong> the list shows the device model. If it is not the phone the person uses now, they have changed phones."><strong>看验证器在哪：</strong>列表显示设备型号。和本人现在用的手机对不上，就是换过手机。</li>
       <li data-en="<strong>Delete an old or dead method:</strong> &ldquo;⋯&rdquo; at the end of the row → Delete. The person is asked to link a new one at the next sign-in. Devices already signed in stay signed in — do not also revoke sessions. Then send the person the link to the <a href='/help/teams-setup.html'>setup wizard</a> and ask them to choose &ldquo;I have used Teams before&rdquo;."><strong>删除旧的或失效的方法：</strong>行末「⋯」→ 删除。本人下次登录时会被要求重新绑定。已经登录的设备不会因此退出，不要顺手点「撤销会话」。删除后，把<a href="/help/teams-setup.html">设置向导</a>的链接发给本人，请他选「我曾经登录过 Teams」那一项。</li>
       <li data-en="<strong>Reset a password and check the methods together:</strong> a reset makes every device verify again, so remove any device the person no longer has in the same sitting."><strong>重置密码时一并检查：</strong>重置会让所有设备重新验证，本人已经没有的设备，趁这次一起删掉。</li>
+      <li data-en="<strong>Find out who added a device, and when:</strong> in the audit log, &ldquo;User registered security info&rdquo; shows whether the person or an administrator added it; the &ldquo;Update user&rdquo; entry next to it lists each device&#39;s model, authenticator version and last verification. Audit logs are kept only 7–30 days depending on the licence, so look early. In sign-in records, &ldquo;iOS 18.7&rdquo; is usually not a second, older phone: on iOS 26, web pages report the system frozen at 18.x (here 18.7). Tell phones apart by the version the Teams or authenticator app reports — in 6.1, 26.5.2 against 26.6.2."><strong>查一台设备是谁、什么时候加的：</strong>在审计日志里看「User registered security info」（登记了安全信息），操作人是本人还是管理员一目了然；紧挨着的「Update user」列出每台设备的型号、验证器版本和上次验证时间。审计日志按许可证只保留 7–30 天，要尽早查。登录记录里的「iOS 18.7」多半不是另一部旧手机：iOS 26 上网页报出的系统版本停在 18.x（这里是 18.7）。区分两部手机要看 Teams 或验证器 App 报出的版本，比如 6.1 里的 26.5.2 和 26.6.2。</li>
     </ul>
   </section>
 
