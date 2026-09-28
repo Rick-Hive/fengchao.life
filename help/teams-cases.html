@@ -426,16 +426,17 @@
         </tbody>
       </table></div>
       <h3 data-en="Why">为什么</h3>
-      <p data-en="The school has not switched on self-service password reset; only the administrator can reset a password.">学校没有开通自助重置密码，只能由管理员重置。</p>
+      <p data-en="At the time the school had not switched on self-service password reset, so only the administrator could reset a password. <strong>Since 28 Sep 2026 self-service reset is on:</strong> anyone whose authenticator phone is in their hands resets the password themselves with the six-digit code from the app, and this refusal no longer appears.">当时学校还没有开通自助重置密码，只能由管理员重置。<strong>2026-09-28 起已开通自助重置：</strong>装验证器的手机在手上的人，用应用里的 6 位验证码自己就能重置，这个「被挡回来」的提示不会再出现。</p>
       <h3 data-en="How to solve it">怎么解决</h3>
       <ol class="fix">
+        <li><span class="role user" data-en="Student">本人</span><span data-en="Now: open <a href='https://passwordreset.microsoftonline.com' target='_blank' rel='noopener'>passwordreset.microsoftonline.com</a>, enter the account, type the six-digit code shown in Microsoft Authenticator, set a new password. Done — the steps below are only for when the authenticator phone is gone.">现在：打开 <a href="https://passwordreset.microsoftonline.com" target="_blank" rel="noopener">passwordreset.microsoftonline.com</a>，输入账号，输入 Microsoft Authenticator 里显示的 6 位验证码，设一个新密码即可。下面的步骤只在装验证器的手机不在手上时才需要。</span></li>
         <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Set a temporary password (to be changed at next sign-in) and give it to the student.">设一个临时密码（下次登录必须修改），告诉学生。</span></li>
         <li><span class="role admin" data-en="Admin">管理员</span><span data-en="Check at the same time which device the authenticator is on. A reset makes every device verify again; if that device is gone, delete it now so the student does not get stuck again after changing the password (see 1.1).">同时查看他的验证器登记在哪台设备上。重置密码后所有设备都要重新验证，如果那台设备已经不在，就一并删除，免得他改完密码又卡住（见 1.1）。</span></li>
         <li><span class="role user" data-en="Student">本人</span><span data-en="Sign in with the temporary password, set and write down a new one. If it then asks you to verify or link again, open the <a href='/help/teams-setup.html'>setup wizard</a>, choose &ldquo;I have used Teams before, now it asks me to input Authenticator verification code&rdquo; and follow it. The QR code must show on another device — a device cannot scan its own screen.">用临时密码登录，改成自己的新密码并记下来。如果接着被要求验证或重新绑定，打开<a href="/help/teams-setup.html">设置向导</a>，选「我曾经登录过 Teams，但被要求做身份验证」，按向导完成。二维码要显示在另一台设备上，一台设备扫不了自己的屏幕。</span></li>
       </ol>
       <h3 data-en="Next time">以后注意</h3>
       <ul class="avoid">
-        <li data-en="Forgot the password? Contact <strong>the administrator who issued your account</strong> — retrying does not help. See <a href='/help/teams-faq.html#q-forgot-password'>I forgot my password</a>.">忘了密码，直接联系<strong>为您分配账号的管理员</strong>，反复重试没有用。见<a href="/help/teams-faq.html#q-forgot-password">忘记密码怎么办</a>。</li>
+        <li data-en="Forgot the password? Reset it yourself with the code in Authenticator first; contact <strong>the administrator who issued your account</strong> only when that phone is not in your hands. See <a href='/help/teams-faq.html#q-forgot-password'>I forgot my password</a>.">忘了密码，先用验证器里的验证码自己重置；只有那台手机不在手上时，才联系<strong>为您分配账号的管理员</strong>。见<a href="/help/teams-faq.html#q-forgot-password">忘记密码怎么办</a>。</li>
         <li data-en="Every password change means verifying again — have the authenticator device ready.">每次改密码后都要重新验证，先把装验证器的设备准备好。</li>
       </ul>
     </div>
