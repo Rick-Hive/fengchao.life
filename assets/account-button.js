@@ -31,7 +31,10 @@
   var inner = document.querySelector(".site-header .header-inner");
   if (!inner || document.getElementById("acctWrap")) return;
 
-  var LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/account/index.html");
+  // The sign-in opens in a new tab (Rick, 2026-09-29), so the page the person
+  // was on stays where it was. The new tab lands on 我的账号 with ?signedin=1,
+  // tells the other tabs, and they refresh their headers straight away.
+  var LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/account/index.html?signedin=1");
   var FULL_LOGOUT = "/.auth/logout?post_logout_redirect_uri=/";
   var PROTECTED = /^\/(account|admin|crm)(\/|$)/;
   var principal = null;
@@ -51,7 +54,7 @@
 
   function render() {
     if (!principal) {
-      wrap.innerHTML = '<a class="acct-btn" href="' + esc(LOGIN) + '" title="' + esc(t("用 Office 365 账号登录", "Sign in with your Office 365 account")) + '">' +
+      wrap.innerHTML = '<a class="acct-btn" href="' + esc(LOGIN) + '" target="_blank" rel="noopener" title="' + esc(t("用 Office 365 账号登录", "Sign in with your Office 365 account")) + '">' +
         icon + '<span class="acct-lbl">' + esc(t("登录", "Sign in")) + "</span></a>";
       return;
     }
@@ -93,6 +96,7 @@
   }
   function onEvent(kind) {
     if (kind === "out") signedOutHere();
+    else if (kind === "in") refresh();
   }
   if (channel) channel.onmessage = function (e) { onEvent(e && e.data && e.data.kind); };
   window.addEventListener("storage", function (e) {
@@ -146,6 +150,12 @@
         var first = !known;
         known = true;
         if (!principal && PROTECTED.test(location.pathname) && !first) { location.replace("/"); return; }
+        // Just arrived from the sign-in tab: tell the other tabs, once, and
+        // take the marker out of the address.
+        if (first && principal && /[?&]signedin=1\b/.test(location.search)) {
+          announce("in");
+          try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])signedin=1&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
+        }
         render();
       })
       .catch(function () {});
