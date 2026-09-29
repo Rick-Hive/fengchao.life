@@ -18,6 +18,15 @@
     .sync-result.err { display:block; background:#fffbeb; color:var(--err); border:1px solid #fde68a; }
     .userline { font-size:.85rem; color:var(--muted); }
     .userline a { color: var(--accent-dark); }
+    .tbl-wrap { overflow-x:auto; }
+    table.roles { width:100%; border-collapse:collapse; font-size:.9rem; margin-bottom:14px; }
+    table.roles th, table.roles td { text-align:left; padding:8px 6px; border-bottom:1px dashed var(--line); vertical-align:top; word-break:break-all; }
+    table.roles th { color:var(--muted); font-weight:600; font-size:.82rem; }
+    table.roles .muted { color:var(--muted); }
+    table.roles button { background:none; border:1px solid var(--line); border-radius:8px; padding:3px 9px; cursor:pointer; color:var(--err); font-size:.82rem; }
+    .role-form { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .role-form input[type=email] { flex:1 1 220px; padding:9px 11px; border:1px solid var(--line); border-radius:10px; font:inherit; }
+    .role-form label { font-size:.9rem; display:flex; gap:6px; align-items:center; }
   </style>
 </head>
 <body>
@@ -52,6 +61,24 @@
       </div>
       <div class="sync-result" id="result"></div>
     </div>
+
+    <div class="admin-card" id="rolesCard">
+      <h2>角色分配 Roles</h2>
+      <p class="admin-sub">给账号分配蜂巢的角色。<b>录入员</b>可以打开 <a href="/crm/">EquipMe 订单录入</a>，把客户和订单写进 CRM 表。用账号（邮箱）识别，登录后立即生效。<br/>
+      Assign Hive roles to accounts. <b>CRM data entry</b> opens the <a href="/crm/">EquipMe order entry</a> page and writes customers and orders into the CRM tables. Matched by the signed-in account; takes effect at next request.</p>
+
+      <div class="tbl-wrap"><table class="roles" id="rolesTable">
+        <thead><tr><th>账号 Account</th><th>角色 Roles</th><th>授予 By</th><th></th></tr></thead>
+        <tbody><tr><td colspan="4" class="muted">载入中… Loading…</td></tr></tbody>
+      </table></div>
+
+      <form id="roleForm" class="role-form" autocomplete="off">
+        <input type="email" id="roleUser" placeholder="name@domain" required />
+        <label><input type="checkbox" id="roleEntry" value="crm_entry" checked /> 录入员 CRM data entry</label>
+        <button class="btn btn-primary" type="submit">添加 / 更新 Add</button>
+      </form>
+      <div class="sync-result" id="roleResult"></div>
+    </div>
   </main>
 
   <script>
@@ -80,6 +107,66 @@
         });
       }
       loadStatus();
+
+      // ---- Roles card -------------------------------------------------
+      var assignable = {};
+      function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+      function roleLabel(r) { var a = assignable[r]; return a ? a.zh + " " + a.en : r; }
+      function renderRoles(entries) {
+        var tb = $("rolesTable").tBodies[0];
+        if (!entries || !entries.length) {
+          tb.innerHTML = '<tr><td colspan="4" class="muted">还没有分配任何角色 No roles assigned yet</td></tr>';
+          return;
+        }
+        tb.innerHTML = entries.map(function (e) {
+          return "<tr><td>" + esc(e.user) + "</td><td>" + e.roles.map(roleLabel).map(esc).join("<br/>") + "</td><td class=\"muted\">"
+            + esc(e.by || "") + (e.at ? "<br/>" + esc(new Date(e.at).toLocaleDateString()) : "") + "</td><td><button type=\"button\" data-user=\""
+            + esc(e.user) + "\">移除 Remove</button></td></tr>";
+        }).join("");
+      }
+      function roleMsg(ok, text) {
+        var r = $("roleResult");
+        r.className = "sync-result " + (ok ? "ok" : "err");
+        r.textContent = text;
+      }
+      function loadRoles() {
+        fetch("/api/roles").then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (r) {
+            if (!r.ok) throw new Error((r.body && r.body.error) || r.status);
+            assignable = r.body.assignable || {};
+            renderRoles(r.body.entries || []);
+          })
+          .catch(function (e) { roleMsg(false, "读取失败 Could not load roles: " + e.message); });
+      }
+      loadRoles();
+      $("roleForm").addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var user = $("roleUser").value.trim();
+        var roles = $("roleEntry").checked ? ["crm_entry"] : [];
+        fetch("/api/roles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: user, roles: roles }) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (r) {
+            if (!r.ok) throw new Error((r.body && r.body.error) || r.status);
+            renderRoles(r.body.entries || []);
+            $("roleUser").value = "";
+            roleMsg(true, roles.length ? "已保存 Saved: " + user : "已移除 Removed: " + user);
+          })
+          .catch(function (e) { roleMsg(false, "保存失败 Save failed: " + e.message); });
+      });
+      $("rolesTable").addEventListener("click", function (ev) {
+        var b = ev.target.closest("button[data-user]");
+        if (!b) return;
+        var user = b.getAttribute("data-user");
+        if (!window.confirm("移除 " + user + " 的所有角色？ Remove all roles from this account?")) return;
+        fetch("/api/roles", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: user }) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (r) {
+            if (!r.ok) throw new Error((r.body && r.body.error) || r.status);
+            renderRoles(r.body.entries || []);
+            roleMsg(true, "已移除 Removed: " + user);
+          })
+          .catch(function (e) { roleMsg(false, "移除失败 Remove failed: " + e.message); });
+      });
 
       $("syncBtn").addEventListener("click", function () {
         var btn = $("syncBtn"), res = $("result");

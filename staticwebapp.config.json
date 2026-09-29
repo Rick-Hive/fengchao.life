@@ -4,12 +4,15 @@
   "routes": [
     { "route": "/admin*", "allowedRoles": ["admin"] },
     { "route": "/api/sync", "allowedRoles": ["admin"] },
+    { "route": "/api/roles", "allowedRoles": ["admin"] },
+    { "route": "/crm*", "allowedRoles": ["authenticated"] },
+    { "route": "/api/crm/*", "allowedRoles": ["authenticated"] },
     { "route": "/.auth/login/github", "statusCode": 404 },
     { "route": "/logout", "redirect": "/.auth/logout", "statusCode": 302 }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/api/*", "/admin*", "/help/*", "/*.{css,js,ico,png,svg,jpg,jpeg,webp,json,txt,xml,webmanifest,woff,woff2,html}"]
+    "exclude": ["/assets/*", "/api/*", "/admin*", "/crm*", "/help/*", "/*.{css,js,ico,png,svg,jpg,jpeg,webp,json,txt,xml,webmanifest,woff,woff2,html}"]
   },
   "responseOverrides": {
     "401": {
