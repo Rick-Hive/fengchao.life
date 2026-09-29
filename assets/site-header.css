@@ -179,17 +179,17 @@ a.menu-item:hover { background: #eef1f6; }
    since 首页 joined the menus, 1200px in English), the values and the tagline
    step aside so the menus keep one line; the mark and 蜂巢 stay, as on a
    phone. They come back as soon as there is room. */
-@media (min-width: 901px) and (max-width: 1080px) {
+@media (min-width: 901px) and (max-width: 1090px) {
   .brand-tag, .brand-values { display: none; }
 }
-@media (min-width: 901px) and (max-width: 1210px) {
+@media (min-width: 901px) and (max-width: 1214px) {
   html[lang="en"] .brand-tag, html[lang="en"] .brand-values { display: none; }
 }
 /* On a computer the mark and 蜂巢 never give way to the menus. */
 @media (min-width: 901px) { .brand-home { flex: none; } }
 /* The last ~40px before 菜单 takes over, English needs a little more room:
    a smaller mark, and the basket without its word, as on a phone. */
-@media (min-width: 901px) and (max-width: 940px) {
+@media (min-width: 901px) and (max-width: 960px) {
   html[lang="en"] .header-inner { gap: 6px; }
   html[lang="en"] .menu-btn { padding: 7px 7px; }
   html[lang="en"] .logo-mark { width: 56px; height: 56px; }
@@ -242,3 +242,61 @@ html[lang="en"] .brand-tag { font-size: 0.76em; letter-spacing: 0; }
 .cart-btn-n.zero { color: #9aa3b0; }
 .cart-lbl { font-weight: 700; font-size: 0.95em; line-height: 1; padding-top: 6px; }
 @media (max-width: 560px) { .cart-lbl { display: none; } }
+
+/* Sign-in entry, beside the cart (Rick, 2026-09-29): not in a menu. Drawn by
+   account-button.js. Signed out it reads 登录; signed in, 我的账号 with a small
+   panel. On a phone only the icon shows, like the cart's word. */
+.acct-wrap { position: relative; flex: none; }
+.acct-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: none; background: none; color: var(--ink); text-decoration: none;
+  border-radius: 10px; padding: 4px 8px 4px 6px; font: inherit; cursor: pointer;
+}
+.acct-btn:hover { background: #eef1f6; }
+.acct-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.acct-btn svg { display: block; }
+.acct-btn.signed-in svg { color: var(--accent); }
+.acct-lbl { font-weight: 700; font-size: 0.95em; line-height: 1; white-space: nowrap; }
+@media (max-width: 560px) { .acct-lbl { display: none; } .acct-btn { padding: 4px; } }
+/* On a computer the word shows only where the one-row header still has room
+   for it (measured 2026-09-29, signed-in label, both languages); elsewhere
+   the icon stands alone and the title says what it is. The 1081–1090 and
+   1211–1214 steps above, and the 901–945 basket word below, were widened for
+   the icon itself. */
+@media (min-width: 901px) and (max-width: 1018px) { html:not([lang="en"]) .acct-lbl { display: none; } }
+@media (min-width: 1081px) and (max-width: 1164px) { html:not([lang="en"]) .acct-lbl { display: none; } }
+@media (min-width: 901px) and (max-width: 1032px) { html[lang="en"] .acct-lbl { display: none; } }
+@media (min-width: 1211px) and (max-width: 1288px) { html[lang="en"] .acct-lbl { display: none; } }
+@media (min-width: 901px) and (max-width: 945px) { html:not([lang="en"]) .cart-lbl { display: none; } }
+.acct-panel {
+  display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  min-width: 220px; max-width: min(320px, 92vw);
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 14px 30px -12px rgba(15, 32, 60, 0.3); padding: 6px;
+}
+.acct-wrap.open .acct-panel { display: block; }
+.acct-who { font-size: 0.78em; color: #6b7787; padding: 6px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; word-break: break-all; }
+.acct-panel a { display: block; padding: 8px 10px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 0.9em; }
+.acct-panel a:hover { background: #eef1f6; color: var(--accent-dark); }
+.acct-panel a.acct-out { color: #b42318; border-top: 1px solid var(--line); margin-top: 4px; border-radius: 0 0 8px 8px; }
+/* A phone's header row holds the mark, 蜂巢, 菜单, the sign-in icon, the
+   basket and the language button. From ~420px down that no longer fitted
+   once the sign-in icon joined (and below ~340/360px it never had): the
+   wordmark ran under 菜单. So on narrow phones everything in the row gives a
+   little — a smaller mark, tighter gaps and button padding — rather than any
+   one item disappearing (2026-09-29). */
+@media (max-width: 420px) {
+  .header-inner { gap: 5px; padding-left: 10px; padding-right: 10px; }
+  .logo-mark { width: 46px; height: 46px; }
+  .brand-home { gap: 6px; }
+  .brand-name { letter-spacing: 0.04em; text-indent: 0.04em; }
+  .nav-toggle { padding: 5px 9px; gap: 4px; }
+  .acct-btn { padding: 3px; }
+  .cart-btn { padding: 3px 3px 3px 2px; }
+  .lang-btn { padding: 5px 10px; }
+}
+@media (max-width: 360px) {
+  .logo-mark { width: 40px; height: 40px; }
+  .nav-toggle span { display: none; }
+  .nav-toggle { padding: 6px 8px; }
+}

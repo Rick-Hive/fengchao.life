@@ -104,6 +104,13 @@
       '<button class="lang-btn" id="langBtn" type="button">' + esc(T.langBtn) + "</button>" +
     "</div>";
 
+  // The sign-in entry beside the cart (assets/account-button.js) — the same
+  // file the course site loads, so both headers show it the same way.
+  var acct = document.createElement("script");
+  acct.src = "/assets/account-button.js";
+  acct.async = true;
+  (document.body || document.documentElement).appendChild(acct);
+
   // The header is sticky; publish its height so a page can keep sticky
   // toolbars and scrolled-to anchors clear of it (var(--header-h)).
   function measure() {

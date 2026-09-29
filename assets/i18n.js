@@ -630,10 +630,8 @@ window.SITE_MENUS = [
       // in-site page (assets/gpa.js), routed in place by renderNav().
       { zh: "G.P.A. 计算器",    en: "G.P.A. Calculator",              url: "/gpa" },
       { zh: "微软教育版 Teams 申请", en: "Apply for Microsoft Teams for Education", url: "https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=YjX6OPezEUazbzF-ulKacADKLAZmiVxPnCKPmH-ambpURUFKRUtTSU8ySDBTSUdKNVZOWEZUU0xNSS4u" },
-      // Sign-in page for Office 365 accounts (Rick, 2026-09-29). The .html
-      // spelling makes renderNav() leave it to the browser: it is a real page
-      // behind sign-in, not a wizard route.
-      { zh: "我的 Office 365 账号", en: "My Office 365 account",       url: "/account/index.html" },
+      // 我的 Office 365 账号 is not a menu item: sign-in lives beside the cart
+      // (assets/account-button.js), per Rick 2026-09-29.
       { zh: "联系我们",         en: "Contact Us",                     url: "mailto:info@fengchao.life" },
     ],
   },
