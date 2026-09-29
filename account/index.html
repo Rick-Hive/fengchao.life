@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>我的 Office 365 账号 · 蜂巢</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+<link rel="stylesheet" href="/assets/site-header.css" />
+<style>
+  :root {
+    --bg: #f2f4f8; --surface: #ffffff; --surface-2: #f8fafc;
+    --ink: #1c1c1c; --ink-soft: #333333; --ink-faint: #6b7787; --line: #dde3ec;
+    --accent: #1d4a83; --accent-ink: #123a63; --accent-soft: #e8eef5; --accent-soft-line: #c3d3e5;
+    --good: #15803d; --good-soft: #e7f2ea; --good-line: #bcdcc8;
+    --warn: #b45309; --warn-soft: #fdf0e0; --warn-line: #ecd2ab;
+    --bad: #b42318; --bad-soft: #fdecea; --bad-line: #f1c2bd;
+    --shadow: 0 1px 3px rgba(30,41,59,.07), 0 4px 14px rgba(30,41,59,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+      --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+      --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+      --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+      --good: #6fc490; --good-soft: #17281f; --good-line: #2f4a39;
+      --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+      --bad: #f08a80; --bad-soft: #2d1716; --bad-line: #57302c;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+    --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+    --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+    --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+    --good: #6fc490; --good-soft: #17281f; --good-line: #2f4a39;
+    --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+    --bad: #f08a80; --bad-soft: #2d1716; --bad-line: #57302c;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+    line-height: 1.65;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 22px 16px 60px; }
+  h1, h2 { font-family: "Songti SC", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC", serif; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(1.25rem, 1rem + 0.9vw, 1.55rem); font-weight: 700; text-align: center; }
+  h2 { font-size: 1.08rem; font-weight: 700; color: var(--accent-ink); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  h2 .count { font-family: inherit; font-size: .8rem; font-weight: 600; color: var(--ink-faint); }
+  .who { text-align: center; color: var(--ink-soft); font-size: .92rem; margin: 6px 0 4px; word-break: break-all; }
+  .who a { color: var(--accent-ink); }
+  .roles { text-align: center; margin: 8px 0 0; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .roles a { font-size: .82rem; font-weight: 600; text-decoration: none; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--accent-soft-line); background: var(--accent-soft); color: var(--accent-ink); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin: 16px 0 0; box-shadow: var(--shadow); }
+  .card > p.sub { color: var(--ink-soft); font-size: .9rem; margin: 6px 0 12px; }
+  .card a { color: var(--accent-ink); }
+  .muted { color: var(--ink-faint); }
+  .loading { color: var(--ink-faint); font-size: .9rem; padding: 6px 0; }
+  .err { background: var(--warn-soft); border: 1px solid var(--warn-line); color: var(--warn); border-radius: 10px; padding: 10px 12px; font-size: .9rem; margin-top: 10px; white-space: pre-wrap; }
+  .ok { background: var(--good-soft); border: 1px solid var(--good-line); color: var(--good); border-radius: 10px; padding: 10px 12px; font-size: .9rem; margin-top: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 14px; }
+  label.f { display: flex; flex-direction: column; gap: 4px; font-size: .84rem; color: var(--ink-soft); }
+  label.f small { color: var(--ink-faint); font-size: .76rem; }
+  input[type=text], input[type=email] {
+    padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: .95rem; color: var(--ink); background: var(--surface); width: 100%;
+  }
+  input[readonly] { background: var(--surface-2); color: var(--ink-soft); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font: inherit; font-size: .9rem; font-weight: 600; border-radius: 999px; padding: 8px 18px; cursor: pointer; text-decoration: none; }
+  .btn:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
+  .btn.ghost { background: var(--surface); color: var(--accent-ink); border-color: var(--line); }
+  .btn.ghost:hover { border-color: var(--accent); }
+  .btn.danger { background: var(--surface); color: var(--bad); border-color: var(--bad-line); padding: 5px 13px; font-size: .82rem; }
+  .btn.danger:hover { background: var(--bad-soft); }
+  .btn[disabled] { opacity: .55; cursor: default; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+  .pw { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pw a.tile { display: block; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; text-decoration: none; color: var(--ink); background: var(--surface-2); }
+  .pw a.tile:hover { border-color: var(--accent); }
+  .pw a.tile b { display: block; color: var(--accent-ink); font-size: .98rem; }
+  .pw a.tile span { font-size: .84rem; color: var(--ink-soft); }
+  @media (max-width: 520px) { .pw { grid-template-columns: 1fr; } }
+  ul.rows { list-style: none; margin: 0; padding: 0; }
+  ul.rows li { border-top: 1px dashed var(--line); padding: 10px 0; display: flex; gap: 12px; align-items: flex-start; }
+  ul.rows li:first-child { border-top: 0; }
+  ul.rows .main { flex: 1; min-width: 0; }
+  ul.rows .line1 { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  ul.rows .line1 b { font-weight: 600; }
+  ul.rows .line2 { font-size: .84rem; color: var(--ink-soft); word-break: break-word; }
+  ul.rows .line3 { font-size: .8rem; color: var(--ink-faint); word-break: break-word; }
+  .ic { flex: none; width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-ink); display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; }
+  .tag { font-size: .74rem; font-weight: 600; border-radius: 999px; padding: 1px 9px; border: 1px solid var(--line); color: var(--ink-soft); background: var(--surface-2); white-space: nowrap; }
+  .tag.good { color: var(--good); border-color: var(--good-line); background: var(--good-soft); }
+  .tag.bad { color: var(--bad); border-color: var(--bad-line); background: var(--bad-soft); }
+  .tag.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-soft); }
+  .tag.accent { color: var(--accent-ink); border-color: var(--accent-soft-line); background: var(--accent-soft); }
+  .ts { font-variant-numeric: tabular-nums; }
+  .note { font-size: .84rem; color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin-top: 12px; }
+  .filter { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+  .filter button { font: inherit; font-size: .8rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); border-radius: 999px; padding: 3px 12px; cursor: pointer; }
+  .filter button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .gate { text-align: center; padding: 30px 0; color: var(--ink-soft); }
+  footer.page { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: .8rem; }
+</style>
+</head>
+<body>
+<header class="site-header" data-site-header></header>
+<script src="/assets/i18n.js"></script>
+<script src="/assets/site-header.js"></script>
+<div class="wrap">
+  <h1 data-en="My Office 365 account">我的 Office 365 账号</h1>
+  <p class="who" id="who"><span class="muted" data-en="Loading…">载入中…</span></p>
+  <div class="roles" id="roleLinks"></div>
+  <div id="gate" class="gate" hidden></div>
+
+  <div id="page" hidden>
+    <section class="card" id="profileCard">
+      <h2 data-en="Profile">资料</h2>
+      <p class="sub" data-en="Your name as others see it in Teams and Outlook, a safe email where we can reach you, and your postcode.">别人在 Teams、Outlook 里看到的名字，能联系到您的安全邮箱，以及邮编。</p>
+      <form id="profileForm" autocomplete="off">
+        <div class="grid">
+          <label class="f"><span data-en="Office 365 account">Office 365 账号</span><input type="text" id="pUpn" readonly /></label>
+          <label class="f"><span data-en="Display name">显示名</span><input type="text" id="pName" maxlength="64" required /></label>
+          <label class="f"><span data-en="Safe email">安全邮箱</span><input type="email" id="pSafe" placeholder="name@gmail.com" /><small data-en="Not QQ, 163 or other mainland free mail.">不能是 QQ、163 等国内免费邮箱。</small></label>
+          <label class="f"><span data-en="Postcode">邮编</span><input type="text" id="pPost" maxlength="12" inputmode="numeric" /></label>
+        </div>
+        <div class="actions"><button class="btn" type="submit" id="pSave" data-en="Save">保存</button></div>
+        <div id="pMsg"></div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2 data-en="Password">密码</h2>
+      <p class="sub" data-en="Both open Microsoft's own pages. Afterwards every device signs you out once — have the authenticator phone ready.">两项都会打开微软自己的页面。改完后所有设备都会退出一次登录，请先把装验证器的手机准备好。</p>
+      <div class="pw">
+        <a class="tile" href="https://mysignins.microsoft.com/security-info/password/change" target="_blank" rel="noopener"><b data-en="Change password ↗">修改密码 ↗</b><span data-en="You know the current password.">记得现在的密码，想换一个。</span></a>
+        <a class="tile" href="https://passwordreset.microsoftonline.com" target="_blank" rel="noopener"><b data-en="Forgot password ↗">忘记密码 ↗</b><span data-en="Reset it with the six-digit code in Microsoft Authenticator.">用 Microsoft Authenticator 里的 6 位验证码自己重置。</span></a>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span data-en="Authenticator and sign-in methods">验证器和登录方式</span> <span class="count" id="mCount"></span></h2>
+      <p class="sub" data-en="Each phone or security key that can approve your sign-ins. Remove any you no longer have.">每一台能批准您登录的手机或安全密钥。不再使用的，请删除。</p>
+      <ul class="rows" id="methods"><li class="loading" data-en="Loading…">载入中…</li></ul>
+      <div class="note" data-en="<b>Changing phones?</b> First add the new phone on Microsoft's <a href='https://mysignins.microsoft.com/security-info' target='_blank' rel='noopener'>Security info ↗</a> page, then delete the old one here. The only authenticator on the account cannot be deleted here — that would lock you out."><b>换手机？</b>先在微软的<a href="https://mysignins.microsoft.com/security-info" target="_blank" rel="noopener">「安全信息」↗</a>页面添加新手机，再回到这里删除旧手机。账号上唯一的验证器不能在这里删除，否则您就登录不了了。</div>
+      <div id="mMsg"></div>
+    </section>
+
+    <section class="card">
+      <h2><span data-en="Sign-ins, last 7 days">最近 7 天的登录</span> <span class="count" id="sCount"></span></h2>
+      <p class="sub" data-en="Interactive sign-ins recorded by Microsoft, newest first, in Beijing time. A sign-in you do not recognise? Change your password and tell your administrator.">微软记录的登录，最新的在上，北京时间。有不认识的登录？请修改密码，并告诉为您分配账号的管理员。</p>
+      <div class="filter" id="sFilter">
+        <button type="button" data-f="all" aria-pressed="true" data-en="All">全部</button>
+        <button type="button" data-f="fail" aria-pressed="false" data-en="Not successful">未成功</button>
+      </div>
+      <ul class="rows" id="signins"><li class="loading" data-en="Loading…">载入中…</li></ul>
+    </section>
+
+    <section class="card">
+      <h2><span data-en="Account changes, last 7 days">最近 7 天的账号变动</span> <span class="count" id="aCount"></span></h2>
+      <p class="sub" data-en="Changes to your account recorded in Microsoft's audit log: methods added or removed, password changes, profile edits, group changes.">微软审计日志里与您账号有关的变动：添加或删除验证方式、改密码、改资料、群组变化。</p>
+      <ul class="rows" id="audits"><li class="loading" data-en="Loading…">载入中…</li></ul>
+    </section>
+
+    <section class="card">
+      <h2><span data-en="My groups and Teams">我的群组和团队</span> <span class="count" id="gCount"></span></h2>
+      <ul class="rows" id="groups"><li class="loading" data-en="Loading…">载入中…</li></ul>
+    </section>
+  </div>
+
+  <footer class="page"><span data-en="Hive · My Office 365 account. Only you see this page; it shows your own account and nothing about anyone else.">蜂巢 · 我的 Office 365 账号。这一页只有您自己看得到，只显示您自己的账号。</span></footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var LANG = "zh";
+  try { var s = localStorage.getItem("fc-lang"); if (s === "en" || s === "zh") LANG = s; } catch (e) {}
+  var EN = LANG === "en";
+  function t(zh, en) { return EN ? en : zh; }
+  if (EN) {
+    document.documentElement.lang = "en";
+    document.title = "My Office 365 account · Hive";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en]"), function (el) { el.innerHTML = el.getAttribute("data-en"); });
+  }
+  var lb = document.getElementById("langBtn");
+  if (lb) {
+    lb.textContent = EN ? "中文" : "EN";
+    lb.addEventListener("click", function () {
+      try { localStorage.setItem("fc-lang", EN ? "zh" : "en"); } catch (e) {}
+      location.reload();
+    });
+  }
+
+  function $(id) { return document.getElementById(id); }
+  function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  var fmt = new Intl.DateTimeFormat(EN ? "en-GB" : "zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  var fmtDay = new Intl.DateTimeFormat(EN ? "en-GB" : "zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" });
+  function when(iso) { if (!iso) return ""; var d = new Date(iso); return isNaN(d) ? "" : fmt.format(d); }
+  function day(iso) { if (!iso) return ""; var d = new Date(iso); return isNaN(d) ? "" : fmtDay.format(d); }
+  function api(path, opts) {
+    return fetch("/api/me/" + path, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+    });
+  }
+  function errBox(el, r) {
+    var b = (r && r.body) || {};
+    var msg = b.error || ("HTTP " + (r && r.status));
+    if (b.problems) msg += "\n• " + b.problems.join("\n• ");
+    el.innerHTML = '<div class="err">' + esc(msg) + "</div>";
+  }
+  function emptyRow(text) { return '<li class="muted">' + esc(text) + "</li>"; }
+
+  // What the common sign-in error codes mean to the person who got them.
+  var CODES = {
+    50126: ["密码错误", "Wrong password"],
+    50074: ["需要身份验证（不是失败）", "Verification required (not a failure)"],
+    50076: ["需要身份验证（不是失败）", "Verification required (not a failure)"],
+    50079: ["需要登记验证方式", "Security info registration required"],
+    500121: ["验证没有完成：拒绝、超时或验证码错误", "Verification not completed: denied, timed out or wrong code"],
+    50140: ["「保持登录」确认页（不是失败）", "\"Stay signed in\" prompt (not a failure)"],
+    50089: ["登录过程超时，需重新开始", "Sign-in flow expired; start again"],
+    50053: ["账号被暂时锁定（密码错太多次）", "Account temporarily locked (too many wrong passwords)"],
+    50055: ["密码已过期", "Password expired"],
+    50057: ["账号已停用", "Account disabled"],
+    53003: ["被机构的访问策略拦下", "Blocked by the institution's access policy"],
+    50097: ["需要设备验证", "Device authentication required"],
+    50158: ["需要外部验证", "External challenge required"],
+    65001: ["应用还没有获得同意", "The app has not been consented"],
+    70044: ["登录已过期，需要重新登录", "Session expired; sign in again"],
+  };
+  var SOFT = { 50074: 1, 50076: 1, 50140: 1, 50079: 1 };
+
+  var KIND = {
+    authenticator: ["验证器", "Authenticator", "A"],
+    fido2: ["安全密钥", "Security key", "F"],
+    phone: ["手机短信/电话", "Phone (SMS/call)", "☎"],
+    email: ["邮箱", "Email", "@"],
+    softwareOath: ["验证码应用", "Code app", "#"],
+    password: ["密码", "Password", "••"],
+    tap: ["临时通行码", "Temporary Access Pass", "T"],
+    windowsHello: ["Windows Hello", "Windows Hello", "W"],
+  };
+  var GKIND = {
+    team: ["Teams 团队", "Teams team"], m365: ["Microsoft 365 群组", "Microsoft 365 group"],
+    security: ["安全组", "Security group"], distribution: ["通讯组", "Distribution list"], other: ["群组", "Group"],
+  };
+
+  var profile = null;
+
+  // ---- summary: who, roles, profile, methods ------------------------------------
+  function loadSummary() {
+    return api("summary").then(function (r) {
+      if (!r.ok) {
+        $("who").innerHTML = "";
+        $("gate").hidden = false;
+        $("gate").innerHTML = esc((r.body && r.body.error) || ("HTTP " + r.status)) +
+          '<br/><a href="/.auth/logout?post_logout_redirect_uri=/account/">' + t("换一个账号登录", "Sign in with another account") + "</a>";
+        return false;
+      }
+      var b = r.body;
+      profile = b.profile;
+      $("page").hidden = false;
+      $("who").innerHTML = esc(profile.upn) + ' · <a href="/.auth/logout?post_logout_redirect_uri=/">' + t("退出", "Sign out") + "</a>";
+      var links = [];
+      if ((b.roles || []).indexOf("admin") >= 0) links.push('<a href="/admin/">' + t("管理中心", "Admin Center") + "</a>");
+      if ((b.roles || []).indexOf("admin") >= 0 || (b.roles || []).indexOf("crm_entry") >= 0) links.push('<a href="/crm/">' + t("EquipMe 订单录入", "EquipMe order entry") + "</a>");
+      $("roleLinks").innerHTML = links.join("");
+      $("pUpn").value = profile.upn;
+      $("pName").value = profile.displayName;
+      $("pSafe").value = profile.safeEmail;
+      $("pPost").value = profile.postalCode;
+      renderMethods(b.methods || []);
+      return true;
+    }).catch(function (e) {
+      $("who").textContent = t("载入失败：", "Could not load: ") + e.message;
+      return false;
+    });
+  }
+
+  function renderMethods(ms) {
+    var shown = ms.filter(function (m) { return m.kind !== "password"; });
+    var strong = shown.filter(function (m) { return m.strong; }).length;
+    $("mCount").textContent = shown.length ? String(shown.length) : "";
+    if (!shown.length) { $("methods").innerHTML = emptyRow(t("没有登记任何验证方式。", "No sign-in methods registered.")); return; }
+    $("methods").innerHTML = shown.map(function (m) {
+      var k = KIND[m.kind] || [m.kind, m.kind, "?"];
+      var last = m.strong && strong <= 1;
+      var btn = m.removable
+        ? (last ? '<span class="tag warn">' + t("唯一的验证器", "Only authenticator") + "</span>"
+                : '<button class="btn danger" type="button" data-del="' + esc(m.id) + '" data-name="' + esc(m.name || k[EN ? 1 : 0]) + '">' + t("删除", "Delete") + "</button>")
+        : "";
+      return '<li><span class="ic">' + esc(k[2]) + '</span><div class="main"><div class="line1"><b>' + esc(m.name || k[EN ? 1 : 0]) + '</b><span class="tag accent">' + esc(k[EN ? 1 : 0]) + "</span></div>" +
+        (m.detail ? '<div class="line2">' + esc(m.detail) + "</div>" : "") +
+        (m.created ? '<div class="line3">' + t("添加于 ", "Added ") + esc(day(m.created)) + "</div>" : "") +
+        "</div>" + btn + "</li>";
+    }).join("");
+  }
+
+  $("methods").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button[data-del]");
+    if (!b) return;
+    var name = b.getAttribute("data-name");
+    if (!window.confirm(t("删除「" + name + "」？删除后这台设备就不能再批准您的登录。", "Delete \"" + name + "\"? That device will no longer be able to approve your sign-ins."))) return;
+    b.disabled = true;
+    api("method/" + encodeURIComponent(b.getAttribute("data-del")), { method: "DELETE" }).then(function (r) {
+      if (!r.ok) { b.disabled = false; errBox($("mMsg"), r); return; }
+      $("mMsg").innerHTML = '<div class="ok">' + esc(t("已删除：", "Deleted: ") + name) + "</div>";
+      loadSummary();
+      setTimeout(loadAudits, 4000);
+    });
+  });
+
+  // ---- profile ------------------------------------------------------------------
+  $("profileForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!profile) return;
+    var body = {};
+    var name = $("pName").value.trim(), safe = $("pSafe").value.trim(), post = $("pPost").value.trim();
+    if (name !== profile.displayName) body.displayName = name;
+    if (safe.toLowerCase() !== (profile.safeEmail || "").toLowerCase()) body.safeEmail = safe;
+    if (post !== (profile.postalCode || "")) body.postalCode = post;
+    if (!Object.keys(body).length) { $("pMsg").innerHTML = '<div class="ok">' + t("没有改动。", "Nothing changed.") + "</div>"; return; }
+    $("pSave").disabled = true;
+    api("profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
+      $("pSave").disabled = false;
+      if (!r.ok) { errBox($("pMsg"), r); return; }
+      $("pMsg").innerHTML = '<div class="ok">' + t("已保存。Teams 里的显示名可能要几分钟才更新。", "Saved. Teams may take a few minutes to show the new name.") + "</div>";
+      if (body.displayName !== undefined) profile.displayName = name;
+      if (body.safeEmail !== undefined) profile.safeEmail = safe;
+      if (body.postalCode !== undefined) profile.postalCode = post;
+    });
+  });
+
+  // ---- sign-ins -----------------------------------------------------------------
+  var signins = [], sFilter = "all";
+  function renderSignins() {
+    var rows = sFilter === "fail" ? signins.filter(function (s) { return !s.ok && !SOFT[s.code]; }) : signins;
+    $("sCount").textContent = signins.length ? String(signins.length) : "";
+    if (!rows.length) { $("signins").innerHTML = emptyRow(sFilter === "fail" ? t("最近 7 天没有未成功的登录。", "No unsuccessful sign-ins in the last 7 days.") : t("最近 7 天没有登录记录。", "No sign-ins in the last 7 days.")); return; }
+    $("signins").innerHTML = rows.map(function (s) {
+      var c = CODES[s.code];
+      var tag = s.ok ? '<span class="tag good">' + t("成功", "Success") + "</span>"
+        : SOFT[s.code] ? '<span class="tag">' + esc(c ? c[EN ? 1 : 0] : String(s.code)) + "</span>"
+        : '<span class="tag bad">' + t("未成功", "Not successful") + " " + esc(s.code) + "</span>";
+      var why = !s.ok && !SOFT[s.code] ? (c ? c[EN ? 1 : 0] : s.reason) : "";
+      var dev = [s.os, s.browser].filter(Boolean).join(" · ");
+      var where = [s.place, s.ip].filter(Boolean).join(" · ");
+      return '<li><div class="main"><div class="line1"><b class="ts">' + esc(when(s.time)) + "</b>" + tag + "</div>" +
+        '<div class="line2">' + esc(s.app || s.client) + (dev ? " · " + esc(dev) : "") + "</div>" +
+        (why ? '<div class="line2">' + esc(why) + "</div>" : "") +
+        (where ? '<div class="line3">' + esc(where) + "</div>" : "") + "</div></li>";
+    }).join("");
+  }
+  function loadSignins() {
+    return api("signins").then(function (r) {
+      if (!r.ok) { $("signins").innerHTML = ""; errBox($("signins"), r); return; }
+      signins = r.body.signins || [];
+      renderSignins();
+    });
+  }
+  $("sFilter").addEventListener("click", function (ev) {
+    var b = ev.target.closest("button[data-f]"); if (!b) return;
+    sFilter = b.getAttribute("data-f");
+    Array.prototype.forEach.call($("sFilter").querySelectorAll("button"), function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    renderSignins();
+  });
+
+  // ---- audits -------------------------------------------------------------------
+  function loadAudits() {
+    return api("audits").then(function (r) {
+      if (!r.ok) { $("audits").innerHTML = ""; errBox($("audits"), r); return; }
+      var rows = r.body.audits || [];
+      $("aCount").textContent = rows.length ? String(rows.length) : "";
+      if (!rows.length) { $("audits").innerHTML = emptyRow(t("最近 7 天账号没有变动。", "No changes to your account in the last 7 days.")); return; }
+      $("audits").innerHTML = rows.map(function (a) {
+        var ok = /success/i.test(a.result);
+        return '<li><div class="main"><div class="line1"><b class="ts">' + esc(when(a.time)) + "</b>" +
+          '<span class="tag ' + (ok ? "good" : "warn") + '">' + esc(ok ? t("成功", "Success") : (a.result || "?")) + "</span></div>" +
+          '<div class="line2">' + esc(a.activity) + "</div>" +
+          (a.by ? '<div class="line3">' + t("操作者：", "By: ") + esc(a.by) + (a.reason ? " · " + esc(a.reason) : "") + "</div>" : "") + "</div></li>";
+      }).join("");
+    });
+  }
+
+  // ---- groups -------------------------------------------------------------------
+  function loadGroups() {
+    return api("groups").then(function (r) {
+      if (!r.ok) { $("groups").innerHTML = ""; errBox($("groups"), r); return; }
+      var rows = r.body.groups || [];
+      $("gCount").textContent = rows.length ? String(rows.length) : "";
+      if (!rows.length) { $("groups").innerHTML = emptyRow(t("没有加入任何群组。", "Not a member of any group.")); return; }
+      $("groups").innerHTML = rows.map(function (g) {
+        var k = GKIND[g.kind] || GKIND.other;
+        return '<li><span class="ic">' + (g.kind === "team" ? "T" : "G") + '</span><div class="main"><div class="line1"><b>' + esc(g.name) + '</b><span class="tag">' + esc(k[EN ? 1 : 0]) + "</span>" +
+          (g.owner ? '<span class="tag accent">' + t("所有者", "Owner") + "</span>" : "") + "</div>" +
+          (g.description ? '<div class="line2">' + esc(g.description) + "</div>" : "") +
+          (g.mail ? '<div class="line3">' + esc(g.mail) + "</div>" : "") + "</div></li>";
+      }).join("");
+    });
+  }
+
+  loadSummary().then(function (ok) {
+    if (!ok) return;
+    loadSignins(); loadAudits(); loadGroups();
+  });
+})();
+</script>
+</body>
+</html>

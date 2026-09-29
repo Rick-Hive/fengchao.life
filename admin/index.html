@@ -64,8 +64,9 @@
 
     <div class="admin-card" id="rolesCard">
       <h2>角色分配 Roles</h2>
-      <p class="admin-sub">给账号分配蜂巢的角色。<b>录入员</b>可以打开 <a href="/crm/">EquipMe 订单录入</a>，把客户和订单写进 CRM 表。用账号（邮箱）识别，登录后立即生效。<br/>
-      Assign Hive roles to accounts. <b>CRM data entry</b> opens the <a href="/crm/">EquipMe order entry</a> page and writes customers and orders into the CRM tables. Matched by the signed-in account; takes effect at next request.</p>
+      <p class="admin-sub">给账号分配蜂巢的角色。<b>管理员</b>可以进入管理中心；<b>录入员</b>可以打开 <a href="/crm/">EquipMe 订单录入</a>，把客户和订单写进 CRM 表。用账号（邮箱）识别，登录后立即生效。<br/>
+      Assign Hive roles to accounts. <b>Administrator</b> opens this Admin Center; <b>CRM data entry</b> opens the <a href="/crm/">EquipMe order entry</a> page and writes customers and orders into the CRM tables. Matched by the signed-in account.<br/>
+      <span class="muted">录入员立即生效；管理员要在对方下次登录后生效（管理中心的门禁只在登录时读取角色）。CRM data entry works at once; Administrator takes effect at the person's next sign-in.</span></p>
 
       <div class="tbl-wrap"><table class="roles" id="rolesTable">
         <thead><tr><th>账号 Account</th><th>角色 Roles</th><th>授予 By</th><th></th></tr></thead>
@@ -75,6 +76,7 @@
       <form id="roleForm" class="role-form" autocomplete="off">
         <input type="email" id="roleUser" placeholder="name@domain" required />
         <label><input type="checkbox" id="roleEntry" value="crm_entry" checked /> 录入员 CRM data entry</label>
+        <label><input type="checkbox" id="roleAdmin" value="admin" /> 管理员 Administrator</label>
         <button class="btn btn-primary" type="submit">添加 / 更新 Add</button>
       </form>
       <div class="sync-result" id="roleResult"></div>
@@ -142,7 +144,9 @@
       $("roleForm").addEventListener("submit", function (ev) {
         ev.preventDefault();
         var user = $("roleUser").value.trim();
-        var roles = $("roleEntry").checked ? ["crm_entry"] : [];
+        var roles = [];
+        if ($("roleEntry").checked) roles.push("crm_entry");
+        if ($("roleAdmin").checked) roles.push("admin");
         fetch("/api/roles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user: user, roles: roles }) })
           .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
           .then(function (r) {
