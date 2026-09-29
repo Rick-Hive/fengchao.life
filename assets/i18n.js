@@ -636,7 +636,9 @@ window.SITE_MENUS = [
     ],
   },
   {
-    zh: "教育服务", en: "Services",
+    // Hidden for now (Rick, 2026-09-29): every item is still "coming soon".
+    // Remove `hidden` to bring it back; both headers skip hidden menus.
+    zh: "教育服务", en: "Services", hidden: true,
     items: [
       { zh: "大学项目",       en: "College Programs" },
       { zh: "国际C学校",      en: "International C-Schools" },

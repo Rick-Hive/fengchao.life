@@ -38,7 +38,6 @@
         <div class="brand-tag">管理中心 Admin Center</div>
       </div>
       <div class="header-spacer"></div>
-      <span class="userline" id="userline"></span>
     </div>
   </header>
 
@@ -88,12 +87,6 @@
       "use strict";
       function $(id) { return document.getElementById(id); }
 
-      fetch("/.auth/me").then(function (r) { return r.json(); }).then(function (j) {
-        var p = j && j.clientPrincipal;
-        $("userline").innerHTML = p
-          ? (p.userDetails || "") + ' · <a href="/.auth/logout">退出 Sign out</a>'
-          : '<a href="/.auth/login/aad">登录 Sign in</a>';
-      }).catch(function () {});
 
       function loadStatus() {
         fetch("/api/data").then(function (r) {
@@ -204,5 +197,7 @@
       });
     })();
   </script>
+  <!-- The same sign-in button as every other page: account, links by role, 退出 without Microsoft's page. -->
+  <script src="/assets/account-button.js"></script>
 </body>
 </html>

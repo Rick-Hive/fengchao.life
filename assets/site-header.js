@@ -16,6 +16,12 @@
 // and the cart is a link back to the course site rather than a sheet.
 (function () {
   "use strict";
+  // One address for the whole site: the sign-in is a cookie of the host it
+  // was made on, so www.fengchao.life would be a second, separate session.
+  if (location.hostname === "www.fengchao.life") {
+    location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
+    return;
+  }
   var header = document.querySelector("header[data-site-header]");
   if (!header || !window.I18N) return;
 
@@ -49,7 +55,7 @@
     return { external: external, attrs: ' href="' + esc(url) + '"' + (external ? ' target="_blank" rel="noopener noreferrer"' : "") };
   }
   function navHtml() {
-    return (window.SITE_MENUS || []).map(function (m, i) {
+    return (window.SITE_MENUS || []).filter(function (m) { return !m.hidden; }).map(function (m, i) {
       if (m.url && !m.items) {
         var l = linkAttrs(m.url);
         return '<a class="menu-btn menu-link"' + l.attrs + ">" + esc(pick(m.en, m.zh)) +

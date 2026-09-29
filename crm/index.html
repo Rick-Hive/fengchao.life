@@ -84,7 +84,6 @@
         <div class="brand-tag">EquipMe 订单录入 Order entry</div>
       </div>
       <div class="header-spacer"></div>
-      <span class="userline" id="userline"></span>
     </div>
   </header>
 
@@ -166,12 +165,6 @@
       var state = { customer: null, newCustomer: false, items: [], amountTouched: false };
 
       // ---- access gate ----------------------------------------------------
-      fetch("/.auth/me").then(function (r) { return r.json(); }).then(function (j) {
-        var p = j && j.clientPrincipal;
-        $("userline").innerHTML = p
-          ? esc(p.userDetails || "") + ' · <a href="/.auth/logout">退出 Sign out</a>'
-          : '<a href="/.auth/login/aad?post_login_redirect_uri=/crm/">登录 Sign in</a>';
-      }).catch(function () {});
 
       api("me").then(function (r) {
         if (!r.ok) throw new Error((r.body && r.body.error) || r.status);
@@ -363,5 +356,7 @@
       renderItems();
     })();
   </script>
+  <!-- The same sign-in button as every other page: account, links by role, 退出 without Microsoft's page. -->
+  <script src="/assets/account-button.js"></script>
 </body>
 </html>

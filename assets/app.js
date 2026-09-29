@@ -1860,7 +1860,7 @@
     var nav = document.getElementById("siteNav");
     if (!nav) return;
     var open = nav.getAttribute("data-open");
-    nav.innerHTML = (window.SITE_MENUS || []).map(function (m, i) {
+    nav.innerHTML = (window.SITE_MENUS || []).filter(function (m) { return !m.hidden; }).map(function (m, i) {
       var id = "menu" + i;
       // A top-level entry with a url and no items is a plain link, not a
       // dropdown: same .menu-btn pill so it sits flush with the dropdowns,

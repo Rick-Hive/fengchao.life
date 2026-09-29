@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>蜂巢 Hive · 以线上资源推动C教育生态重建</title>
   <meta name="description" content="蜂巢：以线上资源推动C教育生态重建。幼儿园至十二年级课程与选课、G.P.A. 计算器等教育工具、教育服务，以及 Teams 和身份验证器帮助。" />
+  <script>
+    // One address for the whole site (2026-09-29): the sign-in is a cookie of
+    // the host it was made on, so www.fengchao.life and fengchao.life would be
+    // two separate sessions — signing out on one would leave the other signed in.
+    if (location.hostname === "www.fengchao.life") location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
+  </script>
   <link rel="stylesheet" href="/assets/site-header.css" />
   <link rel="stylesheet" href="/assets/app.css" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />

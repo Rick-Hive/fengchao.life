@@ -1,25 +1,41 @@
 // The sign-in entry in the site header, top right beside the cart (Rick,
 // 2026-09-29: "登录入口不应该放在菜单中"). Same on every page that has the
-// site header: the course site (index.html loads this file) and the pages
-// built by site-header.js (which loads it too).
+// site header: the course site (index.html loads this file), the pages built
+// by site-header.js (which loads it too), and the Admin Center / order entry
+// pages.
 //
 // Signed out: a person icon + 登录, linking to the Education Resource Link
 // sign-in, which lands on 我的账号. Signed in: the icon + 我的账号, opening a
 // small panel with the account, 我的账号, 管理中心 / EquipMe 订单录入 when the
-// sign-in roles include them, and 退出.
+// sign-in roles include them, 退出, and — for a shared computer — 退出并退出
+// 微软账号.
 //
-// The state comes from /.auth/me (same origin, Static Web Apps' own endpoint),
-// fetched once per page. The label follows the page language: help pages
-// reload on a language switch; the course site switches in place and sets
-// <html lang>, which is watched here.
+// 退出 asks for nothing (Rick, 2026-09-29). Static Web Apps' /.auth/logout
+// always goes through Microsoft's "pick an account to sign out" page, so 退出
+// posts to /api/logout, which ends only the site's session, then checks
+// /.auth/me; if the session somehow survived, it falls back to the full
+// sign-out rather than pretend.
+//
+// One sign-out signs out every open fengchao.life tab: the session is a
+// cookie shared by all tabs, and the other tabs are told at once
+// (BroadcastChannel, with a localStorage event as the fallback) so their
+// headers change and a signed-in-only page (我的账号, 管理中心, 订单录入)
+// leaves for the home page. Every tab also re-checks when it comes back into
+// view, which covers a sign-out on another device or a timed-out session.
 (function () {
   "use strict";
+  if (location.hostname === "www.fengchao.life") {
+    location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
+    return;
+  }
   var inner = document.querySelector(".site-header .header-inner");
   if (!inner || document.getElementById("acctWrap")) return;
 
   var LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/account/index.html");
-  var LOGOUT = "/.auth/logout?post_logout_redirect_uri=/";
+  var FULL_LOGOUT = "/.auth/logout?post_logout_redirect_uri=/";
+  var PROTECTED = /^\/(account|admin|crm)(\/|$)/;
   var principal = null;
+  var known = false;
 
   function en() { return /^en/i.test(document.documentElement.lang || ""); }
   function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -30,8 +46,8 @@
   var wrap = document.createElement("div");
   wrap.className = "acct-wrap";
   wrap.id = "acctWrap";
-  var cart = document.getElementById("cartBtn");
-  inner.insertBefore(wrap, cart || document.getElementById("langBtn") || null);
+  var before = document.getElementById("cartBtn") || document.getElementById("langBtn");
+  if (before && before.parentNode === inner) inner.insertBefore(wrap, before); else inner.appendChild(wrap);
 
   function render() {
     if (!principal) {
@@ -50,11 +66,60 @@
         '<a role="menuitem" href="/account/index.html">' + esc(t("我的 Office 365 账号", "My Office 365 account")) + "</a>" +
         (admin ? '<a role="menuitem" href="/admin/">' + esc(t("管理中心", "Admin Center")) + "</a>" : "") +
         (entry ? '<a role="menuitem" href="/crm/">' + esc(t("EquipMe 订单录入", "EquipMe order entry")) + "</a>" : "") +
-        '<a role="menuitem" class="acct-out" href="' + esc(LOGOUT) + '">' + esc(t("退出", "Sign out")) + "</a>" +
+        '<a role="menuitem" class="acct-out" href="#" data-out="quick">' + esc(t("退出", "Sign out")) + "</a>" +
+        '<a role="menuitem" class="acct-out-full" href="' + esc(FULL_LOGOUT) + '" data-out="full">' + esc(t("公用电脑？同时退出微软账号", "Shared computer? Also sign out of Microsoft")) + "</a>" +
       "</div>";
   }
 
+  function close() {
+    wrap.classList.remove("open");
+    var b = wrap.querySelector("button.acct-btn");
+    if (b) b.setAttribute("aria-expanded", "false");
+  }
+
+  // ---- tell the other tabs ------------------------------------------------------
+  var channel = null;
+  try { channel = new BroadcastChannel("fc-auth"); } catch (e) {}
+  function announce(kind) {
+    try { if (channel) channel.postMessage({ kind: kind, at: Date.now() }); } catch (e) {}
+    try { localStorage.setItem("fc-auth-event", kind + ":" + Date.now()); } catch (e) {}
+  }
+  function signedOutHere() {
+    principal = null;
+    known = true;
+    close();
+    if (PROTECTED.test(location.pathname)) location.replace("/");
+    else render();
+  }
+  function onEvent(kind) {
+    if (kind === "out") signedOutHere();
+  }
+  if (channel) channel.onmessage = function (e) { onEvent(e && e.data && e.data.kind); };
+  window.addEventListener("storage", function (e) {
+    if (e.key === "fc-auth-event" && e.newValue) onEvent(e.newValue.split(":")[0]);
+  });
+
+  // ---- sign out -------------------------------------------------------------------
+  function quickSignOut() {
+    fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" })
+      .catch(function () {})
+      .then(function () { return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" }); })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (j && j.clientPrincipal) { announce("out"); location.href = FULL_LOGOUT; return; }
+        announce("out");
+        signedOutHere();
+      })
+      .catch(function () { announce("out"); location.href = FULL_LOGOUT; });
+  }
+
   wrap.addEventListener("click", function (e) {
+    var out = e.target.closest && e.target.closest("[data-out]");
+    if (out) {
+      if (out.getAttribute("data-out") === "quick") { e.preventDefault(); quickSignOut(); }
+      else announce("out");
+      return;
+    }
     var b = e.target.closest && e.target.closest("button.acct-btn");
     if (!b) return;
     var open = !wrap.classList.contains("open");
@@ -62,30 +127,34 @@
     b.setAttribute("aria-expanded", open ? "true" : "false");
   });
   document.addEventListener("click", function (e) {
-    if (!wrap.contains(e.target) && wrap.classList.contains("open")) {
-      wrap.classList.remove("open");
-      var b = wrap.querySelector("button.acct-btn");
-      if (b) b.setAttribute("aria-expanded", "false");
-    }
+    if (!wrap.contains(e.target) && wrap.classList.contains("open")) close();
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && wrap.classList.contains("open")) {
-      wrap.classList.remove("open");
+      close();
       var b = wrap.querySelector("button.acct-btn");
-      if (b) { b.setAttribute("aria-expanded", "false"); b.focus(); }
+      if (b) b.focus();
     }
   });
+
+  // ---- who is signed in ---------------------------------------------------------
+  function refresh() {
+    return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        principal = (j && j.clientPrincipal) || null;
+        var first = !known;
+        known = true;
+        if (!principal && PROTECTED.test(location.pathname) && !first) { location.replace("/"); return; }
+        render();
+      })
+      .catch(function () {});
+  }
 
   render();
   try {
     new MutationObserver(function () { render(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
   } catch (e) {}
-
-  fetch("/.auth/me", { credentials: "same-origin" })
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (j) {
-      principal = (j && j.clientPrincipal) || null;
-      render();
-    })
-    .catch(function () {});
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") refresh(); });
+  refresh();
 })();

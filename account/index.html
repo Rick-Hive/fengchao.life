@@ -264,7 +264,7 @@
       var b = r.body;
       profile = b.profile;
       $("page").hidden = false;
-      $("who").innerHTML = esc(profile.upn) + ' · <a href="/.auth/logout?post_logout_redirect_uri=/">' + t("退出", "Sign out") + "</a>";
+      $("who").textContent = profile.upn;  // 退出 is in the header's account panel
       var links = [];
       if ((b.roles || []).indexOf("admin") >= 0) links.push('<a href="/admin/">' + t("管理中心", "Admin Center") + "</a>");
       if ((b.roles || []).indexOf("admin") >= 0 || (b.roles || []).indexOf("crm_entry") >= 0) links.push('<a href="/crm/">' + t("EquipMe 订单录入", "EquipMe order entry") + "</a>");
