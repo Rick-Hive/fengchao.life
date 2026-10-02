@@ -8,7 +8,7 @@
 //  * maximum age    — a session older than HIVE_SESSION_HOURS (default 12) ends,
 //                     however active, so a forgotten browser is signed out by the
 //                     next morning;
-//  * account check  — every 5 minutes per account (HIVE_ACCOUNT_CHECK_MINUTES) the
+//  * account check  — every 30 minutes per account (HIVE_ACCOUNT_CHECK_MINUTES) the
 //                     directory is asked whether the password changed after the
 //                     session began or the account was disabled; either ends the
 //                     session (401 session_expired, reason "password" | "disabled");
@@ -132,7 +132,7 @@ function crossSite(req) {
 }
 
 // ---- the account behind the session -------------------------------------------------
-const ACCOUNT_CHECK_MS = Number(process.env.HIVE_ACCOUNT_CHECK_MINUTES || 5) * 60 * 1000;
+const ACCOUNT_CHECK_MS = Number(process.env.HIVE_ACCOUNT_CHECK_MINUTES || 30) * 60 * 1000;
 const accountCache = new Map(); // upn → { at, enabled, passwordChangedAt }
 // Never on the request's critical path: the first call for an account fetches the
 // state in the background and answers from nothing; later calls answer from the

@@ -150,7 +150,7 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   assert.strictEqual(graphCalls, 1, "cached: no second directory call within the window");
   // the password changes during the session: the cache expires, a background refresh runs, the NEXT request is refused
   account = { accountEnabled: true, lastPasswordChangeDateTime: new Date(now - 10 * MIN).toISOString() };
-  S._accountCache.get(UPN).at = Date.now() - 10 * MIN;
+  S._accountCache.get(UPN).at = Date.now() - 31 * MIN; // past the 30-minute window
   c = ctx();
   assert.ok(await S.guard(c, SESS()), "the request that triggers the refresh is not delayed");
   await settle();
