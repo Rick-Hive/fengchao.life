@@ -129,6 +129,8 @@ async function loadDomain(domain, force) {
       identitySource: rec && IDENTITIES.includes(rec.identity) ? "hive" : (identityOf(null, u) ? "entra" : ""),
       linked: rec && Array.isArray(rec.linked) ? rec.linked : [],
       note: (rec && rec.note) || "",
+      // The person's own 补充资料 (city, needs, children), read-only here.
+      extra: (rec && rec.extra) || null,
     };
   });
   rows.sort((a, b) => a.displayName.localeCompare(b.displayName, "zh") || a.upn.localeCompare(b.upn));

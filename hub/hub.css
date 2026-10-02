@@ -94,7 +94,7 @@ button { font: inherit; }
 .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 label.f { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--muted); }
 label.f small { color: var(--faint); font-size: 0.74rem; }
-input[type=text], input[type=email], input[type=search], select, textarea {
+input[type=text], input[type=email], input[type=search], input[type=number], select, textarea {
   padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; font: inherit; font-size: 0.92rem; color: var(--ink); background: var(--card); width: 100%;
 }
 input[readonly] { background: #f6f8fb; color: var(--muted); }
@@ -221,3 +221,16 @@ table.roles th { color: var(--faint); font-weight: 600; font-size: 0.78rem; }
 @media (max-width: 480px) {
   .topbar .crumb { display: none; }
 }
+
+/* 补充资料 */
+.f-title { font-size: 0.82rem; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+.f-title small.faint { font-weight: 400; color: var(--faint); margin-left: 6px; }
+.chks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 0.88rem; padding: 4px 0; cursor: pointer; }
+.chk input { accent-color: var(--accent); width: 16px; height: 16px; }
+.hidden { display: none !important; }
+.needs-other, #xCity { margin-top: 8px; max-width: 420px; }
+#xCity { margin-top: 0; }
+.kid { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 10px; background: var(--bg); }
+.kid-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
+.kid select, .kid input { font: inherit; }

@@ -18,6 +18,7 @@ const { getPrincipal } = require("../shared/auth");
 const { rolesFor, normUser } = require("../shared/roles");
 const { audit } = require("../shared/audit");
 const { guard, finish, describe } = require("../shared/session");
+const people = require("../shared/people");
 
 const DAYS = 7;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -157,10 +158,18 @@ async function handler(context, req) {
 
   try {
     if (method === "GET" && action === "summary") {
-      const [ms, roles] = await Promise.all([methods(user.id), rolesFor(upn)]);
+      const [ms, roles, doc] = await Promise.all([methods(user.id), rolesFor(upn), people.readPeople()]);
+      const rec = doc.people[upn] || {};
       context.res = {
         status: 200,
         body: {
+          // Hive's own facts: 身份 (set by the school), 关联账号 and the person's 补充资料.
+          hive: {
+            identity: people.identityOf(rec, user),
+            linked: Array.isArray(rec.linked) ? rec.linked : [],
+            extra: rec.extra || null,
+            vocab: { grades: people.GRADES, schooling: people.SCHOOLING, models: people.MODELS, higherEd: people.HIGHER_ED, needs: people.NEEDS, maxChildren: people.MAX_CHILDREN },
+          },
           profile: {
             upn: user.userPrincipalName,
             displayName: user.displayName || "",
@@ -259,6 +268,38 @@ async function handler(context, req) {
       userCache.delete(upn);
       await audit(context, { actor: upn, action: "profile.update", target: upn, fields: Object.keys(patch), result: "ok" });
       context.res = { status: 200, body: { ok: true, changed: Object.keys(patch) } };
+      return;
+    }
+
+    // 补充资料 — the person's own: city, what they need most, their children and the
+    // children's Teams accounts (Rick, 2026-10-02). Lives in people.json, not Entra.
+    if (method === "PATCH" && action === "extra") {
+      if (tooMany(upn)) return fail(context, 429, "too many changes; try again in an hour");
+      const b = req.body && typeof req.body === "object" ? req.body : {};
+      const { extra, problems } = people.validateExtra(b, upn);
+      // Each child's account must be a real account of this directory (not a guest).
+      const accounts = extra.children.map((c) => c.account).filter(Boolean);
+      const found = {};
+      await Promise.all(accounts.map(async (a) => {
+        try {
+          const u = await graph("GET", `/users/${encodeURIComponent(a)}?$select=id,userPrincipalName,displayName,userType`);
+          if (u.userType === "Guest") problems.push(`children: ${a} is a guest account, not a school account`);
+          else found[a] = u.displayName || "";
+        } catch (err) {
+          if (err.status === 404) problems.push(`children: ${a} is not an account in this directory — check the spelling`);
+          else throw err;
+        }
+      }));
+      if (problems.length) return fail(context, 400, "please fix the form", { problems });
+      const doc = await people.readPeople();
+      const cur = doc.people[upn] || {};
+      const prev = ((cur.extra && cur.extra.children) || []).map((c) => c.account).filter(Boolean);
+      extra.at = new Date().toISOString();
+      doc.people[upn] = Object.assign({}, cur, { extra, at: extra.at });
+      people.linkFamily(doc, upn, accounts, prev);
+      await people.writePeople(doc);
+      await audit(context, { actor: upn, action: "extra.update", target: upn, children: extra.children.length, linked: accounts, result: "ok" });
+      context.res = { status: 200, body: { ok: true, extra, linked: doc.people[upn].linked || [], identity: doc.people[upn].identity || "", childNames: found } };
       return;
     }
 

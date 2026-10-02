@@ -6,15 +6,31 @@
 // UPN), and are edited by domain administrators from the Hub's user table.
 //
 // Shape: { "people": { "<upn>": { "identity": "家长", "linked": ["child@domain"],
-//          "note": "", "by": "admin@domain", "at": "2026-10-01T..." } } }
+//          "note": "", "by": "admin@domain", "at": "2026-10-01T...",
+//          "extra": { … the person's own 补充资料, see EXTRA below … } } } }
 //
 // Entra's own `department` is read as a fallback for identity when it holds
 // one of the four words, so a school that fills that field in needs no edit.
+//
+// 补充资料 (Rick, 2026-10-02) is written by the person themselves from 我的账号:
+//   extra = { city, needs: [NEEDS…], needsOther, children: [ { name, age, grade,
+//             schooling, model, modelOther, higherEd, account } ], at }
+// `account` is the child's own Teams account when they have one; saving the
+// profile links parent and child both ways (`linked`), so the school's user
+// table shows the family on either row.
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
 
 const BLOB_NAME = "people.json";
 const IDENTITIES = ["家长", "学生", "老师", "行政"];
+// Vocabularies for 补充资料. Stored as the Chinese word; the Hub shows either language.
+const GRADES = ["学前", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "大学", "其它"];
+const SCHOOLING = ["公立学校", "私立学校", "基督教学校", "在家教育", "其它"];
+const MODELS = ["古典教育", "BJU", "Abeka", "混合", "其它"];
+const HIGHER_ED = ["海外上大学", "国内上大学", "未定"];
+const NEEDS = ["教材", "课程", "家长/教师培训", "亲子培训", "海外留学", "大学路径", "双学分/AP课程", "其它"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const MAX_CHILDREN = 8;
 
 function blobClient() {
   const conn = process.env.STORAGE_CONNECTION_STRING;
@@ -52,4 +68,63 @@ function identityOf(record, entraUser) {
   return hit || "";
 }
 
-module.exports = { IDENTITIES, readPeople, writePeople, identityOf };
+// Check and normalise a 补充资料 body from the form. Returns { extra, problems }.
+function validateExtra(b, selfUpn) {
+  const problems = [];
+  const str = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
+  const pick = (v, list, field) => { const s = str(v, 40); if (s && !list.includes(s)) problems.push(`${field}: must be one of ${list.join(" / ")}`); return s; };
+  const extra = { city: str(b.city, 40), needs: [], needsOther: "", children: [] };
+  const needs = Array.isArray(b.needs) ? b.needs : [];
+  for (const n of needs) { const s = str(n, 40); if (!NEEDS.includes(s)) problems.push(`needs: unknown item ${s}`); else if (!extra.needs.includes(s)) extra.needs.push(s); }
+  extra.needsOther = extra.needs.includes("其它") ? str(b.needsOther, 80) : "";
+  const kids = Array.isArray(b.children) ? b.children.slice(0, MAX_CHILDREN) : [];
+  if (Array.isArray(b.children) && b.children.length > MAX_CHILDREN) problems.push(`children: at most ${MAX_CHILDREN}`);
+  kids.forEach((k, i) => {
+    k = k && typeof k === "object" ? k : {};
+    const c = { name: str(k.name, 30) };
+    const age = k.age === "" || k.age == null ? null : Number(k.age);
+    if (age !== null && (!Number.isInteger(age) || age < 1 || age > 30)) problems.push(`children[${i}].age: 1–30`);
+    c.age = age;
+    c.grade = pick(k.grade, GRADES, `children[${i}].grade`);
+    c.schooling = pick(k.schooling, SCHOOLING, `children[${i}].schooling`);
+    c.model = pick(k.model, MODELS, `children[${i}].model`);
+    c.modelOther = c.model === "其它" ? str(k.modelOther, 60) : "";
+    if (c.model === "其它" && !c.modelOther) problems.push(`children[${i}].modelOther: please say which`);
+    c.higherEd = pick(k.higherEd, HIGHER_ED, `children[${i}].higherEd`);
+    c.account = str(k.account, 120).toLowerCase();
+    if (c.account && !EMAIL_RE.test(c.account)) problems.push(`children[${i}].account: not an account (name@school-domain)`);
+    if (c.account && selfUpn && c.account === selfUpn) problems.push(`children[${i}].account: that is your own account`);
+    // An empty card (nothing filled in) is dropped silently.
+    if (c.name || c.age !== null || c.grade || c.schooling || c.model || c.higherEd || c.account) extra.children.push(c);
+  });
+  const seen = new Set();
+  for (const c of extra.children) if (c.account) { if (seen.has(c.account)) problems.push(`children: ${c.account} is listed twice`); seen.add(c.account); }
+  return { extra, problems };
+}
+
+// Record the family both ways. `prev` are the child accounts the profile named
+// before this save, so a child taken off the form is unlinked again (links an
+// administrator made by hand are kept).
+function linkFamily(doc, parent, childAccounts, prev) {
+  const people = doc.people;
+  const now = new Date().toISOString();
+  const p = people[parent] || (people[parent] = {});
+  const removed = (prev || []).filter((a) => !childAccounts.includes(a));
+  p.linked = Array.from(new Set((p.linked || []).filter((a) => !removed.includes(a)).concat(childAccounts)));
+  if (!p.identity && childAccounts.length) p.identity = "家长";
+  for (const a of removed) {
+    const c = people[a];
+    if (!c) continue;
+    c.linked = (c.linked || []).filter((x) => x !== parent);
+    c.at = now;
+    if (!c.identity && !c.linked.length && !c.note && !c.extra) delete people[a];
+  }
+  for (const a of childAccounts) {
+    const c = people[a] || (people[a] = {});
+    c.linked = Array.from(new Set((c.linked || []).concat([parent])));
+    if (!c.identity) c.identity = "学生";
+    c.at = now;
+  }
+}
+
+module.exports = { IDENTITIES, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, readPeople, writePeople, identityOf, validateExtra, linkFamily };
