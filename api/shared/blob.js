@@ -133,24 +133,15 @@ async function writeAsset(key, buffer, contentType) {
   });
 }
 
-// Where the public site loads an asset from. With ASSETS_PUBLIC=1 (Rick, 2026-10-02,
-// speed from the mainland) the browser goes straight to blob storage — the
-// container must allow anonymous blob reads — and skips the /api/asset function
-// hop; otherwise the function streams it as before. The storage host is read
-// from the connection string so nothing else needs configuring.
-function publicAssetBase() {
-  if (!/^(1|true|yes)$/i.test(String(process.env.ASSETS_PUBLIC || ""))) return "";
-  const conn = String(process.env.STORAGE_CONNECTION_STRING || "");
-  const get = (k) => { const m = new RegExp("(?:^|;)" + k + "=([^;]+)").exec(conn); return m ? m[1] : ""; };
-  const endpoint = get("BlobEndpoint");
-  if (endpoint) return endpoint.replace(/\/+$/, "") + "/" + assetsBlob.container;
-  const account = get("AccountName"), suffix = get("EndpointSuffix") || "core.windows.net";
-  return account ? `https://${account}.blob.${suffix}/${assetsBlob.container}` : "";
-}
+// Where the public site loads an asset from: always through /api/asset. A direct
+// blob-storage URL was built and then withdrawn (Rick, 2026-10-02: 「I prefer
+// security than speed」) — it would have needed anonymous blob access enabled on
+// the storage account that also holds people.json, roles.json and the audit
+// log, and one wrong click on that account could publish them. The function hop
+// costs about a hundred milliseconds per image; the year-long cache below makes
+// it a one-time cost per browser.
 function assetUrl(key) {
-  if (!key) return null;
-  const base = publicAssetBase();
-  return base ? base + "/" + String(key).split("/").map(encodeURIComponent).join("/") : "/api/asset?key=" + encodeURIComponent(key);
+  return key ? "/api/asset?key=" + encodeURIComponent(key) : null;
 }
 
 // Read one asset back; returns {buffer, contentType} or null.
@@ -163,4 +154,4 @@ async function readAsset(key) {
   return { buffer, contentType: props.contentType || "application/octet-stream" };
 }
 
-module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset, nextSequence, assetUrl, publicAssetBase, cacheControlFor };
+module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset, nextSequence, assetUrl, cacheControlFor };
