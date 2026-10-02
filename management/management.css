@@ -246,3 +246,9 @@ table.roles th { color: var(--faint); font-weight: 600; font-size: 0.78rem; }
 .mrow .avatar.sm { width: 24px; height: 24px; font-size: 0.6rem; color: #fff; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
 .mrow .mupn { color: var(--faint); font-size: 0.78rem; }
 .gact { white-space: nowrap; align-self: flex-start; }
+
+/* read-only facts in the profile grid, set by the school */
+.f.ro { display: flex; flex-direction: column; gap: 4px; }
+.f.ro > span { font-size: 0.82rem; color: var(--muted); }
+.f.ro > b { font-weight: 600; font-size: 0.95rem; padding: 9px 0; border-bottom: 1px dashed var(--line); word-break: break-all; }
+.f.ro i.muted { font-style: normal; font-weight: 400; color: var(--faint); }

@@ -26,7 +26,7 @@ page — the course site, the calculator and the help pages — wears the same h
   - Compact course cards (name, language, teacher, price, schedule) with a
     Select button; clicking a card opens a full-detail modal; teacher names
     open a teacher-profile popup.
-- **Hub (管理中心)**: `/hub/` — Office 365 sign-in required; profile, Teams, per-school user tables (from the nightly directory cache), roles and data sync
+- **Hub (管理中心)**: `/management/` — Office 365 sign-in required; profile, Teams, per-school user tables (from the nightly directory cache), roles and data sync
 - **API** (Azure Static Web Apps managed functions, `api/`):
   - `GET /api/data` — serves the published data snapshot (public)
   - `GET /api/asset?key=…` — serves mirrored attachments: teacher photos, syllabi (public)

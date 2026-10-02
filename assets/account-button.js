@@ -1,20 +1,24 @@
 // The sign-in entry in the site header, top right beside the cart (Rick,
 // 2026-09-29: "登录入口不应该放在菜单中"). Same on every page that has the
 // site header: the course site (index.html loads this file), the pages built
-// by site-header.js (help, the hub), which loads it too.
+// by site-header.js (help, the management center), which loads it too.
 //
-// Signed out: a person icon + 登录, linking to the Education Resource Link
-// sign-in, which lands on the hub. Signed in: the icon + 我的账号, a plain link
-// straight into the hub — no menu (Rick, 2026-10-02: 「无需“我的 Office 365
-// 账号”和“管理中心”等菜单。点击登录后直接进入用户后台 dashboard」). 退出 lives
-// in the hub's sidebar (assets/session-guard.js does the signing out).
+// Signed out: a person icon + 登录. The sign-in opens in a new tab (Rick,
+// 2026-09-29) so the page stays; once Microsoft has verified the person, that
+// tab sends this one to the management center and closes itself (Rick,
+// 2026-10-02: 「MS 验证身份后应该关闭 tab 页面，回到 fengchao.life，然后渲染到
+// management 页面」). Signed in: the icon + 我的账号, a small panel with
+// 管理中心 and 退出登录 (Rick, 2026-10-02: 「点击我的账户，应该有个选项退出登录」).
+//
+// 退出登录 ends Hive's session (POST /api/logout) and signs the Microsoft
+// account out of the browser without Microsoft's account picker, naming the
+// account with logout_hint (see assets/session-guard.js for the same flow).
 //
 // One sign-out signs out every open fengchao.life tab: the session is a
 // cookie shared by all tabs, and the other tabs are told at once
 // (BroadcastChannel, with a localStorage event as the fallback) so their
 // headers change and a signed-in-only page leaves for the home page. Every
-// tab also re-checks when it comes back into view, which covers a sign-out
-// on another device or a timed-out session.
+// tab also re-checks when it comes back into view.
 (function () {
   "use strict";
   if (location.hostname === "www.fengchao.life") {
@@ -31,9 +35,11 @@
   // set its cookie there, and the hub's www→apex redirect would then arrive on
   // fengchao.life without it.
   var SITE = location.hostname === "fengchao.life" || location.hostname === "www.fengchao.life" ? "https://fengchao.life" : "";
-  var LOGIN = SITE + "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/hub/?signedin=1");
-  var PROTECTED = /^\/(account|admin|hub)(\/|$)/;
-  var ON_HUB = /^\/hub(\/|$)/.test(location.pathname);
+  var LOGIN = SITE + "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
+  var MANAGE = "/management/";
+  var TENANT = "edb20124-7377-4368-acbc-d4be58fe59c3";
+  var PROTECTED = /^\/(account|admin|hub|management)(\/|$)/;
+  var ON_HUB = /^\/(hub|management)(\/|$)/.test(location.pathname);
   var principal = null;
   var known = false;
 
@@ -71,9 +77,19 @@
       return;
     }
     signedOutWhy = ""; // signed in again: the notice has done its job
-    // On the hub itself the entry is just a marker of who is signed in (the page is the dashboard).
-    wrap.innerHTML = '<a class="acct-btn signed-in' + (ON_HUB ? " current" : "") + '" href="/hub/" title="' + esc(principal.userDetails || "") + '"' + (ON_HUB ? ' aria-current="page"' : "") + ">" +
-      icon + '<span class="acct-lbl">' + esc(t("我的账号", "Account")) + "</span></a>";
+    wrap.innerHTML =
+      '<button class="acct-btn signed-in" type="button" aria-haspopup="true" aria-expanded="false" title="' + esc(principal.userDetails || "") + '">' +
+        icon + '<span class="acct-lbl">' + esc(t("我的账号", "Account")) + "</span></button>" +
+      '<div class="acct-panel" role="menu">' +
+        '<div class="acct-who">' + esc(principal.userDetails || "") + "</div>" +
+        (ON_HUB ? "" : '<a role="menuitem" href="' + MANAGE + '">' + esc(t("管理中心", "Management center")) + "</a>") +
+        '<a role="menuitem" class="acct-out" href="#" data-out="1">' + esc(t("退出登录", "Sign out")) + "</a>" +
+      "</div>";
+  }
+  function close() {
+    wrap.classList.remove("open");
+    var b = wrap.querySelector("button.acct-btn");
+    if (b) b.setAttribute("aria-expanded", "false");
   }
 
   // ---- tell the other tabs ------------------------------------------------------
@@ -87,21 +103,63 @@
     principal = null;
     known = true;
     if (PROTECTED.test(location.pathname)) location.replace("/");
-    else render();
+    else { close(); render(); }
   }
   function onEvent(kind) {
     if (kind === "out") signedOutHere();
-    else if (kind === "in") refresh();
+    else if (kind === "in") {
+      // The tab that started the sign-in goes to the management center; other
+      // tabs just refresh their header.
+      var origin = "";
+      try { origin = sessionStorage.getItem("fc-login-origin") || ""; sessionStorage.removeItem("fc-login-origin"); } catch (e) {}
+      if (origin && !ON_HUB && Date.now() - Number(origin) < 30 * 60 * 1000) { location.href = MANAGE; return; }
+      refresh();
+    }
   }
   if (channel) channel.onmessage = function (e) { onEvent(e && e.data && e.data.kind); };
   window.addEventListener("storage", function (e) {
     if (e.key === "fc-auth-event" && e.newValue) onEvent(e.newValue.split(":")[0]);
   });
 
+  // ---- sign out (same flow as the management center's 退出) ----------------------
+  function signOut() {
+    try { sessionStorage.setItem("fc-signedout", "user"); localStorage.removeItem("fc-last-active"); } catch (e) {}
+    var back = location.origin + "/?signedout=user";
+    fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (j) {
+        var hint = "";
+        (((j || {}).clientPrincipal || {}).claims || []).forEach(function (c) { if (c && (c.typ === "login_hint" || /\/login_hint$/.test(String(c.typ)))) hint = String(c.val || ""); });
+        return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
+          announce("out");
+          if (hint) location.replace("https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout?logout_hint=" + encodeURIComponent(hint) + "&post_logout_redirect_uri=" + encodeURIComponent(back));
+          else location.replace("/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent("/?signedout=user"));
+        });
+      });
+  }
+
   wrap.addEventListener("click", function (e) {
     var x = e.target.closest && e.target.closest(".acct-notice-x");
-    if (x) { signedOutWhy = ""; render(); }
+    if (x) { signedOutWhy = ""; render(); return; }
+    var login = e.target.closest && e.target.closest("a.acct-btn:not(.signed-in)");
+    if (login) {
+      // Open the sign-in as a window of this page (not a plain new tab), so that
+      // once Microsoft is done it can send this tab on and close itself.
+      e.preventDefault();
+      try { sessionStorage.setItem("fc-login-origin", String(Date.now())); } catch (err) {}
+      var w = window.open(login.href, "fc-signin");
+      if (!w) location.href = login.href; // popup blocked: sign in here instead
+      return;
+    }
+    var out = e.target.closest && e.target.closest("[data-out]");
+    if (out) { e.preventDefault(); close(); signOut(); return; }
+    var b = e.target.closest && e.target.closest("button.acct-btn");
+    if (!b) return;
+    var open = !wrap.classList.contains("open");
+    wrap.classList.toggle("open", open);
+    b.setAttribute("aria-expanded", open ? "true" : "false");
   });
+  document.addEventListener("click", function (e) { if (!wrap.contains(e.target) && wrap.classList.contains("open")) close(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && wrap.classList.contains("open")) { close(); var b = wrap.querySelector("button.acct-btn"); if (b) b.focus(); } });
 
   // ---- who is signed in ---------------------------------------------------------
   function refresh() {

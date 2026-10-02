@@ -68,7 +68,7 @@
       }
     },
     {
-      "route": "/hub*",
+      "route": "/management*",
       "allowedRoles": [
         "authenticated"
       ],
@@ -95,6 +95,11 @@
       }
     },
     {
+      "route": "/hub*",
+      "redirect": "/management/",
+      "statusCode": 301
+    },
+    {
       "route": "/.auth/login/github",
       "statusCode": 404
     },
@@ -111,7 +116,7 @@
       "/api/*",
       "/admin*",
       "/account*",
-      "/hub*",
+      "/management*",
       "/help/*",
       "/*.{css,js,ico,png,svg,jpg,jpeg,webp,json,txt,xml,webmanifest,woff,woff2,html}"
     ]

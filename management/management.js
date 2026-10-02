@@ -1,4 +1,4 @@
-// 蜂巢 管理中心 — one page, hash-routed. Views:
+// 蜂巢 管理中心 (/management/) — one page, hash-routed. Views:
 //   #/account          我的账号: profile, password links, sign-in methods, log downloads
 //   #/teams            我的 Teams: a Teams-style list with filter chips and live search
 //   #/domain/users     本域管理 › 用户: Entra-style table of the domain's accounts
@@ -16,8 +16,8 @@
   var EN = LANG === "en";
   function t(zh, en) { return EN ? en : zh; }
   document.documentElement.lang = EN ? "en" : "zh-CN";
-  document.title = t("蜂巢 · 管理中心", "Hive · Hub");
-  document.getElementById("brandTag").textContent = t("管理中心", "Dashboard");
+  document.title = t("蜂巢 · 管理中心", "Hive · Management Center");
+  document.getElementById("brandTag").textContent = t("管理中心", "Management Center");
   document.getElementById("fOut").textContent = t("退出", "Sign out");
   // The language button is the site header's (#langBtn, drawn by site-header.js).
   var langBtn = document.getElementById("langBtn");
@@ -238,11 +238,12 @@
         '<div class="kpi"><div class="l">' + t("角色", "Roles") + '</div><div class="v" style="font-size:1.05rem">' + esc(roleNames(me.roles)) + "</div></div>" +
       "</div>" +
       '<div class="card" id="profileCard"><h2>' + t("个人资料", "Profile") + (hv.identity ? ' <span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + "</h2>" +
-        '<h3 class="sec">' + t("基本资料", "Basic information") + '</h3><p class="sub">' + t("来自您的 Office 365 账号。空白的可以自己补充，改动会写回账号（Teams、Outlook 里同步可见）。账号、工作邮箱和职务由学校设置。", "From your Office 365 account. Fill in what is blank; changes are written back to the account (Teams and Outlook follow). The account, work email and job title are set by the school.") + "</p>" +
+        '<h3 class="sec">' + t("基本资料", "Basic information") + '</h3><p class="sub">' + t("来自您的 Microsoft 账号。空白的可以自己补充，改动会写回账号（Teams、Outlook 里同步可见）。账号、工作邮箱、职务和部门由学校设置，这里不能改。", "From your Microsoft account. Fill in what is blank; changes are written back to the account (Teams and Outlook follow). The account, work email, job title and department are set by the school and cannot be changed here.") + "</p>" +
         '<form id="pf" autocomplete="off"><div class="grid3">' +
-          '<label class="f">' + t("账号", "Account") + '<input type="text" value="' + esc(p.upn) + '" readonly /></label>' +
-          '<label class="f">' + t("工作邮箱", "Work email") + '<input type="text" value="' + esc(p.mail || p.upn) + '" readonly /></label>' +
-          '<label class="f">' + t("职务 / 部门", "Job title / department") + '<input type="text" value="' + esc([p.jobTitle, p.department].filter(Boolean).join(" · ")) + '" readonly placeholder="' + t("由学校设置", "Set by the school") + '" /></label>' +
+          // Set by the school, shown as text — not fields (Rick, 2026-10-02: 「禁止编辑 MS 账号，职务/部门」).
+          '<div class="f ro"><span>' + t("Microsoft 账号", "Microsoft account") + '</span><b>' + esc(p.upn) + "</b></div>" +
+          '<div class="f ro"><span>' + t("工作邮箱", "Work email") + '</span><b>' + esc(p.mail || p.upn) + "</b></div>" +
+          '<div class="f ro"><span>' + t("职务 / 部门", "Job title / department") + '</span><b>' + (esc([p.jobTitle, p.department].filter(Boolean).join(" · ")) || '<i class="muted">' + t("由学校设置", "Set by the school") + "</i>") + "</b></div>" +
           '<label class="f">' + t("显示名", "Display name") + '<input type="text" data-p="displayName" maxlength="64" value="' + esc(p.displayName) + '" required /></label>' +
           '<label class="f">' + t("名", "Given name") + '<input type="text" data-p="givenName" maxlength="40" value="' + esc(p.givenName) + '" /></label>' +
           '<label class="f">' + t("姓", "Surname") + '<input type="text" data-p="surname" maxlength="40" value="' + esc(p.surname) + '" /></label>' +
@@ -757,6 +758,11 @@
         try { new BroadcastChannel("fc-auth").postMessage({ kind: "in", at: Date.now() }); } catch (e) {}
         try { localStorage.setItem("fc-auth-event", "in:" + Date.now()); } catch (e) {}
         try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])signedin=1&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
+        // Opened from 登录 on another tab: send that tab here and close this one
+        // (Rick, 2026-10-02). If the browser refuses to close it, this tab simply stays.
+        var handed = false;
+        try { if (window.opener && !window.opener.closed) { window.opener.location.href = "/management/"; handed = true; } } catch (e) { handed = true; /* cross-origin opener: the broadcast above did the job */ }
+        if (handed || window.opener) setTimeout(function () { try { window.close(); } catch (e) {} }, 400);
       }
       return me;
     });
@@ -784,7 +790,7 @@
     return api("domain/domains").then(function (r) { domainsInfo = r.ok ? r.body : null; }).catch(function () { domainsInfo = null; });
   }).then(route).catch(function (r) {
     var msg = r && r.body ? errText(r) : String(r);
-    $("content").innerHTML = '<div class="card"><h2>' + t("无法读取账号", "Could not load the account") + '</h2><p class="sub">' + esc(msg) + '</p><div class="actions"><a class="btn" href="/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent("/hub/") + '">' + t("重新登录", "Sign in again") + "</a></div></div>";
+    $("content").innerHTML = '<div class="card"><h2>' + t("无法读取账号", "Could not load the account") + '</h2><p class="sub">' + esc(msg) + '</p><div class="actions"><a class="btn" href="/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent("/management/") + '">' + t("重新登录", "Sign in again") + "</a></div></div>";
     $("fName").textContent = t("未登录", "Signed out"); $("fAvatar").textContent = "?";
     nav();
   });
