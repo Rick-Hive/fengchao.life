@@ -21,6 +21,7 @@ const { getPrincipal } = require("../shared/auth");
 const { userRoles, managedDomains, normUser } = require("../shared/roles");
 const { readPeople, writePeople, identityOf, IDENTITIES } = require("../shared/people");
 const { audit } = require("../shared/audit");
+const { guard, finish } = require("../shared/session");
 
 const CACHE_MS = 10 * 60 * 1000;
 const cache = new Map(); // domain → { at, users, groups }
@@ -152,7 +153,7 @@ async function loadDomain(domain, force) {
 
 // ---- the function -----------------------------------------------------------------
 
-module.exports = async function (context, req) {
+async function handler(context, req) {
   const action = String((req.params && req.params.action) || "").toLowerCase();
   const method = String(req.method || "GET").toUpperCase();
   const p = getPrincipal(req);
@@ -256,4 +257,12 @@ module.exports = async function (context, req) {
     context.log.error(`domain/${action} by ${actor}: ${(err && err.stack) || err}`);
     fail(context, err.status === 500 ? 500 : 502, String((err && err.message) || err), { code: err.code || "" });
   }
+};
+
+// Hive's session rules (idle timeout, maximum age, same-site check) wrap every call.
+module.exports = async function (context, req) {
+  const s = await guard(context, req);
+  if (!s) return;
+  await handler(context, req);
+  finish(context, s);
 };

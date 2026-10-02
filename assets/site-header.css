@@ -283,6 +283,15 @@ html[lang="en"] .brand-tag { font-size: 0.76em; letter-spacing: 0; }
 .acct-panel a:hover { background: #eef1f6; color: var(--accent-dark); }
 .acct-panel a.acct-out { color: #b42318; border-top: 1px solid var(--line); margin-top: 4px; }
 .acct-panel a.acct-out-full { color: #6b7787; font-size: 0.78em; padding-top: 4px; }
+/* 「长时间未操作，已自动退出」 — shown under 登录 once, after the session guard sends a browser home. */
+.acct-notice {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: max-content; max-width: min(320px, 92vw);
+  background: #fdf0e0; color: #7a3e06; border: 1px solid #ecd2ab; border-radius: 10px;
+  padding: 9px 34px 9px 12px; font-size: 0.82em; line-height: 1.45; box-shadow: 0 14px 30px -12px rgba(15, 32, 60, 0.3);
+}
+.acct-notice::before { content: ""; position: absolute; right: 14px; top: -6px; width: 10px; height: 10px; background: #fdf0e0; border-left: 1px solid #ecd2ab; border-top: 1px solid #ecd2ab; transform: rotate(45deg); }
+.acct-notice-x { position: absolute; right: 6px; top: 5px; border: 0; background: none; color: inherit; font-size: 1.1em; line-height: 1; padding: 2px 6px; cursor: pointer; border-radius: 6px; }
+.acct-notice-x:hover { background: rgba(122, 62, 6, 0.1); }
 /* A phone's header row holds the mark, 蜂巢, 菜单, the sign-in icon, the
    basket and the language button. From ~420px down that no longer fitted
    once the sign-in icon joined (and below ~340/360px it never had): the

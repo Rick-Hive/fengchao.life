@@ -154,7 +154,10 @@
       function money(n) { return "¥" + (Math.round(n * 100) / 100).toFixed(2); }
       function api(path, opts) {
         return fetch("/api/crm/" + path, opts).then(function (r) {
-          return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            if (r.status === 401 && j && j.code === "session_expired" && window.fcSession) window.fcSession.expired(j.reason);
+            return { ok: r.ok, status: r.status, body: j };
+          });
         });
       }
       function debounce(fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms); }; }
@@ -358,5 +361,6 @@
   </script>
   <!-- The same sign-in button as every other page: account, links by role, 退出 without Microsoft's page. -->
   <script src="/assets/account-button.js"></script>
+  <script src="/assets/session-guard.js"></script>
 </body>
 </html>

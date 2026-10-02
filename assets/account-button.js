@@ -52,12 +52,28 @@
   var before = document.getElementById("cartBtn") || document.getElementById("langBtn");
   if (before && before.parentNode === inner) inner.insertBefore(wrap, before); else inner.appendChild(wrap);
 
+  // Arrived here because the session ended (idle timeout, maximum age, or 退出
+  // from the countdown dialog): say so once, under 登录, and take the marker
+  // out of the address. See assets/session-guard.js.
+  var signedOutWhy = (location.search.match(/[?&]signedout=([a-z]+)/) || [])[1] || window.__fcSignedOut || "";
+  try { if (!signedOutWhy) signedOutWhy = sessionStorage.getItem("fc-signedout") || ""; sessionStorage.removeItem("fc-signedout"); } catch (e) {}
+  if (/[?&]signedout=/.test(location.search)) {
+    try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])signedout=[a-z]+&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
+  }
+  function noticeHtml() {
+    if (!signedOutWhy) return "";
+    var msg = signedOutWhy === "age" ? t("为保护账号，登录已满最长时长，已自动退出。请重新登录。", "For your account's safety the session reached its maximum length and was signed out. Please sign in again.")
+      : signedOutWhy === "user" ? t("已退出。", "Signed out.")
+      : t("长时间未操作，已自动退出。请重新登录。", "Signed out after a period of inactivity. Please sign in again.");
+    return '<div class="acct-notice" role="status">' + esc(msg) + '<button type="button" class="acct-notice-x" aria-label="' + esc(t("关闭", "Close")) + '">×</button></div>';
+  }
   function render() {
     if (!principal) {
       wrap.innerHTML = '<a class="acct-btn" href="' + esc(LOGIN) + '" target="_blank" rel="noopener" title="' + esc(t("用 Office 365 账号登录", "Sign in with your Office 365 account")) + '">' +
-        icon + '<span class="acct-lbl">' + esc(t("登录", "Sign in")) + "</span></a>";
+        icon + '<span class="acct-lbl">' + esc(t("登录", "Sign in")) + "</span></a>" + noticeHtml();
       return;
     }
+    signedOutWhy = ""; // signed in again: the notice has done its job
     var roles = principal.userRoles || [];
     var admin = roles.indexOf("admin") >= 0;
     var entry = admin || roles.indexOf("crm_entry") >= 0;
@@ -118,6 +134,8 @@
   }
 
   wrap.addEventListener("click", function (e) {
+    var x = e.target.closest && e.target.closest(".acct-notice-x");
+    if (x) { signedOutWhy = ""; render(); return; }
     var out = e.target.closest && e.target.closest("[data-out]");
     if (out) {
       if (out.getAttribute("data-out") === "quick") { e.preventDefault(); quickSignOut(); }

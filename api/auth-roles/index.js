@@ -21,6 +21,7 @@
 // principal), so it must not reveal more than it has to: it returns roles
 // only, for the account named in the body, and nothing else.
 const { rolesFor, normUser } = require("../shared/roles");
+const { audit } = require("../shared/audit");
 
 const TENANT_ID = (process.env.AZURE_TENANT_ID || "edb20124-7377-4368-acbc-d4be58fe59c3").toLowerCase();
 
@@ -45,6 +46,9 @@ module.exports = async function (context, req) {
     const roles = await rolesFor(user);
     context.log(`auth-roles: ${user || "(no account)"} → ${roles.join(",") || "(none)"}`);
     context.res = { status: 200, body: { roles } };
+    // Hive's own sign-in record (Entra has the full one; this one is Hive-side and
+    // per site). Best effort: a failed audit line must never block a sign-in.
+    try { await audit(context, { actor: user, action: "signin", roles, provider: body.identityProvider || "aad", result: "ok" }); } catch { /* logged in audit() */ }
   } catch (err) {
     context.log.error(`auth-roles: ${(err && err.stack) || err}`);
     context.res = { status: 200, body: { roles: [] } };

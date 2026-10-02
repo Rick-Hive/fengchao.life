@@ -17,6 +17,7 @@ const { graph, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
 const { rolesFor, normUser } = require("../shared/roles");
 const { audit } = require("../shared/audit");
+const { guard, finish, describe } = require("../shared/session");
 
 const DAYS = 7;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -137,7 +138,7 @@ function fail(context, status, error, extra) {
   context.res = { status, body: Object.assign({ error }, extra || {}) };
 }
 
-module.exports = async function (context, req) {
+async function handler(context, req) {
   const action = String((req.params && req.params.action) || "").toLowerCase();
   const id = String((req.params && req.params.id) || "");
   const method = String(req.method || "GET").toUpperCase();
@@ -326,4 +327,17 @@ module.exports = async function (context, req) {
     const status = err.status === 403 ? 502 : err.status === 500 ? 500 : 502;
     fail(context, status, String((err && err.message) || err), { code: err.code || "" });
   }
+};
+
+// Hive's session rules (idle timeout, maximum age, same-site check) wrap every call.
+module.exports = async function (context, req) {
+  const s = await guard(context, req);
+  if (!s) return;
+  if (String((req.params && req.params.action) || "").toLowerCase() === "session") {
+    context.res = { status: 200, body: describe(s) };
+    finish(context, s);
+    return;
+  }
+  await handler(context, req);
+  finish(context, s);
 };

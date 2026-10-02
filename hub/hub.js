@@ -31,7 +31,11 @@
   function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function api(path, opts) {
     return fetch("/api/" + path, Object.assign({ credentials: "same-origin", cache: "no-store" }, opts || {})).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        // The server ended the session (idle / maximum age): leave for the homepage, which explains.
+        if (r.status === 401 && j && j.code === "session_expired" && window.fcSession) window.fcSession.expired(j.reason);
+        return { ok: r.ok, status: r.status, body: j };
+      });
     });
   }
   function post(path, method, body) {

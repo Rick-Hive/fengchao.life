@@ -21,6 +21,7 @@
 const { AirtableBase, formulaString } = require("../shared/airtable");
 const { userRoles, userHasRole } = require("../shared/roles");
 const cfg = require("../shared/config");
+const { guard, finish } = require("../shared/session");
 
 const ROLE = "crm_entry";
 
@@ -181,7 +182,7 @@ function bad(context, status, message, extra) {
   context.res = { status, body: Object.assign({ error: message }, extra || {}) };
 }
 
-module.exports = async function (context, req) {
+async function handler(context, req) {
   const action = String((req.params && req.params.action) || "").toLowerCase();
   const method = String(req.method || "GET").toUpperCase();
 
@@ -402,3 +403,11 @@ async function entry(context, req, at, who) {
     };
   }
 }
+
+// Hive's session rules (idle timeout, maximum age, same-site check) wrap every call.
+module.exports = async function (context, req) {
+  const s = await guard(context, req);
+  if (!s) return;
+  await handler(context, req);
+  finish(context, s);
+};

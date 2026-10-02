@@ -10,6 +10,9 @@
     // the host it was made on, so www.fengchao.life and fengchao.life would be
     // two separate sessions — signing out on one would leave the other signed in.
     if (location.hostname === "www.fengchao.life") location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
+    // ?signedout=<why> (set by assets/session-guard.js after an automatic sign-out) is read
+    // here, before app.js rewrites the address; assets/account-button.js shows the notice.
+    window.__fcSignedOut = (location.search.match(/[?&]signedout=([a-z]+)/) || [])[1] || "";
   </script>
   <link rel="stylesheet" href="/assets/site-header.css" />
   <link rel="stylesheet" href="/assets/app.css" />

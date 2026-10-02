@@ -9,10 +9,11 @@
 // limited to the ASSIGNABLE set in api/shared/roles.js.
 const { hasRole, getPrincipal } = require("../shared/auth");
 const { ASSIGNABLE, DOMAIN_ADMIN_RE, isAssignable, readRoles, writeRoles, normUser } = require("../shared/roles");
+const { guard, finish } = require("../shared/session");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-module.exports = async function (context, req) {
+async function handler(context, req) {
   if (!hasRole(req, "admin")) {
     context.res = { status: 403, body: { error: "admin role required" } };
     return;
@@ -60,4 +61,12 @@ module.exports = async function (context, req) {
     context.log.error("roles: " + (err && err.stack || err));
     context.res = { status: 500, body: { error: String(err && err.message || err) } };
   }
+};
+
+// Hive's session rules (idle timeout, maximum age, same-site check) wrap every call.
+module.exports = async function (context, req) {
+  const s = await guard(context, req);
+  if (!s) return;
+  await handler(context, req);
+  finish(context, s);
 };

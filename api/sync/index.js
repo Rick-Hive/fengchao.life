@@ -8,6 +8,7 @@ const cfg = require("../shared/config");
 const { writeSnapshot, readSnapshot, writeAsset } = require("../shared/blob");
 const { hasRole, getPrincipal } = require("../shared/auth");
 const { hiveKey } = require("../shared/hive");
+const { guard, finish } = require("../shared/session");
 
 const API_ROOT = "https://api.airtable.com/v0";
 
@@ -252,7 +253,7 @@ function extFromAttachment(att) {
   return map[att.type] || "";
 }
 
-module.exports = async function (context, req) {
+async function handler(context, req) {
   if (!hasRole(req, "admin")) {
     context.res = { status: 403, body: { error: "admin role required" } };
     return;
@@ -966,4 +967,12 @@ module.exports = async function (context, req) {
     context.log.error("sync failed", err);
     context.res = { status: 502, body: { error: String(err.message || err) } };
   }
+};
+
+// Hive's session rules (idle timeout, maximum age, same-site check) wrap every call.
+module.exports = async function (context, req) {
+  const s = await guard(context, req);
+  if (!s) return;
+  await handler(context, req);
+  finish(context, s);
 };
