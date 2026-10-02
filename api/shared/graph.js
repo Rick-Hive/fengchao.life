@@ -99,8 +99,33 @@ async function list(path, max, extraHeaders) {
   return out.slice(0, max || 500);
 }
 
+// Several GET requests in one round trip (Graph takes 20 per $batch). Each
+// entry: { id, url } with url relative to /v1.0; returns { id → { status, body } }.
+// A 429 inside the batch is retried once after Retry-After.
+async function batch(requests, extraHeaders) {
+  const out = {};
+  for (let i = 0; i < requests.length; i += 20) {
+    let chunk = requests.slice(i, i + 20).map((r) => ({ id: String(r.id), method: "GET", url: r.url, headers: extraHeaders || undefined }));
+    for (let attempt = 0; attempt < 2 && chunk.length; attempt++) {
+      const res = await graph("POST", "/$batch", { requests: chunk });
+      const retry = [];
+      let wait = 0;
+      for (const r of (res && res.responses) || []) {
+        if (r.status === 429 && attempt === 0) {
+          retry.push(chunk.find((c) => c.id === r.id));
+          wait = Math.max(wait, Math.min(5, parseInt((r.headers && r.headers["Retry-After"]) || "1", 10) || 1));
+        } else out[r.id] = { status: r.status, body: r.body };
+      }
+      chunk = retry.filter(Boolean);
+      if (chunk.length) await new Promise((rs) => setTimeout(rs, wait * 1000));
+    }
+    for (const c of chunk) out[c.id] = { status: 429, body: null };
+  }
+  return out;
+}
+
 function q(s) {
   return String(s).replace(/'/g, "''");
 }
 
-module.exports = { graph, list, q, _reset: () => { cached = { token: "", exp: 0 }; } };
+module.exports = { graph, list, batch, q, _reset: () => { cached = { token: "", exp: 0 }; } };

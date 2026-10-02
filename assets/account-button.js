@@ -32,11 +32,11 @@
   if (!inner || document.getElementById("acctWrap")) return;
 
   // The sign-in opens in a new tab (Rick, 2026-09-29), so the page the person
-  // was on stays where it was. The new tab lands on 我的账号 with ?signedin=1,
+  // was on stays where it was. The new tab lands on the hub with ?signedin=1,
   // tells the other tabs, and they refresh their headers straight away.
-  var LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/account/index.html?signedin=1");
+  var LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/hub/?signedin=1");
   var FULL_LOGOUT = "/.auth/logout?post_logout_redirect_uri=/";
-  var PROTECTED = /^\/(account|admin|crm)(\/|$)/;
+  var PROTECTED = /^\/(account|admin|crm|hub)(\/|$)/;
   var principal = null;
   var known = false;
 
@@ -66,8 +66,8 @@
         icon + '<span class="acct-lbl">' + esc(t("我的账号", "Account")) + "</span></button>" +
       '<div class="acct-panel" role="menu">' +
         '<div class="acct-who">' + esc(principal.userDetails || "") + "</div>" +
-        '<a role="menuitem" href="/account/index.html">' + esc(t("我的 Office 365 账号", "My Office 365 account")) + "</a>" +
-        (admin ? '<a role="menuitem" href="/admin/">' + esc(t("管理中心", "Admin Center")) + "</a>" : "") +
+        '<a role="menuitem" href="/hub/">' + esc(t("我的 Office 365 账号", "My Office 365 account")) + "</a>" +
+        (admin ? '<a role="menuitem" href="/hub/#/system/roles">' + esc(t("管理中心", "Admin Center")) + "</a>" : "") +
         (entry ? '<a role="menuitem" href="/crm/">' + esc(t("EquipMe 订单录入", "EquipMe order entry")) + "</a>" : "") +
         '<a role="menuitem" class="acct-out" href="#" data-out="quick">' + esc(t("退出", "Sign out")) + "</a>" +
         '<a role="menuitem" class="acct-out-full" href="' + esc(FULL_LOGOUT) + '" data-out="full">' + esc(t("公用电脑？同时退出微软账号", "Shared computer? Also sign out of Microsoft")) + "</a>" +

@@ -8,7 +8,7 @@
 // hasRole check below is the belt. Accounts are stored lowercase; roles are
 // limited to the ASSIGNABLE set in api/shared/roles.js.
 const { hasRole, getPrincipal } = require("../shared/auth");
-const { ASSIGNABLE, readRoles, writeRoles, normUser } = require("../shared/roles");
+const { ASSIGNABLE, DOMAIN_ADMIN_RE, isAssignable, readRoles, writeRoles, normUser } = require("../shared/roles");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -21,7 +21,7 @@ module.exports = async function (context, req) {
   try {
     if (method === "GET") {
       const doc = await readRoles();
-      context.res = { status: 200, body: { entries: doc.entries, assignable: ASSIGNABLE } };
+      context.res = { status: 200, body: { entries: doc.entries, assignable: ASSIGNABLE, domainAdminPattern: DOMAIN_ADMIN_RE.source } };
       return;
     }
 
@@ -40,8 +40,8 @@ module.exports = async function (context, req) {
       return;
     }
 
-    const roles = Array.isArray(body.roles) ? body.roles.map(String) : [];
-    const bad = roles.filter((r) => !ASSIGNABLE[r]);
+    const roles = Array.isArray(body.roles) ? body.roles.map((r) => String(r).trim().toLowerCase()) : [];
+    const bad = roles.filter((r) => !isAssignable(r));
     if (bad.length) {
       context.res = { status: 400, body: { error: "unknown role: " + bad.join(", ") } };
       return;

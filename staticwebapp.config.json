@@ -60,6 +60,18 @@
       ]
     },
     {
+      "route": "/hub*",
+      "allowedRoles": [
+        "authenticated"
+      ]
+    },
+    {
+      "route": "/api/domain/*",
+      "allowedRoles": [
+        "authenticated"
+      ]
+    },
+    {
       "route": "/.auth/login/github",
       "statusCode": 404
     },
@@ -77,6 +89,7 @@
       "/admin*",
       "/crm*",
       "/account*",
+      "/hub*",
       "/help/*",
       "/*.{css,js,ico,png,svg,jpg,jpeg,webp,json,txt,xml,webmanifest,woff,woff2,html}"
     ]

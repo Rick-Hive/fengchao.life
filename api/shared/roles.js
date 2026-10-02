@@ -22,8 +22,37 @@ const BLOB_NAME = "roles.json";
 // refused, so a typo never becomes a role nobody checks for.
 const ASSIGNABLE = {
   admin: { zh: "管理员", en: "Administrator" },
+  coordinator: { zh: "Hive 协调员", en: "Hive coordinator" },
   crm_entry: { zh: "录入员", en: "CRM data entry" },
 };
+
+// A domain administrator's role names the domain it covers:
+// `domain_admin:sciencebug.net`. One account may hold several.
+const DOMAIN_ADMIN_RE = /^domain_admin:([a-z0-9][a-z0-9.-]*\.[a-z]{2,})$/;
+
+function isAssignable(role) {
+  return !!ASSIGNABLE[role] || DOMAIN_ADMIN_RE.test(String(role || ""));
+}
+
+// Roles as a person sees them, for lists and pickers.
+function roleLabel(role, lang) {
+  const m = DOMAIN_ADMIN_RE.exec(role);
+  if (m) return lang === "en" ? `Domain administrator · ${m[1]}` : `域管理员 · ${m[1]}`;
+  const a = ASSIGNABLE[role];
+  return a ? (lang === "en" ? a.en : a.zh) : role;
+}
+
+// Which domains an account may manage: every domain for admin / coordinator
+// (`"*"`), the named ones for domain administrators.
+function managedDomains(roles) {
+  const out = new Set();
+  for (const r of roles || []) {
+    if (r === "admin" || r === "coordinator") return ["*"];
+    const m = DOMAIN_ADMIN_RE.exec(r);
+    if (m) out.add(m[1]);
+  }
+  return Array.from(out);
+}
 
 // Accounts that are always `admin`, whatever roles.json says. Since the site
 // signs in through its own Entra app (2026-09-29), roles come from the
@@ -56,7 +85,7 @@ async function readRoles() {
       entries: entries
         .map((e) => ({
           user: normUser(e.user),
-          roles: Array.isArray(e.roles) ? e.roles.filter((r) => ASSIGNABLE[r]) : [],
+          roles: Array.isArray(e.roles) ? e.roles.filter(isAssignable) : [],
           by: e.by || "",
           at: e.at || "",
         }))
@@ -110,4 +139,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || roles.includes("admin");
 }
 
-module.exports = { ASSIGNABLE, BOOTSTRAP_ADMINS, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, DOMAIN_ADMIN_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };

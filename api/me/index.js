@@ -13,7 +13,7 @@
 // never from the request. Graph is called with Hive's app identity
 // (../shared/graph.js). Passwords are not handled here at all — the page links
 // to Microsoft's own change-password and self-service reset pages.
-const { graph, list, q } = require("../shared/graph");
+const { graph, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
 const { rolesFor, normUser } = require("../shared/roles");
 const { audit } = require("../shared/audit");
@@ -198,16 +198,26 @@ module.exports = async function (context, req) {
     }
 
     if (method === "GET" && action === "groups") {
-      const sel = "$select=id,displayName,description,mail,groupTypes,mailEnabled,securityEnabled,resourceProvisioningOptions";
+      const sel = "$select=id,displayName,description,mail,groupTypes,mailEnabled,securityEnabled,resourceProvisioningOptions,visibility,createdDateTime";
       const [groups, owned] = await Promise.all([
         list(`/users/${user.id}/memberOf/microsoft.graph.group?${sel}&$top=100`, 300),
         list(`/users/${user.id}/ownedObjects/microsoft.graph.group?$select=id&$top=100`, 300).catch(() => []),
       ]);
       const own = new Set(owned.map((g) => g.id));
-      const rows = groups.map((g) => ({
-        id: g.id, name: g.displayName || "", description: g.description || "", mail: g.mail || "",
-        kind: groupKind(g), owner: own.has(g.id),
-      }));
+      // Member counts, 20 groups per round trip; a count that fails is simply left out.
+      let counts = {};
+      try {
+        counts = await batch(groups.map((g, i) => ({ id: String(i), url: `/groups/${g.id}/members/$count` })), { ConsistencyLevel: "eventual" });
+      } catch (e) { counts = {}; }
+      const rows = groups.map((g, i) => {
+        const c = counts[String(i)];
+        const n = c && c.status === 200 ? parseInt(String(c.body), 10) : NaN;
+        return {
+          id: g.id, name: g.displayName || "", description: g.description || "", mail: g.mail || "",
+          kind: groupKind(g), owner: own.has(g.id), visibility: g.visibility || "",
+          members: Number.isFinite(n) ? n : null, created: g.createdDateTime || null,
+        };
+      });
       const order = { team: 0, m365: 1, security: 2, distribution: 3, other: 4 };
       rows.sort((a, b) => order[a.kind] - order[b.kind] || a.name.localeCompare(b.name));
       context.res = { status: 200, body: { groups: rows } };
@@ -273,6 +283,40 @@ module.exports = async function (context, req) {
       }
       await audit(context, { actor: upn, action: "method.delete", target: upn, method: m.kind, device: m.name, result: "ok" });
       context.res = { status: 200, body: { ok: true, removed: { id, kind: m.kind, name: m.name } } };
+      return;
+    }
+
+    // Sign-ins / audit events of the last 7 days as a file — never shown on the page (Rick, 2026-10-01).
+    if (method === "GET" && action === "export") {
+      const kind = String((req.query && req.query.kind) || "").toLowerCase();
+      const format = String((req.query && req.query.format) || "json").toLowerCase();
+      if (!["signins", "audits"].includes(kind)) return fail(context, 400, "kind must be signins or audits");
+      if (!["json", "csv"].includes(format)) return fail(context, 400, "format must be json or csv");
+      let rows;
+      if (kind === "signins") {
+        rows = (await list(`/auditLogs/signIns?$filter=userId eq '${q(user.id)}' and createdDateTime ge ${since()}&$top=100`, 1000)).map(signinView);
+      } else {
+        const [target, initiated] = await Promise.all([
+          list(`/auditLogs/directoryAudits?$filter=activityDateTime ge ${since()} and targetResources/any(t:t/id eq '${q(user.id)}')&$top=100`, 1000),
+          list(`/auditLogs/directoryAudits?$filter=activityDateTime ge ${since()} and initiatedBy/user/id eq '${q(user.id)}'&$top=100`, 1000),
+        ]);
+        const seen = new Set();
+        rows = target.concat(initiated).filter((a) => !seen.has(a.id) && seen.add(a.id)).map(auditView)
+          .map((a) => Object.assign({}, a, { targets: a.targets.join("; ") }));
+        rows.sort((a, b) => String(b.time).localeCompare(String(a.time)));
+      }
+      const stamp = new Date().toISOString().slice(0, 10);
+      const name = `${upn.split("@")[0]}-${kind}-${DAYS}d-${stamp}.${format}`;
+      const disp = `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+      await audit(context, { actor: upn, action: `export.${kind}`, target: upn, format, rows: rows.length, result: "ok" });
+      if (format === "json") {
+        context.res = { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Content-Disposition": disp, "Cache-Control": "no-store" }, body: JSON.stringify({ account: upn, kind, days: DAYS, exportedAt: new Date().toISOString(), rows }, null, 2) };
+      } else {
+        const cols = rows.length ? Object.keys(rows[0]) : [];
+        const cell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const csv = "\uFEFF" + [cols.join(",")].concat(rows.map((r) => cols.map((c) => cell(r[c])).join(","))).join("\r\n");
+        context.res = { status: 200, headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": disp, "Cache-Control": "no-store" }, body: csv, isRaw: true };
+      }
       return;
     }
 

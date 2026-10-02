@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>蜂巢 · 管理中心</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="stylesheet" href="/hub/hub.css" />
+</head>
+<body>
+  <script>
+    // One address for the whole site: the sign-in cookie belongs to the host it was made on.
+    if (location.hostname === "www.fengchao.life") location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
+  </script>
+  <div class="hub">
+    <aside class="side" id="side">
+      <a class="side-brand" href="/">
+        <img src="/assets/logo-mark.png" width="512" height="512" alt="" />
+        <span><span class="name">蜂巢</span><span class="tag" id="brandTag">管理中心</span></span>
+      </a>
+      <nav class="side-nav" id="nav" aria-label="hub"></nav>
+      <div class="side-foot" id="foot">
+        <span class="avatar" id="fAvatar">…</span>
+        <span class="who"><b id="fName">载入中…</b><span id="fUpn"></span></span>
+        <button class="out" id="fOut" type="button">退出</button>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" type="button" aria-label="菜单">
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <h1 id="title">…</h1>
+        <div id="topActions"></div>
+        <button class="lang" id="langBtn" type="button">EN</button>
+      </header>
+      <section class="content" id="content"><div class="loading">载入中…</div></section>
+    </main>
+  </div>
+  <div class="panel" id="panel" aria-hidden="true"></div>
+  <script src="/hub/hub.js"></script>
+</body>
+</html>
