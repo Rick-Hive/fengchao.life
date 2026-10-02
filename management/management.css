@@ -274,3 +274,22 @@ button.tag.link { cursor: pointer; font: inherit; font-size: 12px; line-height: 
 button.tag.link:hover { border-color: var(--accent); color: var(--accent-dark); }
 button.mrow.link { width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; cursor: pointer; padding: var(--s1) var(--s1); margin: 0 calc(-1 * var(--s1)); }
 button.mrow.link:hover { background: #f1f4f8; }
+
+/* ---- "⋯" menus, detail blocks, info tips, bare title row (2026-10-02) ---------------- */
+.topbar.bare { padding-bottom: 0; min-height: var(--s4); }
+.topbar.bare h1 { display: none; }
+.menu-wrap { position: relative; flex: none; }
+.menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 15; min-width: 200px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 10px 30px -12px rgba(15, 32, 60, 0.3); padding: var(--s1); display: none; }
+.menu.open { display: block; }
+.menu a, .menu button { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: var(--s2) var(--s3); font-size: 13px; color: var(--ink); text-decoration: none; cursor: pointer; }
+.menu a:hover, .menu button:hover { background: #f1f4f8; }
+.menu button.danger { color: var(--bad); }
+.btn.dots { width: 34px; padding: 0; font-size: 16px; letter-spacing: 1px; }
+.row + .detail, .detail { flex-basis: 100%; }
+.detail { padding: var(--s2) 0 var(--s2) 44px; }
+.detail .kv { margin-bottom: 0; }
+#methods .row { flex-wrap: wrap; }
+.info { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--faint); font-size: 10px; font-style: italic; font-family: Georgia, serif; cursor: help; position: relative; margin-left: 2px; }
+.info:hover::after, .info:focus::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: #fff; font: 12px/1.4 inherit; font-style: normal; padding: 4px 8px; border-radius: 6px; z-index: 20; }
+.roles-other, .he-other { margin-top: var(--s2); max-width: 420px; }
+#kidsWrap { margin-top: var(--s2); }

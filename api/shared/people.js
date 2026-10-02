@@ -13,8 +13,9 @@
 // one of the four words, so a school that fills that field in needs no edit.
 //
 // 补充资料 (Rick, 2026-10-02) is written by the person themselves from 我的账号:
-//   extra = { needs: [NEEDS…], needsOther, children: [ { name, age, grade,
-//             schooling, model, modelOther, higherEd, account } ], at }
+//   extra = { roles: [SELF_ROLES…], rolesOther, topics: [TOPICS…], otherAccounts: [upn…],
+//             children: [ { name, age, grade, schooling, model, modelOther,
+//                           higherEd: [HIGHER_ED…], higherEdOther, account } ], at }
 // `account` is the child's own Teams account when they have one; saving the
 // profile links parent and child both ways (`linked`), so the school's user
 // table shows the family on either row.
@@ -25,11 +26,15 @@ const BLOB_NAME = "people.json";
 const INST_BLOB = "institutions.json"; // { "institutions": { "<domain>": { "name": "…", "by", "at" } } }
 const IDENTITIES = ["家长", "学生", "老师", "行政"];
 // Vocabularies for 补充资料. Stored as the Chinese word; the Hub shows either language.
-const GRADES = ["学前", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "大学", "其它"];
-const SCHOOLING = ["公立学校", "私立学校", "基督教学校", "在家教育", "其它"];
-const MODELS = ["古典教育", "BJU", "Abeka", "混合", "其它"];
-const HIGHER_ED = ["海外上大学", "国内上大学", "未定"];
-const NEEDS = ["教材", "课程", "家长/教师培训", "亲子培训", "海外留学", "大学路径", "双学分/AP课程", "其它"];
+// Vocabularies for 补充资料 (Rick, 2026-10-02 revision). Stored as the Chinese word; the page shows either language.
+const SELF_ROLES = ["家长", "老师", "学校行政", "机构负责人", "其它"];
+const TOPICS = ["教师培训", "家长-亲子培训", "标化考试"];
+const GRADES = ["学前", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+const SCHOOLING = ["公立学校", "私立学校", "国际学校", "基督教学校", "在家教育"];
+const MODELS = ["古典教育", "BJU", "Abeka", "混合教学法", "不清楚", "其它"];
+const HIGHER_ED = ["欧美大学", "东南亚大学", "英国/澳洲大学", "国内大学", "2+2混合制大学", "未定", "其它"];
+const NEEDS = TOPICS; // old name, kept for callers
+const MAX_ACCOUNTS = 5;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MAX_CHILDREN = 8;
 
@@ -93,10 +98,22 @@ function validateExtra(b, selfUpn) {
   const problems = [];
   const str = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
   const pick = (v, list, field) => { const s = str(v, 40); if (s && !list.includes(s)) problems.push(`${field}: must be one of ${list.join(" / ")}`); return s; };
-  const extra = { needs: [], needsOther: "", children: [] };
-  const needs = Array.isArray(b.needs) ? b.needs : [];
-  for (const n of needs) { const s = str(n, 40); if (!NEEDS.includes(s)) problems.push(`needs: unknown item ${s}`); else if (!extra.needs.includes(s)) extra.needs.push(s); }
-  extra.needsOther = extra.needs.includes("其它") ? str(b.needsOther, 80) : "";
+  const pickMany = (arr, list, field) => {
+    const out = [];
+    for (const v of Array.isArray(arr) ? arr : []) { const s = str(v, 40); if (!list.includes(s)) problems.push(`${field}: unknown item ${s}`); else if (!out.includes(s)) out.push(s); }
+    return out;
+  };
+  const extra = { roles: pickMany(b.roles, SELF_ROLES, "roles"), rolesOther: "", topics: pickMany(b.topics, TOPICS, "topics"), otherAccounts: [], children: [] };
+  extra.rolesOther = extra.roles.includes("其它") ? str(b.rolesOther, 60) : "";
+  if (extra.roles.includes("其它") && !extra.rolesOther) problems.push("rolesOther: please say which");
+  // Other Teams accounts of the same person in this directory.
+  const accs = (Array.isArray(b.otherAccounts) ? b.otherAccounts : String(b.otherAccounts || "").split(/[\s,;，；]+/)).map((a) => str(a, 120).toLowerCase()).filter(Boolean);
+  for (const a of accs) {
+    if (!EMAIL_RE.test(a)) problems.push(`otherAccounts: ${a} is not an account (name@school-domain)`);
+    else if (selfUpn && a === selfUpn) problems.push("otherAccounts: that is this account itself");
+    else if (!extra.otherAccounts.includes(a)) extra.otherAccounts.push(a);
+  }
+  if (extra.otherAccounts.length > MAX_ACCOUNTS) problems.push(`otherAccounts: at most ${MAX_ACCOUNTS}`);
   const kids = Array.isArray(b.children) ? b.children.slice(0, MAX_CHILDREN) : [];
   if (Array.isArray(b.children) && b.children.length > MAX_CHILDREN) problems.push(`children: at most ${MAX_CHILDREN}`);
   kids.forEach((k, i) => {
@@ -110,16 +127,29 @@ function validateExtra(b, selfUpn) {
     c.model = pick(k.model, MODELS, `children[${i}].model`);
     c.modelOther = c.model === "其它" ? str(k.modelOther, 60) : "";
     if (c.model === "其它" && !c.modelOther) problems.push(`children[${i}].modelOther: please say which`);
-    c.higherEd = pick(k.higherEd, HIGHER_ED, `children[${i}].higherEd`);
+    c.higherEd = pickMany(k.higherEd, HIGHER_ED, `children[${i}].higherEd`);
+    c.higherEdOther = c.higherEd.includes("其它") ? str(k.higherEdOther, 60) : "";
+    if (c.higherEd.includes("其它") && !c.higherEdOther) problems.push(`children[${i}].higherEdOther: please say which`);
     c.account = str(k.account, 120).toLowerCase();
     if (c.account && !EMAIL_RE.test(c.account)) problems.push(`children[${i}].account: not an account (name@school-domain)`);
     if (c.account && selfUpn && c.account === selfUpn) problems.push(`children[${i}].account: that is your own account`);
     // An empty card (nothing filled in) is dropped silently.
-    if (c.name || c.age !== null || c.grade || c.schooling || c.model || c.higherEd || c.account) extra.children.push(c);
+    if (c.name || c.age !== null || c.grade || c.schooling || c.model || c.higherEd.length || c.account) extra.children.push(c);
   });
   const seen = new Set();
   for (const c of extra.children) if (c.account) { if (seen.has(c.account)) problems.push(`children: ${c.account} is listed twice`); seen.add(c.account); }
   return { extra, problems };
+}
+
+// Link this person's other accounts both ways (no identity change: it is the same person).
+function linkAccounts(doc, self, accounts, prev) {
+  const people = doc.people;
+  const now = new Date().toISOString();
+  const p = people[self] || (people[self] = {});
+  const removed = (prev || []).filter((a) => !accounts.includes(a));
+  p.linked = Array.from(new Set((p.linked || []).filter((a) => !removed.includes(a)).concat(accounts)));
+  for (const a of removed) { const o = people[a]; if (o) { o.linked = (o.linked || []).filter((x) => x !== self); o.at = now; } }
+  for (const a of accounts) { const o = people[a] || (people[a] = {}); o.linked = Array.from(new Set((o.linked || []).concat([self]))); o.at = now; }
 }
 
 // Record the family both ways. `prev` are the child accounts the profile named
@@ -147,4 +177,4 @@ function linkFamily(doc, parent, childAccounts, prev) {
   }
 }
 
-module.exports = { IDENTITIES, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, readPeople, writePeople, identityOf, validateExtra, linkFamily, readInstitutions, writeInstitutions };
+module.exports = { IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };

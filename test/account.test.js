@@ -116,10 +116,22 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
   r = await call(meFn, { action: "profile", method: "PATCH", body: { safeEmail: "teacher.h@example.edu" } });
   assert.strictEqual(r.status, 400, "safe email must differ from the account");
   calls.length = 0;
-  r = await call(meFn, { action: "profile", method: "PATCH", body: { displayName: "H 老师", safeEmail: "H.New@Outlook.com", postalCode: "210008" } });
+  // The display name is the school's to set: an ordinary person is refused (Rick, 2026-10-02) …
+  r = await call(meFn, { action: "profile", method: "PATCH", body: { displayName: "H 老师" } });
+  assert.strictEqual(r.status, 400);
+  assert.ok(/displayName: only/.test(r.body.problems.join(" ")));
+  // … while the other fields go through.
+  r = await call(meFn, { action: "profile", method: "PATCH", body: { safeEmail: "H.New@Outlook.com", postalCode: "210008" } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   const patch = JSON.parse(calls.find((c) => c.method === "PATCH").body);
-  assert.deepStrictEqual(patch, { displayName: "H 老师", postalCode: "210008", otherMails: ["h.new@outlook.com"] });
+  assert.deepStrictEqual(patch, { postalCode: "210008", otherMails: ["h.new@outlook.com"] });
+  // The school's IT administrator may set it (role on the sign-in principal).
+  calls.length = 0;
+  const context2 = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
+  const itPrincipal = Buffer.from(JSON.stringify({ identityProvider: "aad", userId: "x", userDetails: "Teacher.H@example.edu", userRoles: ["anonymous", "authenticated", "domain_it:example.edu"] })).toString("base64");
+  await meFn(context2, { method: "PATCH", params: { action: "profile" }, query: {}, body: { displayName: "H 老师" }, headers: { "x-ms-client-principal": itPrincipal, host: "fengchao.life", origin: "https://fengchao.life" } });
+  assert.strictEqual(context2.res.status, 200, JSON.stringify(context2.res.body));
+  assert.deepStrictEqual(JSON.parse(calls.find((c) => c.method === "PATCH").body), { displayName: "H 老师" });
 
   // Methods: a foreign id is 404; the old phone can go; then the last one cannot.
   r = await call(meFn, { action: "method", id: "someone-elses-method", method: "DELETE" });

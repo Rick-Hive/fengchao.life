@@ -62,55 +62,67 @@ async function call({ action, method = "GET", body = null }) {
   let r = await call({ action: "summary" });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.hive.extra, null);
-  assert.deepStrictEqual(r.body.hive.vocab.models, ["古典教育", "BJU", "Abeka", "混合", "其它"]);
-  assert.ok(r.body.hive.vocab.needs.includes("双学分/AP课程"));
+  assert.deepStrictEqual(r.body.hive.vocab.models, ["古典教育", "BJU", "Abeka", "混合教学法", "不清楚", "其它"]);
+  assert.deepStrictEqual(r.body.hive.vocab.topics, ["教师培训", "家长-亲子培训", "标化考试"]);
+  assert.ok(r.body.hive.vocab.higherEd.includes("2+2混合制大学"));
+  assert.strictEqual(r.body.hive.canEditName, false, "an ordinary person does not edit the display name");
 
-  // 2. Validation: unknown vocabulary, 其它 without text, own account, unknown account, guest.
-  r = await call({ action: "extra", method: "PATCH", body: { city: "南京", needs: ["教材", "瑜伽"], children: [{ age: 10, grade: "5", model: "其它" }, { account: PARENT }, { account: "nobody@example.edu" }, { account: "guest_gmail.com#EXT#@example.edu" }] } });
+  // 1b. Display name: refused for an ordinary person, the server is the gate.
+  r = await call({ action: "profile", method: "PATCH", body: { displayName: "Someone Else" } });
+  assert.strictEqual(r.status, 400);
+  assert.ok(/displayName: only/.test(r.body.problems.join("\n")));
+
+  // 2. Validation: unknown vocabulary, 其它 without text, own account, unknown account, guest, other-account checks.
+  r = await call({ action: "extra", method: "PATCH", body: { roles: ["家长", "校长"], topics: ["教师培训", "瑜伽"], otherAccounts: [PARENT, "nobody@example.edu"], children: [{ age: 10, grade: "5", model: "其它" }, { account: PARENT }, { account: "guest_gmail.com#EXT#@example.edu" }, { higherEd: ["其它"] }] } });
   assert.strictEqual(r.status, 400);
   const pr = r.body.problems.join("\n");
-  assert.ok(/needs: unknown item 瑜伽/.test(pr), pr);
+  assert.ok(/roles: unknown item 校长/.test(pr), pr);
+  assert.ok(/topics: unknown item 瑜伽/.test(pr), pr);
   assert.ok(/modelOther/.test(pr), pr);
+  assert.ok(/higherEdOther/.test(pr), pr);
   assert.ok(/your own account/.test(pr), pr);
-  assert.ok(/nobody@example.edu is not an account/.test(pr), pr);
+  assert.ok(/otherAccounts: that is this account itself/.test(pr), pr);
+  assert.ok(/otherAccounts: nobody@example.edu is not an account/.test(pr), pr);
   assert.ok(/guest account/.test(pr), pr);
   assert.strictEqual(store.people[PARENT], undefined, "nothing written on a refused form");
 
-  // 3. A good save: stored, parent ↔ children linked, identities defaulted, empty child card dropped.
+  // 3. A good save: stored, parent ↔ children linked, other account linked, identities defaulted, empty child card dropped.
   r = await call({ action: "extra", method: "PATCH", body: {
-    needs: ["教材", "其它", "教材"], needsOther: "英文写作辅导",
+    roles: ["家长", "其它"], rolesOther: "教会同工", topics: ["教师培训", "标化考试", "教师培训"],
+    otherAccounts: "Kid.Two@example.edu",
     children: [
-      { name: "大宝", age: "12", grade: "6", schooling: "在家教育", model: "古典教育", higherEd: "海外上大学", account: "Kid.One@example.edu" },
-      { age: 8, grade: "2", schooling: "基督教学校", model: "其它", modelOther: "Sonlight", higherEd: "未定", account: "kid.two@example.edu" },
+      { name: "大宝", age: "12", grade: "6", schooling: "在家教育", model: "古典教育", higherEd: ["欧美大学", "2+2混合制大学"], account: "Kid.One@example.edu" },
+      { age: 8, grade: "2", schooling: "国际学校", model: "其它", modelOther: "Sonlight", higherEd: ["未定"] },
       {},
     ] } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
-  assert.deepStrictEqual(r.body.extra.needs, ["教材", "其它"]);
-  assert.strictEqual(r.body.extra.needsOther, "英文写作辅导");
+  assert.deepStrictEqual(r.body.extra.roles, ["家长", "其它"]);
+  assert.strictEqual(r.body.extra.rolesOther, "教会同工");
+  assert.deepStrictEqual(r.body.extra.topics, ["教师培训", "标化考试"]);
+  assert.deepStrictEqual(r.body.extra.otherAccounts, ["kid.two@example.edu"]);
   assert.strictEqual(r.body.extra.children.length, 2);
   assert.strictEqual(r.body.extra.children[0].age, 12);
+  assert.deepStrictEqual(r.body.extra.children[0].higherEd, ["欧美大学", "2+2混合制大学"]);
   assert.strictEqual(r.body.extra.children[0].account, "kid.one@example.edu");
   assert.strictEqual(r.body.extra.children[1].modelOther, "Sonlight");
-  assert.deepStrictEqual(r.body.linked, ["kid.one@example.edu", "kid.two@example.edu"]);
+  assert.deepStrictEqual(r.body.linked.sort(), ["kid.one@example.edu", "kid.two@example.edu"]);
   assert.strictEqual(r.body.identity, "家长");
-  assert.deepStrictEqual(r.body.childNames, { "kid.one@example.edu": "Kid One", "kid.two@example.edu": "Kid Two" });
   assert.deepStrictEqual(store.people["kid.one@example.edu"].linked, ["admin.linked@example.edu", PARENT], "admin's link kept, parent added");
-  assert.deepStrictEqual(store.people["kid.two@example.edu"].linked, [PARENT]);
-  assert.strictEqual(store.people["kid.two@example.edu"].identity, "学生");
+  assert.deepStrictEqual(store.people["kid.two@example.edu"].linked, [PARENT], "the other account points back");
+  assert.strictEqual(store.people["kid.two@example.edu"].identity, undefined, "an own account gets no identity");
 
   // 4. The summary now shows it.
   r = await call({ action: "summary" });
   assert.strictEqual(r.body.hive.identity, "家长");
   assert.strictEqual(r.body.hive.extra.children.length, 2);
-  assert.deepStrictEqual(r.body.hive.linked, ["kid.one@example.edu", "kid.two@example.edu"]);
 
-  // 5. Taking kid.two off the form unlinks both ways; kid.one and the admin's link stay.
-  r = await call({ action: "extra", method: "PATCH", body: { needs: [], children: [{ name: "大宝", age: 12, account: "kid.one@example.edu" }] } });
+  // 5. Taking the other account and a child off the form unlinks them; kid.one and the admin's link stay.
+  r = await call({ action: "extra", method: "PATCH", body: { roles: ["家长"], topics: [], otherAccounts: [], children: [{ name: "大宝", age: 12, account: "kid.one@example.edu" }] } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.deepStrictEqual(r.body.linked, ["kid.one@example.edu"]);
-  assert.deepStrictEqual(store.people["kid.two@example.edu"].linked, [], "kid.two unlinked (the 学生 identity it was given stays)");
+  assert.deepStrictEqual(store.people["kid.two@example.edu"].linked, [], "other account unlinked");
   assert.deepStrictEqual(store.people["kid.one@example.edu"].linked, ["admin.linked@example.edu", PARENT]);
-  assert.strictEqual(r.body.extra.needsOther, "", "其它 text dropped when 其它 is not ticked");
+  assert.strictEqual(r.body.extra.rolesOther, "", "其它 text dropped when 其它 is not ticked");
 
   // 6. Too many children.
   r = await call({ action: "extra", method: "PATCH", body: { children: Array.from({ length: 9 }, (_, i) => ({ age: i + 3 })) } });

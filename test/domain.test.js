@@ -99,6 +99,7 @@ global.fetch = async function (url, opts) {
     const id = p.split("/")[2];
     return json(200, { value: id === "u-lei" || id === `lei@${DOMAIN}` ? leiMethods : [] });
   }
+  if (method === "PATCH" && /^\/users\/[^/]+$/.test(p)) return { ok: true, status: 204, headers: { get: () => null }, text: async () => "" };
   if (method === "DELETE" && /\/authentication\/microsoftAuthenticatorMethods\//.test(p)) {
     const id = p.split("/").pop();
     leiMethods = leiMethods.filter((m) => m.id !== id);
@@ -301,6 +302,19 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(r.body.users, 2);
   // restore for the scheduler section
   users.splice(users.findIndex((x) => x.id === "u-new"), 1);
+
+  // 10b. With a school name set, a sync fills Entra's empty `department` with it (never overwriting one).
+  institutions = { institutions: { [DOMAIN]: { name: "示例学校", by: ADMIN, at: "x" } } };
+  users.find((x) => x.id === "u-elaine").department = "行政";
+  calls.length = 0;
+  blobs[`${DOMAIN}.json`] = undefined; delete blobs[`${DOMAIN}.json`];
+  st = await dir.syncSlice(DOMAIN, "full", { budgetMs: 20000 });
+  assert.strictEqual(st.done, true);
+  const deptPatches = calls.filter((c) => c.method === "PATCH" && /\/users\//.test(c.url)).map((c) => [c.url.split("/users/")[1], JSON.parse(c.body).department]);
+  assert.deepStrictEqual(deptPatches, [["u-lei", "示例学校"]], "only the account without a department is filled");
+  assert.strictEqual(JSON.parse(blobs[`${DOMAIN}.json`]).users.find((x) => x.id === "u-lei").department, "示例学校");
+  institutions = { institutions: {} };
+  delete users.find((x) => x.id === "u-elaine").department;
 
   // 11. The scheduler endpoint: wrong key → 403; right key loops over every verified domain until done.
   let c = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };

@@ -15,7 +15,7 @@
 // to Microsoft's own change-password and self-service reset pages.
 const { graph, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
-const { rolesFor, normUser } = require("../shared/roles");
+const { rolesFor, userRoles, normUser, can } = require("../shared/roles");
 const { audit } = require("../shared/audit");
 const { guard, finish, describe } = require("../shared/session");
 const people = require("../shared/people");
@@ -162,8 +162,10 @@ async function handler(context, req) {
 
   try {
     if (method === "GET" && action === "summary") {
-      const [ms, roles, doc] = await Promise.all([methods(user.id), rolesFor(upn), people.readPeople()]);
+      const [ms, rolesAll, doc, inst] = await Promise.all([methods(user.id), userRoles(req), people.readPeople(), people.readInstitutions()]);
+      const roles = rolesAll.roles;
       const rec = doc.people[upn] || {};
+      const myDomain = upn.split("@")[1] || "";
       context.res = {
         status: 200,
         body: {
@@ -172,7 +174,10 @@ async function handler(context, req) {
             identity: people.identityOf(rec, user),
             linked: Array.isArray(rec.linked) ? rec.linked : [],
             extra: rec.extra || null,
-            vocab: { grades: people.GRADES, schooling: people.SCHOOLING, models: people.MODELS, higherEd: people.HIGHER_ED, needs: people.NEEDS, maxChildren: people.MAX_CHILDREN },
+            // The display name is set by the school's IT administrator or the system administrator, not by the person (Rick, 2026-10-02).
+            canEditName: can(roles, "methods", myDomain),
+            institution: (inst.institutions[myDomain] && inst.institutions[myDomain].name) || "",
+            vocab: { selfRoles: people.SELF_ROLES, topics: people.TOPICS, grades: people.GRADES, schooling: people.SCHOOLING, models: people.MODELS, higherEd: people.HIGHER_ED, maxChildren: people.MAX_CHILDREN, maxAccounts: people.MAX_ACCOUNTS },
           },
           // 基本资料: read from the Office 365 account; the fields in EDITABLE may be
           // filled in or corrected by the person and are written back to Entra.
@@ -224,6 +229,26 @@ async function handler(context, req) {
       return;
     }
 
+    // One of my groups, in detail: description and members, read-only. Only for a
+    // group the person belongs to (Rick, 2026-10-02: 「点击 Teams group 应该能查看成员、介绍等信息，但是不可编辑或删除」).
+    if (method === "GET" && action === "group") {
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(context, 400, "group id missing");
+      const mine = await list(`/users/${user.id}/memberOf/microsoft.graph.group?$select=id&$top=999`, 1000);
+      if (!mine.some((g) => g.id === id)) return fail(context, 404, "not one of your groups");
+      const [g, members, owners] = await Promise.all([
+        graph("GET", `/groups/${id}?$select=id,displayName,description,mail,visibility,groupTypes,mailEnabled,securityEnabled,resourceProvisioningOptions,createdDateTime`),
+        list(`/groups/${id}/members/microsoft.graph.user?$select=id,displayName,userPrincipalName,jobTitle&$top=999`, 2000),
+        list(`/groups/${id}/owners/microsoft.graph.user?$select=id&$top=100`, 200).catch(() => []),
+      ]);
+      const ownerIds = new Set(owners.map((o) => o.id));
+      context.res = { status: 200, body: {
+        id: g.id, name: g.displayName || "", description: g.description || "", mail: g.mail || "", visibility: g.visibility || "", created: g.createdDateTime || null,
+        kind: (g.resourceProvisioningOptions || []).includes("Team") ? "team" : (g.groupTypes || []).includes("Unified") ? "m365" : g.securityEnabled && !g.mailEnabled ? "security" : g.mailEnabled ? "distribution" : "other",
+        members: members.map((m) => ({ upn: String(m.userPrincipalName || "").toLowerCase(), displayName: m.displayName || "", jobTitle: m.jobTitle || "", owner: ownerIds.has(m.id) })).sort((a, b) => (b.owner - a.owner) || a.displayName.localeCompare(b.displayName, "zh")),
+      } };
+      return;
+    }
+
     if (method === "GET" && action === "groups") {
       const sel = "$select=id,displayName,description,mail,groupTypes,mailEnabled,securityEnabled,resourceProvisioningOptions,visibility,createdDateTime";
       const [groups, owned] = await Promise.all([
@@ -258,7 +283,9 @@ async function handler(context, req) {
       const problems = [];
       if (b.displayName !== undefined) {
         const v = String(b.displayName).trim();
-        if (!v || v.length > 64) problems.push("displayName: 1–64 characters");
+        const myRoles = (await userRoles(req)).roles;
+        if (!can(myRoles, "methods", upn.split("@")[1] || "")) problems.push("displayName: only the school's IT administrator or the system administrator may change the display name");
+        else if (!v || v.length > 64) problems.push("displayName: 1–64 characters");
         else patch.displayName = v;
       }
       if (b.postalCode !== undefined) {
@@ -315,23 +342,26 @@ async function handler(context, req) {
       // Each child's account must be a real account of this directory (not a guest).
       const accounts = extra.children.map((c) => c.account).filter(Boolean);
       const found = {};
-      await Promise.all(accounts.map(async (a) => {
+      const check = async (a, what) => {
         try {
           const u = await graph("GET", `/users/${encodeURIComponent(a)}?$select=id,userPrincipalName,displayName,userType`);
-          if (u.userType === "Guest") problems.push(`children: ${a} is a guest account, not a school account`);
+          if (u.userType === "Guest") problems.push(`${what}: ${a} is a guest account, not a school account`);
           else found[a] = u.displayName || "";
         } catch (err) {
-          if (err.status === 404) problems.push(`children: ${a} is not an account in this directory — check the spelling`);
+          if (err.status === 404) problems.push(`${what}: ${a} is not an account in this directory — check the spelling`);
           else throw err;
         }
-      }));
+      };
+      await Promise.all(accounts.map((a) => check(a, "children")).concat(extra.otherAccounts.map((a) => check(a, "otherAccounts"))));
       if (problems.length) return fail(context, 400, "please fix the form", { problems });
       const doc = await people.readPeople();
       const cur = doc.people[upn] || {};
       const prev = ((cur.extra && cur.extra.children) || []).map((c) => c.account).filter(Boolean);
+      const prevOwn = (cur.extra && cur.extra.otherAccounts) || [];
       extra.at = new Date().toISOString();
       doc.people[upn] = Object.assign({}, cur, { extra, at: extra.at });
       people.linkFamily(doc, upn, accounts, prev);
+      people.linkAccounts(doc, upn, extra.otherAccounts, prevOwn);
       await people.writePeople(doc);
       await audit(context, { actor: upn, action: "extra.update", target: upn, children: extra.children.length, linked: accounts, result: "ok" });
       context.res = { status: 200, body: { ok: true, extra, linked: doc.people[upn].linked || [], identity: doc.people[upn].identity || "", childNames: found } };

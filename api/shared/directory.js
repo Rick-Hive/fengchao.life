@@ -33,6 +33,7 @@
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
 const { graph, list, batch, q } = require("./graph");
+const { readInstitutions } = require("./people");
 
 const DELTA = "_delta.json";
 
@@ -289,6 +290,13 @@ async function syncSlice(domain, mode, opts) {
     log(`directory ${domain}: ${mode} sync started, ${doc.pending.length} account(s) to read, ${added} new`);
   }
 
+  // The school's name goes into Entra's `department` for accounts that have none
+  // (Rick, 2026-10-02: 「自动将职务/部门更新成域名所对应的学校机构名称」). A department
+  // the school filled in itself is never overwritten.
+  let institution = "";
+  try { const inst = (await readInstitutions()).institutions; institution = (inst[domain] && inst[domain].name) || ""; } catch { /* no names yet */ }
+
+  const departmentFills = [];
   // Work through the pending accounts while there is time.
   try {
     while (doc.pending.length && Date.now() - t0 < budget) {
@@ -308,6 +316,9 @@ async function syncSlice(domain, mode, opts) {
         if (fresh && fresh.status === 404) { doc.users = doc.users.filter((r) => r.id !== c.id); return; } // gone meanwhile
         if (fresh && fresh.status === 200 && fresh.body && fresh.body.userType === "Guest") return;
         const row = rowOf(basic, res[`m${i}`], res[`g${i}`]);
+        if (institution && !row.department && basic.id) {
+          departmentFills.push(graph("PATCH", `/users/${basic.id}`, { department: institution }).then(() => { row.department = institution; }).catch((err) => log(`directory ${domain}: department for ${row.upn} not set: ${err.message}`)));
+        }
         if (old && !row.lastSignIn) row.lastSignIn = old.lastSignIn; // delta re-reads skip signInActivity
         if (old) { if (!row.city) row.city = old.city || ""; if (!row.safeEmail) row.safeEmail = old.safeEmail || ""; }
         const k = doc.users.findIndex((r) => r.id === row.id || r.upn === row.upn);
@@ -325,6 +336,7 @@ async function syncSlice(domain, mode, opts) {
   // This slice went through: an error left by an earlier slice is history now (it
   // used to stay in the status and make every later call look failed).
   doc.error = null;
+  await Promise.all(departmentFills);
   const done = doc.pending.length === 0;
   if (done) {
     doc.users.sort((a, b) => a.displayName.localeCompare(b.displayName, "zh") || a.upn.localeCompare(b.upn));
