@@ -27,7 +27,11 @@
   // The sign-in opens in a new tab (Rick, 2026-09-29), so the page the person
   // was on stays where it was. The new tab lands on the hub with ?signedin=1,
   // tells the other tabs, and they refresh their headers straight away.
-  var LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/hub/?signedin=1");
+  // Absolute, on the canonical host: a sign-in started on www.fengchao.life would
+  // set its cookie there, and the hub's www→apex redirect would then arrive on
+  // fengchao.life without it.
+  var SITE = location.hostname === "fengchao.life" || location.hostname === "www.fengchao.life" ? "https://fengchao.life" : "";
+  var LOGIN = SITE + "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/hub/?signedin=1");
   var PROTECTED = /^\/(account|admin|hub)(\/|$)/;
   var ON_HUB = /^\/hub(\/|$)/.test(location.pathname);
   var principal = null;
@@ -104,7 +108,11 @@
     return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
-        principal = (j && j.clientPrincipal) || null;
+        // Only a definite answer counts. A failed or odd reply (network blip, a
+        // 5xx from the platform) must not sign the header out — on a signed-in
+        // page that used to send the person straight back home (Rick, 2026-10-02).
+        if (!j || !("clientPrincipal" in j)) return;
+        principal = j.clientPrincipal || null;
         var first = !known;
         known = true;
         if (!principal && PROTECTED.test(location.pathname) && !first) { location.replace("/"); return; }

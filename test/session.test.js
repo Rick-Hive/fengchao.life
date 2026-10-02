@@ -39,7 +39,7 @@ function req({ method = "GET", user = UPN, cookie, headers = {} } = {}) {
   return { method, headers: h, params: {}, query: {}, body: null };
 }
 const MIN = 60 * 1000, HOUR = 60 * MIN;
-function cookieFor(obj) { return `${S.COOKIE}=${encodeURIComponent(S._encode(obj))}`; }
+function cookieFor(obj) { return `${S.COOKIE}=${encodeURIComponent(S._encode(Object.assign({ k: S._signInKey({}) }, obj)))}`; }
 function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c.name))).sort(); }
 
 (async () => {
@@ -98,6 +98,33 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   c = ctx();
   s = await S.guard(c, req({ cookie: cookieFor({ u: "someone.else@example.edu", s: now - HOUR, t: now - MIN }) }));
   assert.ok(s && s.session.isNew, "foreign → fresh session");
+
+  // 6b. An fc-sess left over from an earlier sign-in (different Static Web Apps cookie)
+  //     starts a fresh session instead of being judged idle — the "signed in, sent
+  //     straight home" bug.
+  const oldSwa = "StaticWebAppsAuthCookie=OLD-SESSION";
+  c = ctx();
+  s = await S.guard(c, req({ cookie: oldSwa + "; " + cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) }));
+  const k1 = S._decode(s.session.cookies[0].value).k;
+  const stale = S._encode({ u: UPN, s: now - 3 * HOUR, t: now - 2 * HOUR, k: k1 });
+  c = ctx();
+  assert.strictEqual(await S.guard(c, req({ cookie: oldSwa + "; " + S.COOKIE + "=" + encodeURIComponent(stale) })), null, "same sign-in, idle → expired");
+  assert.strictEqual(c.res.body.reason, "idle");
+  c = ctx();
+  s = await S.guard(c, req({ cookie: "StaticWebAppsAuthCookie=NEW-SESSION; " + S.COOKIE + "=" + encodeURIComponent(stale) }));
+  assert.ok(s && s.session.isNew, "new sign-in with a stale fc-sess → fresh session, not a timeout");
+
+  //     …and the same when only the token's issue time differs (claims in the principal).
+  function principalWith(iat) { return Buffer.from(JSON.stringify({ identityProvider: "aad", userId: "x", userDetails: UPN, userRoles: ["anonymous", "authenticated"], claims: [{ typ: "iat", val: String(iat) }] })).toString("base64"); }
+  c = ctx();
+  s = await S.guard(c, { method: "GET", headers: { host: "fengchao.life", "x-ms-client-principal": principalWith(1000) }, params: {}, query: {}, body: null });
+  const k2 = S._decode(s.session.cookies[0].value).k;
+  const stale2 = S._encode({ u: UPN, s: now - 3 * HOUR, t: now - 2 * HOUR, k: k2 });
+  c = ctx();
+  assert.strictEqual(await S.guard(c, { method: "GET", headers: { host: "fengchao.life", "x-ms-client-principal": principalWith(1000), cookie: S.COOKIE + "=" + encodeURIComponent(stale2) }, params: {}, query: {}, body: null }), null, "same iat, idle → expired");
+  c = ctx();
+  s = await S.guard(c, { method: "GET", headers: { host: "fengchao.life", "x-ms-client-principal": principalWith(2000), cookie: S.COOKIE + "=" + encodeURIComponent(stale2) }, params: {}, query: {}, body: null });
+  assert.ok(s && s.session.isNew, "new iat → fresh session");
 
   // 7. Cross-site writes are refused; reads are not; same-site is fine; no header is fine.
   c = ctx();

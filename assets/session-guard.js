@@ -17,7 +17,7 @@
 //    comes back home with ?signedout=timeout, where the header explains and
 //    offers 登录;
 //  * a page opened after the limit has already passed (laptop closed overnight)
-//    signs out at once; so does a 401 session_expired reply from any API —
+//    is signed out by the server's 401 session_expired on its first call —
 //    pages call window.fcSession.expired(reason) for that.
 //
 // window.fcSession = { touch(), ping(), signOut(reason), expired(reason), config }
@@ -63,6 +63,7 @@
   function goHome(reason) {
     var why = reason || "timeout";
     try { sessionStorage.setItem("fc-signedout", why); } catch (e) {}
+    try { localStorage.removeItem(KEY); } catch (e) {}
     location.replace("/?signedout=" + encodeURIComponent(why));
   }
   // 退出 (Rick, 2026-10-02: 「点击退出无需登录 Teams 账号确认，后台自动登出所登录的
@@ -181,10 +182,12 @@
 
   // Start: count this page load as activity (a fresh page is a person), unless the
   // shared clock says the limit has already passed — then sign out at once.
-  var stored = 0;
-  try { stored = Number(localStorage.getItem(KEY)) || 0; } catch (e) {}
-  if (stored && Date.now() - stored > cfg.idleSeconds * 1000) { signOut("timeout"); }
-  else { touch(); ping(); }
+  // The server decides whether a session is still alive (its reply to the first
+  // call is 401 session_expired when not); this page only counts activity. An
+  // earlier version also judged the shared clock here and signed a *fresh*
+  // sign-in out because of a stale value from the previous visit — the bug
+  // 「账号登录后自动返回主页面」 (Rick, 2026-10-02).
+  touch(); ping();
 
   window.fcSession = { touch: touch, ping: ping, signOut: signOut, expired: expired, config: cfg };
 })();

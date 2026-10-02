@@ -64,6 +64,16 @@ function decode(value) {
   } catch { return null; }
 }
 
+// Something that changes with every sign-in: Static Web Apps' own cookie, and the
+// token's issue time (iat / auth_time) when the principal carries claims. Either
+// is enough; both are hashed in case the platform forwards only one of them.
+function signInKey(cookies, principal) {
+  const claims = (principal && Array.isArray(principal.claims) ? principal.claims : []);
+  const pick = (t) => { const c = claims.find((x) => x && (x.typ === t || String(x.typ).endsWith("/" + t))); return c ? String(c.val) : ""; };
+  const stamp = pick("auth_time") || pick("iat") || "";
+  return crypto.createHash("sha256").update(String(cookies.StaticWebAppsAuthCookie || "")).update("|").update(stamp).digest("base64url").slice(0, 16);
+}
+
 function parseCookies(req) {
   const out = {};
   const raw = (req.headers && (req.headers.cookie || req.headers.Cookie)) || "";
@@ -139,8 +149,16 @@ async function guard(context, req, opts) {
 
   const now = Date.now();
   const cookies = parseCookies(req);
+  // The session is bound to this sign-in: `k` is a hash of Static Web Apps' own
+  // cookie. A fresh sign-in gives a new cookie, so an fc-sess left over from an
+  // earlier session (one that ended without /api/logout — Microsoft's page, a
+  // closed browser) starts a new session instead of being judged idle and
+  // sending the person straight back home (Rick, 2026-10-02: 「账号登录后自动
+  // 返回主页面」). If the platform does not forward its cookie, k is constant.
+  const k = signInKey(cookies, p);
   let sess = decode(cookies[COOKIE]);
   if (sess && sess.u !== upn) sess = null; // another account signed in on this browser: start afresh
+  if (sess && sess.k !== k) sess = null; // a new sign-in: start afresh
 
   if (sess) {
     const idle = now - sess.t, age = now - sess.s;
@@ -155,7 +173,7 @@ async function guard(context, req, opts) {
     }
   }
   const started = sess ? sess.s : now;
-  const fresh = { u: upn, s: started, t: now };
+  const fresh = { u: upn, s: started, t: now, k };
   const session = {
     startedAt: started, lastSeenAt: now,
     idleMs: idleMs(), maxMs: maxMs(),
@@ -186,4 +204,4 @@ function describe(s) {
   };
 }
 
-module.exports = { guard, finish, describe, signOutCookies, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode };
+module.exports = { guard, finish, describe, signOutCookies, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode, _signInKey: signInKey };
