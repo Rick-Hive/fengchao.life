@@ -107,6 +107,12 @@ global.fetch = async function (url, opts) {
   return json(500, { error: { code: "unhandled", message: method + " " + p } });
 };
 
+const people = require(path.join(__dirname, "..", "api", "shared", "people.js"));
+let institutions = { institutions: {} };
+people.readInstitutions = async () => JSON.parse(JSON.stringify(institutions));
+people.writeInstitutions = async (doc) => { institutions = JSON.parse(JSON.stringify(doc)); };
+const rolesMod = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
+rolesMod.readRoles = async () => ({ entries: [{ user: `lei@${DOMAIN}`, roles: [`domain_it:${DOMAIN}`], by: "x", at: "2026-10-01T00:00:00Z" }] });
 const dir = require(path.join(__dirname, "..", "api", "shared", "directory.js"));
 let blobs = {};
 dir._store.read = async (n) => (blobs[n] ? JSON.parse(blobs[n]) : null);
@@ -199,6 +205,28 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.deepStrictEqual(lei.groups.map((g) => g.kind), ["team", "security"]);
   assert.strictEqual(lei.identity, "");
   assert.strictEqual(r.body.partial, false);
+
+  // 5d. Rows carry the person's Hive roles, safe email and city (for the side panel).
+  assert.deepStrictEqual(lei.roles.map((x) => x.role), [`domain_it:${DOMAIN}`]);
+  assert.ok(lei.roles[0].zh.indexOf("域管理员") === 0);
+  assert.strictEqual(typeof lei.safeEmail, "string");
+  assert.strictEqual(typeof lei.city, "string");
+
+  // 5e. Institution names: set by the system administrator only, shown to everyone in `domains`.
+  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: "示例学校" }, user: DOMADMIN, roles: DOMROLE });
+  assert.strictEqual(r.status, 403, "a domain administrator cannot name schools");
+  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: " 示例学校 " }, user: ADMIN });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(r.body.name, "示例学校");
+  r = await call({ action: "domains", user: DOMADMIN, roles: DOMROLE });
+  assert.strictEqual(r.body.domains[0].name, "示例学校");
+  assert.strictEqual(r.body.showDomains, false, "a domain administrator is not shown raw domains");
+  r = await call({ action: "domains", user: ADMIN });
+  assert.strictEqual(r.body.showDomains, true);
+  assert.strictEqual(r.body.domains[0].can.institutions, true);
+  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: "" }, user: ADMIN });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(institutions.institutions, {}, "an empty name clears the entry");
 
   // 6. The groups view: per group, how many of this domain's members.
   r = await call({ action: "groups", query: { domain: DOMAIN }, user: DOMADMIN, roles: DOMROLE });

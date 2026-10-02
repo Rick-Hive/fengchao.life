@@ -134,18 +134,27 @@ function crossSite(req) {
 // ---- the account behind the session -------------------------------------------------
 const ACCOUNT_CHECK_MS = Number(process.env.HIVE_ACCOUNT_CHECK_MINUTES || 5) * 60 * 1000;
 const accountCache = new Map(); // upn → { at, enabled, passwordChangedAt }
+// Never on the request's critical path: the first call for an account fetches the
+// state in the background and answers from nothing; later calls answer from the
+// cache and, once it is older than the window, refresh it in the background
+// (stale-while-revalidate). So a password change takes effect on the person's
+// next request after the refresh lands — seconds — and no request ever waits for
+// Graph. Load: one small Graph read per active account per window, not per request.
+const refreshing = new Map(); // upn → Promise
+function refreshAccount(upn, context) {
+  if (refreshing.has(upn)) return refreshing.get(upn);
+  const p = graph("GET", `/users/${encodeURIComponent(upn)}?$select=accountEnabled,lastPasswordChangeDateTime`)
+    .then((u) => { accountCache.set(upn, { at: Date.now(), enabled: u && u.accountEnabled !== false, passwordChangedAt: u && u.lastPasswordChangeDateTime ? Date.parse(u.lastPasswordChangeDateTime) : 0 }); })
+    .catch((err) => { if (context && context.log && context.log.warn) context.log.warn(`session: account check for ${upn} skipped: ${err.message}`); })
+    .then(() => { refreshing.delete(upn); });
+  refreshing.set(upn, p);
+  return p;
+}
 async function accountState(upn, context) {
   const hit = accountCache.get(upn);
-  if (hit && Date.now() - hit.at < ACCOUNT_CHECK_MS) return hit;
-  try {
-    const u = await graph("GET", `/users/${encodeURIComponent(upn)}?$select=accountEnabled,lastPasswordChangeDateTime`);
-    const state = { at: Date.now(), enabled: u && u.accountEnabled !== false, passwordChangedAt: u && u.lastPasswordChangeDateTime ? Date.parse(u.lastPasswordChangeDateTime) : 0 };
-    accountCache.set(upn, state);
-    return state;
-  } catch (err) {
-    if (context && context.log && context.log.warn) context.log.warn(`session: account check for ${upn} skipped: ${err.message}`);
-    return null;
-  }
+  if (!hit) { refreshAccount(upn, context); return null; }
+  if (Date.now() - hit.at >= ACCOUNT_CHECK_MS) refreshAccount(upn, context);
+  return hit;
 }
 
 function reply(context, status, body, cookies) {
@@ -246,4 +255,4 @@ function describe(s) {
   };
 }
 
-module.exports = { guard, finish, describe, signOutCookies, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode, _signInKey: signInKey, _accountCache: accountCache };
+module.exports = { guard, finish, describe, signOutCookies, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode, _signInKey: signInKey, _accountCache: accountCache, _refreshAccount: refreshAccount };

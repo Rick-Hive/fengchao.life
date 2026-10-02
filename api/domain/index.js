@@ -10,6 +10,7 @@
 //   POST   domain/sync   {domain, mode}   one budgeted slice of a sync — "changes" (accounts created, updated
 //                                         or deleted since the last sync) or "full"; call again while done:false
 //   PATCH  domain/person                  {user, identity?, linked?, note?} → people.json       (域蜂巢管理员, staff)
+//   PUT    domain/institution             {domain, name} → institutions.json (the school's display name) (sysadmin)
 //   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (域管理员 IT, sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
@@ -23,7 +24,8 @@
 const { graph, list } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
 const { userRoles, managedDomains, can, normUser } = require("../shared/roles");
-const { readPeople, writePeople, identityOf, IDENTITIES } = require("../shared/people");
+const { readPeople, writePeople, identityOf, IDENTITIES, readInstitutions, writeInstitutions } = require("../shared/people");
+const { readRoles, roleLabel } = require("../shared/roles");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
@@ -37,12 +39,15 @@ function fail(context, status, error, extra) {
 
 // The cached rows plus Hive's own facts about each person.
 async function usersView(domain) {
-  const [doc, peopleDoc] = await Promise.all([dir.readDomain(domain), readPeople()]);
+  const [doc, peopleDoc, rolesDoc] = await Promise.all([dir.readDomain(domain), readPeople(), readRoles().catch(() => ({ entries: [] }))]);
   const people = peopleDoc.people;
+  const rolesOf = {};
+  for (const e of rolesDoc.entries || []) rolesOf[e.user] = (e.roles || []).map((x) => ({ role: x, zh: roleLabel(x, "zh"), en: roleLabel(x, "en") }));
   const users = doc.users.map((r) => {
     const rec = people[r.upn] || null;
     const entra = { department: r.department, jobTitle: r.jobTitle };
     return Object.assign({}, r, {
+      roles: rolesOf[r.upn] || [],
       groups: (r.groups || []).map((g) => ({ id: g.id, name: g.name, kind: g.kind })),
       identity: identityOf(rec, entra),
       identitySource: rec && IDENTITIES.includes(rec.identity) ? "hive" : (identityOf(null, entra) ? "entra" : ""),
@@ -80,9 +85,15 @@ async function handler(context, req) {
       // A domain administrator's own domains are always listed, even if the directory call failed.
       for (const d of allowed) if (d !== "*" && !domains.some((x) => x.domain === d)) domains.push({ domain: d, isDefault: false, isInitial: false });
       domains = domains.filter((d) => may(d.domain)).sort((a, b) => a.domain.localeCompare(b.domain));
-      // What the caller may do in each domain, so the page shows only the controls that work.
-      domains = domains.map((d) => Object.assign({}, d, { can: { methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), full: can(roles, "admin") } }));
-      context.res = { status: 200, body: { user: actor, roles, all, domains, mine: domainOf(actor) } };
+      // What the caller may do in each domain, so the page shows only the controls that work;
+      // and the school's display name, which is what everyone but the system administrator sees.
+      const inst = (await readInstitutions()).institutions;
+      const isAdmin = can(roles, "admin");
+      domains = domains.map((d) => Object.assign({}, d, {
+        name: (inst[d.domain] && inst[d.domain].name) || "",
+        can: { methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), full: isAdmin, institutions: isAdmin },
+      }));
+      context.res = { status: 200, body: { user: actor, roles, all, domains, mine: domainOf(actor), showDomains: isAdmin } };
       return;
     }
 
@@ -115,6 +126,19 @@ async function handler(context, req) {
         context.res = { status: 200, body: st };
         return;
       }
+    }
+
+    if (method === "PUT" && action === "institution") {
+      if (!can(roles, "admin")) return fail(context, 403, "institution names are set by the system administrator", { code: "forbidden" });
+      const name = String((req.body && req.body.name) || "").trim().slice(0, 60);
+      if (/[<>]/.test(name)) return fail(context, 400, "name: no < or >");
+      const doc = await readInstitutions();
+      if (name) doc.institutions[domain] = { name, by: actor, at: new Date().toISOString() };
+      else delete doc.institutions[domain];
+      await writeInstitutions(doc);
+      await audit(context, { actor, action: "institution.update", target: domain, name, result: "ok" });
+      context.res = { status: 200, body: { ok: true, domain, name } };
+      return;
     }
 
     if (method === "PATCH" && action === "person") {

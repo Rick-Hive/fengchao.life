@@ -97,6 +97,7 @@
     if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [
         { hash: "#/system/roles", icon: "key", zh: "角色分配", en: "Roles" },
+        { hash: "#/system/institutions", icon: "tree", zh: "机构名称", en: "Institutions" },
         { hash: "#/system/sync", icon: "sync", zh: "数据同步", en: "Data sync" },
       ] });
     }
@@ -143,7 +144,11 @@
   function panelOpen(html) { var p = $("panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false"); }
   function panelClose() { var p = $("panel"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); document.querySelectorAll("table.data tr.sel").forEach(function (tr) { tr.classList.remove("sel"); }); }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { panelClose(); closeDrawer(); } });
-  $("panel").addEventListener("click", function (e) { if (e.target.closest(".x")) panelClose(); });
+  $("panel").addEventListener("click", function (e) {
+    if (e.target.closest(".x")) { panelClose(); return; }
+    var g = e.target.closest("button[data-group]"); if (g) { openGroupPanel(g.getAttribute("data-group")); return; }
+    var m = e.target.closest("button.mrow[data-upn]"); if (m) { openUserPanel(m.getAttribute("data-upn")); }
+  });
 
   // ================================================================================
   // 我的账号 › 概览
@@ -308,9 +313,9 @@
   var STAFF_FN = { curriculum: ["课程开发", "Curriculum development"], fundraising: ["募款", "Fundraising"], contractor: ["Contractor", "Contractor"], community: ["教育社区经理", "Education community manager"], finance: ["财务", "Finance"], sales: ["销售", "Sales"], sysadmin: ["系统管理员", "System administrator"] };
   function roleName(r) {
     var m;
-    if ((m = /^domain_it:(.+)$/.exec(r))) return t("域管理员（IT） · ", "Domain administrator (IT) · ") + m[1];
-    if ((m = /^domain_hive:(.+)$/.exec(r))) return t("域蜂巢管理员 · ", "Domain Hive administrator · ") + m[1];
-    if ((m = /^domain_admin:(.+)$/.exec(r))) return t("域管理员（IT＋蜂巢） · ", "Domain administrator (IT + Hive) · ") + m[1];
+    if ((m = /^domain_it:(.+)$/.exec(r))) return t("域管理员（IT） · ", "Domain administrator (IT) · ") + dname(m[1]);
+    if ((m = /^domain_hive:(.+)$/.exec(r))) return t("域蜂巢管理员 · ", "Domain Hive administrator · ") + dname(m[1]);
+    if ((m = /^domain_admin:(.+)$/.exec(r))) return t("域管理员（IT＋蜂巢） · ", "Domain administrator (IT + Hive) · ") + dname(m[1]);
     if ((m = /^staff:(.+)$/.exec(r))) return "Staff · " + (STAFF_FN[m[1]] ? STAFF_FN[m[1]][EN ? 1 : 0] : m[1]);
     if (r === "admin") return t("系统管理员", "System administrator");
     if (r === "coordinator") return t("Staff · 教育社区经理", "Staff · Education community manager");
@@ -388,10 +393,18 @@
   // ================================================================================
   // 本域管理 › 用户
   // ================================================================================
+  // A school is shown by the name the system administrator gave it (系统 › 机构名称);
+  // the domain itself is shown only to the system administrator (Rick, 2026-10-02).
+  function dinfo(domain) { return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return d.domain === domain; })[0] || null; }
+  function dname(domain) { var d = dinfo(domain); return (d && d.name) || domain; }
+  function dlabel(domain) { // name, plus the domain for the administrator when they differ
+    var n = dname(domain);
+    return esc(n) + (domainsInfo && domainsInfo.showDomains && n !== domain ? ' <span class="muted">' + esc(domain) + "</span>" : "");
+  }
   function domainPicker(id) {
     var ds = (domainsInfo && domainsInfo.domains) || [];
-    if (ds.length <= 1) return ds.length ? '<span class="tag accent">' + esc(ds[0].domain) + "</span>" : "";
-    return '<select id="' + id + '">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === currentDomain ? " selected" : "") + ">" + esc(d.domain) + "</option>"; }).join("") + "</select>";
+    if (ds.length <= 1) return ds.length ? '<span class="tag accent">' + esc(dname(ds[0].domain)) + "</span>" : "";
+    return '<select id="' + id + '">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === currentDomain ? " selected" : "") + ">" + esc(dname(d.domain)) + (domainsInfo.showDomains && d.name ? " · " + esc(d.domain) : "") + "</option>"; }).join("") + "</select>";
   }
   function loadDomainData(kind, force) {
     var store = kind === "users" ? state.domainUsers : state.domainGroups;
@@ -465,7 +478,7 @@
         var dom = currentDomain;
         $("usNew").disabled = true; if ($("usFull")) $("usFull").disabled = true;
         $("ufoot").textContent = t("正在同步…", "Syncing…");
-        runSync(dom, mode, function (st) { $("ufoot").textContent = t("正在同步 ", "Syncing ") + dom + "：" + (st.total - st.remaining) + " / " + st.total; })
+        runSync(dom, mode, function (st) { $("ufoot").textContent = t("正在同步 ", "Syncing ") + dname(dom) + "：" + (st.total - st.remaining) + " / " + st.total; })
           .then(function (st) { $("ufoot").textContent = t("同步完成：", "Sync complete: ") + st.users + t(" 个账号", " accounts") + (st.added ? t("，更新 ", ", ") + st.added + (EN ? " changed" : " 个") : "") + (st.removed ? t("，删除 ", ", ") + st.removed + (EN ? " removed" : " 个") : ""); return loadDomainData("users"); })
           .then(renderUsers).catch(showUsersError)
           .then(function () { $("usNew").disabled = false; if ($("usFull")) $("usFull").disabled = false; });
@@ -474,6 +487,8 @@
     bindSync("usNew", "changes"); bindSync("usFull", "full");
     $("csv").addEventListener("click", exportUsersCsv);
     $("utable").addEventListener("click", function (e) {
+      var gb = e.target.closest("button[data-group]");
+      if (gb) { e.stopPropagation(); openGroupPanel(gb.getAttribute("data-group"), currentDomain); return; }
       var tr = e.target.closest("tr[data-upn]"); if (!tr) return;
       document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); });
       tr.classList.add("sel");
@@ -505,7 +520,7 @@
       var auth = u.verified === null ? '<span class="tag">?</span>' : u.verified ? '<span class="tag ok">Yes</span>' : '<span class="tag bad">No</span>';
       var dev = u.devices.length ? u.devices.map(function (x) { return esc(x.name) + (x.version ? ' <span class="muted">' + esc(x.version) + "</span>" : ""); }).join("<br/>") : (u.otherMethods.length ? '<span class="muted">' + esc(u.otherMethods.map(function (k) { return (KIND[k] || [k, k])[EN ? 1 : 0]; }).join(", ")) + "</span>" : '<span class="muted">—</span>');
       var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "m365"; });
-      var gl = gs.slice(0, 3).map(function (g) { return '<span class="tag">' + hl(g.name, state.userQ) + "</span>"; }).join("") + (gs.length > 3 ? '<span class="tag muted">+' + (gs.length - 3) + "</span>" : "");
+      var gl = gs.slice(0, 3).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '">' + hl(g.name, state.userQ) + "</button>"; }).join("") + (gs.length > 3 ? '<span class="tag muted">+' + (gs.length - 3) + "</span>" : "");
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
         '<td><span class="dn">' + hl(u.displayName, state.userQ) + "</span>" + (u.lastSignIn ? '<span class="sub">' + t("最近登录 ", "Last sign-in ") + esc(day(u.lastSignIn)) + "</span>" : "") + "</td>" +
         "<td>" + auth + "</td><td>" + dev + '</td><td><div class="tags">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
@@ -527,13 +542,25 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   var IDENTITIES = ["家长", "学生", "老师", "行政"];
-  function openUserPanel(upn) {
-    var u = usersNow().filter(function (x) { return x.upn === upn; })[0]; if (!u) return;
+  function openUserPanel(upn, domain) {
+    if (domain) currentDomain = domain;
+    var u = usersNow().filter(function (x) { return x.upn === upn; })[0];
+    if (!u) { // not loaded yet (opened from a group in another school): load, then open
+      loadDomainData("users").then(function () { if (usersNow().some(function (x) { return x.upn === upn; })) openUserPanel(upn); });
+      return;
+    }
+    var kids = (u.extra && u.extra.children) || [];
     var idOpts = ['<option value="">' + t("— 未填 —", "— not set —") + "</option>"].concat(IDENTITIES.map(function (i) { return '<option value="' + i + '"' + (u.identity === i ? " selected" : "") + ">" + i + "</option>"; })).join("");
     panelOpen(
       '<div class="ph"><span class="avatar">' + esc(initials(u.displayName || u.upn)) + "</span><h3>" + esc(u.displayName || u.upn) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
       '<div class="pb">' +
         '<div class="kv"><span class="k">' + t("账号", "Account") + "</span><span>" + esc(u.upn) + "</span>" +
+          '<span class="k">' + t("学校", "School") + "</span><span>" + dlabel(currentDomain) + "</span>" +
+          '<span class="k">' + t("身份", "Identity") + "</span><span>" + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + "</span>" +
+          '<span class="k">' + t("角色", "Roles") + "</span><span>" + ((u.roles || []).length ? u.roles.map(function (r) { return esc(EN ? r.en : r.zh); }).join("<br/>") : '<span class="muted">' + t("普通用户", "User") + "</span>") + "</span>" +
+          '<span class="k">' + t("安全邮箱", "Safe email") + "</span><span>" + (u.safeEmail ? esc(u.safeEmail) : '<span class="muted">—</span>') + "</span>" +
+          '<span class="k">' + t("城市", "City") + "</span><span>" + (u.city ? esc(u.city) : '<span class="muted">—</span>') + "</span>" +
+          '<span class="k">' + t("孩子", "Children") + "</span><span>" + (kids.length ? kids.length + t(" 个", "") + (kids.some(function (c) { return c.account; }) ? ' <span class="muted">' + kids.filter(function (c) { return c.account; }).map(function (c) { return c.account; }).join(", ") + "</span>" : "") : '<span class="muted">—</span>') + "</span>" +
           '<span class="k">' + t("验证", "Authentication") + "</span><span>" + (u.verified === null ? "?" : u.verified ? '<span class="tag ok">Yes</span>' : '<span class="tag bad">No</span>') + "</span>" +
           '<span class="k">' + t("最近登录", "Last sign-in") + "</span><span>" + esc(when(u.lastSignIn) || "—") + "</span>" +
           '<span class="k">' + t("创建", "Created") + "</span><span>" + esc(day(u.created) || "—") + "</span>" +
@@ -544,7 +571,7 @@
         }).join("") : '<div class="muted" style="font-size:.86rem">' + t("没有登记验证器。", "No authenticator registered.") + "</div>") + "</div>" +
         (canDo("methods") ? '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。重置密码和临时通行码在二期加入。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready. Password reset and Temporary Access Pass come in phase 2.") + "</div>"
           : '<div class="note">' + t("登录设备由域管理员（IT）管理。", "Sign-in devices are managed by the domain administrator (IT).") + "</div>") +
-        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<span class="tag' + (g.kind === "team" ? " accent" : "") + '">' + esc(g.name) + "</span>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
+        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '">' + esc(g.name) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
           ((u.extra.needs || []).length ? '<span class="k">' + t("最需要", "Needs") + "</span><span>" + esc(u.extra.needs.map(vl).join("、") + (u.extra.needsOther ? "（" + u.extra.needsOther + "）" : "")) + "</span>" : "") +
           (u.extra.children || []).map(function (c, i) {
@@ -592,13 +619,44 @@
   // ================================================================================
   // 本域管理 › Teams 群组 (domain → groups, collapsible)
   // ================================================================================
+  // A group, in the side panel: what it is and who of this school is in it; each
+  // member opens their own panel (Rick, 2026-10-02).
+  function openGroupPanel(id, domain) {
+    if (domain) currentDomain = domain;
+    var dom = currentDomain;
+    var saved = currentDomain;
+    Promise.all([loadDomainData("groups"), loadDomainData("users").catch(function () { return null; })]).then(function () {
+      currentDomain = saved;
+      var g = ((state.domainGroups[dom] || {}).groups || []).filter(function (x) { return x.id === id; })[0];
+      if (!g) { panelOpen('<div class="ph"><h3>' + t("群组", "Group") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="empty">' + t("缓存里没有这个群组，请先同步。", "This group is not in the cache yet — sync first.") + "</div></div>"); return; }
+      var people = {}; ((state.domainUsers[dom] || {}).users || []).forEach(function (u) { people[u.upn] = u; });
+      var k = GKIND[g.kind] || GKIND.other;
+      panelOpen(
+        '<div class="ph"><span class="tav" style="width:32px;height:32px;font-size:11px;background:' + hue(g.id) + '">' + esc(initials(g.name)) + "</span><h3>" + esc(g.name) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+        '<div class="pb">' +
+          '<div class="kv"><span class="k">' + t("类型", "Type") + "</span><span>" + esc(k[EN ? 1 : 0]) + "</span>" +
+            (g.visibility ? '<span class="k">' + t("可见性", "Visibility") + "</span><span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") +
+            (g.mail ? '<span class="k">' + t("邮箱", "Mail") + "</span><span>" + esc(g.mail) + "</span>" : "") +
+            '<span class="k">' + t("学校", "School") + "</span><span>" + dlabel(dom) + "</span>" +
+            '<span class="k">' + t("本校成员", "Members here") + "</span><span>" + g.domainMembers + "</span>" +
+            (g.description ? '<span class="k">' + t("简介", "About") + "</span><span>" + esc(g.description) + "</span>" : "") + "</div>" +
+          "<h4>" + t("成员", "Members") + "</h4>" +
+          ((g.members || []).length ? g.members.map(function (upn) {
+            var u = people[upn];
+            return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
+          }).join("") : '<div class="muted">' + t("本校没有成员。", "No members from this school.") + "</div>") +
+          '<p class="hint">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</p>" +
+        "</div>");
+    });
+  }
+
   function viewGroups() {
     setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("Teams 群组", "Teams groups"), syncButtons("gs"));
     var ds = domainsInfo.domains || [];
     $("content").innerHTML =
       '<div class="toolbar"><span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="gq" placeholder="' + t("搜索群组…", "Search groups…") + '" /></div></div>' +
       '<div class="tlist tree" id="gtree">' + ds.map(function (d) {
-        return '<details data-domain="' + esc(d.domain) + '"' + (ds.length === 1 || d.domain === currentDomain ? " open" : "") + '><summary>' + esc(d.domain) + ' <span class="n" id="gn-' + esc(d.domain.replace(/\W/g, "_")) + '"></span></summary><div class="leaf"><div class="loading">' + t("展开后读取…", "Expand to load…") + "</div></div></details>";
+        return '<details data-domain="' + esc(d.domain) + '"' + (ds.length === 1 || d.domain === currentDomain ? " open" : "") + '><summary>' + dlabel(d.domain) + ' <span class="n" id="gn-' + esc(d.domain.replace(/\W/g, "_")) + '"></span></summary><div class="leaf"><div class="loading">' + t("展开后读取…", "Expand to load…") + "</div></div></details>";
       }).join("") + "</div>";
     $("gq").addEventListener("input", debounce(function () { ds.forEach(function (d) { renderGroupLeaf(d.domain); }); }, 120));
     $("gtree").addEventListener("toggle", function (e) { var det = e.target; if (det.open) ensureGroups(det.getAttribute("data-domain")); }, true);
@@ -608,7 +666,7 @@
         var dom = currentDomain, det = $("gtree").querySelector('details[data-domain="' + dom + '"]');
         var leaf = det && det.querySelector(".leaf");
         b.disabled = true;
-        runSync(dom, mode, function (st) { if (leaf) leaf.innerHTML = '<div class="loading">' + t("正在同步 ", "Syncing ") + esc(dom) + "：" + (st.total - st.remaining) + " / " + st.total + "</div>"; })
+        runSync(dom, mode, function (st) { if (leaf) leaf.innerHTML = '<div class="loading">' + t("正在同步 ", "Syncing ") + esc(dname(dom)) + "：" + (st.total - st.remaining) + " / " + st.total + "</div>"; })
           .then(function () { if (det) det.open = true; return ensureGroups(dom, true); })
           .catch(function (e) { if (leaf) leaf.innerHTML = '<div class="msg err">' + esc(e.message || e) + "</div>"; })
           .then(function () { b.disabled = false; });
@@ -618,6 +676,8 @@
     // Who is in a group: the accounts of this domain, read-only (Rick, 2026-10-02:
     // 「系统管理员应该可以看到群组中的用户账号信息，但是不能操作」).
     $("gtree").addEventListener("click", function (e) {
+      var m = e.target.closest("button.mrow[data-upn]");
+      if (m) { openUserPanel(m.getAttribute("data-upn"), m.getAttribute("data-domain")); return; }
       var b = e.target.closest("button[data-members]"); if (!b) return;
       var box = b.parentNode.parentNode.querySelector(".members");
       if (!box) return;
@@ -643,7 +703,7 @@
       var k = GKIND[g.kind] || GKIND.other;
       var members = (g.members || []).map(function (upn) {
         var u = people[upn];
-        return '<div class="mrow"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "") + "</div>";
+        return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '" data-domain="' + esc(domain) + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
       }).join("");
       return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(g.name)) + '</span><div class="tmain"><div class="tname">' + hl(g.name, q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
         '<div class="members hidden">' + (members || '<div class="muted" style="font-size:.84rem">' + t("本域没有成员。", "No members from this domain.") + "</div>") + '<div class="muted" style="font-size:.78rem;margin-top:6px">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</div></div>" +
@@ -657,7 +717,7 @@
   function viewRoles() {
     setTitle(t("系统", "System"), t("角色分配", "Roles"), "", t("谁可以管理哪所学校。", "Who manages which school."));
     var doms = (domainsInfo && domainsInfo.domains) || [];
-    var domOpts = doms.map(function (d) { return '<label class="chk"><input type="checkbox" data-dom="' + esc(d.domain) + '" /> ' + esc(d.domain) + "</label>"; }).join("");
+    var domOpts = doms.map(function (d) { return '<label class="chk"><input type="checkbox" data-dom="' + esc(d.domain) + '" /> ' + dlabel(d.domain) + "</label>"; }).join("");
     $("content").innerHTML =
       '<div class="card"><p class="sub">' +
         t("普通用户无需分配。域管理员（IT）管本域账号的登录设备；域蜂巢管理员管本域账号的身份、关联和资料；Staff 是蜂巢员工，按职能分，能看所有学校；系统管理员拥有全部权限。域角色和 Staff 立即生效；系统管理员在对方下次登录后生效。",
@@ -720,6 +780,26 @@
       post("roles", "DELETE", { user: user }).then(function (r) { if (!r.ok) return msg(false, errText(r)); entries = r.body.entries || []; render(entries); msg(true, t("已移除：", "Removed: ") + user); });
     });
   }
+  function viewInstitutions() {
+    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个机构名称；除系统管理员外，所有人只看到名称。", "Give each domain a school name; everyone but the system administrator sees only the name."));
+    var ds = (domainsInfo && domainsInfo.domains) || [];
+    $("content").innerHTML =
+      '<div class="card"><table class="roles" id="itable"><thead><tr><th>' + t("域名", "Domain") + "</th><th>" + t("机构名称", "Institution name") + "</th><th></th></tr></thead><tbody>" +
+        ds.map(function (d) {
+          return '<tr data-domain="' + esc(d.domain) + '"><td>' + esc(d.domain) + (d.isDefault ? ' <span class="tag">' + t("默认", "default") + "</span>" : "") + '</td><td><input type="text" maxlength="60" value="' + esc(d.name || "") + '" placeholder="' + t("例如：北京某某学校", "e.g. Beijing Example School") + '" /></td><td><button class="btn secondary sm" type="button">' + t("保存", "Save") + "</button></td></tr>";
+        }).join("") + '</tbody></table><div id="imsg"></div></div>';
+    $("itable").addEventListener("click", function (ev) {
+      var b = ev.target.closest("button"); if (!b) return;
+      var tr = b.closest("tr"), domain = tr.getAttribute("data-domain"), name = tr.querySelector("input").value.trim();
+      b.disabled = true;
+      post("domain/institution", "PUT", { domain: domain, name: name }).then(function (r) {
+        b.disabled = false;
+        if (!r.ok) { $("imsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        var d = dinfo(domain); if (d) d.name = name;
+        $("imsg").innerHTML = '<div class="msg ok">' + t("已保存：", "Saved: ") + esc(domain) + (name ? " → " + esc(name) : t("（已清除名称）", " (name cleared)")) + "</div>";
+      });
+    });
+  }
   function viewSync() {
     setTitle(t("系统", "System"), t("数据同步", "Data sync"), "", t("把 Airtable 里的课程数据发布到网站。", "Publish the course data from Airtable to the site."));
     $("content").innerHTML =
@@ -778,7 +858,7 @@
     }
     if (h.indexOf("#/system") === 0) {
       if (!isAdmin()) { location.hash = "#/account"; return; }
-      return h.indexOf("#/system/sync") === 0 ? viewSync() : viewRoles();
+      return h.indexOf("#/system/sync") === 0 ? viewSync() : h.indexOf("#/system/institutions") === 0 ? viewInstitutions() : viewRoles();
     }
     viewAccount();
   }

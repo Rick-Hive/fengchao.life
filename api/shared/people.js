@@ -22,6 +22,7 @@ const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
 
 const BLOB_NAME = "people.json";
+const INST_BLOB = "institutions.json"; // { "institutions": { "<domain>": { "name": "…", "by", "at" } } }
 const IDENTITIES = ["家长", "学生", "老师", "行政"];
 // Vocabularies for 补充资料. Stored as the Chinese word; the Hub shows either language.
 const GRADES = ["学前", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "大学", "其它"];
@@ -58,6 +59,25 @@ async function writePeople(doc) {
   await blob.upload(body, Buffer.byteLength(body), {
     blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" },
   });
+}
+
+// Institution names (Rick, 2026-10-02: 「对每个域名和机构做个对应……所有用户仅能看到名称而非 domain」).
+async function readInstitutions() {
+  try {
+    const { container } = blobClient();
+    const blob = container.getBlockBlobClient(INST_BLOB);
+    if (!(await blob.exists())) return { institutions: {} };
+    const parsed = JSON.parse((await blob.downloadToBuffer()).toString("utf8"));
+    return { institutions: parsed && typeof parsed.institutions === "object" && parsed.institutions ? parsed.institutions : {} };
+  } catch {
+    return { institutions: {} };
+  }
+}
+async function writeInstitutions(doc) {
+  const { container } = blobClient();
+  await container.createIfNotExists();
+  const body = JSON.stringify({ institutions: doc.institutions || {} }, null, 2);
+  await container.getBlockBlobClient(INST_BLOB).upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" } });
 }
 
 // Identity for one account: Hive's record first, then Entra's department.
@@ -127,4 +147,4 @@ function linkFamily(doc, parent, childAccounts, prev) {
   }
 }
 
-module.exports = { IDENTITIES, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, readPeople, writePeople, identityOf, validateExtra, linkFamily };
+module.exports = { IDENTITIES, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, readPeople, writePeople, identityOf, validateExtra, linkFamily, readInstitutions, writeInstitutions };

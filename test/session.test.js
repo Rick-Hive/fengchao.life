@@ -136,30 +136,41 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
     graphCalls++;
     return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify(account), json: async () => account };
   };
+  const SESS = () => req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) });
+  const settle = () => new Promise((r) => setTimeout(r, 20)); // let the background refresh land
   S._accountCache.clear();
   c = ctx();
-  s = await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) }));
-  assert.ok(s && !s.session.isNew, "old password change → session fine");
+  s = await S.guard(c, SESS());
+  assert.ok(s && !s.session.isNew, "first call answers at once (state fetched in the background)");
+  await settle();
   assert.strictEqual(graphCalls, 1);
   c = ctx();
-  await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) }));
+  s = await S.guard(c, SESS());
+  assert.ok(s, "old password change → session fine");
   assert.strictEqual(graphCalls, 1, "cached: no second directory call within the window");
-  S._accountCache.clear();
+  // the password changes during the session: the cache expires, a background refresh runs, the NEXT request is refused
   account = { accountEnabled: true, lastPasswordChangeDateTime: new Date(now - 10 * MIN).toISOString() };
+  S._accountCache.get(UPN).at = Date.now() - 10 * MIN;
   c = ctx();
-  assert.strictEqual(await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) })), null, "password changed during the session → out");
+  assert.ok(await S.guard(c, SESS()), "the request that triggers the refresh is not delayed");
+  await settle();
+  assert.strictEqual(graphCalls, 2);
+  c = ctx();
+  assert.strictEqual(await S.guard(c, SESS()), null, "password changed during the session → out");
   assert.strictEqual(c.res.body.reason, "password");
   assert.deepStrictEqual(names(c.res.cookies), ["StaticWebAppsAuthCookie", "StaticWebAppsAuthContextCookie", S.COOKIE].sort());
   S._accountCache.clear();
   account = { accountEnabled: false, lastPasswordChangeDateTime: new Date(now - 24 * HOUR).toISOString() };
+  await S._refreshAccount(UPN);
   c = ctx();
-  assert.strictEqual(await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) })), null);
+  assert.strictEqual(await S.guard(c, SESS()), null);
   assert.strictEqual(c.res.body.reason, "disabled");
-  // a brand-new session is not checked (nothing to compare against), and a Graph failure is skipped
+  // a Graph failure is skipped: the session continues on the last known state (none here)
   S._accountCache.clear(); global.fetch = async () => { throw new Error("network"); };
   c = ctx();
-  s = await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) }));
-  assert.ok(s, "directory unreachable → session continues");
+  s = await S.guard(c, SESS());
+  await settle();
+  assert.ok(s && !S._accountCache.has(UPN), "directory unreachable → session continues, nothing cached");
   delete global.fetch;
 
   // 7. Cross-site writes are refused; reads are not; same-site is fine; no header is fine.

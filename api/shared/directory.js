@@ -93,7 +93,7 @@ function methodView(m) {
     created: m.createdDateTime || m.createdOn || null,
   };
 }
-const USER_SELECT = "id,userPrincipalName,displayName,givenName,surname,accountEnabled,department,jobTitle,createdDateTime,userType,signInActivity";
+const USER_SELECT = "id,userPrincipalName,displayName,givenName,surname,accountEnabled,department,jobTitle,city,otherMails,createdDateTime,userType,signInActivity";
 
 // The account list of a domain (cheap: one paged call). `since` narrows it to
 // accounts created after that instant. signInActivity needs a P1 licence; when
@@ -124,6 +124,8 @@ function rowOf(u, m, g) {
     displayName: u.displayName || "",
     department: u.department || "",
     jobTitle: u.jobTitle || "",
+    city: u.city || "",
+    safeEmail: (u.otherMails || [])[0] || "",
     enabled: u.accountEnabled !== false,
     created: u.createdDateTime || null,
     lastSignIn: sia.lastSignInDateTime || sia.lastNonInteractiveSignInDateTime || null,
@@ -307,6 +309,7 @@ async function syncSlice(domain, mode, opts) {
         if (fresh && fresh.status === 200 && fresh.body && fresh.body.userType === "Guest") return;
         const row = rowOf(basic, res[`m${i}`], res[`g${i}`]);
         if (old && !row.lastSignIn) row.lastSignIn = old.lastSignIn; // delta re-reads skip signInActivity
+        if (old) { if (!row.city) row.city = old.city || ""; if (!row.safeEmail) row.safeEmail = old.safeEmail || ""; }
         const k = doc.users.findIndex((r) => r.id === row.id || r.upn === row.upn);
         if (k >= 0) doc.users[k] = row; else doc.users.push(row);
       });
