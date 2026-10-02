@@ -35,7 +35,8 @@ jobs:
               -d "{\"mode\":\"$MODE\"}")
             echo "$out" | head -c 600; echo
             if echo "$out" | grep -q '"done":true'; then echo "sync complete"; exit 0; fi
-            if echo "$out" | grep -q '"error"'; then echo "sync reported an error; retrying in 30 s"; sleep 30; fi
+            # A real error is a string or an object; the slice status always carries "error": null.
+            if echo "$out" | grep -Eq '"error": *("|\{)'; then echo "sync reported an error; retrying in 30 s"; sleep 30; fi
             sleep 2
           done
           echo "sync did not finish within the loop limit"; exit 1
