@@ -319,6 +319,9 @@ async function syncSlice(domain, mode, opts) {
     throw err;
   }
 
+  // This slice went through: an error left by an earlier slice is history now (it
+  // used to stay in the status and make every later call look failed).
+  doc.error = null;
   const done = doc.pending.length === 0;
   if (done) {
     doc.users.sort((a, b) => a.displayName.localeCompare(b.displayName, "zh") || a.upn.localeCompare(b.upn));

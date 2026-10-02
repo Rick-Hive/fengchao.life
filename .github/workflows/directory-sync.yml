@@ -1,11 +1,15 @@
 # Nightly directory sync — copies every school's accounts from the Microsoft
-# tenant into Hive's blob cache so the Hub's user tables answer instantly
-# (Rick, 2026-10-02). 01:00 Beijing = 17:00 UTC. Static Web Apps functions have
-# no timers, so this workflow calls the sync endpoint in a loop; each call does
-# a 20-second slice and the endpoint says when everything is done.
+# tenant into Hive's blob cache so the management center's user tables answer
+# instantly (Rick, 2026-10-02). 01:00 Beijing = 17:00 UTC. Static Web Apps
+# functions have no timers, so this workflow calls the sync endpoint in a loop;
+# each call does a 20-second slice and the endpoint says when everything is done.
 #
 # Secret needed: HIVE_SYNC_KEY — the same value as the Static Web App's
 # HIVE_SYNC_KEY application setting (any long random string, 32+ characters).
+#
+# The reply is parsed with jq, not matched as text: the platform pretty-prints
+# JSON ("done": true), and a text match for "done":true never fired, so the
+# first version re-synced the whole tenant in a circle (2026-10-02).
 name: Directory sync (nightly)
 
 on:
@@ -17,26 +21,57 @@ on:
         description: "full (every account) or new (accounts created since the last sync)"
         default: "full"
         required: true
+      fresh:
+        description: "Start over even if a sync finished in the last 12 hours"
+        type: boolean
+        default: false
+
+concurrency:
+  group: directory-sync
+  cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 150
     steps:
       - name: Run the sync until done
         env:
           KEY: ${{ secrets.HIVE_SYNC_KEY }}
           MODE: ${{ github.event.inputs.mode || 'full' }}
+          FRESH: ${{ github.event.inputs.fresh || 'false' }}
         run: |
-          set -e
           if [ -z "$KEY" ]; then echo "HIVE_SYNC_KEY secret is not set"; exit 1; fi
-          for i in $(seq 1 120); do
+          fresh="$FRESH"
+          errors=0
+          for i in $(seq 1 400); do
+            body=$(jq -nc --arg m "$MODE" --argjson f "$fresh" '{mode: $m, fresh: $f}')
             out=$(curl -sS --max-time 60 -X POST "https://fengchao.life/api/directory-sync" \
-              -H "content-type: application/json" -H "x-hive-sync-key: $KEY" \
-              -d "{\"mode\":\"$MODE\"}")
-            echo "$out" | head -c 600; echo
-            if echo "$out" | grep -q '"done":true'; then echo "sync complete"; exit 0; fi
-            # A real error is a string or an object; the slice status always carries "error": null.
-            if echo "$out" | grep -Eq '"error": *("|\{)'; then echo "sync reported an error; retrying in 30 s"; sleep 30; fi
+              -H "content-type: application/json" -H "x-hive-sync-key: $KEY" -d "$body" 2>&1) || true
+            fresh=false   # only the first call may ask for a fresh start
+            if ! echo "$out" | jq -e . >/dev/null 2>&1; then
+              errors=$((errors+1)); echo "[$i] not JSON (${errors}/10): $(echo "$out" | head -c 200)"
+              [ "$errors" -ge 10 ] && { echo "too many failed calls"; exit 1; }
+              sleep 30; continue
+            fi
+            done_=$(echo "$out" | jq -r '.done == true')
+            err=$(echo "$out" | jq -r '(.error // .slice.error // empty) | if type == "string" then . else (.message // tostring) end')
+            echo "[$i] $(echo "$out" | jq -c '{current, left: (.queue | length), finished: (.finished | length), slice: (.slice | if . then {users, remaining} else null end), alreadyDone}')"
+            if [ "$done_" = "true" ]; then
+              if [ "$(echo "$out" | jq -r '.alreadyDone == true')" = "true" ]; then
+                echo "already synced at $(echo "$out" | jq -r .finishedAt) — nothing to do (run with fresh=true to force)"
+              else
+                echo "sync complete: $(echo "$out" | jq -r '.finished | length') domain(s)"
+              fi
+              exit 0
+            fi
+            if [ -n "$err" ]; then
+              errors=$((errors+1)); echo "[$i] error (${errors}/10): $err — retrying in 30 s"
+              [ "$errors" -ge 10 ] && { echo "too many errors"; exit 1; }
+              sleep 30
+            else
+              errors=0
+            fi
             sleep 2
           done
-          echo "sync did not finish within the loop limit"; exit 1
+          echo "sync did not finish within the loop limit — run again, it resumes where it stopped"; exit 1

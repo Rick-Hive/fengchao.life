@@ -288,6 +288,26 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(last.done, true);
   assert.deepStrictEqual(last.finished, [DOMAIN, "other.example.edu"]);
   assert.ok(blobs["_run.json"].includes('"last"'), "run summary kept");
+  // 11b. A call right after a finished run does not start the tenant over (the
+  //      circular re-sync of 2026-10-02); fresh:true does.
+  calls.length = 0;
+  c = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
+  await schedFn(c, { method: "POST", headers: { "x-hive-sync-key": process.env.HIVE_SYNC_KEY }, body: { mode: "full" } });
+  assert.strictEqual(c.res.body.done, true);
+  assert.strictEqual(c.res.body.alreadyDone, true);
+  assert.ok(!calls.some((x) => x.url.includes("/$batch") || x.url.includes("/domains")), "no Graph work for an already-finished run");
+  c = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
+  await schedFn(c, { method: "POST", headers: { "x-hive-sync-key": process.env.HIVE_SYNC_KEY }, body: { mode: "full", fresh: true } });
+  assert.strictEqual(c.res.body.alreadyDone, undefined);
+  assert.ok(calls.some((x) => x.url.includes("/domains")), "fresh:true starts a new run");
+  // finish that fresh run so the checks below see a completed state
+  for (let g = 0; g < 20 && !c.res.body.done; g++) {
+    c = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
+    await schedFn(c, { method: "POST", headers: { "x-hive-sync-key": process.env.HIVE_SYNC_KEY }, body: { mode: "full" } });
+  }
+  assert.strictEqual(c.res.body.done, true);
+  assert.strictEqual(JSON.parse(blobs[`${DOMAIN}.json`]).error, null, "no stale error left on the domain");
+
   const otherDoc = JSON.parse(blobs["other.example.edu.json"]);
   assert.strictEqual(otherDoc.users.length, 0);
   assert.ok(otherDoc.fullAt);
