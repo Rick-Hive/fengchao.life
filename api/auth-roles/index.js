@@ -9,7 +9,7 @@
 //
 // Request body (from Static Web Apps):
 //   { identityProvider, userId, userDetails, claims: [{typ, val}], accessToken? }
-// Response: { roles: ["admin", "crm_entry", …] }
+// Response: { roles: ["admin", "domain_it:school.edu", …] }
 //
 // The account is taken from the token's claims (preferred_username / upn /
 // email) rather than trusting userDetails alone, and must belong to the

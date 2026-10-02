@@ -40,7 +40,7 @@ function req({ method = "GET", user = UPN, cookie, headers = {} } = {}) {
 }
 const MIN = 60 * 1000, HOUR = 60 * MIN;
 function cookieFor(obj) { return `${S.COOKIE}=${encodeURIComponent(S._encode(obj))}`; }
-function names(cookies) { return (cookies || []).map((c) => c.name).sort(); }
+function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c.name))).sort(); }
 
 (async () => {
   // 1. No principal → 401 signed_out.

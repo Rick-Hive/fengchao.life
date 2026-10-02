@@ -50,24 +50,6 @@
       }
     },
     {
-      "route": "/crm*",
-      "allowedRoles": [
-        "authenticated"
-      ],
-      "headers": {
-        "Cache-Control": "no-store"
-      }
-    },
-    {
-      "route": "/api/crm/*",
-      "allowedRoles": [
-        "authenticated"
-      ],
-      "headers": {
-        "Cache-Control": "no-store"
-      }
-    },
-    {
       "route": "/account*",
       "allowedRoles": [
         "authenticated"
@@ -128,7 +110,6 @@
       "/assets/*",
       "/api/*",
       "/admin*",
-      "/crm*",
       "/account*",
       "/hub*",
       "/help/*",

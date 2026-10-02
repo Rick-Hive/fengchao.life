@@ -22,6 +22,10 @@ const people = require("../shared/people");
 
 const DAYS = 7;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// 基本资料 fields a person may fill in or correct themselves. Not here: the
+// account, work email, 职务 / 部门 / 办公地点 (the school sets those).
+const EDITABLE = ["displayName", "givenName", "surname", "safeEmail", "mobilePhone", "streetAddress", "city", "state", "country", "postalCode", "preferredLanguage"];
+const TEXT_MAX = { givenName: 40, surname: 40, city: 40, state: 40, country: 40, streetAddress: 120 };
 
 // Same list as the order form (api/order): mainland free-mail is not accepted
 // as a safe email, since it is exactly the mail that stops arriving.
@@ -65,7 +69,7 @@ const userCache = new Map();
 async function me(upn) {
   const hit = userCache.get(upn);
   if (hit && Date.now() - hit.at < 600000) return hit.user;
-  const user = await graph("GET", `/users/${encodeURIComponent(upn)}?$select=id,userPrincipalName,displayName,givenName,surname,mail,otherMails,postalCode,accountEnabled,createdDateTime,userType`);
+  const user = await graph("GET", `/users/${encodeURIComponent(upn)}?$select=id,userPrincipalName,displayName,givenName,surname,mail,otherMails,mobilePhone,businessPhones,jobTitle,department,officeLocation,streetAddress,city,state,country,postalCode,preferredLanguage,accountEnabled,createdDateTime,userType`);
   userCache.set(upn, { at: Date.now(), user });
   return user;
 }
@@ -170,6 +174,8 @@ async function handler(context, req) {
             extra: rec.extra || null,
             vocab: { grades: people.GRADES, schooling: people.SCHOOLING, models: people.MODELS, higherEd: people.HIGHER_ED, needs: people.NEEDS, maxChildren: people.MAX_CHILDREN },
           },
+          // 基本资料: read from the Office 365 account; the fields in EDITABLE may be
+          // filled in or corrected by the person and are written back to Entra.
           profile: {
             upn: user.userPrincipalName,
             displayName: user.displayName || "",
@@ -177,9 +183,20 @@ async function handler(context, req) {
             surname: user.surname || "",
             mail: user.mail || "",
             safeEmail: (user.otherMails || [])[0] || "",
+            mobilePhone: user.mobilePhone || "",
+            businessPhone: (user.businessPhones || [])[0] || "",
+            jobTitle: user.jobTitle || "",
+            department: user.department || "",
+            officeLocation: user.officeLocation || "",
+            streetAddress: user.streetAddress || "",
+            city: user.city || "",
+            state: user.state || "",
+            country: user.country || "",
             postalCode: user.postalCode || "",
+            preferredLanguage: user.preferredLanguage || "",
             created: user.createdDateTime || null,
             guest: user.userType === "Guest",
+            editable: EDITABLE,
           },
           methods: ms.map(({ _type, ...m }) => m),
           roles,
@@ -248,6 +265,24 @@ async function handler(context, req) {
         const v = String(b.postalCode).trim();
         if (v && !/^[A-Za-z0-9 \-]{3,12}$/.test(v)) problems.push("postalCode: 3–12 letters or digits");
         else patch.postalCode = v || null;
+      }
+      // Plain text fields of 基本资料 (Entra attributes), each bounded.
+      for (const f of ["givenName", "surname", "city", "state", "country", "streetAddress"]) {
+        if (b[f] === undefined) continue;
+        const v = String(b[f]).trim();
+        if (v.length > TEXT_MAX[f]) problems.push(`${f}: at most ${TEXT_MAX[f]} characters`);
+        else if (/[<>]/.test(v)) problems.push(`${f}: no < or >`);
+        else patch[f] = v || null;
+      }
+      if (b.mobilePhone !== undefined) {
+        const v = String(b.mobilePhone).trim().replace(/[\s()-]/g, "");
+        if (v && !/^\+?\d{6,16}$/.test(v)) problems.push("mobilePhone: digits only, 6–16, may start with +");
+        else patch.mobilePhone = v ? (v.startsWith("+") ? "+" + v.slice(1) : v) : null;
+      }
+      if (b.preferredLanguage !== undefined) {
+        const v = String(b.preferredLanguage).trim();
+        if (v && !["zh-CN", "en-US"].includes(v)) problems.push("preferredLanguage: zh-CN or en-US");
+        else patch.preferredLanguage = v || null;
       }
       if (b.safeEmail !== undefined) {
         const v = String(b.safeEmail).trim().toLowerCase();

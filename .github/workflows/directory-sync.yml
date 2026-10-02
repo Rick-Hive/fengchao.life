@@ -1,0 +1,41 @@
+# Nightly directory sync — copies every school's accounts from the Microsoft
+# tenant into Hive's blob cache so the Hub's user tables answer instantly
+# (Rick, 2026-10-02). 01:00 Beijing = 17:00 UTC. Static Web Apps functions have
+# no timers, so this workflow calls the sync endpoint in a loop; each call does
+# a 20-second slice and the endpoint says when everything is done.
+#
+# Secret needed: HIVE_SYNC_KEY — the same value as the Static Web App's
+# HIVE_SYNC_KEY application setting (any long random string, 32+ characters).
+name: Directory sync (nightly)
+
+on:
+  schedule:
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "full (every account) or new (accounts created since the last sync)"
+        default: "full"
+        required: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run the sync until done
+        env:
+          KEY: ${{ secrets.HIVE_SYNC_KEY }}
+          MODE: ${{ github.event.inputs.mode || 'full' }}
+        run: |
+          set -e
+          if [ -z "$KEY" ]; then echo "HIVE_SYNC_KEY secret is not set"; exit 1; fi
+          for i in $(seq 1 120); do
+            out=$(curl -sS --max-time 60 -X POST "https://fengchao.life/api/directory-sync" \
+              -H "content-type: application/json" -H "x-hive-sync-key: $KEY" \
+              -d "{\"mode\":\"$MODE\"}")
+            echo "$out" | head -c 600; echo
+            if echo "$out" | grep -q '"done":true'; then echo "sync complete"; exit 0; fi
+            if echo "$out" | grep -q '"error"'; then echo "sync reported an error; retrying in 30 s"; sleep 30; fi
+            sleep 2
+          done
+          echo "sync did not finish within the loop limit"; exit 1

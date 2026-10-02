@@ -79,9 +79,15 @@ function parseCookies(req) {
 function expiredCookie(name) {
   return { name, value: "", path: "/", expires: new Date(0), maxAge: 0, secure: true, httpOnly: true, sameSite: "Lax" };
 }
-// Every cookie that keeps a browser signed in to Hive, expired. Used here and by /api/logout.
+// Every cookie that keeps a browser signed in to Hive, expired. Used here and by
+// /api/logout. Static Web Apps' cookies are expired both as host-only and for the
+// site's domain, since a cookie is only replaced by one with the same name, path
+// and domain and the platform does not document which it sets.
 function signOutCookies() {
-  return SWA_COOKIES.concat(COOKIE).map(expiredCookie);
+  const out = SWA_COOKIES.concat(COOKIE).map(expiredCookie);
+  const host = String(process.env.HIVE_HOST || "fengchao.life").toLowerCase();
+  for (const name of SWA_COOKIES) out.push(Object.assign(expiredCookie(name), { domain: host }));
+  return out;
 }
 function sessionCookie(sess) {
   // Strict: the cookie is only read by same-origin fetches from Hive's own pages.

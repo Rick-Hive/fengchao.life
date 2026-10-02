@@ -6,19 +6,21 @@
   <title>蜂巢 · 管理中心</title>
   <meta name="robots" content="noindex" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="stylesheet" href="/assets/site-header.css" />
   <link rel="stylesheet" href="/hub/hub.css" />
 </head>
-<body>
+<body class="hub-body">
   <script>
     // One address for the whole site: the sign-in cookie belongs to the host it was made on.
     if (location.hostname === "www.fengchao.life") location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
   </script>
+  <!-- The same site header as every other page (Rick, 2026-10-02: 「管理中心仍然可以看到蜂巢的 head」). -->
+  <header class="site-header" data-site-header></header>
+  <script src="/assets/i18n.js"></script>
+  <script src="/assets/site-header.js"></script>
   <div class="hub">
     <aside class="side" id="side">
-      <a class="side-brand" href="/">
-        <img src="/assets/logo-mark.png" width="512" height="512" alt="" />
-        <span><span class="name">蜂巢</span><span class="tag" id="brandTag">管理中心</span></span>
-      </a>
+      <div class="side-brand"><span class="tag" id="brandTag">管理中心</span></div>
       <nav class="side-nav" id="nav" aria-label="hub"></nav>
       <div class="side-foot" id="foot">
         <span class="avatar" id="fAvatar">…</span>
@@ -34,7 +36,6 @@
         </button>
         <h1 id="title">…</h1>
         <div id="topActions"></div>
-        <button class="lang" id="langBtn" type="button">EN</button>
       </header>
       <section class="content" id="content"><div class="loading">载入中…</div></section>
     </main>

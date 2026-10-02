@@ -13,7 +13,7 @@
 // one of the four words, so a school that fills that field in needs no edit.
 //
 // 补充资料 (Rick, 2026-10-02) is written by the person themselves from 我的账号:
-//   extra = { city, needs: [NEEDS…], needsOther, children: [ { name, age, grade,
+//   extra = { needs: [NEEDS…], needsOther, children: [ { name, age, grade,
 //             schooling, model, modelOther, higherEd, account } ], at }
 // `account` is the child's own Teams account when they have one; saving the
 // profile links parent and child both ways (`linked`), so the school's user
@@ -73,7 +73,7 @@ function validateExtra(b, selfUpn) {
   const problems = [];
   const str = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
   const pick = (v, list, field) => { const s = str(v, 40); if (s && !list.includes(s)) problems.push(`${field}: must be one of ${list.join(" / ")}`); return s; };
-  const extra = { city: str(b.city, 40), needs: [], needsOther: "", children: [] };
+  const extra = { needs: [], needsOther: "", children: [] };
   const needs = Array.isArray(b.needs) ? b.needs : [];
   for (const n of needs) { const s = str(n, 40); if (!NEEDS.includes(s)) problems.push(`needs: unknown item ${s}`); else if (!extra.needs.includes(s)) extra.needs.push(s); }
   extra.needsOther = extra.needs.includes("其它") ? str(b.needsOther, 80) : "";

@@ -1,14 +1,14 @@
 // /api/roles — Hive role assignments, managed from the Admin Center.
 //
-//   GET            → { entries: [...], assignable: {...} }
-//   POST  {user, roles: ["crm_entry"]}  → upsert that account's roles
+//   GET            → { entries: [...with labels], kinds, staff }
+//   POST  {user, roles: ["domain_it:school.edu"]}  → upsert that account's roles
 //   DELETE {user}  → remove the account
 //
 // Admin only: the route rule in staticwebapp.config.json is the gate, the
 // hasRole check below is the belt. Accounts are stored lowercase; roles are
 // limited to the ASSIGNABLE set in api/shared/roles.js.
 const { hasRole, getPrincipal } = require("../shared/auth");
-const { ASSIGNABLE, DOMAIN_ADMIN_RE, isAssignable, readRoles, writeRoles, normUser } = require("../shared/roles");
+const { STAFF, KINDS, isAssignable, roleLabel, readRoles, writeRoles, normUser } = require("../shared/roles");
 const { guard, finish } = require("../shared/session");
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -22,7 +22,8 @@ async function handler(context, req) {
   try {
     if (method === "GET") {
       const doc = await readRoles();
-      context.res = { status: 200, body: { entries: doc.entries, assignable: ASSIGNABLE, domainAdminPattern: DOMAIN_ADMIN_RE.source } };
+      const entries = doc.entries.map((e) => Object.assign({}, e, { labels: e.roles.map((r) => ({ zh: roleLabel(r, "zh"), en: roleLabel(r, "en") })) }));
+      context.res = { status: 200, body: { entries, kinds: KINDS, staff: STAFF } };
       return;
     }
 

@@ -17,11 +17,11 @@
   function t(zh, en) { return EN ? en : zh; }
   document.documentElement.lang = EN ? "en" : "zh-CN";
   document.title = t("蜂巢 · 管理中心", "Hive · Hub");
-  document.getElementById("brandTag").textContent = t("管理中心", "Hub");
+  document.getElementById("brandTag").textContent = t("管理中心", "Dashboard");
   document.getElementById("fOut").textContent = t("退出", "Sign out");
+  // The language button is the site header's (#langBtn, drawn by site-header.js).
   var langBtn = document.getElementById("langBtn");
-  langBtn.textContent = EN ? "中文" : "EN";
-  langBtn.addEventListener("click", function () {
+  if (langBtn) langBtn.addEventListener("click", function () {
     try { localStorage.setItem("fc-lang", EN ? "zh" : "en"); } catch (e) {}
     location.reload();
   });
@@ -84,7 +84,7 @@
   function nav() {
     var groups = [
       { title: t("我的账号", "My account"), items: [
-        { hash: "#/account", icon: "user", zh: "概览", en: "Overview" },
+        { hash: "#/account", icon: "user", zh: "个人资料", en: "Profile" },
         { hash: "#/teams", icon: "teams", zh: "我的 Teams", en: "My Teams" },
       ] },
     ];
@@ -94,15 +94,11 @@
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 群组", en: "Teams groups" },
       ] });
     }
-    var roles = (me && me.roles) || [];
-    if (roles.indexOf("admin") >= 0) {
+    if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [
         { hash: "#/system/roles", icon: "key", zh: "角色分配", en: "Roles" },
         { hash: "#/system/sync", icon: "sync", zh: "数据同步", en: "Data sync" },
-        { href: "/crm/", icon: "cart", zh: "EquipMe 订单录入", en: "EquipMe order entry" },
       ] });
-    } else if (roles.indexOf("crm_entry") >= 0) {
-      groups.push({ title: t("工具", "Tools"), items: [{ href: "/crm/", icon: "cart", zh: "EquipMe 订单录入", en: "EquipMe order entry" }] });
     }
     var cur = location.hash || "#/account";
     $("nav").innerHTML = groups.map(function (g) {
@@ -112,23 +108,25 @@
       }).join("") + "</div>";
     }).join("");
   }
+  function isAdmin() { var r = (me && me.roles) || []; return r.indexOf("admin") >= 0 || r.indexOf("staff:sysadmin") >= 0; }
+  // What the signed-in person may do in the current domain (from /api/domain/domains).
+  function canDo(what) {
+    if (!domainsInfo) return false;
+    var d = (domainsInfo.domains || []).filter(function (x) { return x.domain === currentDomain; })[0];
+    return !!(d && d.can && d.can[what]);
+  }
   function foot() {
     var p = me && me.profile;
     $("fAvatar").textContent = initials(p ? p.displayName || p.upn : "?");
     $("fName").textContent = p ? (p.displayName || p.upn) : t("未登录", "Signed out");
     $("fUpn").textContent = p ? p.upn : "";
   }
+  // 退出: Hive's session and the Microsoft account in this browser, with no questions
+  // asked (assets/session-guard.js, loaded before this file).
   $("fOut").addEventListener("click", function () {
-    var b = $("fOut"); b.disabled = true;
-    fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {})
-      .then(function () { return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" }); })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) {
-        try { new BroadcastChannel("fc-auth").postMessage({ kind: "out", at: Date.now() }); } catch (e) {}
-        try { localStorage.setItem("fc-auth-event", "out:" + Date.now()); } catch (e) {}
-        if (j && j.clientPrincipal) location.href = "/.auth/logout?post_logout_redirect_uri=/"; else location.replace("/");
-      })
-      .catch(function () { location.href = "/.auth/logout?post_logout_redirect_uri=/"; });
+    $("fOut").disabled = true;
+    if (window.fcSession) window.fcSession.signOut("user");
+    else { fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(function () {}).then(function () { location.replace("/.auth/logout?post_logout_redirect_uri=/"); }); }
   });
   function closeDrawer() { $("side").classList.remove("open"); $("scrim").classList.remove("show"); }
   $("menuToggle").addEventListener("click", function () { $("side").classList.toggle("open"); $("scrim").classList.toggle("show"); });
@@ -164,7 +162,7 @@
   function vl(v) { return EN ? (VOCAB_EN[v] || v) : v; }
   var extraDraft = null; // the form's working copy, so adding a child does not lose typed values
   function readExtraForm() {
-    var d = { city: ($("xCity") || {}).value || "", needs: [], needsOther: ($("xNeedsOther") || {}).value || "", children: [] };
+    var d = { needs: [], needsOther: ($("xNeedsOther") || {}).value || "", children: [] };
     Array.prototype.forEach.call(document.querySelectorAll("#extraCard input[data-need]:checked"), function (c) { d.needs.push(c.getAttribute("data-need")); });
     Array.prototype.forEach.call(document.querySelectorAll("#extraCard .kid"), function (k) {
       var g = function (n) { var el = k.querySelector("[data-k='" + n + "']"); return el ? el.value : ""; };
@@ -174,7 +172,7 @@
   }
   function renderExtra(msgHtml) {
     var hv = me.hive || {}, voc = hv.vocab || { grades: [], schooling: [], models: [], higherEd: [], needs: [], maxChildren: 8 };
-    var d = extraDraft || hv.extra || { city: "", needs: [], needsOther: "", children: [] };
+    var d = extraDraft || hv.extra || { needs: [], needsOther: "", children: [] };
     extraDraft = d;
     var sel = function (name, list, val, i) {
       return '<select data-k="' + name + '"><option value="">' + t("请选择", "Choose") + "</option>" + list.map(function (o) { return '<option value="' + esc(o) + '"' + (o === val ? " selected" : "") + ">" + esc(vl(o)) + "</option>"; }).join("") + "</select>";
@@ -193,16 +191,15 @@
         "</div></div>";
     }).join("");
     $("extraCard").innerHTML =
-      "<h2>" + t("补充资料", "More about you") + (hv.identity ? ' <span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + "</h2>" +
-      '<p class="sub">' + t("帮助蜂巢了解您的需要：所在城市、最需要的帮助、孩子的情况。只有您自己和学校的管理员能看到。", "Helps Hive understand what you need: your city, what you need most, and your children. Only you and your school's administrators can see it.") + "</p>" +
+      '<h3 class="sec">' + t("补充资料", "Additional information") + "</h3>" +
+      '<p class="sub">' + t("帮助蜂巢了解您的需要：最需要的帮助、孩子的情况。只有您自己和学校的管理员能看到。", "Helps Hive understand what you need: what you need most, and your children. Only you and your school's administrators can see it.") + "</p>" +
       '<form id="xf" autocomplete="off">' +
-        '<div class="grid2"><label class="f">' + t("所在城市", "City") + '<input type="text" id="xCity" maxlength="40" value="' + esc(d.city || "") + '" /></label></div>' +
         '<div class="f-title">' + t("最需要的（可多选）", "What you need most (choose any)") + "</div>" +
         '<div class="chks">' + (voc.needs || []).map(function (n) { return '<label class="chk"><input type="checkbox" data-need="' + esc(n) + '"' + ((d.needs || []).indexOf(n) >= 0 ? " checked" : "") + " /> " + esc(vl(n)) + "</label>"; }).join("") + "</div>" +
         '<label class="f needs-other' + ((d.needs || []).indexOf("其它") >= 0 ? "" : " hidden") + '">' + t("其它（请填写）", "Other — please say") + '<input type="text" id="xNeedsOther" maxlength="80" value="' + esc(d.needsOther || "") + '" /></label>' +
         '<div class="f-title">' + t("我的孩子", "My children") + (hv.linked && hv.linked.length ? ' <small class="faint">' + t("已关联账号：", "Linked accounts: ") + esc(hv.linked.join(", ")) + "</small>" : "") + "</div>" +
         '<div id="kids">' + (kids || '<div class="empty">' + t("还没有添加孩子。", "No children added yet.") + "</div>") + "</div>" +
-        '<div class="actions"><button class="btn ghost" type="button" id="xAdd"' + ((d.children || []).length >= (voc.maxChildren || 8) ? " disabled" : "") + ">" + t("＋ 添加孩子", "+ Add a child") + '</button><button class="btn" type="submit" id="xSave">' + t("保存补充资料", "Save") + "</button></div>" +
+        '<div class="actions"><button class="btn ghost" type="button" id="xAdd"' + ((d.children || []).length >= (voc.maxChildren || 8) ? " disabled" : "") + ">" + t("＋ 添加孩子", "+ Add a child") + '</button><button class="btn" type="submit" id="xSave">' + t("保存补充资料", "Save additional information") + "</button></div>" +
         '<div id="xMsg">' + (msgHtml || "") + "</div>" +
       "</form>";
     $("xAdd").addEventListener("click", function () { extraDraft = readExtraForm(); extraDraft.children.push({}); renderExtra(); var last = document.querySelector("#kids .kid:last-child input"); if (last) last.focus(); });
@@ -231,8 +228,8 @@
   }
 
   function viewAccount() {
-    setTitle(t("我的账号", "My account"), t("概览", "Overview"));
-    var p = me.profile, ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
+    setTitle(t("我的账号", "My account"), t("个人资料", "Profile"));
+    var p = me.profile, hv = me.hive || {}, ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
     $("content").innerHTML =
       '<div class="kpis">' +
@@ -240,14 +237,25 @@
         '<div class="kpi"><div class="l">' + t("账号创建", "Account created") + '</div><div class="v" style="font-size:1.05rem">' + esc(day(p.created) || "—") + "</div></div>" +
         '<div class="kpi"><div class="l">' + t("角色", "Roles") + '</div><div class="v" style="font-size:1.05rem">' + esc(roleNames(me.roles)) + "</div></div>" +
       "</div>" +
-      '<div class="card"><h2>' + t("资料", "Profile") + '</h2><p class="sub">' + t("别人在 Teams、Outlook 里看到的名字，能联系到您的安全邮箱，以及邮编。", "Your name as others see it, a safe email where we can reach you, and your postcode.") + "</p>" +
-        '<form id="pf" autocomplete="off"><div class="grid2">' +
-          '<label class="f">' + t("Office 365 账号", "Office 365 account") + '<input type="text" value="' + esc(p.upn) + '" readonly /></label>' +
-          '<label class="f">' + t("显示名", "Display name") + '<input type="text" id="pName" maxlength="64" value="' + esc(p.displayName) + '" required /></label>' +
-          '<label class="f">' + t("安全邮箱", "Safe email") + '<input type="email" id="pSafe" value="' + esc(p.safeEmail) + '" placeholder="name@gmail.com" /><small>' + t("不能是 QQ、163 等国内免费邮箱。", "Not QQ, 163 or other mainland free mail.") + "</small></label>" +
-          '<label class="f">' + t("邮编", "Postcode") + '<input type="text" id="pPost" maxlength="12" value="' + esc(p.postalCode) + '" /></label>' +
-        '</div><div class="actions"><button class="btn" type="submit" id="pSave">' + t("保存", "Save") + '</button></div><div id="pMsg"></div></form></div>' +
-      '<div class="card" id="extraCard"></div>' +
+      '<div class="card" id="profileCard"><h2>' + t("个人资料", "Profile") + (hv.identity ? ' <span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + "</h2>" +
+        '<h3 class="sec">' + t("基本资料", "Basic information") + '</h3><p class="sub">' + t("来自您的 Office 365 账号。空白的可以自己补充，改动会写回账号（Teams、Outlook 里同步可见）。账号、工作邮箱和职务由学校设置。", "From your Office 365 account. Fill in what is blank; changes are written back to the account (Teams and Outlook follow). The account, work email and job title are set by the school.") + "</p>" +
+        '<form id="pf" autocomplete="off"><div class="grid3">' +
+          '<label class="f">' + t("账号", "Account") + '<input type="text" value="' + esc(p.upn) + '" readonly /></label>' +
+          '<label class="f">' + t("工作邮箱", "Work email") + '<input type="text" value="' + esc(p.mail || p.upn) + '" readonly /></label>' +
+          '<label class="f">' + t("职务 / 部门", "Job title / department") + '<input type="text" value="' + esc([p.jobTitle, p.department].filter(Boolean).join(" · ")) + '" readonly placeholder="' + t("由学校设置", "Set by the school") + '" /></label>' +
+          '<label class="f">' + t("显示名", "Display name") + '<input type="text" data-p="displayName" maxlength="64" value="' + esc(p.displayName) + '" required /></label>' +
+          '<label class="f">' + t("名", "Given name") + '<input type="text" data-p="givenName" maxlength="40" value="' + esc(p.givenName) + '" /></label>' +
+          '<label class="f">' + t("姓", "Surname") + '<input type="text" data-p="surname" maxlength="40" value="' + esc(p.surname) + '" /></label>' +
+          '<label class="f">' + t("手机", "Mobile phone") + '<input type="tel" data-p="mobilePhone" maxlength="20" value="' + esc(p.mobilePhone) + '" placeholder="+86 138 0000 0000" /></label>' +
+          '<label class="f">' + t("安全邮箱", "Safe email") + '<input type="email" data-p="safeEmail" value="' + esc(p.safeEmail) + '" placeholder="name@gmail.com" /><small>' + t("找回账号用；不能是 QQ、163 等国内免费邮箱。", "For account recovery; not QQ, 163 or other mainland free mail.") + "</small></label>" +
+          '<label class="f">' + t("语言", "Language") + '<select data-p="preferredLanguage"><option value="">' + t("未设置", "Not set") + '</option><option value="zh-CN"' + (p.preferredLanguage === "zh-CN" ? " selected" : "") + '>中文</option><option value="en-US"' + (p.preferredLanguage === "en-US" ? " selected" : "") + ">English</option></select></label>" +
+          '<label class="f">' + t("街道地址", "Street address") + '<input type="text" data-p="streetAddress" maxlength="120" value="' + esc(p.streetAddress) + '" /></label>' +
+          '<label class="f">' + t("所在城市", "City") + '<input type="text" data-p="city" maxlength="40" value="' + esc(p.city) + '" /></label>' +
+          '<label class="f">' + t("省 / 州", "State / province") + '<input type="text" data-p="state" maxlength="40" value="' + esc(p.state) + '" /></label>' +
+          '<label class="f">' + t("国家 / 地区", "Country / region") + '<input type="text" data-p="country" maxlength="40" value="' + esc(p.country) + '" /></label>' +
+          '<label class="f">' + t("邮编", "Postcode") + '<input type="text" data-p="postalCode" maxlength="12" value="' + esc(p.postalCode) + '" /></label>' +
+        '</div><div class="actions"><button class="btn" type="submit" id="pSave">' + t("保存基本资料", "Save basic information") + '</button></div><div id="pMsg"></div></form>' +
+        '<div id="extraCard"></div></div>' +
       '<div class="card"><h2>' + t("密码", "Password") + '</h2><p class="sub">' + t("两项都在微软自己的页面完成。改完后所有设备会退出一次登录，请先把装验证器的手机准备好。", "Both open Microsoft's own pages. Afterwards every device signs you out once — have the authenticator phone ready.") + "</p>" +
         '<div class="tiles"><a class="tile" href="https://mysignins.microsoft.com/security-info/password/change" target="_blank" rel="noopener"><b>' + t("修改密码 ↗", "Change password ↗") + "</b><span>" + t("记得现在的密码，想换一个。", "You know the current password.") + '</span></a>' +
         '<a class="tile" href="https://passwordreset.microsoftonline.com" target="_blank" rel="noopener"><b>' + t("忘记密码 ↗", "Forgot password ↗") + "</b><span>" + t("用 Authenticator 里的 6 位验证码自己重置。", "Reset it with the six-digit code in Authenticator.") + "</span></a></div></div>" +
@@ -271,18 +279,18 @@
     renderExtra();
     $("pf").addEventListener("submit", function (ev) {
       ev.preventDefault();
-      var body = {}, name = $("pName").value.trim(), safe = $("pSafe").value.trim(), postc = $("pPost").value.trim();
-      if (name !== p.displayName) body.displayName = name;
-      if (safe.toLowerCase() !== (p.safeEmail || "").toLowerCase()) body.safeEmail = safe;
-      if (postc !== (p.postalCode || "")) body.postalCode = postc;
+      var body = {}, vals = {};
+      Array.prototype.forEach.call($("pf").querySelectorAll("[data-p]"), function (el) {
+        var k = el.getAttribute("data-p"), v = el.value.trim(); vals[k] = v;
+        var cur = p[k] || "";
+        if (k === "safeEmail" ? v.toLowerCase() !== cur.toLowerCase() : v !== cur) body[k] = v;
+      });
       if (!Object.keys(body).length) { $("pMsg").innerHTML = '<div class="msg ok">' + t("没有改动。", "Nothing changed.") + "</div>"; return; }
       $("pSave").disabled = true;
       post("me/profile", "PATCH", body).then(function (r) {
         $("pSave").disabled = false;
-        if (!r.ok) { $("pMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
-        if (body.displayName !== undefined) p.displayName = name;
-        if (body.safeEmail !== undefined) p.safeEmail = safe;
-        if (body.postalCode !== undefined) p.postalCode = postc;
+        if (!r.ok) { $("pMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? "<br>" + esc(r.body.problems.join("；")) : "") + "</div>"; return; }
+        Object.keys(body).forEach(function (k) { p[k] = vals[k]; });
         foot();
         $("pMsg").innerHTML = '<div class="msg ok">' + t("已保存。Teams 里的显示名可能要几分钟才更新。", "Saved. Teams may take a few minutes to show the new name.") + "</div>";
       });
@@ -298,9 +306,20 @@
       });
     });
   }
+  var STAFF_FN = { curriculum: ["课程开发", "Curriculum development"], fundraising: ["募款", "Fundraising"], contractor: ["Contractor", "Contractor"], community: ["教育社区经理", "Education community manager"], finance: ["财务", "Finance"], sales: ["销售", "Sales"], sysadmin: ["系统管理员", "System administrator"] };
+  function roleName(r) {
+    var m;
+    if ((m = /^domain_it:(.+)$/.exec(r))) return t("域管理员（IT） · ", "Domain administrator (IT) · ") + m[1];
+    if ((m = /^domain_hive:(.+)$/.exec(r))) return t("域蜂巢管理员 · ", "Domain Hive administrator · ") + m[1];
+    if ((m = /^domain_admin:(.+)$/.exec(r))) return t("域管理员（IT＋蜂巢） · ", "Domain administrator (IT + Hive) · ") + m[1];
+    if ((m = /^staff:(.+)$/.exec(r))) return "Staff · " + (STAFF_FN[m[1]] ? STAFF_FN[m[1]][EN ? 1 : 0] : m[1]);
+    if (r === "admin") return t("系统管理员", "System administrator");
+    if (r === "coordinator") return t("Staff · 教育社区经理", "Staff · Education community manager");
+    return r;
+  }
   function roleNames(roles) {
-    var map = { admin: ["管理员", "Administrator"], coordinator: ["Hive 协调员", "Hive coordinator"], crm_entry: ["录入员", "CRM data entry"] };
-    var out = (roles || []).map(function (r) { var m = /^domain_admin:(.+)$/.exec(r); if (m) return t("域管理员 · ", "Domain admin · ") + m[1]; return map[r] ? map[r][EN ? 1 : 0] : r; });
+    var seen = {}, out = [];
+    (roles || []).forEach(function (r) { if (r === "admin" && (roles || []).indexOf("staff:sysadmin") >= 0) return; var n = roleName(r); if (!seen[n]) { seen[n] = 1; out.push(n); } });
     return out.length ? out.join(", ") : t("普通用户", "User");
   }
 
@@ -378,15 +397,48 @@
   function loadDomainData(kind, force) {
     var store = kind === "users" ? state.domainUsers : state.domainGroups;
     if (!force && store[currentDomain]) return Promise.resolve(store[currentDomain]);
-    return api("domain/" + kind + "?domain=" + encodeURIComponent(currentDomain) + (force ? "&refresh=1" : "")).then(function (r) {
+    return api("domain/" + kind + "?domain=" + encodeURIComponent(currentDomain)).then(function (r) {
       if (!r.ok) throw new Error(errText(r));
       store[currentDomain] = r.body;
       return r.body;
     });
   }
+  // The data comes from the directory cache in Azure (nightly sync at 01:00 Beijing).
+  // 同步变动 applies what was created, changed or deleted in the directory since the
+  // last sync; 完整同步 (system administrator) re-reads everyone. Both run in slices
+  // until the server says done.
+  function syncLine(sync) {
+    if (!sync) return "";
+    var s = sync.syncedAt ? t("数据同步于 ", "Synced ") + when(sync.syncedAt) : t("尚未同步 — 点「同步变动」读取本域账号。", "Not synced yet — press “Sync changes” to read the domain's accounts.");
+    if (!sync.done) s += " · " + t("同步进行中：还剩 ", "Sync under way: ") + sync.remaining + t(" 个账号", " accounts left");
+    if (sync.error) s += " · " + t("上次出错：", "Last error: ") + sync.error.message;
+    return s;
+  }
+  function runSync(domain, mode, onProgress) {
+    var saved = currentDomain;
+    function step() {
+      return post("domain/sync", "POST", { domain: domain, mode: mode }).then(function (r) {
+        if (!r.ok) throw new Error(errText(r));
+        onProgress(r.body);
+        if (!r.body.done) return step();
+        return r.body;
+      });
+    }
+    return step().then(function (st) {
+      // Both caches of this domain are stale now.
+      delete state.domainUsers[domain]; delete state.domainGroups[domain];
+      currentDomain = saved;
+      return st;
+    });
+  }
+  function syncButtons(id) {
+    var d = ((domainsInfo && domainsInfo.domains) || []).filter(function (x) { return x.domain === currentDomain; })[0];
+    return '<button class="btn ghost sm" id="' + id + 'New" title="' + esc(t("读取上次同步之后目录里的增、删、改", "Read what was created, changed or deleted in the directory since the last sync")) + '">' + t("同步变动", "Sync changes") + "</button>" +
+      (d && d.can && d.can.full ? ' <button class="btn ghost sm" id="' + id + 'Full">' + t("完整同步", "Full sync") + "</button>" : "");
+  }
   function viewUsers() {
     setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("用户", "Users"),
-      '<button class="btn ghost sm" id="refresh">' + t("刷新", "Refresh") + '</button> <button class="btn ghost sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
+      syncButtons("us") + ' <button class="btn ghost sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel") +
         '<button class="chip" data-f="all" aria-pressed="' + (state.userFilter === "all") + '">' + t("全部", "All") + "</button>" +
@@ -397,7 +449,7 @@
       '<div class="kpis" id="ukpi"></div>' +
       '<div class="tbl-wrap"><table class="data" id="utable"><thead><tr>' +
         "<th>" + t("账号", "Account name") + "</th><th>" + t("显示名", "Display name") + "</th><th>" + t("验证", "Authentication") + "</th><th>" + t("验证设备", "Authentication device") + "</th><th>" + t("Teams 群组", "Teams groups") + "</th><th>" + t("身份", "Identity") + "</th><th>" + t("关联账号", "Linked account") + "</th>" +
-        '</tr></thead><tbody><tr><td colspan="7" class="loading">' + t("正在读取本域账号、验证方式和群组，几百人要十几秒…", "Reading the domain's accounts, methods and groups — a few hundred people take ten seconds or so…") + "</td></tr></tbody></table></div>" +
+        '</tr></thead><tbody><tr><td colspan="7" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
       '<p class="muted" id="ufoot" style="font-size:.8rem"></p>';
     var sel = $("dsel");
     if (sel) sel.addEventListener("change", function () { currentDomain = this.value; viewUsers(); });
@@ -408,7 +460,19 @@
       renderUsers();
     });
     $("uq").addEventListener("input", debounce(function () { state.userQ = $("uq").value.trim(); renderUsers(); }, 120));
-    $("refresh").addEventListener("click", function () { $("refresh").disabled = true; loadDomainData("users", true).then(function () { $("refresh").disabled = false; renderUsers(); }).catch(showUsersError); });
+    function bindSync(btnId, mode) {
+      var b = $(btnId); if (!b) return;
+      b.addEventListener("click", function () {
+        var dom = currentDomain;
+        $("usNew").disabled = true; if ($("usFull")) $("usFull").disabled = true;
+        $("ufoot").textContent = t("正在同步…", "Syncing…");
+        runSync(dom, mode, function (st) { $("ufoot").textContent = t("正在同步 ", "Syncing ") + dom + "：" + (st.total - st.remaining) + " / " + st.total; })
+          .then(function (st) { $("ufoot").textContent = t("同步完成：", "Sync complete: ") + st.users + t(" 个账号", " accounts") + (st.added ? t("，更新 ", ", ") + st.added + (EN ? " changed" : " 个") : "") + (st.removed ? t("，删除 ", ", ") + st.removed + (EN ? " removed" : " 个") : ""); return loadDomainData("users"); })
+          .then(renderUsers).catch(showUsersError)
+          .then(function () { $("usNew").disabled = false; if ($("usFull")) $("usFull").disabled = false; });
+      });
+    }
+    bindSync("usNew", "changes"); bindSync("usFull", "full");
     $("csv").addEventListener("click", exportUsersCsv);
     $("utable").addEventListener("click", function (e) {
       var tr = e.target.closest("tr[data-upn]"); if (!tr) return;
@@ -449,8 +513,7 @@
         "<td>" + (u.identity ? '<span class="tag accent">' + esc(u.identity) + "</span>" : '<span class="muted">—</span>') + "</td>" +
         "<td>" + (u.linked.length ? u.linked.map(function (l) { return hl(l, state.userQ); }).join("<br/>") : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="empty">' + t("没有匹配的账号。", "No matching accounts.") + "</div></td></tr>";
-    $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号 · 数据时间 " + when(d.at) + (d.cached ? "（缓存，点「刷新」重新读取）" : "") + (d.partial ? " · 部分账号的方法或群组没有读到" : ""),
-      rows.length + " of " + n + " accounts · data as of " + when(d.at) + (d.cached ? " (cached — Refresh re-reads)" : "") + (d.partial ? " · some accounts' methods or groups could not be read" : ""));
+    $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号 · ", rows.length + " of " + n + " accounts · ") + syncLine(d.sync) + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
   }
   function uniqueGroups(users) { var s = {}; users.forEach(function (u) { u.groups.forEach(function (g) { s[g.id] = 1; }); }); return Object.keys(s).length; }
   function exportUsersCsv() {
@@ -478,12 +541,12 @@
           '<span class="k">' + t("状态", "Status") + "</span><span>" + (u.enabled ? t("已启用", "Enabled") : '<span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</span></div>" +
         "<h4>" + t("验证设备", "Authentication devices") + '</h4><div id="pdev">' + (u.devices.length ? u.devices.map(function (x) {
           return '<div class="devrow"><div class="m"><b>' + esc(x.name) + "</b><small>" + esc((KIND[x.kind] || [x.kind, x.kind])[EN ? 1 : 0]) + (x.version ? " · " + esc(x.version) : "") + (x.created ? " · " + esc(day(x.created)) : "") + "</small></div>" +
-            '<button class="btn danger sm" type="button" data-del="' + esc(x.id) + '" data-name="' + esc(x.name) + '">' + t("删除", "Delete") + "</button></div>";
+            (canDo("methods") ? '<button class="btn danger sm" type="button" data-del="' + esc(x.id) + '" data-name="' + esc(x.name) + '">' + t("删除", "Delete") + "</button>" : "") + "</div>";
         }).join("") : '<div class="muted" style="font-size:.86rem">' + t("没有登记验证器。", "No authenticator registered.") + "</div>") + "</div>" +
-        '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。重置密码和临时通行码在二期加入。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready. Password reset and Temporary Access Pass come in phase 2.") + "</div>" +
+        (canDo("methods") ? '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。重置密码和临时通行码在二期加入。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready. Password reset and Temporary Access Pass come in phase 2.") + "</div>"
+          : '<div class="note">' + t("登录设备由域管理员（IT）管理。", "Sign-in devices are managed by the domain administrator (IT).") + "</div>") +
         "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<span class="tag' + (g.kind === "team" ? " accent" : "") + '">' + esc(g.name) + "</span>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
-          (u.extra.city ? '<span class="k">' + t("城市", "City") + "</span><span>" + esc(u.extra.city) + "</span>" : "") +
           ((u.extra.needs || []).length ? '<span class="k">' + t("最需要", "Needs") + "</span><span>" + esc(u.extra.needs.map(vl).join("、") + (u.extra.needsOther ? "（" + u.extra.needsOther + "）" : "")) + "</span>" : "") +
           (u.extra.children || []).map(function (c, i) {
             var bits = [];
@@ -495,12 +558,14 @@
             if (c.account) bits.push(c.account);
             return '<span class="k">' + t("孩子 ", "Child ") + (i + 1) + (c.name ? " · " + esc(c.name) : "") + "</span><span>" + esc(bits.join(" · ") || "—") + "</span>";
           }).join("") + "</div>" : "") +
-        "<h4>" + t("身份和关联账号", "Identity and linked accounts") + '</h4><form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : "") + "</label>" +
+        "<h4>" + t("身份和关联账号", "Identity and linked accounts") + "</h4>" +
+        (canDo("people") ? '<form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : "") + "</label>" +
           '<label class="f" style="margin-top:8px">' + t("关联账号（孩子 / 家长的 Teams 账号，多个用逗号分开）", "Linked accounts (child / parent Teams accounts, comma-separated)") + '<input type="text" id="plink" value="' + esc(u.linked.join(", ")) + '" placeholder="student@' + esc(currentDomain) + '" /></label>' +
           '<label class="f" style="margin-top:8px">' + t("备注", "Note") + '<input type="text" id="pnote" maxlength="200" value="' + esc(u.note) + '" /></label>' +
-          '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>' +
+          '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>'
+        : '<div class="kv"><span class="k">' + t("身份", "Identity") + "</span><span>" + esc(u.identity ? vl(u.identity) : "—") + '</span><span class="k">' + t("关联账号", "Linked") + "</span><span>" + esc(u.linked.join(", ") || "—") + "</span>" + (u.note ? '<span class="k">' + t("备注", "Note") + "</span><span>" + esc(u.note) + "</span>" : "") + '</div><div class="note">' + t("身份和关联由域蜂巢管理员或蜂巢员工维护。", "Identity and links are maintained by the domain Hive administrator or Hive staff.") + "</div>") +
       "</div>");
-    $("pform").addEventListener("submit", function (ev) {
+    if ($("pform")) $("pform").addEventListener("submit", function (ev) {
       ev.preventDefault(); $("psave").disabled = true;
       post("domain/person", "PATCH", { domain: currentDomain, user: u.upn, identity: $("pid").value, linked: $("plink").value, note: $("pnote").value }).then(function (r) {
         $("psave").disabled = false;
@@ -529,8 +594,7 @@
   // 本域管理 › Teams 群组 (domain → groups, collapsible)
   // ================================================================================
   function viewGroups() {
-    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("Teams 群组", "Teams groups"),
-      '<button class="btn ghost sm" id="refresh">' + t("刷新", "Refresh") + "</button>");
+    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("Teams 群组", "Teams groups"), syncButtons("gs"));
     var ds = domainsInfo.domains || [];
     $("content").innerHTML =
       '<div class="toolbar"><span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="gq" placeholder="' + t("搜索群组…", "Search groups…") + '" /></div></div>' +
@@ -539,12 +603,33 @@
       }).join("") + "</div>";
     $("gq").addEventListener("input", debounce(function () { ds.forEach(function (d) { renderGroupLeaf(d.domain); }); }, 120));
     $("gtree").addEventListener("toggle", function (e) { var det = e.target; if (det.open) ensureGroups(det.getAttribute("data-domain")); }, true);
-    $("refresh").addEventListener("click", function () { ds.forEach(function (d) { var det = $("gtree").querySelector('details[data-domain="' + d.domain + '"]'); if (det && det.open) ensureGroups(d.domain, true); }); });
+    function bindSync(btnId, mode) {
+      var b = $(btnId); if (!b) return;
+      b.addEventListener("click", function () {
+        var dom = currentDomain, det = $("gtree").querySelector('details[data-domain="' + dom + '"]');
+        var leaf = det && det.querySelector(".leaf");
+        b.disabled = true;
+        runSync(dom, mode, function (st) { if (leaf) leaf.innerHTML = '<div class="loading">' + t("正在同步 ", "Syncing ") + esc(dom) + "：" + (st.total - st.remaining) + " / " + st.total + "</div>"; })
+          .then(function () { if (det) det.open = true; return ensureGroups(dom, true); })
+          .catch(function (e) { if (leaf) leaf.innerHTML = '<div class="msg err">' + esc(e.message || e) + "</div>"; })
+          .then(function () { b.disabled = false; });
+      });
+    }
+    bindSync("gsNew", "changes"); bindSync("gsFull", "full");
+    // Who is in a group: the accounts of this domain, read-only (Rick, 2026-10-02:
+    // 「系统管理员应该可以看到群组中的用户账号信息，但是不能操作」).
+    $("gtree").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-members]"); if (!b) return;
+      var box = b.parentNode.parentNode.querySelector(".members");
+      if (!box) return;
+      var open = box.classList.toggle("hidden");
+      b.textContent = open ? t("查看成员", "View members") : t("收起", "Hide");
+    });
     ds.forEach(function (d) { var det = $("gtree").querySelector('details[data-domain="' + d.domain + '"]'); if (det && det.open) ensureGroups(d.domain); });
   }
   function ensureGroups(domain, force) {
     var saved = currentDomain; currentDomain = domain;
-    loadDomainData("groups", force).then(function () { renderGroupLeaf(domain); }).catch(function (e) {
+    return Promise.all([loadDomainData("groups", force), loadDomainData("users", force).catch(function () { return null; })]).then(function () { renderGroupLeaf(domain); }).catch(function (e) {
       var det = $("gtree") && $("gtree").querySelector('details[data-domain="' + domain + '"]'); if (det) det.querySelector(".leaf").innerHTML = '<div class="msg err">' + esc(e.message || e) + "</div>";
     }).then(function () { currentDomain = saved; });
   }
@@ -553,10 +638,17 @@
     var d = state.domainGroups[domain]; if (!d) return;
     var q = ($("gq") && $("gq").value.trim()) || "";
     var rows = d.groups.filter(function (g) { return !q || (g.name + " " + g.description).toLowerCase().indexOf(q.toLowerCase()) >= 0; });
-    var n = $("gn-" + domain.replace(/\W/g, "_")); if (n) n.textContent = d.groups.length + t(" 个群组", " groups") + (q ? " · " + rows.length + t(" 个匹配", " match") : "");
+    var n = $("gn-" + domain.replace(/\W/g, "_")); if (n) n.textContent = d.groups.length + t(" 个群组", " groups") + (q ? " · " + rows.length + t(" 个匹配", " match") : "") + " · " + syncLine(d.sync);
+    var people = {}; ((state.domainUsers[domain] || {}).users || []).forEach(function (u) { people[u.upn] = u; });
     det.querySelector(".leaf").innerHTML = rows.length ? rows.map(function (g) {
       var k = GKIND[g.kind] || GKIND.other;
-      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(g.name)) + '</span><div class="tmain"><div class="tname">' + hl(g.name, q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div></div></div>";
+      var members = (g.members || []).map(function (upn) {
+        var u = people[upn];
+        return '<div class="mrow"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "") + "</div>";
+      }).join("");
+      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(g.name)) + '</span><div class="tmain"><div class="tname">' + hl(g.name, q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
+        '<div class="members hidden">' + (members || '<div class="muted" style="font-size:.84rem">' + t("本域没有成员。", "No members from this domain.") + "</div>") + '<div class="muted" style="font-size:.78rem;margin-top:6px">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</div></div>" +
+        '</div><div class="gact"><button class="btn ghost sm" type="button" data-members="1">' + t("查看成员", "View members") + "</button></div></div>";
     }).join("") : '<div class="empty">' + t("没有群组。", "No groups.") + "</div>";
   }
 
@@ -565,37 +657,68 @@
   // ================================================================================
   function viewRoles() {
     setTitle(t("系统", "System"), t("角色分配", "Roles"));
+    var doms = (domainsInfo && domainsInfo.domains) || [];
+    var domOpts = doms.map(function (d) { return '<label class="chk"><input type="checkbox" data-dom="' + esc(d.domain) + '" /> ' + esc(d.domain) + "</label>"; }).join("");
     $("content").innerHTML =
-      '<div class="card"><h2>' + t("角色分配", "Roles") + '</h2><p class="sub">' + t("用账号（邮箱）识别。录入员和域管理员立即生效；管理员和协调员在对方下次登录后生效。", "Matched by account. CRM entry and domain administrator work at once; Administrator and Coordinator take effect at the person's next sign-in.") + "</p>" +
+      '<div class="card"><h2>' + t("角色分配", "Roles") + '</h2><p class="sub">' +
+        t("普通用户无需分配。域管理员（IT）管本域账号的登录设备；域蜂巢管理员管本域账号的身份、关联和资料；Staff 是蜂巢员工，按职能分，能看所有学校；系统管理员拥有全部权限。域角色和 Staff 立即生效；系统管理员在对方下次登录后生效。",
+          "Ordinary users need no role. Domain administrator (IT): the domain's sign-in devices. Domain Hive administrator: the domain's 身份, links and profiles. Staff: Hive's own people by function, across every school. System administrator: everything. Domain roles and Staff work at once; System administrator takes effect at the person's next sign-in.") + "</p>" +
         '<table class="roles" id="rtable"><thead><tr><th>' + t("账号", "Account") + "</th><th>" + t("角色", "Roles") + "</th><th>" + t("授予", "By") + '</th><th></th></tr></thead><tbody><tr><td colspan="4" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table>" +
-        '<form class="role-form" id="rform" autocomplete="off"><input type="email" id="ruser" placeholder="name@domain" required />' +
-          '<div class="opts"><label><input type="checkbox" value="crm_entry" /> ' + t("录入员", "CRM data entry") + "</label><label><input type=\"checkbox\" value=\"coordinator\" /> " + t("Hive 协调员（所有域）", "Hive coordinator (all domains)") + "</label><label><input type=\"checkbox\" value=\"admin\" /> " + t("管理员", "Administrator") + "</label></div>" +
-          '<label class="f">' + t("域管理员（填域名，多个用逗号分开）", "Domain administrator (domain names, comma-separated)") + '<input type="text" id="rdom" placeholder="sciencebug.net" /></label>' +
-          '<div class="actions"><button class="btn" type="submit">' + t("添加 / 更新", "Add / update") + '</button></div></form><div id="rmsg"></div></div>';
+        '<form class="role-form" id="rform" autocomplete="off">' +
+          '<label class="f">' + t("账号", "Account") + '<input type="email" id="ruser" placeholder="name@school-domain" required /></label>' +
+          '<div class="f-title">' + t("域角色（勾选角色，再勾选域）", "Domain roles (tick the role, then the domains)") + "</div>" +
+          '<div class="chks"><label class="chk"><input type="checkbox" id="rIT" /> ' + t("域管理员（IT）", "Domain administrator (IT)") + '</label><label class="chk"><input type="checkbox" id="rHive" /> ' + t("域蜂巢管理员", "Domain Hive administrator") + "</label></div>" +
+          '<div class="chks" id="rdoms">' + domOpts + '<label class="chk">' + t("其它域：", "Other domain: ") + '<input type="text" id="rdomOther" placeholder="school.edu" style="width:180px" /></label></div>' +
+          '<div class="f-title">Staff</div>' +
+          '<div class="grid2"><label class="f">' + t("蜂巢员工职能", "Hive staff function") + '<select id="rStaff"><option value="">' + t("不是员工", "Not staff") + "</option>" + Object.keys(STAFF_FN).map(function (k) { return '<option value="' + k + '">' + esc(STAFF_FN[k][EN ? 1 : 0]) + "</option>"; }).join("") + "</select></label></div>" +
+          '<div class="actions"><button class="btn" type="submit">' + t("保存角色", "Save roles") + '</button><button class="btn ghost" type="button" id="rClear">' + t("清空表单", "Clear") + "</button></div></form><div id=\"rmsg\"></div></div>";
     function render(entries) {
       var tb = $("rtable").tBodies[0];
       tb.innerHTML = entries.length ? entries.map(function (e) {
-        return "<tr><td>" + esc(e.user) + "</td><td>" + e.roles.map(function (r) { return esc(roleNames([r])); }).join("<br/>") + '</td><td class="muted">' + esc(e.by || "") + (e.at ? "<br/>" + esc(day(e.at)) : "") + '</td><td><button class="btn danger sm" type="button" data-user="' + esc(e.user) + '">' + t("移除", "Remove") + "</button></td></tr>";
+        return '<tr><td><a href="#" data-edit="' + esc(e.user) + '">' + esc(e.user) + "</a></td><td>" + e.roles.map(function (r) { return esc(roleName(r)); }).join("<br/>") + '</td><td class="muted">' + esc(e.by || "") + (e.at ? "<br/>" + esc(day(e.at)) : "") + '</td><td><button class="btn danger sm" type="button" data-user="' + esc(e.user) + '">' + t("移除", "Remove") + "</button></td></tr>";
       }).join("") : '<tr><td colspan="4" class="muted">' + t("还没有分配任何角色", "No roles assigned yet") + "</td></tr>";
     }
     function msg(ok, txt) { $("rmsg").innerHTML = '<div class="msg ' + (ok ? "ok" : "err") + '">' + esc(txt) + "</div>"; }
-    api("roles").then(function (r) { if (!r.ok) return msg(false, errText(r)); render(r.body.entries || []); });
+    function clearForm() { $("ruser").value = ""; $("rIT").checked = false; $("rHive").checked = false; $("rdomOther").value = ""; $("rStaff").value = ""; $("rform").querySelectorAll("input[data-dom]").forEach(function (c) { c.checked = false; }); }
+    function fill(e) {
+      clearForm(); $("ruser").value = e.user;
+      e.roles.forEach(function (r) {
+        var m;
+        if ((m = /^domain_(it|hive|admin):(.+)$/.exec(r))) {
+          if (m[1] !== "hive") $("rIT").checked = true;
+          if (m[1] !== "it") $("rHive").checked = true;
+          var c = $("rform").querySelector('input[data-dom="' + m[2] + '"]'); if (c) c.checked = true; else $("rdomOther").value = m[2];
+        } else if ((m = /^staff:(.+)$/.exec(r))) $("rStaff").value = m[1];
+        else if (r === "admin") $("rStaff").value = "sysadmin";
+        else if (r === "coordinator") $("rStaff").value = "community";
+      });
+      $("ruser").focus();
+    }
+    var entries = [];
+    api("roles").then(function (r) { if (!r.ok) return msg(false, errText(r)); entries = r.body.entries || []; render(entries); });
+    $("rClear").addEventListener("click", clearForm);
     $("rform").addEventListener("submit", function (ev) {
       ev.preventDefault();
-      var user = $("ruser").value.trim();
-      var roles = Array.prototype.map.call($("rform").querySelectorAll('input[type=checkbox]:checked'), function (c) { return c.value; });
-      $("rdom").value.split(/[\s,;，；]+/).map(function (d) { return d.trim().toLowerCase(); }).filter(Boolean).forEach(function (d) { roles.push("domain_admin:" + d); });
+      var user = $("ruser").value.trim().toLowerCase();
+      var roles = [];
+      var ds = Array.prototype.map.call($("rform").querySelectorAll("input[data-dom]:checked"), function (c) { return c.getAttribute("data-dom"); });
+      $("rdomOther").value.split(/[\s,;，；]+/).map(function (d) { return d.trim().toLowerCase(); }).filter(Boolean).forEach(function (d) { if (ds.indexOf(d) < 0) ds.push(d); });
+      if (($("rIT").checked || $("rHive").checked) && !ds.length) return msg(false, t("请勾选至少一个域。", "Tick at least one domain."));
+      ds.forEach(function (d) { if ($("rIT").checked) roles.push("domain_it:" + d); if ($("rHive").checked) roles.push("domain_hive:" + d); });
+      if ($("rStaff").value) roles.push("staff:" + $("rStaff").value);
       post("roles", "POST", { user: user, roles: roles }).then(function (r) {
         if (!r.ok) return msg(false, errText(r));
-        render(r.body.entries || []); $("ruser").value = ""; $("rdom").value = ""; $("rform").querySelectorAll("input[type=checkbox]").forEach(function (c) { c.checked = false; });
-        msg(true, roles.length ? t("已保存：", "Saved: ") + user : t("已移除：", "Removed: ") + user);
+        entries = r.body.entries || []; render(entries); clearForm();
+        msg(true, roles.length ? t("已保存：", "Saved: ") + user + " — " + roleNames(roles) : t("已设为普通用户：", "Now an ordinary user: ") + user);
       });
     });
     $("rtable").addEventListener("click", function (ev) {
+      var a = ev.target.closest("a[data-edit]");
+      if (a) { ev.preventDefault(); var e = entries.filter(function (x) { return x.user === a.getAttribute("data-edit"); })[0]; if (e) fill(e); return; }
       var b = ev.target.closest("button[data-user]"); if (!b) return;
       var user = b.getAttribute("data-user");
-      if (!window.confirm(t("移除 " + user + " 的所有角色？", "Remove all roles from " + user + "?"))) return;
-      post("roles", "DELETE", { user: user }).then(function (r) { if (!r.ok) return msg(false, errText(r)); render(r.body.entries || []); msg(true, t("已移除：", "Removed: ") + user); });
+      if (!window.confirm(t("移除 " + user + " 的所有角色（变为普通用户）？", "Remove all roles from " + user + " (ordinary user)?"))) return;
+      post("roles", "DELETE", { user: user }).then(function (r) { if (!r.ok) return msg(false, errText(r)); entries = r.body.entries || []; render(entries); msg(true, t("已移除：", "Removed: ") + user); });
     });
   }
   function viewSync() {
@@ -650,7 +773,7 @@
       return h.indexOf("#/domain/groups") === 0 ? viewGroups() : viewUsers();
     }
     if (h.indexOf("#/system") === 0) {
-      if ((me.roles || []).indexOf("admin") < 0) { location.hash = "#/account"; return; }
+      if (!isAdmin()) { location.hash = "#/account"; return; }
       return h.indexOf("#/system/sync") === 0 ? viewSync() : viewRoles();
     }
     viewAccount();

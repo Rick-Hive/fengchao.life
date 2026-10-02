@@ -78,14 +78,13 @@ async function call({ action, method = "GET", body = null }) {
 
   // 3. A good save: stored, parent ↔ children linked, identities defaulted, empty child card dropped.
   r = await call({ action: "extra", method: "PATCH", body: {
-    city: " 南京 ", needs: ["教材", "其它", "教材"], needsOther: "英文写作辅导",
+    needs: ["教材", "其它", "教材"], needsOther: "英文写作辅导",
     children: [
       { name: "大宝", age: "12", grade: "6", schooling: "在家教育", model: "古典教育", higherEd: "海外上大学", account: "Kid.One@example.edu" },
       { age: 8, grade: "2", schooling: "基督教学校", model: "其它", modelOther: "Sonlight", higherEd: "未定", account: "kid.two@example.edu" },
       {},
     ] } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
-  assert.strictEqual(r.body.extra.city, "南京");
   assert.deepStrictEqual(r.body.extra.needs, ["教材", "其它"]);
   assert.strictEqual(r.body.extra.needsOther, "英文写作辅导");
   assert.strictEqual(r.body.extra.children.length, 2);
@@ -106,7 +105,7 @@ async function call({ action, method = "GET", body = null }) {
   assert.deepStrictEqual(r.body.hive.linked, ["kid.one@example.edu", "kid.two@example.edu"]);
 
   // 5. Taking kid.two off the form unlinks both ways; kid.one and the admin's link stay.
-  r = await call({ action: "extra", method: "PATCH", body: { city: "南京", needs: [], children: [{ name: "大宝", age: 12, account: "kid.one@example.edu" }] } });
+  r = await call({ action: "extra", method: "PATCH", body: { needs: [], children: [{ name: "大宝", age: 12, account: "kid.one@example.edu" }] } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.deepStrictEqual(r.body.linked, ["kid.one@example.edu"]);
   assert.deepStrictEqual(store.people["kid.two@example.edu"].linked, [], "kid.two unlinked (the 学生 identity it was given stays)");

@@ -7,13 +7,6 @@
 module.exports = {
   baseId: process.env.AIRTABLE_BASE_ID || "appgYiHg9pm6hcRgv",
 
-  // The CRM base (Customers / Orders / Order Items / Curriculums) lives in a
-  // different workspace and is written by the EquipMe order entry tool
-  // (api/crm) with its own write-scoped token, AIRTABLE_CRM_PAT. Tables and
-  // fields there are found by name through the metadata API — see
-  // api/shared/airtable.js — so nothing about that base is pinned here.
-  crmBaseId: process.env.AIRTABLE_CRM_BASE_ID || "appae5kpY1qXn6XLq",
-
   tables: {
     tracks:       { id: "tbltFG1wvhlxdMNCm", display: "Track ID" },
     courses:      { id: "tblWTiOgX1pM40U4A", display: "Course Name/课程名称" },

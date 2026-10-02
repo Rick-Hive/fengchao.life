@@ -11,9 +11,9 @@
 //
 // POST only, so a prefetch or a stray link cannot sign anyone out, and a
 // request from another site is refused (nobody else gets to sign our users
-// out). The caller (assets/account-button.js, hub, session-guard) checks
-// /.auth/me afterwards and falls back to the full sign-out if the session
-// is still there.
+// out). The caller (assets/session-guard.js) then signs the Microsoft account
+// out of the browser as well, naming it with logout_hint so Microsoft asks
+// nothing (Rick, 2026-10-02).
 const { signOutCookies, crossSite } = require("../shared/session");
 
 module.exports = async function (context, req) {

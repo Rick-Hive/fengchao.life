@@ -1,57 +1,110 @@
 // Hive's own role assignments, kept beside the snapshot as roles.json.
 //
-// Roles that a Hive administrator assigns from the Admin Center — 管理员
-// (`admin`) and the CRM 录入员 (`crm_entry`) — live here, keyed by the
-// signed-in account (the `userDetails` of the client principal, which the
-// auth config sets to the UPN), so no portal visit is needed to add or remove
-// a person. They reach the client principal through the rolesSource function
-// (api/auth-roles) at each sign-in, and are also re-read per request below.
+// Who is who (Rick, 2026-10-02):
+//   普通用户            no role — sees 我的账号 only.
+//   域管理员（IT）       `domain_it:<domain>`   — the school's IT person: the accounts of
+//                       that domain, their sign-in devices (and, in phase 2, password
+//                       resets), its Teams groups.
+//   域蜂巢管理员         `domain_hive:<domain>` — the school's Hive coordinator: the same
+//                       accounts, plus 身份 / 关联账号 / 备注 and what people filled in.
+//   Staff（蜂巢员工）    `staff:<function>`     — Hive's own people, across every school:
+//                       课程开发 curriculum · 募款 fundraising · contractor · 教育社区经理
+//                       community · 财务 finance · 销售 sales · 系统管理员 sysadmin.
+//                       `staff:sysadmin` is the site administrator (角色分配, 数据同步,
+//                       everything); `admin` is kept as its alias for the bootstrap
+//                       account and old roles.json entries.
+// Old names still honoured: `domain_admin:<d>` = both domain roles; `coordinator` =
+// `staff:community`.
 //
-// `admin` implies every Hive role: the administrator who can hand a role out
-// can also use it, which keeps testing honest.
+// Roles live here keyed by the signed-in account (the `userDetails` of the
+// client principal, which the auth config sets to the UPN). They reach the
+// client principal through the rolesSource function (api/auth-roles) at each
+// sign-in, and are also re-read per request below, so a new role works at once.
 //
-// Shape of roles.json: { "entries": [ { "user": "someone@domain", "roles": ["crm_entry"],
-// "by": "admin@domain", "at": "2026-09-29T02:00:00.000Z" } ] }
+// Shape of roles.json: { "entries": [ { "user": "someone@domain",
+//   "roles": ["domain_it:school.edu"], "by": "admin@domain", "at": "2026-09-29T02:00:00.000Z" } ] }
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
 const { getPrincipal, hasRole } = require("./auth");
 
 const BLOB_NAME = "roles.json";
 
-// The roles a Hive administrator may assign. Anything else in a request is
-// refused, so a typo never becomes a role nobody checks for.
-const ASSIGNABLE = {
-  admin: { zh: "管理员", en: "Administrator" },
-  coordinator: { zh: "Hive 协调员", en: "Hive coordinator" },
-  crm_entry: { zh: "录入员", en: "CRM data entry" },
-};
+const DOMAIN = "[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}";
+const DOMAIN_IT_RE = new RegExp(`^domain_it:(${DOMAIN})$`);
+const DOMAIN_HIVE_RE = new RegExp(`^domain_hive:(${DOMAIN})$`);
+const DOMAIN_ADMIN_RE = new RegExp(`^domain_admin:(${DOMAIN})$`); // legacy: both
+const STAFF_RE = /^staff:(curriculum|fundraising|contractor|community|finance|sales|sysadmin)$/;
 
-// A domain administrator's role names the domain it covers:
-// `domain_admin:sciencebug.net`. One account may hold several.
-const DOMAIN_ADMIN_RE = /^domain_admin:([a-z0-9][a-z0-9.-]*\.[a-z]{2,})$/;
+const STAFF = {
+  curriculum: { zh: "课程开发", en: "Curriculum development" },
+  fundraising: { zh: "募款", en: "Fundraising" },
+  contractor: { zh: "Contractor", en: "Contractor" },
+  community: { zh: "教育社区经理", en: "Education community manager" },
+  finance: { zh: "财务", en: "Finance" },
+  sales: { zh: "销售", en: "Sales" },
+  sysadmin: { zh: "系统管理员", en: "System administrator" },
+};
+// Role kinds for pickers and labels.
+const KINDS = {
+  domain_it: { zh: "域管理员（IT）", en: "Domain administrator (IT)" },
+  domain_hive: { zh: "域蜂巢管理员", en: "Domain Hive administrator" },
+  staff: { zh: "Staff", en: "Staff" },
+};
+// Kept for old callers; everything assignable is described by the regexes above.
+const ASSIGNABLE = { admin: { zh: "系统管理员", en: "System administrator" } };
 
 function isAssignable(role) {
-  return !!ASSIGNABLE[role] || DOMAIN_ADMIN_RE.test(String(role || ""));
+  const r = String(role || "");
+  return r === "admin" || DOMAIN_IT_RE.test(r) || DOMAIN_HIVE_RE.test(r) || STAFF_RE.test(r);
 }
 
 // Roles as a person sees them, for lists and pickers.
 function roleLabel(role, lang) {
-  const m = DOMAIN_ADMIN_RE.exec(role);
-  if (m) return lang === "en" ? `Domain administrator · ${m[1]}` : `域管理员 · ${m[1]}`;
-  const a = ASSIGNABLE[role];
-  return a ? (lang === "en" ? a.en : a.zh) : role;
+  const en = lang === "en";
+  let m;
+  if ((m = DOMAIN_IT_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
+  if ((m = DOMAIN_HIVE_RE.exec(role))) return `${en ? KINDS.domain_hive.en : KINDS.domain_hive.zh} · ${m[1]}`;
+  if ((m = DOMAIN_ADMIN_RE.exec(role))) return `${en ? "Domain administrator (IT + Hive)" : "域管理员（IT＋蜂巢）"} · ${m[1]}`;
+  if ((m = STAFF_RE.exec(role))) return `Staff · ${en ? STAFF[m[1]].en : STAFF[m[1]].zh}`;
+  if (role === "admin") return en ? "System administrator" : "系统管理员";
+  if (role === "coordinator") return en ? "Staff · Education community manager (old name)" : "Staff · 教育社区经理（旧名）";
+  return role;
 }
 
-// Which domains an account may manage: every domain for admin / coordinator
-// (`"*"`), the named ones for domain administrators.
+function isAdmin(roles) { return (roles || []).some((r) => r === "admin" || r === "staff:sysadmin"); }
+function isStaff(roles) { return (roles || []).some((r) => r === "admin" || r === "coordinator" || STAFF_RE.test(r)); }
+
+// Which domains an account may see: every domain for staff (`"*"`), the named
+// ones for the two domain roles.
 function managedDomains(roles) {
+  if (isStaff(roles)) return ["*"];
   const out = new Set();
   for (const r of roles || []) {
-    if (r === "admin" || r === "coordinator") return ["*"];
-    const m = DOMAIN_ADMIN_RE.exec(r);
+    const m = DOMAIN_IT_RE.exec(r) || DOMAIN_HIVE_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r);
     if (m) out.add(m[1]);
   }
   return Array.from(out);
+}
+
+// What an account may do with the accounts of `domain`:
+//   view     — the user table, Teams groups, exports        (every role above)
+//   methods  — remove a sign-in device (phase 2: reset password, TAP)
+//                                                             (域管理员 IT, sysadmin)
+//   people   — 身份 / 关联账号 / 备注                           (域蜂巢管理员, staff)
+//   admin    — 角色分配, 数据同步, anything                    (sysadmin)
+function can(roles, action, domain) {
+  roles = roles || [];
+  if (isAdmin(roles)) return true;
+  if (action === "admin") return false;
+  const d = String(domain || "").toLowerCase();
+  const holds = (re) => roles.some((r) => { const m = re.exec(r); return m && m[1] === d; });
+  const it = holds(DOMAIN_IT_RE) || holds(DOMAIN_ADMIN_RE);
+  const hive = holds(DOMAIN_HIVE_RE) || holds(DOMAIN_ADMIN_RE);
+  const staff = isStaff(roles);
+  if (action === "view") return it || hive || staff;
+  if (action === "methods") return it;
+  if (action === "people") return hive || staff;
+  return false;
 }
 
 // Accounts that are always `admin`, whatever roles.json says. Since the site
@@ -117,6 +170,9 @@ async function rolesFor(user) {
     const entry = doc.entries.find((e) => e.user === u);
     if (entry) entry.roles.forEach((r) => roles.add(r));
   } catch { /* bootstrap roles only */ }
+  // The route rules in staticwebapp.config.json know only `admin`; the system
+  // administrator carries both names.
+  if (roles.has("staff:sysadmin")) roles.add("admin");
   return Array.from(roles);
 }
 
@@ -136,7 +192,7 @@ async function userRoles(req) {
 async function userHasRole(req, role) {
   if (hasRole(req, "admin")) return true;
   const { roles } = await userRoles(req);
-  return roles.includes(role) || roles.includes("admin");
+  return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, DOMAIN_ADMIN_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };

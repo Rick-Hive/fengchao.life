@@ -1,27 +1,20 @@
 // The sign-in entry in the site header, top right beside the cart (Rick,
 // 2026-09-29: "登录入口不应该放在菜单中"). Same on every page that has the
 // site header: the course site (index.html loads this file), the pages built
-// by site-header.js (which loads it too), and the Admin Center / order entry
-// pages.
+// by site-header.js (help, the hub), which loads it too.
 //
 // Signed out: a person icon + 登录, linking to the Education Resource Link
-// sign-in, which lands on 我的账号. Signed in: the icon + 我的账号, opening a
-// small panel with the account, 我的账号, 管理中心 / EquipMe 订单录入 when the
-// sign-in roles include them, 退出, and — for a shared computer — 退出并退出
-// 微软账号.
-//
-// 退出 asks for nothing (Rick, 2026-09-29). Static Web Apps' /.auth/logout
-// always goes through Microsoft's "pick an account to sign out" page, so 退出
-// posts to /api/logout, which ends only the site's session, then checks
-// /.auth/me; if the session somehow survived, it falls back to the full
-// sign-out rather than pretend.
+// sign-in, which lands on the hub. Signed in: the icon + 我的账号, a plain link
+// straight into the hub — no menu (Rick, 2026-10-02: 「无需“我的 Office 365
+// 账号”和“管理中心”等菜单。点击登录后直接进入用户后台 dashboard」). 退出 lives
+// in the hub's sidebar (assets/session-guard.js does the signing out).
 //
 // One sign-out signs out every open fengchao.life tab: the session is a
 // cookie shared by all tabs, and the other tabs are told at once
 // (BroadcastChannel, with a localStorage event as the fallback) so their
-// headers change and a signed-in-only page (我的账号, 管理中心, 订单录入)
-// leaves for the home page. Every tab also re-checks when it comes back into
-// view, which covers a sign-out on another device or a timed-out session.
+// headers change and a signed-in-only page leaves for the home page. Every
+// tab also re-checks when it comes back into view, which covers a sign-out
+// on another device or a timed-out session.
 (function () {
   "use strict";
   if (location.hostname === "www.fengchao.life") {
@@ -35,8 +28,8 @@
   // was on stays where it was. The new tab lands on the hub with ?signedin=1,
   // tells the other tabs, and they refresh their headers straight away.
   var LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/hub/?signedin=1");
-  var FULL_LOGOUT = "/.auth/logout?post_logout_redirect_uri=/";
-  var PROTECTED = /^\/(account|admin|crm|hub)(\/|$)/;
+  var PROTECTED = /^\/(account|admin|hub)(\/|$)/;
+  var ON_HUB = /^\/hub(\/|$)/.test(location.pathname);
   var principal = null;
   var known = false;
 
@@ -52,9 +45,9 @@
   var before = document.getElementById("cartBtn") || document.getElementById("langBtn");
   if (before && before.parentNode === inner) inner.insertBefore(wrap, before); else inner.appendChild(wrap);
 
-  // Arrived here because the session ended (idle timeout, maximum age, or 退出
-  // from the countdown dialog): say so once, under 登录, and take the marker
-  // out of the address. See assets/session-guard.js.
+  // Arrived here because the session ended (idle timeout, maximum age, or 退出):
+  // say so once, under 登录, and take the marker out of the address. See
+  // assets/session-guard.js.
   var signedOutWhy = (location.search.match(/[?&]signedout=([a-z]+)/) || [])[1] || window.__fcSignedOut || "";
   try { if (!signedOutWhy) signedOutWhy = sessionStorage.getItem("fc-signedout") || ""; sessionStorage.removeItem("fc-signedout"); } catch (e) {}
   if (/[?&]signedout=/.test(location.search)) {
@@ -74,26 +67,9 @@
       return;
     }
     signedOutWhy = ""; // signed in again: the notice has done its job
-    var roles = principal.userRoles || [];
-    var admin = roles.indexOf("admin") >= 0;
-    var entry = admin || roles.indexOf("crm_entry") >= 0;
-    wrap.innerHTML =
-      '<button class="acct-btn signed-in" type="button" aria-haspopup="true" aria-expanded="false" title="' + esc(principal.userDetails || "") + '">' +
-        icon + '<span class="acct-lbl">' + esc(t("我的账号", "Account")) + "</span></button>" +
-      '<div class="acct-panel" role="menu">' +
-        '<div class="acct-who">' + esc(principal.userDetails || "") + "</div>" +
-        '<a role="menuitem" href="/hub/">' + esc(t("我的 Office 365 账号", "My Office 365 account")) + "</a>" +
-        (admin ? '<a role="menuitem" href="/hub/#/system/roles">' + esc(t("管理中心", "Admin Center")) + "</a>" : "") +
-        (entry ? '<a role="menuitem" href="/crm/">' + esc(t("EquipMe 订单录入", "EquipMe order entry")) + "</a>" : "") +
-        '<a role="menuitem" class="acct-out" href="#" data-out="quick">' + esc(t("退出", "Sign out")) + "</a>" +
-        '<a role="menuitem" class="acct-out-full" href="' + esc(FULL_LOGOUT) + '" data-out="full">' + esc(t("公用电脑？同时退出微软账号", "Shared computer? Also sign out of Microsoft")) + "</a>" +
-      "</div>";
-  }
-
-  function close() {
-    wrap.classList.remove("open");
-    var b = wrap.querySelector("button.acct-btn");
-    if (b) b.setAttribute("aria-expanded", "false");
+    // On the hub itself the entry is just a marker of who is signed in (the page is the dashboard).
+    wrap.innerHTML = '<a class="acct-btn signed-in' + (ON_HUB ? " current" : "") + '" href="/hub/" title="' + esc(principal.userDetails || "") + '"' + (ON_HUB ? ' aria-current="page"' : "") + ">" +
+      icon + '<span class="acct-lbl">' + esc(t("我的账号", "Account")) + "</span></a>";
   }
 
   // ---- tell the other tabs ------------------------------------------------------
@@ -106,7 +82,6 @@
   function signedOutHere() {
     principal = null;
     known = true;
-    close();
     if (PROTECTED.test(location.pathname)) location.replace("/");
     else render();
   }
@@ -119,44 +94,9 @@
     if (e.key === "fc-auth-event" && e.newValue) onEvent(e.newValue.split(":")[0]);
   });
 
-  // ---- sign out -------------------------------------------------------------------
-  function quickSignOut() {
-    fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" })
-      .catch(function () {})
-      .then(function () { return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" }); })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) {
-        if (j && j.clientPrincipal) { announce("out"); location.href = FULL_LOGOUT; return; }
-        announce("out");
-        signedOutHere();
-      })
-      .catch(function () { announce("out"); location.href = FULL_LOGOUT; });
-  }
-
   wrap.addEventListener("click", function (e) {
     var x = e.target.closest && e.target.closest(".acct-notice-x");
-    if (x) { signedOutWhy = ""; render(); return; }
-    var out = e.target.closest && e.target.closest("[data-out]");
-    if (out) {
-      if (out.getAttribute("data-out") === "quick") { e.preventDefault(); quickSignOut(); }
-      else announce("out");
-      return;
-    }
-    var b = e.target.closest && e.target.closest("button.acct-btn");
-    if (!b) return;
-    var open = !wrap.classList.contains("open");
-    wrap.classList.toggle("open", open);
-    b.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-  document.addEventListener("click", function (e) {
-    if (!wrap.contains(e.target) && wrap.classList.contains("open")) close();
-  });
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && wrap.classList.contains("open")) {
-      close();
-      var b = wrap.querySelector("button.acct-btn");
-      if (b) b.focus();
-    }
+    if (x) { signedOutWhy = ""; render(); }
   });
 
   // ---- who is signed in ---------------------------------------------------------
@@ -169,8 +109,8 @@
         known = true;
         if (!principal && PROTECTED.test(location.pathname) && !first) { location.replace("/"); return; }
         // Just arrived from the sign-in tab: tell the other tabs, once, and
-        // take the marker out of the address.
-        if (first && principal && /[?&]signedin=1\b/.test(location.search)) {
+        // take the marker out of the address. (The hub does this itself.)
+        if (first && principal && !ON_HUB && /[?&]signedin=1\b/.test(location.search)) {
           announce("in");
           try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])signedin=1&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
         }

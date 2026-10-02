@@ -11,9 +11,11 @@
 //    most every 5 minutes, so the server-side idle clock follows real use, not
 //    just API calls;
 //  * one minute before the limit a small dialog counts down with a 继续使用
-//    button; at zero the session is ended: POST /api/logout, every other tab
-//    is told (BroadcastChannel "fc-auth" / storage), and the page goes home
-//    with ?signedout=timeout, where the header explains and offers 登录;
+//    button; at zero the session is ended: POST /api/logout, the Microsoft
+//    account is signed out of the browser too (see microsoftSignOut), every
+//    other tab is told (BroadcastChannel "fc-auth" / storage), and the page
+//    comes back home with ?signedout=timeout, where the header explains and
+//    offers 登录;
 //  * a page opened after the limit has already passed (laptop closed overnight)
 //    signs out at once; so does a 401 session_expired reply from any API —
 //    pages call window.fcSession.expired(reason) for that.
@@ -63,13 +65,37 @@
     try { sessionStorage.setItem("fc-signedout", why); } catch (e) {}
     location.replace("/?signedout=" + encodeURIComponent(why));
   }
+  // 退出 (Rick, 2026-10-02: 「点击退出无需登录 Teams 账号确认，后台自动登出所登录的
+  // Teams 账号」): end Hive's session, then sign the same Microsoft account out of
+  // this browser without Microsoft's "pick an account" page. That page appears
+  // when Microsoft is not told which account to sign out; the `logout_hint`
+  // parameter names it — its value is the `login_hint` claim of the sign-in
+  // token, which /.auth/me exposes once the claim is enabled on the Hive app
+  // registration (Token configuration → optional claim login_hint). Without the
+  // claim the fallback is Static Web Apps' own sign-out, which may still ask.
+  var TENANT = "edb20124-7377-4368-acbc-d4be58fe59c3";
+  function microsoftSignOut(reason) {
+    var why = reason || "user";
+    try { sessionStorage.setItem("fc-signedout", why); } catch (e) {}
+    var back = location.origin + "/?signedout=" + encodeURIComponent(why);
+    return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (j) {
+        var claims = (j && j.clientPrincipal && j.clientPrincipal.claims) || [];
+        var hint = "";
+        claims.forEach(function (c) { if (c && (c.typ === "login_hint" || /\/login_hint$/.test(String(c.typ)))) hint = String(c.val || ""); });
+        return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
+          announce("out");
+          if (hint) location.replace("https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout?logout_hint=" + encodeURIComponent(hint) + "&post_logout_redirect_uri=" + encodeURIComponent(back));
+          else location.replace("/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent("/?signedout=" + why));
+        });
+      });
+  }
   function signOut(reason) {
     if (ended) return;
     ended = true;
     clearInterval(timer);
     hide();
-    var done = function () { announce("out"); goHome(reason); };
-    fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(done, done);
+    microsoftSignOut(reason);
   }
   // The server said the session is over (401 session_expired): no second logout
   // call is needed — its reply already expired the cookies — just tell the tabs and go home.
