@@ -117,13 +117,40 @@ async function nextSequence(key, attempts) {
 }
 
 // Mirror one binary asset (teacher photo, syllabus file) into the assets container.
+// Asset keys carry the Airtable attachment id (teachers/recX-attY.jpg), so a key
+// never changes content: the blob can be cached by browsers for a year.
+const UNIQUE_KEY_RE = /-att[A-Za-z0-9]{8,}\./;
+const LONG_CACHE = "public, max-age=31536000, immutable";
+const DAY_CACHE = "public, max-age=86400";
+function cacheControlFor(key) { return UNIQUE_KEY_RE.test(String(key || "")) ? LONG_CACHE : DAY_CACHE; }
+
 async function writeAsset(key, buffer, contentType) {
   const container = getAssetsContainerClient();
   await container.createIfNotExists();
   const blob = container.getBlockBlobClient(key);
   await blob.upload(buffer, buffer.length, {
-    blobHTTPHeaders: { blobContentType: contentType || "application/octet-stream" },
+    blobHTTPHeaders: { blobContentType: contentType || "application/octet-stream", blobCacheControl: cacheControlFor(key) },
   });
+}
+
+// Where the public site loads an asset from. With ASSETS_PUBLIC=1 (Rick, 2026-10-02,
+// speed from the mainland) the browser goes straight to blob storage — the
+// container must allow anonymous blob reads — and skips the /api/asset function
+// hop; otherwise the function streams it as before. The storage host is read
+// from the connection string so nothing else needs configuring.
+function publicAssetBase() {
+  if (!/^(1|true|yes)$/i.test(String(process.env.ASSETS_PUBLIC || ""))) return "";
+  const conn = String(process.env.STORAGE_CONNECTION_STRING || "");
+  const get = (k) => { const m = new RegExp("(?:^|;)" + k + "=([^;]+)").exec(conn); return m ? m[1] : ""; };
+  const endpoint = get("BlobEndpoint");
+  if (endpoint) return endpoint.replace(/\/+$/, "") + "/" + assetsBlob.container;
+  const account = get("AccountName"), suffix = get("EndpointSuffix") || "core.windows.net";
+  return account ? `https://${account}.blob.${suffix}/${assetsBlob.container}` : "";
+}
+function assetUrl(key) {
+  if (!key) return null;
+  const base = publicAssetBase();
+  return base ? base + "/" + String(key).split("/").map(encodeURIComponent).join("/") : "/api/asset?key=" + encodeURIComponent(key);
 }
 
 // Read one asset back; returns {buffer, contentType} or null.
@@ -136,4 +163,4 @@ async function readAsset(key) {
   return { buffer, contentType: props.contentType || "application/octet-stream" };
 }
 
-module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset, nextSequence };
+module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset, nextSequence, assetUrl, publicAssetBase, cacheControlFor };

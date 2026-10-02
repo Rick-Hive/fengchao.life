@@ -5,7 +5,7 @@
 // snapshot — private fields (emails, Teams accounts, contacts, sales data) are
 // never written into it.
 const cfg = require("../shared/config");
-const { writeSnapshot, readSnapshot, writeAsset } = require("../shared/blob");
+const { writeSnapshot, readSnapshot, writeAsset, assetUrl } = require("../shared/blob");
 const { hasRole, getPrincipal } = require("../shared/auth");
 const { hiveKey } = require("../shared/hive");
 const { guard, finish } = require("../shared/session");
@@ -246,6 +246,12 @@ async function mirrorAttachment(att, key, log) {
   }
 }
 
+// The attachment id makes the key unique to this file, so it can be cached for good.
+function attSuffix(att) {
+  const id = String((att && att.id) || "");
+  return /^att[A-Za-z0-9]{8,}$/.test(id) ? `-${id}` : "";
+}
+
 function extFromAttachment(att) {
   const m = /\.([A-Za-z0-9]{1,8})$/.exec(att.filename || "");
   if (m) return "." + m[1].toLowerCase();
@@ -441,13 +447,14 @@ async function handler(context, req) {
       const photos = f(fields, tef.photo);
       if (Array.isArray(photos) && photos.length > 0) {
         const att = photos[0];
-        photo = await mirrorAttachment(att, `teachers/${r.id}${extFromAttachment(att)}`, log);
+        photo = await mirrorAttachment(att, `teachers/${r.id}${attSuffix(att)}${extFromAttachment(att)}`, log);
       }
       const profile = {
         id: r.id,
         teacherId: f(fields, tef.id) || "",
         name,
         photo, // asset key or null
+        photoUrl: assetUrl(photo), // where the browser loads it (blob storage directly, or /api/asset)
         bio: plainText(f(fields, tef.bio)),
         expertise: plainText(f(fields, tef.expertise)),
         subjects: plainText(f(fields, tef.subjects)),
@@ -529,8 +536,8 @@ async function handler(context, req) {
       if (Array.isArray(sylAtts)) {
         for (let i = 0; i < sylAtts.length && i < 5; i++) {
           const att = sylAtts[i];
-          const key = await mirrorAttachment(att, `syllabus/${r.id}-${i}${extFromAttachment(att)}`, log);
-          if (key) syllabus.push({ key, filename: att.filename || `syllabus-${i + 1}` });
+          const key = await mirrorAttachment(att, `syllabus/${r.id}-${i}${attSuffix(att)}${extFromAttachment(att)}`, log);
+          if (key) syllabus.push({ key, url: assetUrl(key), filename: att.filename || `syllabus-${i + 1}` });
         }
       }
 

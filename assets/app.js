@@ -1747,7 +1747,7 @@
     }).join("");
 
     var syllabus = (c.syllabus || []).map(function (s) {
-      return '<a class="syl-link" href="/api/asset?key=' + encodeURIComponent(s.key) + '" target="_blank" rel="noopener">' +
+      return '<a class="syl-link" href="' + esc(s.url || "/api/asset?key=" + encodeURIComponent(s.key)) + '" target="_blank" rel="noopener">' +
         '<svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><path d="M10 3v9m0 0l-3.5-3.5M10 12l3.5-3.5M4 16h12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> ' +
         esc(s.filename) + "</a>";
     }).join("");
@@ -1785,7 +1785,7 @@
 
   function teacherModalHtml(p) {
     var photo = p.photo
-      ? '<img class="t-photo" src="/api/asset?key=' + encodeURIComponent(p.photo) + '" alt="' + esc(p.name) + '" loading="lazy" />'
+      ? '<img class="t-photo" src="' + esc(p.photoUrl || "/api/asset?key=" + encodeURIComponent(p.photo)) + '" alt="' + esc(p.name) + '" loading="lazy" />'
       : '<div class="t-photo t-photo-fallback">' + esc((p.name || "?").charAt(0)) + "</div>";
     return (
       '<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button>' +

@@ -32,6 +32,10 @@ jobs:
                const coredemo = require('@actions/core')
                return await coredemo.getIDToken()
            result-encoding: string
+      # Serve compact files without keeping minified copies in the repository:
+      # the sources are minified in place here, just before upload (scripts/minify.sh).
+      - name: Minify JS and CSS
+        run: bash scripts/minify.sh
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1

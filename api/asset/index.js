@@ -1,7 +1,7 @@
 // GET /api/asset?key=teachers/recXXX.jpg | syllabus/recXXX-0.pdf
 // Streams attachment files that the sync mirrored into blob storage.
 // Keys are strictly validated so only the two public prefixes are reachable.
-const { readAsset } = require("../shared/blob");
+const { readAsset, cacheControlFor } = require("../shared/blob");
 
 const KEY_RE = /^(teachers|syllabus)\/[A-Za-z0-9._-]{1,120}$/;
 
@@ -33,7 +33,7 @@ module.exports = async function (context, req) {
       isRaw: true,
       headers: {
         "Content-Type": asset.contentType,
-        "Cache-Control": "public, max-age=86400",
+        "Cache-Control": cacheControlFor(key),
       },
       body: asset.buffer,
     };

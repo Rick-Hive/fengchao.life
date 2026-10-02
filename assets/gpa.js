@@ -561,7 +561,7 @@
     function printHeadInner() {
       var t = T();
       return (
-        '<img src="/assets/logo-mark.png" alt="" width="64" height="64" />' +
+        '<img src="/assets/logo-mark.webp" alt="" width="64" height="64" />' +
         '<div class="gpa-print-brand"><b>蜂巢</b><span>fengchao.life</span></div>' +
         '<div class="gpa-print-title"><h1>' + esc(t.printTitle) + "</h1></div>" +
         '<div class="gpa-print-meta">' +

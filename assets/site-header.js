@@ -82,7 +82,7 @@
   header.innerHTML =
     '<div class="header-inner">' +
       '<a class="brand-home" href="/" aria-label="' + esc(pick("Hive home", "蜂巢首页")) + '">' +
-        '<img class="logo-mark" src="/assets/logo-mark.png" width="512" height="512" alt="" />' +
+        '<img class="logo-mark" src="/assets/logo-mark.webp" width="160" height="160" alt="" />' +
         '<span class="brand-lockup">' +
           '<span class="brand-line"><span class="brand-name">' + "蜂巢" + "</span>" +
           '<span class="brand-values">' + esc((T.brandValues || []).join(" · ")) + "</span></span>" +
