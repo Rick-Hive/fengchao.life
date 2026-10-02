@@ -8,6 +8,10 @@
 //  * maximum age    — a session older than HIVE_SESSION_HOURS (default 12) ends,
 //                     however active, so a forgotten browser is signed out by the
 //                     next morning;
+//  * account check  — every 5 minutes per account (HIVE_ACCOUNT_CHECK_MINUTES) the
+//                     directory is asked whether the password changed after the
+//                     session began or the account was disabled; either ends the
+//                     session (401 session_expired, reason "password" | "disabled");
 //  * CSRF           — a request that changes something (POST/PATCH/PUT/DELETE) must
 //                     come from this site: an Origin or Sec-Fetch-Site header that
 //                     says otherwise is refused. Requests without either header
@@ -29,6 +33,7 @@
 const crypto = require("crypto");
 const { getPrincipal } = require("./auth");
 const { audit } = require("./audit");
+const { graph } = require("./graph");
 
 const COOKIE = "fc-sess";
 const SWA_COOKIES = ["StaticWebAppsAuthCookie", "StaticWebAppsAuthContextCookie"];
@@ -126,6 +131,23 @@ function crossSite(req) {
   return "";
 }
 
+// ---- the account behind the session -------------------------------------------------
+const ACCOUNT_CHECK_MS = Number(process.env.HIVE_ACCOUNT_CHECK_MINUTES || 5) * 60 * 1000;
+const accountCache = new Map(); // upn → { at, enabled, passwordChangedAt }
+async function accountState(upn, context) {
+  const hit = accountCache.get(upn);
+  if (hit && Date.now() - hit.at < ACCOUNT_CHECK_MS) return hit;
+  try {
+    const u = await graph("GET", `/users/${encodeURIComponent(upn)}?$select=accountEnabled,lastPasswordChangeDateTime`);
+    const state = { at: Date.now(), enabled: u && u.accountEnabled !== false, passwordChangedAt: u && u.lastPasswordChangeDateTime ? Date.parse(u.lastPasswordChangeDateTime) : 0 };
+    accountCache.set(upn, state);
+    return state;
+  } catch (err) {
+    if (context && context.log && context.log.warn) context.log.warn(`session: account check for ${upn} skipped: ${err.message}`);
+    return null;
+  }
+}
+
 function reply(context, status, body, cookies) {
   context.res = { status, headers: { "Cache-Control": "no-store" }, body };
   if (cookies) context.res.cookies = cookies;
@@ -172,6 +194,26 @@ async function guard(context, req, opts) {
       return null;
     }
   }
+  // The account itself: a password changed after this session began, or an
+  // account disabled meanwhile, ends the session (Rick, 2026-10-02: 「用户自助修改
+  // 密码后……强制重新登录」). Microsoft does not notify the site, so the directory is
+  // asked at most once per ACCOUNT_CHECK_MS per account; a Graph failure is not
+  // the person's fault and is skipped.
+  if (sess) {
+    const state = await accountState(upn, context);
+    if (state) {
+      const reason = state.enabled === false ? "disabled" : (state.passwordChangedAt && state.passwordChangedAt > sess.s + 60000 ? "password" : "");
+      if (reason) {
+        try { await audit(context, { actor: upn, action: "session.timeout", reason, result: "ok" }); } catch { /* best effort */ }
+        accountCache.delete(upn);
+        reply(context, 401, {
+          error: reason === "password" ? "the password was changed — please sign in again" : "this account has been disabled",
+          code: "session_expired", reason,
+        }, signOutCookies());
+        return null;
+      }
+    }
+  }
   const started = sess ? sess.s : now;
   const fresh = { u: upn, s: started, t: now, k };
   const session = {
@@ -204,4 +246,4 @@ function describe(s) {
   };
 }
 
-module.exports = { guard, finish, describe, signOutCookies, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode, _signInKey: signInKey };
+module.exports = { guard, finish, describe, signOutCookies, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode, _signInKey: signInKey, _accountCache: accountCache };

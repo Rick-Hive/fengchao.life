@@ -126,6 +126,42 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   s = await S.guard(c, { method: "GET", headers: { host: "fengchao.life", "x-ms-client-principal": principalWith(2000), cookie: S.COOKIE + "=" + encodeURIComponent(stale2) }, params: {}, query: {}, body: null });
   assert.ok(s && s.session.isNew, "new iat → fresh session");
 
+  // 6c. The account behind the session: a password changed after the session began,
+  //     or a disabled account, ends it; the directory is asked at most once per window.
+  process.env.AZURE_TENANT_ID = "t"; process.env.AZURE_CLIENT_ID = "c";
+  let graphCalls = 0, account = { accountEnabled: true, lastPasswordChangeDateTime: new Date(now - 24 * HOUR).toISOString() };
+  global.fetch = async (url) => {
+    const u = new URL(String(url));
+    if (u.hostname === "login.microsoftonline.com") return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ access_token: "tok", expires_in: 3600 }), json: async () => ({ access_token: "tok", expires_in: 3600 }) };
+    graphCalls++;
+    return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify(account), json: async () => account };
+  };
+  S._accountCache.clear();
+  c = ctx();
+  s = await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) }));
+  assert.ok(s && !s.session.isNew, "old password change → session fine");
+  assert.strictEqual(graphCalls, 1);
+  c = ctx();
+  await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) }));
+  assert.strictEqual(graphCalls, 1, "cached: no second directory call within the window");
+  S._accountCache.clear();
+  account = { accountEnabled: true, lastPasswordChangeDateTime: new Date(now - 10 * MIN).toISOString() };
+  c = ctx();
+  assert.strictEqual(await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) })), null, "password changed during the session → out");
+  assert.strictEqual(c.res.body.reason, "password");
+  assert.deepStrictEqual(names(c.res.cookies), ["StaticWebAppsAuthCookie", "StaticWebAppsAuthContextCookie", S.COOKIE].sort());
+  S._accountCache.clear();
+  account = { accountEnabled: false, lastPasswordChangeDateTime: new Date(now - 24 * HOUR).toISOString() };
+  c = ctx();
+  assert.strictEqual(await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) })), null);
+  assert.strictEqual(c.res.body.reason, "disabled");
+  // a brand-new session is not checked (nothing to compare against), and a Graph failure is skipped
+  S._accountCache.clear(); global.fetch = async () => { throw new Error("network"); };
+  c = ctx();
+  s = await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - 2 * HOUR, t: now - MIN }) }));
+  assert.ok(s, "directory unreachable → session continues");
+  delete global.fetch;
+
   // 7. Cross-site writes are refused; reads are not; same-site is fine; no header is fine.
   c = ctx();
   assert.strictEqual(await S.guard(c, req({ method: "POST", headers: { origin: "https://evil.example" } })), null);

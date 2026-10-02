@@ -66,6 +66,8 @@
   function noticeHtml() {
     if (!signedOutWhy) return "";
     var msg = signedOutWhy === "age" ? t("为保护账号，登录已满最长时长，已自动退出。请重新登录。", "For your account's safety the session reached its maximum length and was signed out. Please sign in again.")
+      : signedOutWhy === "password" ? t("您的密码已更改，请用新密码重新登录。", "Your password was changed — please sign in again with the new one.")
+      : signedOutWhy === "disabled" ? t("该账号已被停用，请联系学校管理员。", "This account has been disabled — please contact your school's administrator.")
       : signedOutWhy === "user" ? t("已退出。", "Signed out.")
       : t("长时间未操作，已自动退出。请重新登录。", "Signed out after a period of inactivity. Please sign in again.");
     return '<div class="acct-notice" role="status">' + esc(msg) + '<button type="button" class="acct-notice-x" aria-label="' + esc(t("关闭", "Close")) + '">×</button></div>';

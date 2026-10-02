@@ -136,8 +136,8 @@
   try { new BroadcastChannel("fc-auth").onmessage = function (e) { if (e && e.data && e.data.kind === "out") location.replace("/"); }; } catch (e) {}
   window.addEventListener("storage", function (e) { if (e.key === "fc-auth-event" && /^out:/.test(e.newValue || "")) location.replace("/"); });
 
-  function setTitle(crumb, title, actionsHtml) {
-    $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + esc(title);
+  function setTitle(crumb, title, actionsHtml, desc) {
+    $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + '<span class="ttl">' + esc(title) + "</span>" + (desc ? '<span class="desc">' + esc(desc) + "</span>" : "");
     $("topActions").innerHTML = actionsHtml || "";
   }
   function panelOpen(html) { var p = $("panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false"); }
@@ -178,7 +178,7 @@
       return '<select data-k="' + name + '"><option value="">' + t("请选择", "Choose") + "</option>" + list.map(function (o) { return '<option value="' + esc(o) + '"' + (o === val ? " selected" : "") + ">" + esc(vl(o)) + "</option>"; }).join("") + "</select>";
     };
     var kids = (d.children || []).map(function (c, i) {
-      return '<div class="kid"><div class="kid-head"><b>' + t("孩子 ", "Child ") + (i + 1) + '</b><button class="btn ghost sm" type="button" data-rm="' + i + '">' + t("移除", "Remove") + "</button></div>" +
+      return '<div class="kid"><div class="kid-head"><b>' + t("孩子 ", "Child ") + (i + 1) + '</b><button class="btn secondary sm" type="button" data-rm="' + i + '">' + t("移除", "Remove") + "</button></div>" +
         '<div class="grid2">' +
           '<label class="f">' + t("称呼（可不填）", "Name (optional)") + '<input type="text" data-k="name" maxlength="30" value="' + esc(c.name || "") + '" /></label>' +
           '<label class="f">' + t("年龄", "Age") + '<input type="number" data-k="age" min="1" max="30" value="' + esc(c.age == null ? "" : c.age) + '" /></label>' +
@@ -191,16 +191,15 @@
         "</div></div>";
     }).join("");
     $("extraCard").innerHTML =
-      '<h3 class="sec">' + t("补充资料", "Additional information") + "</h3>" +
-      '<p class="sub">' + t("帮助蜂巢了解您的需要：最需要的帮助、孩子的情况。只有您自己和学校的管理员能看到。", "Helps Hive understand what you need: what you need most, and your children. Only you and your school's administrators can see it.") + "</p>" +
+      '<header class="ch"><h2>' + t("补充资料", "Additional information") + "</h2>" +
+      "<p>" + t("帮助蜂巢了解您的需要：最需要的帮助、孩子的情况。只有您自己和学校的管理员能看到。", "Helps Hive understand what you need: what you need most, and your children. Only you and your school's administrators can see it.") + "</p></header>" +
       '<form id="xf" autocomplete="off">' +
         '<div class="f-title">' + t("最需要的（可多选）", "What you need most (choose any)") + "</div>" +
         '<div class="chks">' + (voc.needs || []).map(function (n) { return '<label class="chk"><input type="checkbox" data-need="' + esc(n) + '"' + ((d.needs || []).indexOf(n) >= 0 ? " checked" : "") + " /> " + esc(vl(n)) + "</label>"; }).join("") + "</div>" +
         '<label class="f needs-other' + ((d.needs || []).indexOf("其它") >= 0 ? "" : " hidden") + '">' + t("其它（请填写）", "Other — please say") + '<input type="text" id="xNeedsOther" maxlength="80" value="' + esc(d.needsOther || "") + '" /></label>' +
         '<div class="f-title">' + t("我的孩子", "My children") + (hv.linked && hv.linked.length ? ' <small class="faint">' + t("已关联账号：", "Linked accounts: ") + esc(hv.linked.join(", ")) + "</small>" : "") + "</div>" +
         '<div id="kids">' + (kids || '<div class="empty">' + t("还没有添加孩子。", "No children added yet.") + "</div>") + "</div>" +
-        '<div class="actions"><button class="btn ghost" type="button" id="xAdd"' + ((d.children || []).length >= (voc.maxChildren || 8) ? " disabled" : "") + ">" + t("＋ 添加孩子", "+ Add a child") + '</button><button class="btn" type="submit" id="xSave">' + t("保存补充资料", "Save additional information") + "</button></div>" +
-        '<div id="xMsg">' + (msgHtml || "") + "</div>" +
+        '<footer class="cf"><button class="btn" type="submit" id="xSave">' + t("保存", "Save") + '</button><button class="btn secondary" type="button" id="xAdd"' + ((d.children || []).length >= (voc.maxChildren || 8) ? " disabled" : "") + ">" + t("＋ 添加孩子", "+ Add a child") + '</button><span id="xMsg">' + (msgHtml || "") + "</span></footer>" +
       "</form>";
     $("xAdd").addEventListener("click", function () { extraDraft = readExtraForm(); extraDraft.children.push({}); renderExtra(); var last = document.querySelector("#kids .kid:last-child input"); if (last) last.focus(); });
     $("kids").addEventListener("click", function (ev) {
@@ -218,64 +217,63 @@
       $("xSave").disabled = true;
       post("me/extra", "PATCH", body).then(function (r) {
         $("xSave").disabled = false;
-        if (!r.ok) { $("xMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? "<br>" + esc(r.body.problems.join("；")) : "") + "</div>"; return; }
+        if (!r.ok) { $("xMsg").innerHTML = '<span class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? " — " + esc(r.body.problems.join("；")) : "") + "</span>"; return; }
         me.hive = Object.assign({}, me.hive, { extra: r.body.extra, linked: r.body.linked || [], identity: r.body.identity || (me.hive && me.hive.identity) || "" });
         extraDraft = null;
         var names = r.body.childNames || {}, linkedNote = Object.keys(names).length ? " " + t("已关联：", "Linked: ") + Object.keys(names).map(function (a) { return (names[a] ? names[a] + " · " : "") + a; }).join("，") : "";
-        renderExtra('<div class="msg ok">' + t("已保存。", "Saved.") + esc(linkedNote) + "</div>");
+        renderExtra('<span class="msg ok">' + t("已保存。", "Saved.") + esc(linkedNote) + "</span>");
       });
     });
   }
 
   function viewAccount() {
-    setTitle(t("我的账号", "My account"), t("个人资料", "Profile"));
+    setTitle(t("我的账号", "My account"), t("个人资料", "Profile"), "", t("您的账号、资料和登录安全。", "Your account, profile and sign-in security."));
     var p = me.profile, hv = me.hive || {}, ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
     $("content").innerHTML =
-      '<div class="kpis">' +
-        '<div class="kpi"><div class="l">' + t("验证器设备", "Authenticator devices") + '</div><div class="v' + (strong ? "" : " bad") + '">' + strong + "</div></div>" +
-        '<div class="kpi"><div class="l">' + t("账号创建", "Account created") + '</div><div class="v" style="font-size:1.05rem">' + esc(day(p.created) || "—") + "</div></div>" +
-        '<div class="kpi"><div class="l">' + t("角色", "Roles") + '</div><div class="v" style="font-size:1.05rem">' + esc(roleNames(me.roles)) + "</div></div>" +
-      "</div>" +
-      '<div class="card" id="profileCard"><h2>' + t("个人资料", "Profile") + (hv.identity ? ' <span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + "</h2>" +
-        '<h3 class="sec">' + t("基本资料", "Basic information") + '</h3><p class="sub">' + t("来自您的 Microsoft 账号。空白的可以自己补充，改动会写回账号（Teams、Outlook 里同步可见）。账号、工作邮箱、职务和部门由学校设置，这里不能改。", "From your Microsoft account. Fill in what is blank; changes are written back to the account (Teams and Outlook follow). The account, work email, job title and department are set by the school and cannot be changed here.") + "</p>" +
+      // Who this is — one quiet strip instead of a row of tiles (Rick, 2026-10-02: 「无需放在顶部」).
+      '<div class="idhead"><span class="avatar lg">' + esc(initials(p.displayName || p.upn)) + '</span><div class="idmain"><div class="idname">' + esc(p.displayName || p.upn) + "</div>" +
+        '<div class="idmeta"><span>' + esc(p.upn) + "</span>" + (hv.identity ? '<span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + '<span class="tag">' + esc(roleNames(me.roles)) + "</span>" +
+        (p.created ? '<span class="muted">' + t("账号创建于 ", "Account since ") + esc(day(p.created)) + "</span>" : "") + "</div></div>" +
+        '<div class="idside">' + (strong ? '<span class="status ok">' + t("已启用验证器", "Authenticator on") + "</span>" : '<span class="status bad">' + t("未登记验证器", "No authenticator") + "</span>") + "</div></div>" +
+
+      '<section class="card" id="profileCard"><header class="ch"><h2>' + t("基本资料", "Basic information") + '</h2><p>' + t("来自您的 Microsoft 账号；空白的可以自己补充，保存后写回账号（Teams、Outlook 同步可见）。", "From your Microsoft account; fill in what is blank and it is written back (Teams and Outlook follow).") + "</p></header>" +
+        '<dl class="facts">' +
+          "<div><dt>" + t("Microsoft 账号", "Microsoft account") + "</dt><dd>" + esc(p.upn) + "</dd></div>" +
+          "<div><dt>" + t("工作邮箱", "Work email") + "</dt><dd>" + esc(p.mail || p.upn) + "</dd></div>" +
+          "<div><dt>" + t("职务 / 部门", "Job title / department") + "</dt><dd>" + (esc([p.jobTitle, p.department].filter(Boolean).join(" · ")) || '<span class="muted">' + t("由学校设置", "Set by the school") + "</span>") + "</dd></div>" +
+        '</dl><p class="hint">' + t("以上三项由学校设置，这里不能改。", "These three are set by the school and cannot be changed here.") + "</p>" +
         '<form id="pf" autocomplete="off"><div class="grid3">' +
-          // Set by the school, shown as text — not fields (Rick, 2026-10-02: 「禁止编辑 MS 账号，职务/部门」).
-          '<div class="f ro"><span>' + t("Microsoft 账号", "Microsoft account") + '</span><b>' + esc(p.upn) + "</b></div>" +
-          '<div class="f ro"><span>' + t("工作邮箱", "Work email") + '</span><b>' + esc(p.mail || p.upn) + "</b></div>" +
-          '<div class="f ro"><span>' + t("职务 / 部门", "Job title / department") + '</span><b>' + (esc([p.jobTitle, p.department].filter(Boolean).join(" · ")) || '<i class="muted">' + t("由学校设置", "Set by the school") + "</i>") + "</b></div>" +
           '<label class="f">' + t("显示名", "Display name") + '<input type="text" data-p="displayName" maxlength="64" value="' + esc(p.displayName) + '" required /></label>' +
           '<label class="f">' + t("名", "Given name") + '<input type="text" data-p="givenName" maxlength="40" value="' + esc(p.givenName) + '" /></label>' +
           '<label class="f">' + t("姓", "Surname") + '<input type="text" data-p="surname" maxlength="40" value="' + esc(p.surname) + '" /></label>' +
           '<label class="f">' + t("手机", "Mobile phone") + '<input type="tel" data-p="mobilePhone" maxlength="20" value="' + esc(p.mobilePhone) + '" placeholder="+86 138 0000 0000" /></label>' +
           '<label class="f">' + t("安全邮箱", "Safe email") + '<input type="email" data-p="safeEmail" value="' + esc(p.safeEmail) + '" placeholder="name@gmail.com" /><small>' + t("找回账号用；不能是 QQ、163 等国内免费邮箱。", "For account recovery; not QQ, 163 or other mainland free mail.") + "</small></label>" +
           '<label class="f">' + t("语言", "Language") + '<select data-p="preferredLanguage"><option value="">' + t("未设置", "Not set") + '</option><option value="zh-CN"' + (p.preferredLanguage === "zh-CN" ? " selected" : "") + '>中文</option><option value="en-US"' + (p.preferredLanguage === "en-US" ? " selected" : "") + ">English</option></select></label>" +
-          '<label class="f">' + t("街道地址", "Street address") + '<input type="text" data-p="streetAddress" maxlength="120" value="' + esc(p.streetAddress) + '" /></label>' +
+          '<label class="f span2">' + t("街道地址", "Street address") + '<input type="text" data-p="streetAddress" maxlength="120" value="' + esc(p.streetAddress) + '" /></label>' +
           '<label class="f">' + t("所在城市", "City") + '<input type="text" data-p="city" maxlength="40" value="' + esc(p.city) + '" /></label>' +
           '<label class="f">' + t("省 / 州", "State / province") + '<input type="text" data-p="state" maxlength="40" value="' + esc(p.state) + '" /></label>' +
           '<label class="f">' + t("国家 / 地区", "Country / region") + '<input type="text" data-p="country" maxlength="40" value="' + esc(p.country) + '" /></label>' +
           '<label class="f">' + t("邮编", "Postcode") + '<input type="text" data-p="postalCode" maxlength="12" value="' + esc(p.postalCode) + '" /></label>' +
-        '</div><div class="actions"><button class="btn" type="submit" id="pSave">' + t("保存基本资料", "Save basic information") + '</button></div><div id="pMsg"></div></form>' +
-        '<div id="extraCard"></div></div>' +
-      '<div class="card"><h2>' + t("密码", "Password") + '</h2><p class="sub">' + t("两项都在微软自己的页面完成。改完后所有设备会退出一次登录，请先把装验证器的手机准备好。", "Both open Microsoft's own pages. Afterwards every device signs you out once — have the authenticator phone ready.") + "</p>" +
-        '<div class="tiles"><a class="tile" href="https://mysignins.microsoft.com/security-info/password/change" target="_blank" rel="noopener"><b>' + t("修改密码 ↗", "Change password ↗") + "</b><span>" + t("记得现在的密码，想换一个。", "You know the current password.") + '</span></a>' +
-        '<a class="tile" href="https://passwordreset.microsoftonline.com" target="_blank" rel="noopener"><b>' + t("忘记密码 ↗", "Forgot password ↗") + "</b><span>" + t("用 Authenticator 里的 6 位验证码自己重置。", "Reset it with the six-digit code in Authenticator.") + "</span></a></div></div>" +
-      '<div class="card"><h2>' + t("验证器和登录方式", "Authenticator and sign-in methods") + ' <span class="n">' + ms.length + "</span></h2>" +
-        '<p class="sub">' + t("每一台能批准您登录的手机或安全密钥。不再使用的，请删除。", "Each phone or security key that can approve your sign-ins. Remove any you no longer have.") + "</p>" +
+        '</div><footer class="cf"><button class="btn" type="submit" id="pSave">' + t("保存", "Save") + '</button><span id="pMsg"></span></footer></form></section>' +
+
+      '<section class="card" id="extraCard"></section>' +
+
+      '<section class="card"><header class="ch"><h2>' + t("登录与安全", "Sign-in and security") + '</h2><p>' + t("密码在微软的页面修改；验证器是每一台能批准您登录的手机或安全密钥。", "Passwords are changed on Microsoft's page; authenticators are the phones or security keys that approve your sign-ins.") + "</p></header>" +
+        '<div class="row"><div class="rowmain"><b>' + t("密码", "Password") + '</b><small>' + t("修改后所有设备会退出一次登录，请先把装验证器的手机准备好。", "After a change every device signs you out once — have the authenticator phone ready.") + '</small></div><a class="btn secondary" href="https://mysignins.microsoft.com/security-info/password/change" target="_blank" rel="noopener">' + t("修改密码 ↗", "Change password ↗") + "</a></div>" +
+        '<div class="rowhead">' + t("验证器", "Authenticators") + ' <span class="n">' + ms.length + "</span></div>" +
         '<div id="methods">' + (ms.length ? ms.map(function (m) {
           var k = KIND[m.kind] || [m.kind, m.kind];
           var last = m.strong && strong <= 1;
-          return '<div class="devrow"><span class="avatar">' + (m.kind === "fido2" ? "⚿" : "A") + '</span><div class="m"><b>' + esc(m.name || k[EN ? 1 : 0]) + '</b> <span class="tag accent">' + esc(k[EN ? 1 : 0]) + "</span>" + (m.detail ? "<small>" + esc(m.detail) + "</small>" : "") + (m.created ? "<small>" + t("添加于 ", "Added ") + esc(day(m.created)) + "</small>" : "") + "</div>" +
+          return '<div class="row"><span class="avatar">' + (m.kind === "fido2" ? "⚿" : "A") + '</span><div class="rowmain"><b>' + esc(m.name || k[EN ? 1 : 0]) + '</b><small>' + esc(k[EN ? 1 : 0]) + (m.detail ? " · " + esc(m.detail) : "") + (m.created ? " · " + t("添加于 ", "added ") + esc(day(m.created)) : "") + "</small></div>" +
             (m.removable ? (last ? '<span class="tag warn">' + t("唯一的验证器", "Only authenticator") + "</span>" : '<button class="btn danger sm" type="button" data-del="' + esc(m.id) + '" data-name="' + esc(m.name || k[EN ? 1 : 0]) + '">' + t("删除", "Delete") + "</button>") : "") + "</div>";
         }).join("") : '<div class="empty">' + t("没有登记任何验证方式。", "No sign-in methods registered.") + "</div>") + "</div>" +
-        '<div class="note">' + t("<b>换手机？</b>先在微软的<a href='https://mysignins.microsoft.com/security-info' target='_blank' rel='noopener'>「安全信息」↗</a>页面添加新手机，再回到这里删除旧手机。", "<b>Changing phones?</b> Add the new phone on Microsoft's <a href='https://mysignins.microsoft.com/security-info' target='_blank' rel='noopener'>Security info ↗</a> page first, then delete the old one here.") + '</div><div id="mMsg"></div></div>' +
-      '<div class="card"><h2>' + t("登录记录和账号变动", "Sign-ins and account changes") + '</h2><p class="sub">' + t("最近 7 天微软记录的登录和账号变动，下载为文件；页面上不显示。", "The last 7 days of Microsoft's sign-in and audit records, as a file; nothing is shown on the page.") + "</p>" +
-        '<div class="actions">' +
-          '<a class="btn ghost" href="/api/me/export?kind=signins&format=csv" download>' + ICON.down + t("登录记录 CSV", "Sign-ins CSV") + "</a>" +
-          '<a class="btn ghost" href="/api/me/export?kind=signins&format=json" download>' + ICON.down + t("登录记录 JSON", "Sign-ins JSON") + "</a>" +
-          '<a class="btn ghost" href="/api/me/export?kind=audits&format=csv" download>' + ICON.down + t("账号变动 CSV", "Account changes CSV") + "</a>" +
-          '<a class="btn ghost" href="/api/me/export?kind=audits&format=json" download>' + ICON.down + t("账号变动 JSON", "Account changes JSON") + "</a>" +
-        "</div></div>";
+        '<p class="hint">' + t("<b>换手机？</b>先在微软的<a href='https://mysignins.microsoft.com/security-info' target='_blank' rel='noopener'>「安全信息」↗</a>页面添加新手机，再回到这里删除旧手机。", "<b>Changing phones?</b> Add the new phone on Microsoft's <a href='https://mysignins.microsoft.com/security-info' target='_blank' rel='noopener'>Security info ↗</a> page first, then delete the old one here.") + '</p><div id="mMsg"></div></section>' +
+
+      '<section class="card"><header class="ch"><h2>' + t("记录导出", "Export records") + '</h2><p>' + t("最近 7 天微软记录的登录和账号变动，下载为文件；页面上不显示。", "The last 7 days of Microsoft's sign-in and audit records, as a file; nothing is shown on the page.") + "</p></header>" +
+        '<div class="row"><div class="rowmain"><b>' + t("登录记录", "Sign-ins") + '</b><small>' + t("每次登录的时间、应用、地点、结果", "Time, app, place and result of each sign-in") + '</small></div><div class="btns"><a class="btn secondary sm" href="/api/me/export?kind=signins&format=csv" download>CSV</a><a class="btn secondary sm" href="/api/me/export?kind=signins&format=json" download>JSON</a></div></div>' +
+        '<div class="row"><div class="rowmain"><b>' + t("账号变动", "Account changes") + '</b><small>' + t("密码、验证器、资料的变更", "Changes to password, authenticators and profile") + '</small></div><div class="btns"><a class="btn secondary sm" href="/api/me/export?kind=audits&format=csv" download>CSV</a><a class="btn secondary sm" href="/api/me/export?kind=audits&format=json" download>JSON</a></div></div>' +
+      "</section>";
 
     renderExtra();
     $("pf").addEventListener("submit", function (ev) {
@@ -286,14 +284,14 @@
         var cur = p[k] || "";
         if (k === "safeEmail" ? v.toLowerCase() !== cur.toLowerCase() : v !== cur) body[k] = v;
       });
-      if (!Object.keys(body).length) { $("pMsg").innerHTML = '<div class="msg ok">' + t("没有改动。", "Nothing changed.") + "</div>"; return; }
+      if (!Object.keys(body).length) { $("pMsg").innerHTML = '<span class="msg ok">' + t("没有改动。", "Nothing changed.") + "</span>"; return; }
       $("pSave").disabled = true;
       post("me/profile", "PATCH", body).then(function (r) {
         $("pSave").disabled = false;
-        if (!r.ok) { $("pMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? "<br>" + esc(r.body.problems.join("；")) : "") + "</div>"; return; }
+        if (!r.ok) { $("pMsg").innerHTML = '<span class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? " — " + esc(r.body.problems.join("；")) : "") + "</span>"; return; }
         Object.keys(body).forEach(function (k) { p[k] = vals[k]; });
         foot();
-        $("pMsg").innerHTML = '<div class="msg ok">' + t("已保存。Teams 里的显示名可能要几分钟才更新。", "Saved. Teams may take a few minutes to show the new name.") + "</div>";
+        $("pMsg").innerHTML = '<span class="msg ok">' + t("已保存。Teams 里的显示名可能要几分钟才更新。", "Saved. Teams may take a few minutes to show the new name.") + "</span>";
       });
     });
     $("methods").addEventListener("click", function (ev) {
@@ -339,7 +337,7 @@
       (g.owner ? '<span class="trole">' + t("所有者", "Owner") + "</span>" : '<span class="trole muted">' + t("成员", "Member") + "</span>") + "</div>";
   }
   function viewTeams() {
-    setTitle(t("我的账号", "My account"), t("我的 Teams", "My Teams"));
+    setTitle(t("我的账号", "My account"), t("我的 Teams", "My Teams"), "", t("您所在的团队和群组。", "The teams and groups you belong to."));
     $("content").innerHTML =
       '<div class="toolbar" id="tbar">' +
         '<button class="chip" data-f="all" aria-pressed="true">' + t("全部", "All") + "</button>" +
@@ -434,12 +432,12 @@
   }
   function syncButtons(id) {
     var d = ((domainsInfo && domainsInfo.domains) || []).filter(function (x) { return x.domain === currentDomain; })[0];
-    return '<button class="btn ghost sm" id="' + id + 'New" title="' + esc(t("读取上次同步之后目录里的增、删、改", "Read what was created, changed or deleted in the directory since the last sync")) + '">' + t("同步变动", "Sync changes") + "</button>" +
-      (d && d.can && d.can.full ? ' <button class="btn ghost sm" id="' + id + 'Full">' + t("完整同步", "Full sync") + "</button>" : "");
+    return '<button class="btn secondary sm" id="' + id + 'New" title="' + esc(t("读取上次同步之后目录里的增、删、改", "Read what was created, changed or deleted in the directory since the last sync")) + '">' + t("同步变动", "Sync changes") + "</button>" +
+      (d && d.can && d.can.full ? ' <button class="btn secondary sm" id="' + id + 'Full">' + t("完整同步", "Full sync") + "</button>" : "");
   }
   function viewUsers() {
     setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("用户", "Users"),
-      syncButtons("us") + ' <button class="btn ghost sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
+      syncButtons("us") + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel") +
         '<button class="chip" data-f="all" aria-pressed="' + (state.userFilter === "all") + '">' + t("全部", "All") + "</button>" +
@@ -649,7 +647,7 @@
       }).join("");
       return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(g.name)) + '</span><div class="tmain"><div class="tname">' + hl(g.name, q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
         '<div class="members hidden">' + (members || '<div class="muted" style="font-size:.84rem">' + t("本域没有成员。", "No members from this domain.") + "</div>") + '<div class="muted" style="font-size:.78rem;margin-top:6px">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</div></div>" +
-        '</div><div class="gact"><button class="btn ghost sm" type="button" data-members="1">' + t("查看成员", "View members") + "</button></div></div>";
+        '</div><div class="gact"><button class="btn secondary sm" type="button" data-members="1">' + t("查看成员", "View members") + "</button></div></div>";
     }).join("") : '<div class="empty">' + t("没有群组。", "No groups.") + "</div>";
   }
 
@@ -657,11 +655,11 @@
   // 系统 › 角色分配 / 数据同步
   // ================================================================================
   function viewRoles() {
-    setTitle(t("系统", "System"), t("角色分配", "Roles"));
+    setTitle(t("系统", "System"), t("角色分配", "Roles"), "", t("谁可以管理哪所学校。", "Who manages which school."));
     var doms = (domainsInfo && domainsInfo.domains) || [];
     var domOpts = doms.map(function (d) { return '<label class="chk"><input type="checkbox" data-dom="' + esc(d.domain) + '" /> ' + esc(d.domain) + "</label>"; }).join("");
     $("content").innerHTML =
-      '<div class="card"><h2>' + t("角色分配", "Roles") + '</h2><p class="sub">' +
+      '<div class="card"><p class="sub">' +
         t("普通用户无需分配。域管理员（IT）管本域账号的登录设备；域蜂巢管理员管本域账号的身份、关联和资料；Staff 是蜂巢员工，按职能分，能看所有学校；系统管理员拥有全部权限。域角色和 Staff 立即生效；系统管理员在对方下次登录后生效。",
           "Ordinary users need no role. Domain administrator (IT): the domain's sign-in devices. Domain Hive administrator: the domain's 身份, links and profiles. Staff: Hive's own people by function, across every school. System administrator: everything. Domain roles and Staff work at once; System administrator takes effect at the person's next sign-in.") + "</p>" +
         '<table class="roles" id="rtable"><thead><tr><th>' + t("账号", "Account") + "</th><th>" + t("角色", "Roles") + "</th><th>" + t("授予", "By") + '</th><th></th></tr></thead><tbody><tr><td colspan="4" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table>" +
@@ -672,7 +670,7 @@
           '<div class="chks" id="rdoms">' + domOpts + '<label class="chk">' + t("其它域：", "Other domain: ") + '<input type="text" id="rdomOther" placeholder="school.edu" style="width:180px" /></label></div>' +
           '<div class="f-title">Staff</div>' +
           '<div class="grid2"><label class="f">' + t("蜂巢员工职能", "Hive staff function") + '<select id="rStaff"><option value="">' + t("不是员工", "Not staff") + "</option>" + Object.keys(STAFF_FN).map(function (k) { return '<option value="' + k + '">' + esc(STAFF_FN[k][EN ? 1 : 0]) + "</option>"; }).join("") + "</select></label></div>" +
-          '<div class="actions"><button class="btn" type="submit">' + t("保存角色", "Save roles") + '</button><button class="btn ghost" type="button" id="rClear">' + t("清空表单", "Clear") + "</button></div></form><div id=\"rmsg\"></div></div>";
+          '<div class="actions"><button class="btn" type="submit">' + t("保存角色", "Save roles") + '</button><button class="btn secondary" type="button" id="rClear">' + t("清空表单", "Clear") + "</button></div></form><div id=\"rmsg\"></div></div>";
     function render(entries) {
       var tb = $("rtable").tBodies[0];
       tb.innerHTML = entries.length ? entries.map(function (e) {
@@ -723,11 +721,11 @@
     });
   }
   function viewSync() {
-    setTitle(t("系统", "System"), t("数据同步", "Data sync"));
+    setTitle(t("系统", "System"), t("数据同步", "Data sync"), "", t("把 Airtable 里的课程数据发布到网站。", "Publish the course data from Airtable to the site."));
     $("content").innerHTML =
       '<div class="card"><h2>' + t("课程数据同步", "Course data sync") + '</h2><p class="sub">' + t("网站数据不会自动更新。点击按钮从 Airtable 拉取最新的毕业路径与课程数据并发布到网站。", "Site data does not update automatically. Pull the latest tracks and courses from Airtable and publish them.") + "</p>" +
         '<div class="kpis"><div class="kpi"><div class="l">' + t("上次同步", "Last synced") + '</div><div class="v" style="font-size:1rem" id="sLast">—</div></div><div class="kpi"><div class="l">' + t("毕业路径", "Tracks") + '</div><div class="v" id="sT">—</div></div><div class="kpi"><div class="l">' + t("课程", "Courses") + '</div><div class="v" id="sC">—</div></div><div class="kpi"><div class="l">' + t("学科", "Subjects") + '</div><div class="v" id="sS">—</div></div></div>' +
-        '<div class="actions"><button class="btn" id="syncBtn" type="button">' + t("立即从 Airtable 同步", "Sync from Airtable now") + '</button><a class="btn ghost" href="/" target="_blank" rel="noopener">' + t("查看网站 ↗", "View site ↗") + '</a></div><div id="sMsg"></div></div>';
+        '<div class="actions"><button class="btn" id="syncBtn" type="button">' + t("立即从 Airtable 同步", "Sync from Airtable now") + '</button><a class="btn secondary" href="/" target="_blank" rel="noopener">' + t("查看网站 ↗", "View site ↗") + '</a></div><div id="sMsg"></div></div>';
     function status() {
       fetch("/api/data").then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
         $("sLast").textContent = d.generatedAt ? when(d.generatedAt) : "—"; var c = d.counts || {};
