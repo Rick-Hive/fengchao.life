@@ -274,7 +274,8 @@
     var p = me.profile, hv = me.hive || {}, ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
     var canName = !!hv.canEditName;
-    var dept = [p.jobTitle, (EN ? (hv.institutionEn || hv.institution) : (hv.institution || hv.institutionEn)) || p.department].filter(Boolean).join(" · ");
+    var instNames = (EN ? [hv.institutionEn, hv.institution] : [hv.institution, hv.institutionEn]).filter(function (x, i, arr) { return x && arr.indexOf(x) === i; }).join(" / ");
+    var dept = [p.jobTitle, instNames || p.department].filter(Boolean).join(" · ");
     $("content").innerHTML =
       '<div class="idhead"><span class="avatar lg">' + esc(initials(p.displayName || p.upn)) + '</span><div class="idmain"><div class="idname">' + esc(p.displayName || p.upn) + "</div>" +
         '<div class="idmeta"><span>' + esc(p.upn) + "</span>" + (hv.identity ? '<span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + '<span class="tag">' + esc(roleNames(me.roles)) + "</span>" +
@@ -491,7 +492,12 @@
   // A school is shown by the name the system administrator gave it (系统 › 机构名称);
   // the domain itself is shown only to the system administrator (Rick, 2026-10-02).
   function dinfo(domain) { return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return d.domain === domain; })[0] || null; }
-  function dname(domain) { var d = dinfo(domain); return (d && (EN ? (d.nameEn || d.name) : (d.name || d.nameEn))) || domain; }
+  // Both names, the page's language first (Rick, 2026-10-03: 「机构名字仅显示 site language」 — show both).
+  function dname(domain) {
+    var d = dinfo(domain); if (!d) return domain;
+    var a = EN ? d.nameEn : d.name, b = EN ? d.name : d.nameEn;
+    return [a, b].filter(function (x, i, arr) { return x && arr.indexOf(x) === i; }).join(" / ") || domain;
+  }
   function dlabel(domain) { // name, plus the domain for the administrator when they differ
     var n = dname(domain);
     return esc(n) + (domainsInfo && domainsInfo.showDomains && n !== domain ? ' <span class="muted">' + esc(domain) + "</span>" : "");
@@ -878,7 +884,7 @@
     });
   }
   function viewInstitutions() {
-    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面按语言显示其一。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English school name; the page shows the one of its language. Everyone but the system administrator sees only the name."));
+    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面同时显示两个名称，当前语言的在前。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English school name; both are shown, the page's language first. Everyone but the system administrator sees only the names."));
     var ds = (domainsInfo && domainsInfo.domains) || [];
     $("content").innerHTML =
       '<div class="card"><table class="roles inst" id="itable"><thead><tr><th>' + t("域名", "Domain") + "</th><th>" + t("中文名称", "Chinese name") + "</th><th>" + t("英文名称", "English name") + "</th><th></th></tr></thead><tbody>" +
@@ -892,13 +898,15 @@
       var b = ev.target.closest("button"); if (!b) return;
       var tr = b.closest("tr"), domain = tr.getAttribute("data-domain");
       var name = tr.querySelector("input[data-n=zh]").value.trim(), nameEn = tr.querySelector("input[data-n=en]").value.trim();
-      b.disabled = true;
+      // The button itself answers (Rick, 2026-10-03: 「点击保存没有反应」): 保存中… → 已保存 ✓.
+      var label = b.textContent; b.disabled = true; b.textContent = t("保存中…", "Saving…"); $("imsg").innerHTML = "";
       post("domain/institution", "PUT", { domain: domain, name: name, nameEn: nameEn }).then(function (r) {
         b.disabled = false;
-        if (!r.ok) { $("imsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        if (!r.ok) { b.textContent = label; $("imsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         var d = dinfo(domain); if (d) { d.name = name; d.nameEn = nameEn; }
+        b.textContent = t("已保存 ✓", "Saved ✓"); setTimeout(function () { b.textContent = label; }, 2500);
         $("imsg").innerHTML = '<div class="msg ok">' + t("已保存：", "Saved: ") + esc(domain) + (name || nameEn ? " → " + esc([name, nameEn].filter(Boolean).join(" / ")) : t("（已清除名称）", " (names cleared)")) + "</div>";
-      });
+      }).catch(function (e) { b.disabled = false; b.textContent = label; $("imsg").innerHTML = '<div class="msg err">' + esc(String(e)) + "</div>"; });
     });
   }
   function viewSync() {
