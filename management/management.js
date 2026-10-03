@@ -274,8 +274,7 @@
     var p = me.profile, hv = me.hive || {}, ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
     var canName = !!hv.canEditName;
-    var instNames = (EN ? [hv.institutionEn, hv.institution] : [hv.institution, hv.institutionEn]).filter(function (x, i, arr) { return x && arr.indexOf(x) === i; }).join(" / ");
-    var dept = [p.jobTitle, instNames || p.department].filter(Boolean).join(" · ");
+    var dept = [p.jobTitle, pickName(hv.institution, hv.institutionEn) || p.department].filter(Boolean).join(" · ");
     $("content").innerHTML =
       '<div class="idhead"><span class="avatar lg">' + esc(initials(p.displayName || p.upn)) + '</span><div class="idmain"><div class="idname">' + esc(p.displayName || p.upn) + "</div>" +
         '<div class="idmeta"><span>' + esc(p.upn) + "</span>" + (hv.identity ? '<span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + '<span class="tag">' + esc(roleNames(me.roles)) + "</span>" +
@@ -492,11 +491,12 @@
   // A school is shown by the name the system administrator gave it (系统 › 机构名称);
   // the domain itself is shown only to the system administrator (Rick, 2026-10-02).
   function dinfo(domain) { return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return d.domain === domain; })[0] || null; }
-  // Both names, the page's language first (Rick, 2026-10-03: 「机构名字仅显示 site language」 — show both).
+  // One name, in the page's language (Rick, 2026-10-03: 「中文语言下，仅显示中文即可」);
+  // the other language's name only when this one has not been entered, then the domain.
+  function pickName(zh, en) { return (EN ? (en || zh) : (zh || en)) || ""; }
   function dname(domain) {
     var d = dinfo(domain); if (!d) return domain;
-    var a = EN ? d.nameEn : d.name, b = EN ? d.name : d.nameEn;
-    return [a, b].filter(function (x, i, arr) { return x && arr.indexOf(x) === i; }).join(" / ") || domain;
+    return pickName(d.name, d.nameEn) || domain;
   }
   function dlabel(domain) { // name, plus the domain for the administrator when they differ
     var n = dname(domain);
@@ -884,7 +884,7 @@
     });
   }
   function viewInstitutions() {
-    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面同时显示两个名称，当前语言的在前。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English school name; both are shown, the page's language first. Everyone but the system administrator sees only the names."));
+    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面按语言显示其一（缺少时显示另一个）。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English school name; the page shows the one of its language (the other if that is missing). Everyone but the system administrator sees only the names."));
     var ds = (domainsInfo && domainsInfo.domains) || [];
     $("content").innerHTML =
       '<div class="card"><table class="roles inst" id="itable"><thead><tr><th>' + t("域名", "Domain") + "</th><th>" + t("中文名称", "Chinese name") + "</th><th>" + t("英文名称", "English name") + "</th><th></th></tr></thead><tbody>" +

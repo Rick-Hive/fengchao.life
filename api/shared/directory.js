@@ -389,9 +389,18 @@ function status(doc, added, removed) {
 }
 
 // The tenant's verified domains (cheap, one call).
-async function verifiedDomains() {
+// The tenant's own initial domain (learnqiaoliang.onmicrosoft.com — isInitial) is hidden:
+// nobody manages schools there (Rick, 2026-10-03: 「隐藏 Learn.qiaoliang」), so it is
+// neither listed nor walked by the nightly sync. HIVE_HIDDEN_DOMAINS (comma list)
+// hides more; { includeHidden: true } returns everything.
+async function verifiedDomains(opts) {
   const all = await list("/domains?$select=id,isVerified,isDefault,isInitial", 200);
-  return all.filter((d) => d.isVerified).map((d) => ({ domain: String(d.id).toLowerCase(), isDefault: !!d.isDefault, isInitial: !!d.isInitial }));
+  const hidden = new Set(String(process.env.HIVE_HIDDEN_DOMAINS || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean));
+  const keepHidden = !!(opts && opts.includeHidden);
+  return all
+    .filter((d) => d.isVerified)
+    .map((d) => ({ domain: String(d.id).toLowerCase(), isDefault: !!d.isDefault, isInitial: !!d.isInitial }))
+    .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
 module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, verifiedDomains, listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };

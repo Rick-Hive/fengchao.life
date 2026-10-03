@@ -65,6 +65,7 @@ global.fetch = async function (url, opts) {
     { id: DOMAIN, isVerified: true, isDefault: true, isInitial: false },
     { id: "other.example.edu", isVerified: true, isDefault: false, isInitial: false },
     { id: "pending.example.edu", isVerified: false },
+    { id: "tenant.onmicrosoft.com", isVerified: true, isDefault: false, isInitial: true }, // hidden: the tenant's own domain
   ] });
   if (method === "GET" && p === "/users") {
     const f = u.searchParams.get("$filter") || "";
@@ -153,7 +154,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   // 3. The Hive admin sees every verified domain.
   r = await call({ action: "domains", user: ADMIN });
   assert.strictEqual(r.status, 200);
-  assert.deepStrictEqual(r.body.domains.map((d) => d.domain), [DOMAIN, "other.example.edu"]);
+  assert.deepStrictEqual(r.body.domains.map((d) => d.domain), [DOMAIN, "other.example.edu"], "the initial *.onmicrosoft.com domain is hidden");
   assert.strictEqual(r.body.all, true);
 
   // 4. Another domain is refused; a malformed one is 400.
