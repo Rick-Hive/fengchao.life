@@ -139,9 +139,7 @@
         "<small>" + t("结束当前会话，到微软的账号列表选另一个账号登录。", "Ends this session and takes you to Microsoft's account list to sign in as another account.") + "</small></button>" +
       (others.length ? '<div class="hd">' + t("我的其他账号", "My other accounts") + "</div>" + others.map(function (a) {
         return '<button type="button" class="mi" role="menuitem" data-switch="' + esc(a) + '" title="' + esc(a) + '">' + esc(a) + "</button>";
-      }).join("") : "") +
-      '<button type="button" class="mi ms" role="menuitem" data-mslogout="1">' + t("公用电脑？退出并在微软退出此账号", "Shared computer? Sign out here and at Microsoft") +
-        "<small>" + t("结束会话，并让微软忘掉这台浏览器上的该账号。", "Ends the session and makes Microsoft forget this account in this browser.") + "</small></button>";
+      }).join("") : "");
   }
   function menuOpen(open) {
     $("fMenu").hidden = !open;
@@ -183,28 +181,9 @@
   function microsoftLogoutUrl(upn) {
     return "https://login.microsoftonline.com/common/oauth2/v2.0/logout" + (upn ? "?logout_hint=" + encodeURIComponent(upn) : "");
   }
-  // 公用电脑？退出并在微软退出此账号: end Hive's session (the same as 退出), tell
-  // the other tabs, then /.auth/logout — it clears the platform cookie (so the
-  // next person at this browser cannot be handed this account by
-  // /.auth/login/aad) and visits Microsoft's sign-out — and come back to the
-  // homepage signed out. (Rick, 2026-10-03: the first version only opened
-  // Microsoft's sign-out in a new tab and left Hive's session alone, so the
-  // management center was still open afterwards.)
-  function publicSignOut() {
-    menuOpen(false);
-    $("fWho").disabled = true; $("fOut").disabled = true;
-    try { sessionStorage.setItem("fc-signedout", "user"); localStorage.removeItem("fc-last-active"); } catch (e) {}
-    window.__fcLeaving = true;
-    return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
-      try { new BroadcastChannel("fc-auth").postMessage({ kind: "out", at: Date.now() }); } catch (e) {}
-      try { localStorage.setItem("fc-auth-event", "out:" + Date.now()); } catch (e) {}
-      location.replace(platformLogout("/"));
-    });
-  }
   $("fMenu").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-switch]");
     if (b) return switchAccount(b.getAttribute("data-switch"));
-    if (e.target.closest("button[data-mslogout]")) return publicSignOut();
   });
   // After a switch: did we come back as a different account?
   function afterSwitch() {
