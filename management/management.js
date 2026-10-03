@@ -124,13 +124,91 @@
     return !!(d && d.can && d.can[what]);
   }
   function foot() {
-    var p = me && me.profile;
-    $("fAvatar").textContent = initials(p ? p.displayName || p.upn : "?");
-    $("fName").textContent = p ? (p.displayName || p.upn) : t("未登录", "Signed out");
-    $("fUpn").textContent = p ? p.upn : "";
+    var p = me && me.profile, upn = p ? p.upn || "" : "";
+    $("fAvatar").textContent = initials(p ? p.displayName || upn : "?");
+    $("fName").textContent = p ? (p.displayName || upn) : t("未登录", "Signed out");
+    $("fUpn").textContent = upn;
+    $("fWho").title = t("账号", "Account");
+    // The other Office 365 accounts the person listed in 补充资料, minus the one in use.
+    var others = ((me && me.hive && me.hive.extra && me.hive.extra.otherAccounts) || []).filter(function (a) {
+      return a && String(a).toLowerCase() !== upn.toLowerCase();
+    });
+    $("fMenu").innerHTML =
+      '<div class="cur"><b>' + esc(p ? p.displayName || upn : "") + "</b><span>" + esc(upn) + "</span></div>" +
+      '<button type="button" class="mi" role="menuitem" data-switch="">' + t("切换账号", "Switch account") +
+        "<small>" + t("结束当前会话，在微软的账号列表里选另一个账号登录。", "Ends this session and lets you pick another account in Microsoft's list.") + "</small></button>" +
+      (others.length ? '<div class="hd">' + t("我的其他账号", "My other accounts") + "</div>" + others.map(function (a) {
+        return '<button type="button" class="mi" role="menuitem" data-switch="' + esc(a) + '" title="' + esc(a) + '">' + esc(a) + "</button>";
+      }).join("") : "") +
+      '<button type="button" class="mi ms" role="menuitem" data-mslogout="1">' + t("公用电脑？同时在微软退出此账号", "Shared computer? Also sign this account out at Microsoft") + "</button>";
   }
-  // 退出: Hive's session and the Microsoft account in this browser, with no questions
-  // asked (assets/session-guard.js, loaded before this file).
+  function menuOpen(open) {
+    $("fMenu").hidden = !open;
+    $("fWho").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  $("fWho").addEventListener("click", function () { menuOpen($("fMenu").hidden); });
+  document.addEventListener("click", function (e) { if (!$("foot").contains(e.target) && !$("fMenu").hidden) menuOpen(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("fMenu").hidden) { menuOpen(false); $("fWho").focus(); } });
+  // 切换账号: end Hive's session (the Microsoft sessions in this browser stay), then go
+  // to the sign-in in this same tab — Microsoft shows its account list
+  // (prompt=select_account in staticwebapp.config.json), the person picks one, and
+  // the management center loads again as that account. Only one account can be
+  // signed in at a time (one platform cookie), so a switch is always sign-out + sign-in.
+  // The intended account is remembered so loadMe can say if Microsoft handed the same
+  // account straight back (browser single sign-on skipping the list).
+  function switchAccount(to) {
+    var from = (me && me.profile && me.profile.upn) || "";
+    menuOpen(false);
+    $("fWho").disabled = true; $("fOut").disabled = true;
+    try { sessionStorage.setItem("fc-switch", JSON.stringify({ from: from, to: to || "", at: Date.now() })); localStorage.removeItem("fc-last-active"); } catch (e) {}
+    window.__fcLeaving = true;
+    return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
+      try { new BroadcastChannel("fc-auth").postMessage({ kind: "out", at: Date.now() }); } catch (e) {}
+      try { localStorage.setItem("fc-auth-event", "out:" + Date.now()); } catch (e) {}
+      location.replace("/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1"));
+    });
+  }
+  // Microsoft's own sign-out for this account, in a new tab (logout_hint skips the
+  // "which account" page); Hive's session is not touched here.
+  function microsoftLogoutUrl(upn) {
+    return "https://login.microsoftonline.com/common/oauth2/v2.0/logout" + (upn ? "?logout_hint=" + encodeURIComponent(upn) : "");
+  }
+  $("fMenu").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-switch]");
+    if (b) return switchAccount(b.getAttribute("data-switch"));
+    if (e.target.closest("button[data-mslogout]")) {
+      menuOpen(false);
+      window.open(microsoftLogoutUrl((me && me.profile && me.profile.upn) || ""), "_blank", "noopener");
+    }
+  });
+  // After a switch: did we come back as a different account?
+  function afterSwitch() {
+    var sw = null;
+    try { sw = JSON.parse(sessionStorage.getItem("fc-switch") || "null"); sessionStorage.removeItem("fc-switch"); } catch (e) { sw = null; }
+    if (!sw || !me || !me.profile || Date.now() - Number(sw.at || 0) > 15 * 60 * 1000) return;
+    var now = me.profile.upn || "", same = sw.from && now.toLowerCase() === String(sw.from).toLowerCase();
+    var wrong = !same && sw.to && now.toLowerCase() !== String(sw.to).toLowerCase();
+    if (same) {
+      flash(t("微软没有显示账号列表，直接以原账号 ", "Microsoft skipped its account list and signed in the same account, ") + "<b>" + esc(now) + "</b>" +
+        t(" 登录了（通常是浏览器的单点登录造成的）。要换账号，请先 ", " again (usually browser single sign-on). To switch, first ") +
+        '<a href="' + esc(microsoftLogoutUrl(now)) + '" target="_blank" rel="noopener">' + t("在微软退出该账号", "sign that account out at Microsoft") + "</a>" +
+        t("，再点「切换账号」。", ", then use Switch account again."));
+    } else if (wrong) {
+      flash(t("已切换为 ", "Switched to ") + "<b>" + esc(now) + "</b>" + t("（不是你选的 ", " (not the ") + esc(sw.to) + t("）。", " you chose)."));
+    } else {
+      flash(t("已切换为 ", "Switched to ") + "<b>" + esc(now) + "</b>" + t("。", "."), 4000);
+    }
+  }
+  function flash(html, ms) {
+    var f = $("flash");
+    f.innerHTML = '<span class="txt">' + html + '</span><button type="button" class="x" aria-label="' + t("关闭", "Close") + '">×</button>';
+    f.hidden = false;
+    clearTimeout(flash.timer);
+    if (ms) flash.timer = setTimeout(function () { f.hidden = true; }, ms);
+  }
+  $("flash").addEventListener("click", function (e) { if (e.target.closest(".x")) $("flash").hidden = true; });
+  // 退出: Hive's session only; the Microsoft sessions in this browser stay, so the next
+  // 登录 shows Microsoft's account list (assets/session-guard.js, loaded before this file).
   $("fOut").addEventListener("click", function () {
     $("fOut").disabled = true;
     if (window.fcSession) window.fcSession.signOut("user");
@@ -971,7 +1049,7 @@
   function loadMe() {
     return api("me/summary").then(function (r) {
       if (!r.ok) throw r;
-      me = r.body; foot();
+      me = r.body; foot(); afterSwitch();
       // Just arrived from the sign-in tab: tell the other tabs, once, and take the marker out of the address.
       if (/[?&]signedin=1\b/.test(location.search)) {
         try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])signedin=1&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
