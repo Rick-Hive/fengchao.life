@@ -12,9 +12,9 @@
 //
 // 退出登录 ends Hive's session (POST /api/logout — the server marks this
 // sign-in as over, because the platform does not let it clear its own cookie)
-// and, best effort and out of sight, signs the Microsoft account out of the
-// browser in a hidden frame (Rick, 2026-10-02: 「弹出了无需用户看到的信息」) —
-// see window.fcSession.microsoftSignOut in assets/session-guard.js.
+// and signs the Microsoft account out through Microsoft's endpoint, named with
+// logout_hint so nothing is asked, coming straight back home — see
+// window.fcSession.microsoftSignOut in assets/session-guard.js.
 //
 // Who is signed in comes from Hive's own GET /api/me/session?peek=1, never from
 // the platform's /.auth/me: after 退出 the platform still thinks the person is
@@ -131,6 +131,7 @@
   function signedOutHere() {
     principal = null;
     known = true;
+    if (window.__fcLeaving) return; // this very tab is on its way to Microsoft's sign-out
     if (PROTECTED.test(location.pathname)) location.replace("/");
     else { close(); render(); }
   }
@@ -155,35 +156,21 @@
   // ---- sign out (same flow as the management center's 退出) ----------------------
   function signOut() {
     if (window.fcSession && window.fcSession.signOut) { window.fcSession.signOut("user"); return; }
-    // Pages without session-guard.js (the course site): the same flow, inline.
+    // Pages without session-guard.js (the course site): the same flow, inline — end
+    // Hive's session, then through Microsoft's sign-out for this account (logout_hint:
+    // no picker, nothing to answer) and back home. See assets/session-guard.js.
     try { sessionStorage.setItem("fc-signedout", "user"); localStorage.removeItem("fc-last-active"); } catch (e) {}
     var hint = (principal && principal.userDetails) || "";
+    var back = location.origin + "/?signedout=user";
     fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
+      if (hint) window.__fcLeaving = true;
       announce("out");
-      principal = null; known = true; close(); signedOutWhy = "user"; render();
-      hiddenMicrosoftSignOut(hint, function () { if (PROTECTED.test(location.pathname)) location.replace("/?signedout=user"); });
+      principal = null; known = true; close();
+      if (hint) location.replace("https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout?post_logout_redirect_uri=" + encodeURIComponent(back) + "&logout_hint=" + encodeURIComponent(hint));
+      else if (PROTECTED.test(location.pathname)) location.replace("/?signedout=user");
+      else { signedOutWhy = "user"; render(); }
     });
   }
-  // Microsoft, best effort and unseen: a hidden frame asks login.microsoftonline.com
-  // to end the browser's session for this account, then `done` runs (after the
-  // frame has loaded, or 3 s). If Microsoft refuses to be framed, or the browser
-  // keeps its cookies from the frame, nothing happens — Hive's session is over
-  // either way, and the next 登录 asks for the password regardless (prompt=login).
-  function hiddenMicrosoftSignOut(hint, done) {
-    var called = false;
-    function finish() { if (called) return; called = true; if (done) done(); }
-    try {
-      var f = document.createElement("iframe");
-      f.setAttribute("aria-hidden", "true"); f.tabIndex = -1;
-      f.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
-      f.onload = f.onerror = function () { setTimeout(finish, 300); };
-      f.src = "https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout" + (hint ? "?logout_hint=" + encodeURIComponent(hint) : "");
-      document.body.appendChild(f);
-      setTimeout(function () { try { f.parentNode.removeChild(f); } catch (e) {} }, 20000);
-    } catch (e) {}
-    setTimeout(finish, 3000);
-  }
-  window.fcHiddenMicrosoftSignOut = hiddenMicrosoftSignOut;
 
   wrap.addEventListener("click", function (e) {
     var x = e.target.closest && e.target.closest(".acct-notice-x");

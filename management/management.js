@@ -141,8 +141,8 @@
   $("scrim").addEventListener("click", closeDrawer);
   $("nav").addEventListener("click", function (e) { if (e.target.closest("a")) closeDrawer(); });
   // Signed out in another tab → leave.
-  try { new BroadcastChannel("fc-auth").onmessage = function (e) { if (e && e.data && e.data.kind === "out") location.replace("/"); }; } catch (e) {}
-  window.addEventListener("storage", function (e) { if (e.key === "fc-auth-event" && /^out:/.test(e.newValue || "")) location.replace("/"); });
+  try { new BroadcastChannel("fc-auth").onmessage = function (e) { if (e && e.data && e.data.kind === "out" && !window.__fcLeaving) location.replace("/"); }; } catch (e) {}
+  window.addEventListener("storage", function (e) { if (e.key === "fc-auth-event" && /^out:/.test(e.newValue || "") && !window.__fcLeaving) location.replace("/"); });
 
   function setTitle(crumb, title, actionsHtml, desc) {
     $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + "</span>" : "") + (desc ? '<span class="desc">' + esc(desc) + "</span>" : "");
