@@ -139,6 +139,23 @@ function rowOf(u, m, g) {
   };
 }
 
+// A 班级团队 is a team created from the Education class template: Teams reports it
+// as specialization "educationClass". Looked up once per team when a sync finishes
+// (20 per round trip) and written onto every row's group entry as kind "class".
+async function markClassTeams(doc, log) {
+  const ids = new Set();
+  for (const r of doc.users) for (const g of r.groups || []) if (g.kind === "team" || g.kind === "class") ids.add(g.id);
+  if (!ids.size) return;
+  try {
+    const res = await batch(Array.from(ids).map((id) => ({ id, url: `/teams/${id}?$select=id,specialization` })));
+    const classes = new Set(Object.keys(res).filter((id) => res[id] && res[id].status === 200 && res[id].body && res[id].body.specialization === "educationClass"));
+    for (const r of doc.users) for (const g of r.groups || []) if (g.kind === "team" || g.kind === "class") g.kind = classes.has(g.id) ? "class" : "team";
+    log(`directory ${doc.domain}: ${classes.size} class team(s) of ${ids.size}`);
+  } catch (err) {
+    log(`directory ${doc.domain}: class teams not marked: ${err.message}`);
+  }
+}
+
 // Groups of the domain, derived from the rows (who of this domain is in which).
 function groupsOf(rows) {
   const groups = new Map();
@@ -150,7 +167,7 @@ function groupsOf(rows) {
     id: group.id, name: group.name, description: group.description || "", mail: group.mail || "", kind: group.kind, visibility: group.visibility || "",
     domainMembers: members.size, members: Array.from(members).sort(),
   }));
-  const order = { team: 0, m365: 1, security: 2, distribution: 3, other: 4 };
+  const order = { class: 0, team: 1, m365: 2, security: 3, distribution: 4, other: 5 };
   out.sort((a, b) => order[a.kind] - order[b.kind] || b.domainMembers - a.domainMembers || a.name.localeCompare(b.name, "zh"));
   return out;
 }
@@ -339,6 +356,7 @@ async function syncSlice(domain, mode, opts) {
   await Promise.all(departmentFills);
   const done = doc.pending.length === 0;
   if (done) {
+    await markClassTeams(doc, log);
     doc.users.sort((a, b) => a.displayName.localeCompare(b.displayName, "zh") || a.upn.localeCompare(b.upn));
     doc.syncedAt = new Date().toISOString();
     if (doc.run && doc.run.mode === "full") doc.fullAt = doc.syncedAt;

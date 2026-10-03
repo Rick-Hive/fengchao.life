@@ -33,7 +33,7 @@
     return fetch("/api/" + path, Object.assign({ credentials: "same-origin", cache: "no-store" }, opts || {})).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
         // The server ended the session (idle / maximum age): leave for the homepage, which explains.
-        if (r.status === 401 && j && j.code === "session_expired" && window.fcSession) window.fcSession.expired(j.reason);
+        if (r.status === 401 && j && (j.code === "session_expired" || j.code === "signed_out") && window.fcSession) window.fcSession.expired(j.reason || "signed_out");
         return { ok: r.ok, status: r.status, body: j };
       });
     });
@@ -128,7 +128,7 @@
   $("fOut").addEventListener("click", function () {
     $("fOut").disabled = true;
     if (window.fcSession) window.fcSession.signOut("user");
-    else { fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(function () {}).then(function () { location.replace("/.auth/logout?post_logout_redirect_uri=/"); }); }
+    else { fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(function () {}).then(function () { location.replace("/?signedout=user"); }); }
   });
   function closeDrawer() { $("side").classList.remove("open"); $("scrim").classList.remove("show"); }
   $("menuToggle").addEventListener("click", function () { $("side").classList.toggle("open"); $("scrim").classList.toggle("show"); });
@@ -159,7 +159,7 @@
   // ---- 补充资料: city, needs, children and their Teams accounts (Rick, 2026-10-02) ----
   var VOCAB_EN = {
     "家长": "Parent", "学生": "Student", "老师": "Teacher", "行政": "Staff", "学校行政": "School staff", "机构负责人": "Head of institution", "其它": "Other",
-    "教师培训": "Teacher training", "家长-亲子培训": "Parent & parent–child training", "标化考试": "Standardised tests",
+    "教材": "Curriculum materials", "课程": "Courses", "教师培训": "Teacher training", "家长-亲子培训": "Parent & parent–child training", "海外留学": "Study abroad", "大学路径": "University pathways", "双学分/AP课程": "Dual-credit / AP courses", "标化考试": "Standardised tests",
     "学前": "Pre-K",
     "公立学校": "Public school", "私立学校": "Private school", "国际学校": "International school", "基督教学校": "Christian school", "在家教育": "Homeschool",
     "古典教育": "Classical", "BJU": "BJU", "Abeka": "Abeka", "混合教学法": "Mixed approaches", "不清楚": "Not sure",
@@ -168,9 +168,10 @@
   function vl(v) { return EN ? (VOCAB_EN[v] || v) : v; }
   var extraDraft = null; // the form's working copy, so adding a child does not lose typed values
   function readExtraForm() {
-    var d = { roles: [], rolesOther: ($("xRolesOther") || {}).value || "", topics: [], otherAccounts: ($("xAccts") || {}).value || "", children: [] };
+    var d = { roles: [], rolesOther: ($("xRolesOther") || {}).value || "", topics: [], topicsOther: ($("xTopicsOther") || {}).value || "", otherAccounts: [], children: [] };
     Array.prototype.forEach.call(document.querySelectorAll("#extraCard input[data-role]:checked"), function (c) { d.roles.push(c.getAttribute("data-role")); });
     Array.prototype.forEach.call(document.querySelectorAll("#extraCard input[data-topic]:checked"), function (c) { d.topics.push(c.getAttribute("data-topic")); });
+    Array.prototype.forEach.call(document.querySelectorAll("#extraCard input[data-acct]"), function (c) { d.otherAccounts.push(c.value || ""); });
     Array.prototype.forEach.call(document.querySelectorAll("#extraCard .kid"), function (k) {
       var g = function (n) { var el = k.querySelector("[data-k='" + n + "']"); return el ? el.value : ""; };
       var he = []; Array.prototype.forEach.call(k.querySelectorAll("input[data-he]:checked"), function (c) { he.push(c.getAttribute("data-he")); });
@@ -180,8 +181,9 @@
   }
   function renderExtra(msgHtml) {
     var hv = me.hive || {}, voc = hv.vocab || { selfRoles: [], topics: [], grades: [], schooling: [], models: [], higherEd: [], maxChildren: 8 };
-    var d = extraDraft || hv.extra || { roles: [], rolesOther: "", topics: [], otherAccounts: [], children: [] };
-    if (!d.roles) d = Object.assign({ roles: [], rolesOther: "", topics: [], otherAccounts: [] }, d); // a record saved before this form
+    var d = extraDraft || hv.extra || { roles: [], rolesOther: "", topics: [], topicsOther: "", otherAccounts: [], children: [] };
+    if (!d.roles) d = Object.assign({ roles: [], rolesOther: "", topics: [], topicsOther: "", otherAccounts: [] }, d); // a record saved before this form
+    if (!Array.isArray(d.otherAccounts)) d.otherAccounts = String(d.otherAccounts || "").split(/[\s,;，；]+/).filter(Boolean);
     extraDraft = d;
     var isParent = (d.roles || []).indexOf("家长") >= 0;
     var sel = function (name, list, val) {
@@ -218,10 +220,15 @@
           '<div id="kids">' + (kids || '<div class="muted" style="font-size:13px">' + t("还没有添加孩子。", "No children added yet.") + "</div>") + "</div>" +
           '<div class="actions"><button class="btn secondary sm" type="button" id="xAdd"' + ((d.children || []).length >= (voc.maxChildren || 8) ? " disabled" : "") + ">" + t("＋ 添加孩子", "+ Add a child") + "</button></div>" +
         "</div>" +
-        '<div class="f-title">' + t("我需要或感兴趣的话题（可多选）", "Topics I need or am interested in (choose any)") + "</div>" +
+        '<div class="f-title">' + t("我感兴趣的话题（可多选）", "Topics I am interested in (choose any)") + "</div>" +
         '<div class="chks">' + (voc.topics || []).map(function (n) { return '<label class="chk"><input type="checkbox" data-topic="' + esc(n) + '"' + ((d.topics || []).indexOf(n) >= 0 ? " checked" : "") + " /> " + esc(vl(n)) + "</label>"; }).join("") + "</div>" +
+        '<label class="f topics-other' + ((d.topics || []).indexOf("其它") >= 0 ? "" : " hidden") + '">' + t("其它（请填写）", "Other — please say") + '<input type="text" id="xTopicsOther" maxlength="60" value="' + esc(d.topicsOther || "") + '" /></label>' +
+        // One row per account, 添加另一个 for the next (Rick, 2026-10-02: 「有的用户说不定有 3 个账号」).
         '<div class="f-title">' + t("我在 Education Resource Link 的其它 Teams 账号", "My other Teams accounts in Education Resource Link") + "</div>" +
-        '<label class="f"><input type="text" id="xAccts" maxlength="600" placeholder="name@school-domain, name2@school-domain" value="' + esc(Array.isArray(d.otherAccounts) ? d.otherAccounts.join(", ") : (d.otherAccounts || "")) + '" /><small>' + t("如果您在别的学校或机构还有账号，填在这里，多个用逗号分开。", "If you also hold accounts at other schools or institutions, list them here, comma-separated.") + "</small></label>" +
+        '<div id="accts">' + (d.otherAccounts.length ? d.otherAccounts.map(function (a, i) {
+          return '<div class="acct-row"><input type="text" data-acct="' + i + '" maxlength="120" placeholder="name@school-domain" value="' + esc(a) + '" /><button class="btn secondary sm" type="button" data-rma="' + i + '" aria-label="' + esc(t("移除", "Remove")) + '">' + t("移除", "Remove") + "</button></div>";
+        }).join("") : '<div class="muted" style="font-size:13px">' + t("如果您在别的学校或机构还有 Teams 账号，可以在这里添加。", "If you also hold Teams accounts at other schools or institutions, add them here.") + "</div>") + "</div>" +
+        '<div class="actions"><button class="btn secondary sm" type="button" id="xAddAcct"' + (d.otherAccounts.length >= (voc.maxAccounts || 5) ? " disabled" : "") + ">" + t(d.otherAccounts.length ? "＋ 添加另一个" : "＋ 添加账号", d.otherAccounts.length ? "+ Add another" : "+ Add an account") + "</button></div>" +
         '<footer class="cf"><button class="btn" type="submit" id="xSave">' + t("保存", "Save") + '</button><span id="xMsg">' + (msgHtml || "") + "</span></footer>" +
       "</form>";
     $("xAdd").addEventListener("click", function () { extraDraft = readExtraForm(); extraDraft.children.push({}); renderExtra(); var last = document.querySelector("#kids .kid:last-child input"); if (last) last.focus(); });
@@ -229,11 +236,17 @@
       var b = ev.target.closest("button[data-rm]"); if (!b) return;
       extraDraft = readExtraForm(); extraDraft.children.splice(Number(b.getAttribute("data-rm")), 1); renderExtra();
     });
+    $("xAddAcct").addEventListener("click", function () { extraDraft = readExtraForm(); extraDraft.otherAccounts.push(""); renderExtra(); var last = document.querySelector("#accts .acct-row:last-child input"); if (last) last.focus(); });
+    $("accts").addEventListener("click", function (ev) {
+      var b = ev.target.closest("button[data-rma]"); if (!b) return;
+      extraDraft = readExtraForm(); extraDraft.otherAccounts.splice(Number(b.getAttribute("data-rma")), 1); renderExtra();
+    });
     $("extraCard").addEventListener("change", function (ev) {
       var el = ev.target;
       if (el.getAttribute("data-k") === "model") el.closest(".kid").querySelector(".model-other").classList.toggle("hidden", el.value !== "其它");
       if (el.getAttribute("data-he") === "其它") el.closest(".kid").querySelector(".he-other").classList.toggle("hidden", !el.checked);
       if (el.getAttribute("data-role") === "其它") document.querySelector("#extraCard .roles-other").classList.toggle("hidden", !el.checked);
+      if (el.getAttribute("data-topic") === "其它") document.querySelector("#extraCard .topics-other").classList.toggle("hidden", !el.checked);
       if (el.getAttribute("data-role") === "家长") $("kidsWrap").classList.toggle("hidden", !el.checked);
     });
     $("xf").addEventListener("submit", function (ev) {
@@ -330,14 +343,14 @@
     setTitle(t("我的账号", "My account"), t("登录与安全", "Sign-in and security"), "", t("密码、登录记录和能批准您登录的设备。", "Password, sign-in records and the devices that approve your sign-ins."));
     var ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
-    function dl(kind, zh, en, sub) {
-      return '<div class="row"><div class="rowmain"><b>' + t(zh, en) + "</b><small>" + sub + '</small></div><div class="menu-wrap"><button class="btn secondary sm" type="button" data-menu="dl-' + kind + '">' + t("下载 ↓", "Download ↓") + '</button><div class="menu" id="dl-' + kind + '"><a href="/api/me/export?kind=' + kind + '&format=csv" download>CSV</a><a href="/api/me/export?kind=' + kind + '&format=json" download>JSON</a></div></div></div>';
+    function dl(kind, zh, en, sub, tip) {
+      return '<div class="row"><div class="rowmain"><b>' + t(zh, en) + (tip ? ' <span class="info" tabindex="0" data-tip="' + esc(tip) + '">i</span>' : "") + "</b><small>" + sub + '</small></div><div class="menu-wrap"><button class="btn secondary sm" type="button" data-menu="dl-' + kind + '">' + t("下载 ↓", "Download ↓") + '</button><div class="menu" id="dl-' + kind + '"><a href="/api/me/export?kind=' + kind + '&format=csv" download>CSV</a><a href="/api/me/export?kind=' + kind + '&format=json" download>JSON</a></div></div></div>';
     }
     $("content").innerHTML =
       '<section class="card">' +
         '<div class="row"><div class="rowmain"><b>' + t("重置密码", "Reset password") + '</b><small>' + t("在微软的页面完成；改完后所有设备会退出一次登录，请先把装验证器的手机准备好。", "On Microsoft's page; afterwards every device signs you out once — have the authenticator phone ready.") + '</small></div><a class="btn secondary" href="https://mysignins.microsoft.com/security-info/password/change" target="_blank" rel="noopener">' + t("修改密码 ↗", "Change password ↗") + "</a></div>" +
-        dl("signins", "登录记录", "Sign-in logs", t("最近 7 天每次登录的时间、应用、地点和结果", "The last 7 days: time, app, place and result of each sign-in")) +
-        dl("audits", "账号变动", "Audit logs", t("最近 7 天密码、验证器、资料的变更", "The last 7 days: changes to password, authenticators and profile")) +
+        dl("signins", "登录日志", "Sign-in logs", t("最近 7 天每次登录的时间、应用、地点和结果", "The last 7 days: time, app, place and result of each sign-in")) +
+        dl("audits", "审计日志", "Audit logs", t("最近 7 天对您账号的每一次更改：谁、何时、改了什么", "The last 7 days: every change to your account — who, when, what"), t("审计日志（audit log）是微软为账号上每一次更改留下的记录：改密码、添加或删除验证器、修改资料、分配权限等，包含操作者、时间和结果。它不记录您的聊天或文件，只记录对账号本身的操作。", "The audit log is Microsoft's record of every change made to the account itself — password changes, authenticators added or removed, profile edits, permission changes — with who did it, when, and the result. It does not record chats or files.")) +
         '<div class="rowhead">' + t("验证器设备", "Authenticator devices") + ' <span class="n">' + ms.length + "</span></div>" +
         '<div id="methods">' + (ms.length ? ms.map(function (m) {
           var k = KIND[m.kind] || [m.kind, m.kind];
@@ -360,14 +373,13 @@
       if (det) { var box = $("det-" + det.getAttribute("data-detail")); box.classList.toggle("hidden"); det.closest(".menu").classList.remove("open"); return; }
       var b = ev.target.closest("button[data-del]"); if (!b) return;
       b.closest(".menu").classList.remove("open");
-      var name = b.getAttribute("data-name");
-      if (b.getAttribute("data-last")) {
-        $("mMsg").innerHTML = '<div class="msg err">' + t("这是您唯一的验证设备。请先在微软的「安全信息」页面添加新的验证设备，然后再回来删除旧的。", "This is your only authentication device. Add a new device on Microsoft's Security info page first, then come back to remove the old one.") + "</div>";
-        return;
-      }
-      if (!window.confirm(t("删除「" + name + "」？删除后这台设备就不能再批准您的登录。", "Remove \"" + name + "\"? That device will no longer be able to approve your sign-ins."))) return;
+      var name = b.getAttribute("data-name"), last = !!b.getAttribute("data-last");
+      var msg = last
+        ? t("「" + name + "」是您唯一的验证设备。删除后，下次登录时微软会要求您重新注册一台新设备；如果您手边没有能登录的设备，可能需要学校的管理员协助。确定删除吗？", "\"" + name + "\" is your only authentication device. After removal, Microsoft will ask you to register a new device at your next sign-in; if you have no device at hand that can sign in, you may need your school's administrator. Remove it anyway?")
+        : t("删除「" + name + "」？删除后这台设备就不能再批准您的登录。", "Remove \"" + name + "\"? That device will no longer be able to approve your sign-ins.");
+      if (!window.confirm(msg)) return;
       b.disabled = true;
-      api("me/method/" + encodeURIComponent(b.getAttribute("data-del")), { method: "DELETE" }).then(function (r) {
+      api("me/method/" + encodeURIComponent(b.getAttribute("data-del")) + (last ? "?confirm=1" : ""), { method: "DELETE" }).then(function (r) {
         if (!r.ok) { b.disabled = false; $("mMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         me.methods = (me.methods || []).filter(function (m) { return m.id !== b.getAttribute("data-del"); });
         viewSecurity();
@@ -380,7 +392,7 @@
   // ================================================================================
   // 我的 Teams
   // ================================================================================
-  var GKIND = { team: ["Teams 团队", "Team"], m365: ["Microsoft 365 群组（无 Teams）", "Microsoft 365 group (no Teams)"], security: ["安全组（仅用于权限）", "Security group (permissions only)"], distribution: ["通讯组", "Distribution list"], other: ["群组", "Group"] };
+  var GKIND = { class: ["班级团队", "Class team"], team: ["普通团队", "Team"], m365: ["群组", "Group"], security: ["群组", "Group"], distribution: ["群组", "Group"], other: ["群组", "Group"] };
   function teamRow(g, q) {
     var k = GKIND[g.kind] || GKIND.other;
     var vis = g.visibility ? (g.visibility === "Public" ? t("公开", "Public") : g.visibility === "Private" ? t("私密", "Private") : esc(g.visibility)) : k[EN ? 1 : 0];
@@ -397,9 +409,8 @@
       '<div class="toolbar" id="tbar">' +
         '<button class="chip" data-f="all" aria-pressed="true">' + t("全部", "All") + "</button>" +
         '<button class="chip" data-f="owner">' + t("我是所有者", "Teams you own") + "</button>" +
-        '<button class="chip" data-f="team">' + t("Teams 团队", "Teams") + "</button>" +
-        '<button class="chip" data-f="m365">' + t("Microsoft 365 群组", "M365 groups") + "</button>" +
-        '<button class="chip" data-f="security">' + t("安全组", "Security groups") + "</button>" +
+        '<button class="chip" data-f="class">' + t("班级团队", "Class teams") + "</button>" +
+        '<button class="chip" data-f="team">' + t("普通团队", "Other teams") + "</button>" +
         '<select id="tsort"><option value="az">' + t("排序：A–Z", "Sort: A–Z") + '</option><option value="members">' + t("排序：人数", "Sort: people") + '</option><option value="kind">' + t("排序：类型", "Sort: type") + "</option></select>" +
         '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="tq" placeholder="' + t("搜索团队名称或简介…", "Search teams…") + '" /></div>' +
       "</div>" +
@@ -450,13 +461,15 @@
   function renderTeams() {
     if (!state.teams || !$("tlist")) return;
     var q = state.teamQ, f = state.teamFilter;
+    // 我的 Teams shows teams; other kinds of groups (mail-only, permission-only) are not Teams.
     var rows = state.teams.filter(function (g) {
+      if (g.kind !== "class" && g.kind !== "team") return false;
       if (f === "owner" && !g.owner) return false;
-      if ((f === "team" || f === "m365" || f === "security") && g.kind !== f) return false;
+      if ((f === "class" || f === "team") && g.kind !== f) return false;
       if (q) { var hay = (g.name + " " + (g.description || "") + " " + (g.mail || "")).toLowerCase(); if (hay.indexOf(q.toLowerCase()) < 0) return false; }
       return true;
     });
-    var order = { team: 0, m365: 1, security: 2, distribution: 3, other: 4 };
+    var order = { class: 0, team: 1, m365: 2, security: 3, distribution: 4, other: 5 };
     rows.sort(function (a, b) {
       if (state.teamSort === "members") return (b.members || 0) - (a.members || 0) || a.name.localeCompare(b.name, "zh");
       if (state.teamSort === "kind") return order[a.kind] - order[b.kind] || a.name.localeCompare(b.name, "zh");
@@ -595,7 +608,7 @@
     $("utable").tBodies[0].innerHTML = rows.length ? rows.map(function (u) {
       var auth = u.verified === null ? '<span class="tag">?</span>' : u.verified ? '<span class="tag ok">Yes</span>' : '<span class="tag bad">No</span>';
       var dev = u.devices.length ? u.devices.map(function (x) { return esc(x.name) + (x.version ? ' <span class="muted">' + esc(x.version) + "</span>" : ""); }).join("<br/>") : (u.otherMethods.length ? '<span class="muted">' + esc(u.otherMethods.map(function (k) { return (KIND[k] || [k, k])[EN ? 1 : 0]; }).join(", ")) + "</span>" : '<span class="muted">—</span>');
-      var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "m365"; });
+      var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "class" || g.kind === "m365"; });
       var gl = gs.slice(0, 3).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '">' + hl(g.name, state.userQ) + "</button>"; }).join("") + (gs.length > 3 ? '<span class="tag muted">+' + (gs.length - 3) + "</span>" : "");
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
         '<td><span class="dn">' + hl(u.displayName, state.userQ) + "</span>" + (u.lastSignIn ? '<span class="sub">' + t("最近登录 ", "Last sign-in ") + esc(day(u.lastSignIn)) + "</span>" : "") + "</td>" +
@@ -647,10 +660,10 @@
         }).join("") : '<div class="muted" style="font-size:.86rem">' + t("没有登记验证器。", "No authenticator registered.") + "</div>") + "</div>" +
         (canDo("methods") ? '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。重置密码和临时通行码在二期加入。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready. Password reset and Temporary Access Pass come in phase 2.") + "</div>"
           : '<div class="note">' + t("登录设备由域管理员（IT）管理。", "Sign-in devices are managed by the domain administrator (IT).") + "</div>") +
-        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '">' + esc(g.name) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
+        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '">' + esc(g.name) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
           ((u.extra.roles || []).length ? '<span class="k">' + t("身份/角色", "Roles") + "</span><span>" + esc(u.extra.roles.map(vl).join("、") + (u.extra.rolesOther ? "（" + u.extra.rolesOther + "）" : "")) + "</span>" : "") +
-          ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Topics") + "</span><span>" + esc(u.extra.topics.map(vl).join("、")) + "</span>" : "") +
+          ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Topics") + "</span><span>" + esc(u.extra.topics.map(function (x) { return x === "其它" && u.extra.topicsOther ? u.extra.topicsOther : vl(x); }).join("、")) + "</span>" : "") +
           ((u.extra.otherAccounts || []).length ? '<span class="k">' + t("其它账号", "Other accounts") + "</span><span>" + esc(u.extra.otherAccounts.join(", ")) + "</span>" : "") +
           (u.extra.children || []).map(function (c, i) {
             var bits = [];
@@ -911,14 +924,17 @@
       me = r.body; foot();
       // Just arrived from the sign-in tab: tell the other tabs, once, and take the marker out of the address.
       if (/[?&]signedin=1\b/.test(location.search)) {
-        try { new BroadcastChannel("fc-auth").postMessage({ kind: "in", at: Date.now() }); } catch (e) {}
-        try { localStorage.setItem("fc-auth-event", "in:" + Date.now()); } catch (e) {}
         try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])signedin=1&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
         // Opened from 登录 on another tab: send that tab here and close this one
         // (Rick, 2026-10-02). If the browser refuses to close it, this tab simply stays.
+        // The other tabs are told once, with `handed` when the opener was sent here
+        // directly, so the header script does not send it a second time (it did:
+        // 「好像登入了 2 次」).
         var handed = false;
-        try { if (window.opener && !window.opener.closed) { window.opener.location.href = "/management/"; handed = true; } } catch (e) { handed = true; /* cross-origin opener: the broadcast above did the job */ }
-        if (handed || window.opener) setTimeout(function () { try { window.close(); } catch (e) {} }, 400);
+        try { if (window.opener && !window.opener.closed) { window.opener.location.href = "/management/"; handed = true; } } catch (e) { /* cross-origin opener: the broadcast below does the job */ }
+        try { new BroadcastChannel("fc-auth").postMessage({ kind: "in", at: Date.now(), handed: handed }); } catch (e) {}
+        try { localStorage.setItem("fc-auth-event", "in:" + Date.now() + (handed ? ":handed" : "")); } catch (e) {}
+        if (window.opener) setTimeout(function () { try { window.close(); } catch (e) {} }, 400);
       }
       return me;
     });

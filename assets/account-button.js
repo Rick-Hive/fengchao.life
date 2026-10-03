@@ -10,9 +10,16 @@
 // management 页面」). Signed in: the icon + 我的账号, a small panel with
 // 管理中心 and 退出登录 (Rick, 2026-10-02: 「点击我的账户，应该有个选项退出登录」).
 //
-// 退出登录 ends Hive's session (POST /api/logout) and signs the Microsoft
-// account out of the browser without Microsoft's account picker, naming the
-// account with logout_hint (see assets/session-guard.js for the same flow).
+// 退出登录 ends Hive's session (POST /api/logout — the server marks this
+// sign-in as over, because the platform does not let it clear its own cookie)
+// and, best effort and out of sight, signs the Microsoft account out of the
+// browser in a hidden frame (Rick, 2026-10-02: 「弹出了无需用户看到的信息」) —
+// see window.fcSession.microsoftSignOut in assets/session-guard.js.
+//
+// Who is signed in comes from Hive's own GET /api/me/session?peek=1, never from
+// the platform's /.auth/me: after 退出 the platform still thinks the person is
+// signed in, Hive knows better (Rick, 2026-10-02: 「退出后……还能看到自己的 teams
+// 账号」).
 //
 // One sign-out signs out every open fengchao.life tab: the session is a
 // cookie shared by all tabs, and the other tabs are told at once
@@ -69,6 +76,7 @@
       : signedOutWhy === "password" ? t("您的密码已更改，请用新密码重新登录。", "Your password was changed — please sign in again with the new one.")
       : signedOutWhy === "disabled" ? t("该账号已被停用，请联系学校管理员。", "This account has been disabled — please contact your school's administrator.")
       : signedOutWhy === "user" ? t("已退出。", "Signed out.")
+      : signedOutWhy === "signed_out" ? t("您已退出登录，请重新登录。", "You are signed out — please sign in again.")
       : t("长时间未操作，已自动退出。请重新登录。", "Signed out after a period of inactivity. Please sign in again.");
     return '<div class="acct-notice" role="status">' + esc(msg) + '<button type="button" class="acct-notice-x" aria-label="' + esc(t("关闭", "Close")) + '">×</button></div>';
   }
@@ -80,7 +88,7 @@
     }
     signedOutWhy = ""; // signed in again: the notice has done its job
     wrap.innerHTML =
-      '<button class="acct-btn signed-in" type="button" aria-haspopup="true" aria-expanded="false" title="' + esc(principal.userDetails || "") + '">' +
+      '<button class="acct-btn signed-in" type="button" aria-haspopup="true" aria-expanded="false">' +
         icon + '<span class="acct-lbl">' + esc(t("我的账号", "Account")) + "</span></button>" +
       '<div class="acct-panel" role="menu">' +
         '<div class="acct-who">' + esc(principal.userDetails || "") + "</div>" +
@@ -107,37 +115,57 @@
     if (PROTECTED.test(location.pathname)) location.replace("/");
     else { close(); render(); }
   }
-  function onEvent(kind) {
+  function onEvent(kind, handed) {
     if (kind === "out") signedOutHere();
     else if (kind === "in") {
-      // The tab that started the sign-in goes to the management center; other
-      // tabs just refresh their header.
+      // The tab that started the sign-in goes to the management center — unless the
+      // sign-in window has already sent it there itself through window.opener
+      // (handed), in which case navigating again here would load the page twice
+      // (Rick, 2026-10-02: 「好像登入了 2 次」). Other tabs just refresh their header.
       var origin = "";
       try { origin = sessionStorage.getItem("fc-login-origin") || ""; sessionStorage.removeItem("fc-login-origin"); } catch (e) {}
+      if (handed) return;
       if (origin && !ON_HUB && Date.now() - Number(origin) < 30 * 60 * 1000) { location.href = MANAGE; return; }
       refresh();
     }
   }
-  if (channel) channel.onmessage = function (e) { onEvent(e && e.data && e.data.kind); };
+  if (channel) channel.onmessage = function (e) { onEvent(e && e.data && e.data.kind, !!(e && e.data && e.data.handed)); };
   window.addEventListener("storage", function (e) {
-    if (e.key === "fc-auth-event" && e.newValue) onEvent(e.newValue.split(":")[0]);
+    if (e.key === "fc-auth-event" && e.newValue) { var parts = e.newValue.split(":"); onEvent(parts[0], parts[2] === "handed"); }
   });
 
   // ---- sign out (same flow as the management center's 退出) ----------------------
   function signOut() {
+    if (window.fcSession && window.fcSession.signOut) { window.fcSession.signOut("user"); return; }
+    // Pages without session-guard.js (the course site): the same flow, inline.
     try { sessionStorage.setItem("fc-signedout", "user"); localStorage.removeItem("fc-last-active"); } catch (e) {}
-    var back = location.origin + "/?signedout=user";
-    fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-      .then(function (j) {
-        var hint = "";
-        (((j || {}).clientPrincipal || {}).claims || []).forEach(function (c) { if (c && (c.typ === "login_hint" || /\/login_hint$/.test(String(c.typ)))) hint = String(c.val || ""); });
-        return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
-          announce("out");
-          if (hint) location.replace("https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout?logout_hint=" + encodeURIComponent(hint) + "&post_logout_redirect_uri=" + encodeURIComponent(back));
-          else location.replace("/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent("/?signedout=user"));
-        });
-      });
+    var hint = (principal && principal.userDetails) || "";
+    fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
+      announce("out");
+      principal = null; known = true; close(); signedOutWhy = "user"; render();
+      hiddenMicrosoftSignOut(hint, function () { if (PROTECTED.test(location.pathname)) location.replace("/?signedout=user"); });
+    });
   }
+  // Microsoft, best effort and unseen: a hidden frame asks login.microsoftonline.com
+  // to end the browser's session for this account, then `done` runs (after the
+  // frame has loaded, or 3 s). If Microsoft refuses to be framed, or the browser
+  // keeps its cookies from the frame, nothing happens — Hive's session is over
+  // either way, and the next 登录 asks for the password regardless (prompt=login).
+  function hiddenMicrosoftSignOut(hint, done) {
+    var called = false;
+    function finish() { if (called) return; called = true; if (done) done(); }
+    try {
+      var f = document.createElement("iframe");
+      f.setAttribute("aria-hidden", "true"); f.tabIndex = -1;
+      f.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
+      f.onload = f.onerror = function () { setTimeout(finish, 300); };
+      f.src = "https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout" + (hint ? "?logout_hint=" + encodeURIComponent(hint) : "");
+      document.body.appendChild(f);
+      setTimeout(function () { try { f.parentNode.removeChild(f); } catch (e) {} }, 20000);
+    } catch (e) {}
+    setTimeout(finish, 3000);
+  }
+  window.fcHiddenMicrosoftSignOut = hiddenMicrosoftSignOut;
 
   wrap.addEventListener("click", function (e) {
     var x = e.target.closest && e.target.closest(".acct-notice-x");
@@ -165,14 +193,15 @@
 
   // ---- who is signed in ---------------------------------------------------------
   function refresh() {
-    return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" })
+    return fetch("/api/me/session?peek=1", { credentials: "same-origin", cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         // Only a definite answer counts. A failed or odd reply (network blip, a
-        // 5xx from the platform) must not sign the header out — on a signed-in
-        // page that used to send the person straight back home (Rick, 2026-10-02).
-        if (!j || !("clientPrincipal" in j)) return;
-        principal = j.clientPrincipal || null;
+        // 5xx) must not sign the header out — on a signed-in page that used to
+        // send the person straight back home (Rick, 2026-10-02).
+        if (!j || typeof j.signedIn !== "boolean") return;
+        principal = j.signedIn ? { userDetails: j.user || "" } : null;
+        if (!principal && j.reason && PROTECTED.test(location.pathname)) { try { sessionStorage.setItem("fc-signedout", j.reason); } catch (e) {} }
         var first = !known;
         known = true;
         if (!principal && PROTECTED.test(location.pathname) && !first) { location.replace("/"); return; }

@@ -78,6 +78,7 @@ global.fetch = async function (url, opts) {
   if (method === "POST" && p === "/$batch") {
     const reqs = JSON.parse(opts.body).requests;
     return json(200, { responses: reqs.map((r) => {
+      if (r.url.startsWith("/teams/")) { const id = r.url.split("/")[2].split("?")[0]; return { id: r.id, status: 200, body: { id, specialization: id === "g1" ? "educationClass" : "educationStandard" } }; }
       const m = r.url.match(/^\/users\/([^/]+)\/(authentication\/methods|memberOf)/);
       if (!m) {
         const b = r.url.match(/^\/users\/([^/?]+)\?/);
@@ -203,7 +204,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(lei.devices.length, 2);
   assert.strictEqual(lei.devices[0].name, "iPhone 13");
   assert.strictEqual(lei.lastSignIn, "2026-09-28T01:00:00Z");
-  assert.deepStrictEqual(lei.groups.map((g) => g.kind), ["team", "security"]);
+  assert.deepStrictEqual(lei.groups.map((g) => g.kind), ["class", "security"], "g1 is a class team (Teams specialization educationClass)");
   assert.strictEqual(lei.identity, "");
   assert.strictEqual(r.body.partial, false);
 
@@ -233,10 +234,10 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   r = await call({ action: "groups", query: { domain: DOMAIN }, user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.status, 200);
   const g1 = r.body.groups.find((g) => g.id === "g1");
-  assert.strictEqual(g1.kind, "team");
+  assert.strictEqual(g1.kind, "class");
   assert.strictEqual(g1.domainMembers, 2);
   assert.deepStrictEqual(g1.members, [`elaine@${DOMAIN}`, `lei@${DOMAIN}`]);
-  assert.strictEqual(r.body.groups[0].kind, "team", "teams listed first");
+  assert.strictEqual(r.body.groups[0].kind, "class", "class teams listed first");
 
   // 7. Identity edits: outside account refused; bad identity refused; a good one is accepted
   //    (it cannot be persisted without storage, so expect 200 or a 5xx that names storage — never a silent success for the bad ones).
@@ -289,8 +290,8 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(r.body.done, true);
   assert.strictEqual(r.body.removed, 1, "Lei's deletion applied");
   assert.strictEqual(r.body.users, 2, "elaine + newbie");
-  const batches = calls.filter((c) => c.url.includes("/$batch"));
-  assert.strictEqual(batches.length, 1);
+  const batches = calls.filter((c) => c.url.includes("/$batch") && c.body.includes("/users/"));
+  assert.strictEqual(batches.length, 1, "one per-account batch (the other batch is the class-team lookup)");
   assert.ok(batches[0].body.includes("u-new") && batches[0].body.includes("u-elaine") && !batches[0].body.includes("u-lei"), "only changed accounts re-read");
   assert.ok(blobs["_delta.json"].includes("T2"), "token advanced");
   r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });

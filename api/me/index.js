@@ -235,15 +235,17 @@ async function handler(context, req) {
       if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(context, 400, "group id missing");
       const mine = await list(`/users/${user.id}/memberOf/microsoft.graph.group?$select=id&$top=999`, 1000);
       if (!mine.some((g) => g.id === id)) return fail(context, 404, "not one of your groups");
-      const [g, members, owners] = await Promise.all([
+      const [g, members, owners, team] = await Promise.all([
         graph("GET", `/groups/${id}?$select=id,displayName,description,mail,visibility,groupTypes,mailEnabled,securityEnabled,resourceProvisioningOptions,createdDateTime`),
         list(`/groups/${id}/members/microsoft.graph.user?$select=id,displayName,userPrincipalName,jobTitle&$top=999`, 2000),
         list(`/groups/${id}/owners/microsoft.graph.user?$select=id&$top=100`, 200).catch(() => []),
+        graph("GET", `/teams/${id}?$select=id,specialization`).catch(() => null),
       ]);
       const ownerIds = new Set(owners.map((o) => o.id));
+      const baseKind = groupKind(g);
       context.res = { status: 200, body: {
         id: g.id, name: g.displayName || "", description: g.description || "", mail: g.mail || "", visibility: g.visibility || "", created: g.createdDateTime || null,
-        kind: (g.resourceProvisioningOptions || []).includes("Team") ? "team" : (g.groupTypes || []).includes("Unified") ? "m365" : g.securityEnabled && !g.mailEnabled ? "security" : g.mailEnabled ? "distribution" : "other",
+        kind: baseKind === "team" && team && team.specialization === "educationClass" ? "class" : baseKind,
         members: members.map((m) => ({ upn: String(m.userPrincipalName || "").toLowerCase(), displayName: m.displayName || "", jobTitle: m.jobTitle || "", owner: ownerIds.has(m.id) })).sort((a, b) => (b.owner - a.owner) || a.displayName.localeCompare(b.displayName, "zh")),
       } };
       return;
@@ -256,21 +258,29 @@ async function handler(context, req) {
         list(`/users/${user.id}/ownedObjects/microsoft.graph.group?$select=id&$top=100`, 300).catch(() => []),
       ]);
       const own = new Set(owned.map((g) => g.id));
-      // Member counts, 20 groups per round trip; a count that fails is simply left out.
-      let counts = {};
+      // Member counts and, for teams, the Teams specialization (a 班级团队 is a team
+      // created from the Education class template) — 20 requests per round trip;
+      // one that fails is simply left out.
+      let counts = {}, specs = {};
       try {
         counts = await batch(groups.map((g, i) => ({ id: String(i), url: `/groups/${g.id}/members/$count` })), { ConsistencyLevel: "eventual" });
       } catch (e) { counts = {}; }
+      try {
+        const teams = groups.filter((g) => groupKind(g) === "team");
+        specs = teams.length ? await batch(teams.map((g) => ({ id: g.id, url: `/teams/${g.id}?$select=id,specialization` }))) : {};
+      } catch (e) { specs = {}; }
       const rows = groups.map((g, i) => {
         const c = counts[String(i)];
         const n = c && c.status === 200 ? parseInt(String(c.body), 10) : NaN;
+        const sp = specs[g.id];
+        const kind = groupKind(g) === "team" && sp && sp.status === 200 && sp.body && sp.body.specialization === "educationClass" ? "class" : groupKind(g);
         return {
           id: g.id, name: g.displayName || "", description: g.description || "", mail: g.mail || "",
-          kind: groupKind(g), owner: own.has(g.id), visibility: g.visibility || "",
+          kind, owner: own.has(g.id), visibility: g.visibility || "",
           members: Number.isFinite(n) ? n : null, created: g.createdDateTime || null,
         };
       });
-      const order = { team: 0, m365: 1, security: 2, distribution: 3, other: 4 };
+      const order = { class: 0, team: 1, m365: 2, security: 3, distribution: 4, other: 5 };
       rows.sort((a, b) => order[a.kind] - order[b.kind] || a.name.localeCompare(b.name));
       context.res = { status: 200, body: { groups: rows } };
       return;
@@ -379,8 +389,11 @@ async function handler(context, req) {
       // Never leave the account without a method that can satisfy MFA: the
       // next sign-in would stop at "More information required".
       const strongLeft = ms.filter((x) => x.strong && x.id !== id).length;
-      if (t.strong && strongLeft === 0) {
-        return fail(context, 409, "this is the only authenticator on your account; add the new phone at mysignins.microsoft.com/security-info first, then remove this one", { last: true });
+      // The only authenticator may go too — the phone may be lost (Rick, 2026-10-02) —
+      // but only when the page has shown the risk and the person confirmed (?confirm=1).
+      const confirmed = String((req.query && req.query.confirm) || "") === "1";
+      if (t.strong && strongLeft === 0 && !confirmed) {
+        return fail(context, 409, "this is the only authenticator on your account; confirm to remove it anyway — the next sign-in will ask you to register a new one", { last: true });
       }
       try {
         await graph("DELETE", `/users/${user.id}/authentication/${t.path}/${encodeURIComponent(id)}`);
@@ -437,13 +450,18 @@ async function handler(context, req) {
 
 // Hive's session rules (idle timeout, maximum age, same-site check) wrap every call.
 module.exports = async function (context, req) {
-  const s = await guard(context, req);
-  if (!s) return;
+  // The header's state check: always 200, { signedIn, user, timer… } — never a refusal,
+  // so a signed-out browser gets a plain answer and no redirect (the route is anonymous).
   if (String((req.params && req.params.action) || "").toLowerCase() === "session") {
-    context.res = { status: 200, body: describe(s) };
-    finish(context, s);
+    const s = await guard(context, req, { soft: true });
+    if (!s) return;
+    context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: Object.assign({ signedIn: true }, describe(s)) };
+    // ?peek=1 — the site header asking who is signed in — does not count as activity.
+    if (!(req.query && req.query.peek)) finish(context, s);
     return;
   }
+  const s = await guard(context, req);
+  if (!s) return;
   await handler(context, req);
   finish(context, s);
 };

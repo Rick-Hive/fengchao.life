@@ -81,7 +81,25 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   assert.strictEqual(c.res.body.code, "session_expired");
   assert.strictEqual(c.res.body.reason, "idle");
   assert.deepStrictEqual(names(c.res.cookies), ["StaticWebAppsAuthCookie", "StaticWebAppsAuthContextCookie", S.COOKIE].sort());
-  assert.ok(c.res.cookies.every((k) => k.maxAge === 0));
+  // Static Web Apps' cookies are expired; fc-sess becomes a signed-out marker bound
+  // to this sign-in, because the platform may not let a function clear its cookie.
+  assert.ok(c.res.cookies.filter((k) => k.name !== S.COOKIE).every((k) => k.maxAge === 0));
+  const marker = c.res.cookies.find((k) => k.name === S.COOKIE);
+  assert.strictEqual(S._decode(marker.value).out, 1);
+  // 4b. With the marker in place the same sign-in stays out — a plain guard says 401
+  //     signed_out, a soft one (the header's /api/me/session) says 200 signedIn:false…
+  c = ctx();
+  assert.strictEqual(await S.guard(c, req({ cookie: `${S.COOKIE}=${encodeURIComponent(marker.value)}` })), null);
+  assert.strictEqual(c.res.status, 401);
+  assert.strictEqual(c.res.body.code, "signed_out");
+  c = ctx();
+  assert.strictEqual(await S.guard(c, req({ cookie: `${S.COOKIE}=${encodeURIComponent(marker.value)}` }), { soft: true }), null);
+  assert.strictEqual(c.res.status, 200);
+  assert.strictEqual(c.res.body.signedIn, false);
+  //     …and a NEW sign-in (a different Static Web Apps cookie) walks straight in.
+  c = ctx();
+  s = await S.guard(c, req({ cookie: `StaticWebAppsAuthCookie=NEW; ${S.COOKIE}=${encodeURIComponent(marker.value)}` }));
+  assert.ok(s && s.session.isNew, "marker from an earlier sign-in does not block a new one");
 
   // 5. Too old, even if active → reason age.
   c = ctx();

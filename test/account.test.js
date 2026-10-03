@@ -67,6 +67,10 @@ global.fetch = async function (url, opts) {
     { id: "g2", displayName: "All staff", groupTypes: [], mailEnabled: false, securityEnabled: true },
   ] });
   if (method === "GET" && p === `/users/${UID}/ownedObjects/microsoft.graph.group`) return json(200, { value: [{ id: "g1" }] });
+  if (method === "POST" && p === "/$batch") {
+    const reqs = JSON.parse(opts.body).requests;
+    return json(200, { responses: reqs.map((r) => r.url.startsWith("/teams/g1") ? { id: r.id, status: 200, body: { id: "g1", specialization: "educationClass" } } : r.url.includes("/members/$count") ? { id: r.id, status: 200, body: "7" } : { id: r.id, status: 404, body: {} }) });
+  }
   return json(500, { error: { code: "unhandled", message: method + " " + p } });
 };
 
@@ -76,9 +80,9 @@ const rolesFn = require(path.join(__dirname, "..", "api", "auth-roles", "index.j
 function principal(user) {
   return Buffer.from(JSON.stringify({ identityProvider: "aad", userId: "x", userDetails: user, userRoles: ["anonymous", "authenticated"] })).toString("base64");
 }
-async function call(fn, { action, id, method = "GET", body = null, user = "Teacher.H@example.edu" } = {}) {
+async function call(fn, { action, id, method = "GET", body = null, user = "Teacher.H@example.edu", query = {} } = {}) {
   const context = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
-  await fn(context, { method, params: { action, id }, query: {}, body, headers: user ? { "x-ms-client-principal": principal(user) } : {} });
+  await fn(context, { method, params: { action, id }, query, body, headers: user ? { "x-ms-client-principal": principal(user) } : {} });
   return context.res;
 }
 
@@ -106,8 +110,9 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
   r = await call(meFn, { action: "audits" });
   assert.deepStrictEqual(r.body.audits.map((a) => a.id), ["a2", "a1"]);
   r = await call(meFn, { action: "groups" });
-  assert.strictEqual(r.body.groups[0].kind, "team");
+  assert.strictEqual(r.body.groups[0].kind, "class", "a team with specialization educationClass is a 班级团队");
   assert.strictEqual(r.body.groups[0].owner, true);
+  assert.strictEqual(r.body.groups[0].members, 7);
   assert.strictEqual(r.body.groups[1].kind, "security");
 
   // Profile validation and write.
@@ -142,8 +147,12 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.removed.name, "iPhone SE");
   r = await call(meFn, { action: "method", id: "auth-new-000002", method: "DELETE" });
-  assert.strictEqual(r.status, 409, "the only authenticator stays");
+  assert.strictEqual(r.status, 409, "the only authenticator needs a confirmation");
   assert.ok(methods.some((m) => m.id === "auth-new-000002"));
+  // …and goes when confirmed (the phone may be lost — Rick, 2026-10-02).
+  r = await call(meFn, { action: "method", id: "auth-new-000002", method: "DELETE", query: { confirm: "1" } });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(!methods.some((m) => m.id === "auth-new-000002"));
 
   // rolesSource.
   const tid = { typ: "http://schemas.microsoft.com/identity/claims/tenantid", val: "edb20124-7377-4368-acbc-d4be58fe59c3" };

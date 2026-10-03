@@ -293,3 +293,7 @@ button.mrow.link:hover { background: #f1f4f8; }
 .info:hover::after, .info:focus::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); white-space: nowrap; background: var(--ink); color: #fff; font: 12px/1.4 inherit; font-style: normal; padding: 4px 8px; border-radius: 6px; z-index: 20; }
 .roles-other, .he-other { margin-top: var(--s2); max-width: 420px; }
 #kidsWrap { margin-top: var(--s2); }
+
+/* 其它 Teams 账号：一行一个 + 添加另一个 */
+.acct-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.acct-row input{flex:1;min-width:0}

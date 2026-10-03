@@ -65,6 +65,7 @@ function decode(value) {
   if (want.length !== sig.length || (want && !crypto.timingSafeEqual(Buffer.from(want), Buffer.from(sig)))) return null;
   try {
     const obj = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (obj && obj.out === 1 && typeof obj.k === "string") return obj; // the sign-out marker
     return obj && typeof obj.u === "string" && Number.isFinite(obj.s) && Number.isFinite(obj.t) ? obj : null;
   } catch { return null; }
 }
@@ -94,12 +95,23 @@ function parseCookies(req) {
 function expiredCookie(name) {
   return { name, value: "", path: "/", expires: new Date(0), maxAge: 0, secure: true, httpOnly: true, sameSite: "Lax" };
 }
+// 退出 that does not depend on Static Web Apps letting a function clear its cookie
+// (on the live site it does not — Rick, 2026-10-02: after 退出 the header still said
+// 我的账号): the browser's fc-sess becomes a signed "signed out" marker bound to the
+// sign-in it ends (k). While that sign-in's cookie is still presented, every guarded
+// call answers 401 signed_out and the header shows 登录. A new sign-in (new k) is
+// not affected. The marker lives as long as a session may (maxMs).
+function signedOutCookie(k) {
+  return { name: COOKIE, value: encode({ out: 1, k, t: Date.now() }), path: "/", maxAge: Math.ceil(maxMs() / 1000), secure: true, httpOnly: true, sameSite: "Strict" };
+}
+
 // Every cookie that keeps a browser signed in to Hive, expired. Used here and by
 // /api/logout. Static Web Apps' cookies are expired both as host-only and for the
 // site's domain, since a cookie is only replaced by one with the same name, path
 // and domain and the platform does not document which it sets.
-function signOutCookies() {
-  const out = SWA_COOKIES.concat(COOKIE).map(expiredCookie);
+function signOutCookies(k) {
+  const out = SWA_COOKIES.map(expiredCookie);
+  out.push(k ? signedOutCookie(k) : expiredCookie(COOKIE));
   const host = String(process.env.HIVE_HOST || "fengchao.life").toLowerCase();
   for (const name of SWA_COOKIES) out.push(Object.assign(expiredCookie(name), { domain: host }));
   return out;
@@ -168,14 +180,16 @@ function reply(context, status, body, cookies) {
 // refreshed cookie reaches the browser — or call `finish(context, s)` at the end.
 async function guard(context, req, opts) {
   const o = opts || {};
+  // soft: never refuse — answer 200 { signedIn: false, reason } instead (the header's state check).
+  const refuse = (status, body, cookies) => { if (o.soft) reply(context, 200, Object.assign({ signedIn: false }, body), cookies); else reply(context, status, body, cookies); return null; };
   const method = String(req.method || "GET").toUpperCase();
   const p = getPrincipal(req);
   const upn = String((p && p.userDetails) || "").trim().toLowerCase();
-  if (!upn) { reply(context, 401, { error: "sign in first", code: "signed_out" }); return null; }
+  if (!upn) return refuse(401, { error: "sign in first", code: "signed_out" });
 
   if (MUTATING.has(method) || o.strict) {
     const why = crossSite(req);
-    if (why) { reply(context, 403, { error: "request refused: it did not come from this site (" + why + ")", code: "cross_site" }); return null; }
+    if (why) return refuse(403, { error: "request refused: it did not come from this site (" + why + ")", code: "cross_site" });
   }
 
   const now = Date.now();
@@ -188,6 +202,10 @@ async function guard(context, req, opts) {
   // 返回主页面」). If the platform does not forward its cookie, k is constant.
   const k = signInKey(cookies, p);
   let sess = decode(cookies[COOKIE]);
+  if (sess && sess.out === 1) {
+    if (sess.k === k) return refuse(401, { error: "signed out — please sign in again", code: "signed_out", reason: "signed_out" }, [signedOutCookie(k)]);
+    sess = null; // the marker belonged to an earlier sign-in: this is a new one
+  }
   if (sess && sess.u !== upn) sess = null; // another account signed in on this browser: start afresh
   if (sess && sess.k !== k) sess = null; // a new sign-in: start afresh
 
@@ -196,11 +214,10 @@ async function guard(context, req, opts) {
     const reason = idle > idleMs() ? "idle" : age > maxMs() ? "age" : "";
     if (reason) {
       try { await audit(context, { actor: upn, action: "session.timeout", reason, idleMinutes: Math.round(idle / 60000), ageMinutes: Math.round(age / 60000), result: "ok" }); } catch { /* best effort */ }
-      reply(context, 401, {
+      return refuse(401, {
         error: reason === "idle" ? "signed out after inactivity — please sign in again" : "the session reached its maximum age — please sign in again",
         code: "session_expired", reason,
-      }, signOutCookies());
-      return null;
+      }, signOutCookies(k));
     }
   }
   // The account itself: a password changed after this session began, or an
@@ -215,11 +232,10 @@ async function guard(context, req, opts) {
       if (reason) {
         try { await audit(context, { actor: upn, action: "session.timeout", reason, result: "ok" }); } catch { /* best effort */ }
         accountCache.delete(upn);
-        reply(context, 401, {
+        return refuse(401, {
           error: reason === "password" ? "the password was changed — please sign in again" : "this account has been disabled",
           code: "session_expired", reason,
-        }, signOutCookies());
-        return null;
+        }, signOutCookies(k));
       }
     }
   }
@@ -255,4 +271,4 @@ function describe(s) {
   };
 }
 
-module.exports = { guard, finish, describe, signOutCookies, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode, _signInKey: signInKey, _accountCache: accountCache, _refreshAccount: refreshAccount };
+module.exports = { guard, finish, describe, signOutCookies, signedOutCookie, signInKey, crossSite, parseCookies, COOKIE, _encode: encode, _decode: decode, _signInKey: signInKey, _accountCache: accountCache, _refreshAccount: refreshAccount };

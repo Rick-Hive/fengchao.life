@@ -12,7 +12,7 @@
 //    just API calls;
 //  * one minute before the limit a small dialog counts down with a 继续使用
 //    button; at zero the session is ended: POST /api/logout, the Microsoft
-//    account is signed out of the browser too (see microsoftSignOut), every
+//    account is asked to sign out in a hidden frame (see microsoftSignOut), every
 //    other tab is told (BroadcastChannel "fc-auth" / storage), and the page
 //    comes back home with ?signedout=timeout, where the header explains and
 //    offers 登录;
@@ -67,27 +67,36 @@
     location.replace("/?signedout=" + encodeURIComponent(why));
   }
   // 退出 (Rick, 2026-10-02: 「点击退出无需登录 Teams 账号确认，后台自动登出所登录的
-  // Teams 账号」): end Hive's session, then sign the same Microsoft account out of
-  // this browser without Microsoft's "pick an account" page. That page appears
-  // when Microsoft is not told which account to sign out; the `logout_hint`
-  // parameter names it — its value is the `login_hint` claim of the sign-in
-  // token, which /.auth/me exposes once the claim is enabled on the Hive app
-  // registration (Token configuration → optional claim login_hint). Without the
-  // claim the fallback is Static Web Apps' own sign-out, which may still ask.
+  // Teams 账号」, then 「弹出了无需用户看到的信息」): end Hive's session (POST
+  // /api/logout — the server marks this sign-in as over), then, best effort and
+  // out of sight, ask Microsoft to end the browser's session for this account in
+  // a hidden frame, and come home. No Microsoft page is shown. Whether or not
+  // Microsoft honours the hidden request, the next 登录 asks for the password
+  // (the sign-in is configured with prompt=login).
   var TENANT = "edb20124-7377-4368-acbc-d4be58fe59c3";
+  function hiddenMicrosoftSignOut(hint, done) {
+    if (window.fcHiddenMicrosoftSignOut) return window.fcHiddenMicrosoftSignOut(hint, done);
+    var called = false;
+    function finish() { if (called) return; called = true; if (done) done(); }
+    try {
+      var f = document.createElement("iframe");
+      f.setAttribute("aria-hidden", "true"); f.tabIndex = -1;
+      f.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
+      f.onload = f.onerror = function () { setTimeout(finish, 300); };
+      f.src = "https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout" + (hint ? "?logout_hint=" + encodeURIComponent(hint) : "");
+      document.body.appendChild(f);
+    } catch (e) {}
+    setTimeout(finish, 3000);
+  }
   function microsoftSignOut(reason) {
     var why = reason || "user";
     try { sessionStorage.setItem("fc-signedout", why); } catch (e) {}
-    var back = location.origin + "/?signedout=" + encodeURIComponent(why);
-    return fetch("/.auth/me", { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+    return fetch("/api/me/session?peek=1", { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
       .then(function (j) {
-        var claims = (j && j.clientPrincipal && j.clientPrincipal.claims) || [];
-        var hint = "";
-        claims.forEach(function (c) { if (c && (c.typ === "login_hint" || /\/login_hint$/.test(String(c.typ)))) hint = String(c.val || ""); });
+        var hint = (j && j.user) || "";
         return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
           announce("out");
-          if (hint) location.replace("https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout?logout_hint=" + encodeURIComponent(hint) + "&post_logout_redirect_uri=" + encodeURIComponent(back));
-          else location.replace("/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent("/?signedout=" + why));
+          hiddenMicrosoftSignOut(hint, function () { goHome(why); });
         });
       });
   }
@@ -113,7 +122,7 @@
     lastPing = Date.now();
     return fetch("/api/me/session", { credentials: "same-origin", cache: "no-store" }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        if (r.status === 401) { expired(j && j.reason); return null; }
+        if (r.status === 401 || (j && j.signedIn === false)) { expired(j && j.reason); return null; }
         if (r.ok && j && j.idleSeconds) {
           cfg.idleSeconds = j.idleSeconds;
           cfg.maxSeconds = j.maxSeconds || cfg.maxSeconds;
@@ -189,5 +198,5 @@
   // 「账号登录后自动返回主页面」 (Rick, 2026-10-02).
   touch(); ping();
 
-  window.fcSession = { touch: touch, ping: ping, signOut: signOut, expired: expired, config: cfg };
+  window.fcSession = { touch: touch, ping: ping, signOut: signOut, expired: expired, microsoftSignOut: microsoftSignOut, config: cfg };
 })();

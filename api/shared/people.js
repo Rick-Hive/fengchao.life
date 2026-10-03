@@ -13,7 +13,7 @@
 // one of the four words, so a school that fills that field in needs no edit.
 //
 // 补充资料 (Rick, 2026-10-02) is written by the person themselves from 我的账号:
-//   extra = { roles: [SELF_ROLES…], rolesOther, topics: [TOPICS…], otherAccounts: [upn…],
+//   extra = { roles: [SELF_ROLES…], rolesOther, topics: [TOPICS…], topicsOther, otherAccounts: [upn…],
 //             children: [ { name, age, grade, schooling, model, modelOther,
 //                           higherEd: [HIGHER_ED…], higherEdOther, account } ], at }
 // `account` is the child's own Teams account when they have one; saving the
@@ -28,7 +28,8 @@ const IDENTITIES = ["家长", "学生", "老师", "行政"];
 // Vocabularies for 补充资料. Stored as the Chinese word; the Hub shows either language.
 // Vocabularies for 补充资料 (Rick, 2026-10-02 revision). Stored as the Chinese word; the page shows either language.
 const SELF_ROLES = ["家长", "老师", "学校行政", "机构负责人", "其它"];
-const TOPICS = ["教师培训", "家长-亲子培训", "标化考试"];
+// The topics list is the original one plus Rick's additions (2026-10-02: 「被删除了好多。比如教材等。这些不是要删掉的」).
+const TOPICS = ["教材", "课程", "教师培训", "家长-亲子培训", "海外留学", "大学路径", "双学分/AP课程", "标化考试", "其它"];
 const GRADES = ["学前", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 const SCHOOLING = ["公立学校", "私立学校", "国际学校", "基督教学校", "在家教育"];
 const MODELS = ["古典教育", "BJU", "Abeka", "混合教学法", "不清楚", "其它"];
@@ -106,6 +107,8 @@ function validateExtra(b, selfUpn) {
   const extra = { roles: pickMany(b.roles, SELF_ROLES, "roles"), rolesOther: "", topics: pickMany(b.topics, TOPICS, "topics"), otherAccounts: [], children: [] };
   extra.rolesOther = extra.roles.includes("其它") ? str(b.rolesOther, 60) : "";
   if (extra.roles.includes("其它") && !extra.rolesOther) problems.push("rolesOther: please say which");
+  extra.topicsOther = extra.topics.includes("其它") ? str(b.topicsOther, 60) : "";
+  if (extra.topics.includes("其它") && !extra.topicsOther) problems.push("topicsOther: please say which");
   // Other Teams accounts of the same person in this directory.
   const accs = (Array.isArray(b.otherAccounts) ? b.otherAccounts : String(b.otherAccounts || "").split(/[\s,;，；]+/)).map((a) => str(a, 120).toLowerCase()).filter(Boolean);
   for (const a of accs) {

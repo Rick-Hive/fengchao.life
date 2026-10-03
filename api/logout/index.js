@@ -14,7 +14,8 @@
 // out). The caller (assets/session-guard.js) then signs the Microsoft account
 // out of the browser as well, naming it with logout_hint so Microsoft asks
 // nothing (Rick, 2026-10-02).
-const { signOutCookies, crossSite } = require("../shared/session");
+const { signOutCookies, signInKey, parseCookies, crossSite } = require("../shared/session");
+const { getPrincipal } = require("../shared/auth");
 
 module.exports = async function (context, req) {
   const why = crossSite(req);
@@ -22,11 +23,16 @@ module.exports = async function (context, req) {
     context.res = { status: 403, headers: { "Cache-Control": "no-store" }, body: { error: "refused: " + why } };
     return;
   }
+  // Static Web Apps does not let a function clear its own sign-in cookie on the
+  // live site, so fc-sess becomes a signed "signed out" marker bound to this
+  // sign-in (see session.js): until the person signs in again, every guarded call
+  // and the header's state check treat the browser as signed out.
+  const k = signInKey(parseCookies(req), getPrincipal(req));
   context.res = {
     status: 204,
     headers: { "Cache-Control": "no-store" },
     // The Functions host turns these into one Set-Cookie header each.
-    cookies: signOutCookies(),
+    cookies: signOutCookies(k),
     body: null,
   };
 };
