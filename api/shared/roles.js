@@ -158,9 +158,42 @@ async function writeRoles(doc) {
   });
 }
 
-// Hive's roles for one account (lowercased UPN): bootstrap admin + roles.json.
-// Storage trouble returns what can be known without it rather than throwing.
-async function rolesFor(user) {
+// Entra's own administrator roles count too (Rick, 2026-10-03: an account
+// with User Administrator signed in as 普通用户). Someone the tenant trusts to
+// manage accounts and sign-in methods is a 域管理员（IT）of their own domain in
+// Hive, and a Global Administrator — who controls the app registration anyway
+// — is the system administrator. Role template ids are fixed across tenants.
+// Assignments are read from role management (any scope, so an assignment
+// limited to an administrative unit counts as well); Directory.Read.All
+// covers it. Graph trouble just leaves these out — a sign-in never fails on it.
+const ENTRA_IT_ROLES = {
+  "fe930be7-5e62-47db-91af-98c3a49a38b1": "User Administrator",
+  "c4e39bd9-1100-46d3-8c65-fb160da0071f": "Authentication Administrator",
+  "7be44c8a-adaf-4e2a-84d6-ab2649e08a13": "Privileged Authentication Administrator",
+  "729827e3-9c14-49f7-bb1b-9608f156bbb8": "Helpdesk Administrator",
+  "966707d0-3269-4727-9be2-8c3a10f19b9d": "Password Administrator",
+};
+const ENTRA_SYSADMIN_ROLES = { "62e90394-69f5-4237-9190-012177145e10": "Global Administrator" };
+async function entraRolesFor(u) {
+  const domain = (u.split("@")[1] || "").toLowerCase();
+  if (!domain) return [];
+  const { graph, q } = require("./graph");
+  const who = await graph("GET", `/users/${encodeURIComponent(u)}?$select=id`);
+  if (!who || !who.id) return [];
+  const page = await graph("GET", `/roleManagement/directory/roleAssignments?$filter=principalId eq '${q(who.id)}'&$select=roleDefinitionId,directoryScopeId`);
+  const out = new Set();
+  for (const a of (page && page.value) || []) {
+    const id = String(a.roleDefinitionId || "").toLowerCase();
+    if (ENTRA_SYSADMIN_ROLES[id] && (!a.directoryScopeId || a.directoryScopeId === "/")) out.add("staff:sysadmin");
+    else if (ENTRA_IT_ROLES[id] || ENTRA_SYSADMIN_ROLES[id]) out.add(`domain_it:${domain}`);
+  }
+  return Array.from(out);
+}
+
+// Hive's roles for one account (lowercased UPN): bootstrap admin + roles.json
+// (+ Entra's administrator roles when `withEntra`, used at sign-in). Storage or
+// Graph trouble returns what can be known without it rather than throwing.
+async function rolesFor(user, withEntra) {
   const u = normUser(user);
   const roles = new Set();
   if (!u) return [];
@@ -170,6 +203,9 @@ async function rolesFor(user) {
     const entry = doc.entries.find((e) => e.user === u);
     if (entry) entry.roles.forEach((r) => roles.add(r));
   } catch { /* bootstrap roles only */ }
+  if (withEntra) {
+    try { (await entraRolesFor(u)).forEach((r) => roles.add(r)); } catch { /* Hive's own roles only */ }
+  }
   // The route rules in staticwebapp.config.json know only `admin`; the system
   // administrator carries both names.
   if (roles.has("staff:sysadmin")) roles.add("admin");
@@ -195,4 +231,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, entraRolesFor, userRoles, userHasRole, normUser };

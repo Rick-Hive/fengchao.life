@@ -55,6 +55,33 @@ const R = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
   assert.strictEqual(R.roleLabel("domain_hive:a.edu", "en"), "Domain Hive administrator · a.edu");
   assert.strictEqual(R.roleLabel("domain_it:a.edu"), "域管理员（IT） · a.edu");
 
+  // Entra's administrator roles at sign-in: User Administrator → 域管理员（IT）of the
+  // account's own domain; Global Administrator (tenant-wide) → system administrator;
+  // nothing at Entra → nothing added; Graph trouble → Hive's roles only.
+  const graphMod = require(path.join(__dirname, "..", "api", "shared", "graph.js"));
+  const calls = [];
+  let assignments = [{ roleDefinitionId: "fe930be7-5e62-47db-91af-98c3a49a38b1", directoryScopeId: "/administrativeUnits/au1" }];
+  graphMod.graph = async (m, url) => {
+    calls.push(url);
+    if (/^\/users\//.test(url)) return { id: "u-1" };
+    if (/roleAssignments/.test(url)) { if (assignments instanceof Error) throw assignments; return { value: assignments }; }
+    throw new Error("unexpected " + url);
+  };
+  assert.deepStrictEqual(await R.rolesFor("Test.Admin@sciencebug.net", true), ["domain_it:sciencebug.net"]);
+  assert.ok(/principalId eq 'u-1'/.test(calls[1]), "assignments are looked up by the account's object id");
+  assignments = [{ roleDefinitionId: "62e90394-69f5-4237-9190-012177145e10", directoryScopeId: "/" }];
+  assert.deepStrictEqual((await R.rolesFor("ga@sciencebug.net", true)).sort(), ["admin", "staff:sysadmin"]);
+  assignments = [{ roleDefinitionId: "62e90394-69f5-4237-9190-012177145e10", directoryScopeId: "/administrativeUnits/au1" }];
+  assert.deepStrictEqual(await R.rolesFor("ga-au@sciencebug.net", true), ["domain_it:sciencebug.net"], "a scoped Global Administrator is IT of their domain only");
+  assignments = [{ roleDefinitionId: "b0f54661-2d74-4c50-afa3-1ec803f12efe", directoryScopeId: "/" }]; // Billing Administrator
+  assert.deepStrictEqual(await R.rolesFor("billing@sciencebug.net", true), []);
+  assignments = new Error("Graph down");
+  assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net", true), [], "Graph trouble adds nothing and does not throw");
+  assert.deepStrictEqual(await R.rolesFor("boot@fengchao.life", true), ["admin"]);
+  calls.length = 0;
+  assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net"), [], "without the flag Graph is not asked");
+  assert.strictEqual(calls.length, 0);
+
   // The bootstrap account is admin; a sysadmin entry would also carry `admin`.
   assert.deepStrictEqual(await R.rolesFor("Boot@fengchao.life"), ["admin"]);
   assert.deepStrictEqual(await R.rolesFor("nobody@fengchao.life"), []);

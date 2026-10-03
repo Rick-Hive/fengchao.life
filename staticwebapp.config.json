@@ -18,34 +18,6 @@
             "prompt=select_account"
           ]
         }
-      },
-      "customOpenIdConnectProviders": {
-        "entra": {
-          "registration": {
-            "clientIdSettingName": "AZURE_CLIENT_ID",
-            "clientCredential": {
-              "clientSecretSettingName": "AZURE_CLIENT_SECRET"
-            },
-            "openIdConnectConfiguration": {
-              "wellKnownOpenIdConfiguration": "https://login.microsoftonline.com/edb20124-7377-4368-acbc-d4be58fe59c3/v2.0/.well-known/openid-configuration"
-            }
-          },
-          "login": {
-            "nameClaimType": "preferred_username",
-            "scopes": [
-              "openid",
-              "profile",
-              "email"
-            ],
-            "loginParameterNames": [
-              "prompt",
-              "login_hint"
-            ],
-            "loginParameters": [
-              "prompt=login"
-            ]
-          }
-        }
       }
     }
   },

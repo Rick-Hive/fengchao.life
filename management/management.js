@@ -136,11 +136,12 @@
     $("fMenu").innerHTML =
       '<div class="cur"><b>' + esc(p ? p.displayName || upn : "") + "</b><span>" + esc(upn) + "</span></div>" +
       '<button type="button" class="mi" role="menuitem" data-switch="">' + (others.length ? t("切换账号", "Switch account") : t("使用新账号登录", "Sign in with another account")) +
-        "<small>" + t("结束当前会话，到微软登录页用另一个账号登录。", "Ends this session and takes you to Microsoft's sign-in page for another account.") + "</small></button>" +
+        "<small>" + t("结束当前会话，到微软的账号列表选另一个账号登录。", "Ends this session and takes you to Microsoft's account list to sign in as another account.") + "</small></button>" +
       (others.length ? '<div class="hd">' + t("我的其他账号", "My other accounts") + "</div>" + others.map(function (a) {
         return '<button type="button" class="mi" role="menuitem" data-switch="' + esc(a) + '" title="' + esc(a) + '">' + esc(a) + "</button>";
       }).join("") : "") +
-      '<button type="button" class="mi ms" role="menuitem" data-mslogout="1">' + t("公用电脑？同时在微软退出此账号", "Shared computer? Also sign this account out at Microsoft") + "</button>";
+      '<button type="button" class="mi ms" role="menuitem" data-mslogout="1">' + t("公用电脑？退出并在微软退出此账号", "Shared computer? Sign out here and at Microsoft") +
+        "<small>" + t("结束会话，并让微软忘掉这台浏览器上的该账号。", "Ends the session and makes Microsoft forget this account in this browser.") + "</small></button>";
   }
   function menuOpen(open) {
     $("fMenu").hidden = !open;
@@ -149,18 +150,22 @@
   $("fWho").addEventListener("click", function () { menuOpen($("fMenu").hidden); });
   document.addEventListener("click", function (e) { if (!$("foot").contains(e.target) && !$("fMenu").hidden) menuOpen(false); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("fMenu").hidden) { menuOpen(false); $("fWho").focus(); } });
-  // 使用新账号登录 / 切换账号: end Hive's session (the Microsoft sessions in this
-  // browser stay), then go to the sign-in in this same tab through the "entra"
-  // provider (staticwebapp.config.json customOpenIdConnectProviders), whose
-  // loginParameterNames pass prompt / login_hint through to Microsoft:
-  // prompt=login makes Microsoft show its sign-in page and ask for credentials
-  // even when browser single sign-on would otherwise hand the old account straight
-  // back (Rick, 2026-10-03: 「切换账号」 came back as the same account; the
-  // plain /.auth/login/aad cannot carry per-request parameters). login_hint
-  // pre-fills the chosen account. Only one account can be signed in at a time
-  // (one platform cookie), so a switch is always sign-out + sign-in. The intended
-  // account is remembered so loadMe can say what came back.
-  var SWITCH_LOGIN = "/.auth/login/entra?prompt=login";
+  // 使用新账号登录 / 切换账号. Checked live (Rick, 2026-10-03, twice): after
+  // POST /api/logout the platform's own sign-in cookie is still valid — a
+  // function cannot clear it — and with that cookie /.auth/login/<provider>
+  // never goes to Microsoft at all: it hands the same account straight back,
+  // whatever prompt= the provider is configured with (that, not browser single
+  // sign-on, is why 「切换账号」 came back as the same account). The only thing
+  // that clears the platform cookie is /.auth/logout, so a switch is
+  // /api/logout (Hive's session) → /.auth/logout (platform cookie; Static Web
+  // Apps also visits Microsoft's sign-out, which may ask which account to sign
+  // out) → /.auth/login/aad, whose prompt=select_account makes Microsoft show
+  // its account list with 「使用其他账户」, → the management center as whichever
+  // account was chosen. Only one account can be signed in at a time (one
+  // platform cookie). The intended account is remembered so loadMe can say
+  // what came back.
+  var SWITCH_LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
+  function platformLogout(then) { return "/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent(then); }
   function switchAccount(to) {
     var from = (me && me.profile && me.profile.upn) || "";
     menuOpen(false);
@@ -170,21 +175,36 @@
     return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
       try { new BroadcastChannel("fc-auth").postMessage({ kind: "out", at: Date.now() }); } catch (e) {}
       try { localStorage.setItem("fc-auth-event", "out:" + Date.now()); } catch (e) {}
-      location.replace(SWITCH_LOGIN + (to ? "&login_hint=" + encodeURIComponent(to) : "") + "&post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1"));
+      location.replace(platformLogout(SWITCH_LOGIN));
     });
   }
-  // Microsoft's own sign-out for this account, in a new tab (logout_hint skips the
-  // "which account" page); Hive's session is not touched here.
+  // Microsoft's own sign-out page for this account (logout_hint skips the "which
+  // account" page); linked from the same-account banner, opened in a new tab.
   function microsoftLogoutUrl(upn) {
     return "https://login.microsoftonline.com/common/oauth2/v2.0/logout" + (upn ? "?logout_hint=" + encodeURIComponent(upn) : "");
+  }
+  // 公用电脑？退出并在微软退出此账号: end Hive's session (the same as 退出), tell
+  // the other tabs, then /.auth/logout — it clears the platform cookie (so the
+  // next person at this browser cannot be handed this account by
+  // /.auth/login/aad) and visits Microsoft's sign-out — and come back to the
+  // homepage signed out. (Rick, 2026-10-03: the first version only opened
+  // Microsoft's sign-out in a new tab and left Hive's session alone, so the
+  // management center was still open afterwards.)
+  function publicSignOut() {
+    menuOpen(false);
+    $("fWho").disabled = true; $("fOut").disabled = true;
+    try { sessionStorage.setItem("fc-signedout", "user"); localStorage.removeItem("fc-last-active"); } catch (e) {}
+    window.__fcLeaving = true;
+    return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
+      try { new BroadcastChannel("fc-auth").postMessage({ kind: "out", at: Date.now() }); } catch (e) {}
+      try { localStorage.setItem("fc-auth-event", "out:" + Date.now()); } catch (e) {}
+      location.replace(platformLogout("/"));
+    });
   }
   $("fMenu").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-switch]");
     if (b) return switchAccount(b.getAttribute("data-switch"));
-    if (e.target.closest("button[data-mslogout]")) {
-      menuOpen(false);
-      window.open(microsoftLogoutUrl((me && me.profile && me.profile.upn) || ""), "_blank", "noopener");
-    }
+    if (e.target.closest("button[data-mslogout]")) return publicSignOut();
   });
   // After a switch: did we come back as a different account?
   function afterSwitch() {
@@ -195,7 +215,7 @@
     var wrong = !same && sw.to && now.toLowerCase() !== String(sw.to).toLowerCase();
     if (same) {
       flash(t("仍是原账号 ", "Still the same account, ") + "<b>" + esc(now) + "</b>" +
-        t("：你在微软登录页上又用它登录了，或者微软没有要求重新验证。要换账号，请在微软登录页选「使用其他账号」；也可以先 ", ". Either it was chosen again on Microsoft's sign-in page, or Microsoft did not ask again. To switch, choose \"Use another account\" on Microsoft's page, or first ") +
+        t("：在微软的账号列表里又选了它。要换账号，请在列表里选另一个账号或「使用其他账户」；也可以先 ", ": it was chosen again in Microsoft's account list. To switch, pick another account there or \"Use another account\", or first ") +
         '<a href="' + esc(microsoftLogoutUrl(now)) + '" target="_blank" rel="noopener">' + t("在微软退出该账号", "sign that account out at Microsoft") + "</a>" + t("。", "."));
     } else if (wrong) {
       flash(t("已切换为 ", "Switched to ") + "<b>" + esc(now) + "</b>" + t("（不是你选的 ", " (not the ") + esc(sw.to) + t("）。", " you chose)."));
@@ -390,7 +410,6 @@
           '<label class="f">' + t("私人邮箱（推荐 Gmail 等海外安全邮箱）", "Personal email (Gmail or another secure overseas mailbox recommended)") + '<input type="email" data-p="safeEmail" value="' + esc(p.safeEmail) + '" placeholder="name@gmail.com" /></label>' +
           '<label class="f">' + t("语言", "Language") + '<select data-p="preferredLanguage"><option value="">' + t("未设置", "Not set") + '</option><option value="zh-CN"' + (p.preferredLanguage === "zh-CN" ? " selected" : "") + '>中文</option><option value="en-US"' + (p.preferredLanguage === "en-US" ? " selected" : "") + ">English</option></select></label>" +
           '<label class="f">' + t("所在城市", "City") + '<input type="text" data-p="city" maxlength="40" value="' + esc(p.city) + '" /></label>' +
-          '<label class="f">' + t("省 / 州", "State / province") + '<input type="text" data-p="state" maxlength="40" value="' + esc(p.state) + '" /></label>' +
           '<label class="f">' + t("邮编", "Postcode") + '<input type="text" data-p="postalCode" maxlength="12" value="' + esc(p.postalCode) + '" /></label>' +
         '</div><footer class="cf"><button class="btn" type="submit" id="pSave">' + t("保存", "Save") + '</button><span id="pMsg"></span></footer></form></section>' +
 
@@ -464,8 +483,10 @@
         }).join("") : '<div class="empty">' + t("没有登记任何验证方式。", "No sign-in methods registered.") + "</div>") + "</div>" +
         '<div id="mMsg"></div>' +
       "</section>";
-    // menus
-    $("content").addEventListener("click", function (ev) {
+    // Menus. The handler sits on this render's card (not on the permanent
+    // #content, where every visit stacked another copy and the ⋯ toggle cancelled
+    // itself out — Rick, 2026-10-03: 「验证器设备 1 后的三个点不可以点开」).
+    $("content").firstElementChild.addEventListener("click", function (ev) {
       var mb = ev.target.closest("button[data-menu]");
       document.querySelectorAll(".menu.open").forEach(function (m) { if (!mb || m.id !== mb.getAttribute("data-menu")) m.classList.remove("open"); });
       if (mb) { $(mb.getAttribute("data-menu")).classList.toggle("open"); return; }
@@ -486,7 +507,10 @@
         $("mMsg").innerHTML = '<div class="msg ok">' + t("已删除「" + name + "」。", "Removed \"" + name + "\".") + "</div>";
       });
     });
-    document.addEventListener("click", function closeMenus(ev) { if (!ev.target.closest(".menu-wrap")) document.querySelectorAll(".menu.open").forEach(function (m) { m.classList.remove("open"); }); });
+    if (!viewSecurity.closer) {
+      viewSecurity.closer = function (ev) { if (!ev.target.closest(".menu-wrap")) document.querySelectorAll(".menu.open").forEach(function (m) { m.classList.remove("open"); }); };
+      document.addEventListener("click", viewSecurity.closer);
+    }
   }
 
   // ================================================================================
