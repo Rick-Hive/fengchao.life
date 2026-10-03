@@ -162,7 +162,7 @@
   // center as whichever account was chosen. Only one account can be signed in
   // at a time (one platform cookie). The intended account is remembered so
   // loadMe can say what came back.
-  var SWITCH_LOGIN = "/.auth/login/entra?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
+  var SWITCH_LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
   function platformLogout(then) { return "/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent(then); }
   function switchAccount(to) {
     var from = (me && me.profile && me.profile.upn) || "";

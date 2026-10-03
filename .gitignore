@@ -11,3 +11,6 @@ Thumbs.db
 
 # Local Azure Functions settings (secrets live in Azure app settings)
 api/local.settings.json
+
+# files moved aside by the device shell (it cannot delete); delete the folder by hand
+_to_delete/

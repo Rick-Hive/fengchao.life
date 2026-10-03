@@ -18,27 +18,6 @@
             "prompt=select_account"
           ]
         }
-      },
-      "customOpenIdConnectProviders": {
-        "entra": {
-          "registration": {
-            "clientIdSettingName": "AZURE_CLIENT_ID",
-            "clientCredential": {
-              "clientSecretSettingName": "AZURE_CLIENT_SECRET"
-            },
-            "openIdConnectConfiguration": {
-              "wellKnownOpenIdConfiguration": "https://fengchao.life/api/oidc-config"
-            }
-          },
-          "login": {
-            "nameClaimType": "preferred_username",
-            "scopes": [
-              "openid",
-              "profile",
-              "email"
-            ]
-          }
-        }
       }
     }
   },
@@ -155,7 +134,7 @@
   "responseOverrides": {
     "401": {
       "statusCode": 302,
-      "redirect": "/.auth/login/entra?post_login_redirect_uri=.referrer"
+      "redirect": "/.auth/login/aad?post_login_redirect_uri=.referrer"
     }
   },
   "globalHeaders": {

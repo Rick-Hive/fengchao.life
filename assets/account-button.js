@@ -44,7 +44,7 @@
   var SITE = location.hostname === "fengchao.life" || location.hostname === "www.fengchao.life" ? "https://fengchao.life" : "";
   // "entra" = Microsoft through api/oidc-config (account list on every sign-in,
   // and a sign-out that does not visit Microsoft's page).
-  var LOGIN = SITE + "/.auth/login/entra?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
+  var LOGIN = SITE + "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
   var MANAGE = "/management/";
   var PROTECTED = /^\/(account|admin|hub|management)(\/|$)/;
   var ON_HUB = /^\/(hub|management)(\/|$)/.test(location.pathname);
