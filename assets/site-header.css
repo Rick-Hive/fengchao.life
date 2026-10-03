@@ -289,6 +289,8 @@ html[lang="en"] .brand-tag { font-size: 0.76em; letter-spacing: 0; }
   background: #fdf0e0; color: #7a3e06; border: 1px solid #ecd2ab; border-radius: 10px;
   padding: 9px 34px 9px 12px; font-size: 0.82em; line-height: 1.45; box-shadow: 0 14px 30px -12px rgba(15, 32, 60, 0.3);
 }
+.acct-notice { transition: opacity 0.3s ease, transform 0.3s ease; }
+.acct-notice.fade { opacity: 0; transform: translateY(-4px); pointer-events: none; }
 .acct-notice::before { content: ""; position: absolute; right: 14px; top: -6px; width: 10px; height: 10px; background: #fdf0e0; border-left: 1px solid #ecd2ab; border-top: 1px solid #ecd2ab; transform: rotate(45deg); }
 .acct-notice-x { position: absolute; right: 6px; top: 5px; border: 0; background: none; color: inherit; font-size: 1.1em; line-height: 1; padding: 2px 6px; cursor: pointer; border-radius: 6px; }
 .acct-notice-x:hover { background: rgba(122, 62, 6, 0.1); }

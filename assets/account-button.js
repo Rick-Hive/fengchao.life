@@ -80,10 +80,29 @@
       : t("长时间未操作，已自动退出。请重新登录。", "Signed out after a period of inactivity. Please sign in again.");
     return '<div class="acct-notice" role="status">' + esc(msg) + '<button type="button" class="acct-notice-x" aria-label="' + esc(t("关闭", "Close")) + '">×</button></div>';
   }
+  // The notice goes away by itself (Rick, 2026-10-03: 「这个提示 2 秒后就可以自动消失」):
+  // a plain 已退出 after 2 s, the ones that explain something (timeout, password,
+  // disabled) after 6 s, so there is time to read them. × closes it at once.
+  var noticeTimer = 0;
+  function dismissNotice() {
+    clearTimeout(noticeTimer); noticeTimer = 0;
+    var n = wrap.querySelector(".acct-notice");
+    signedOutWhy = "";
+    if (!n) return;
+    n.classList.add("fade");
+    setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, 350);
+  }
+  function armNotice() {
+    clearTimeout(noticeTimer);
+    if (!signedOutWhy) return;
+    var quick = signedOutWhy === "user" || signedOutWhy === "signed_out";
+    noticeTimer = setTimeout(dismissNotice, quick ? 2000 : 6000);
+  }
   function render() {
     if (!principal) {
       wrap.innerHTML = '<a class="acct-btn" href="' + esc(LOGIN) + '" target="_blank" rel="noopener" title="' + esc(t("用 Office 365 账号登录", "Sign in with your Office 365 account")) + '">' +
         icon + '<span class="acct-lbl">' + esc(t("登录", "Sign in")) + "</span></a>" + noticeHtml();
+      armNotice();
       return;
     }
     signedOutWhy = ""; // signed in again: the notice has done its job
@@ -168,7 +187,7 @@
 
   wrap.addEventListener("click", function (e) {
     var x = e.target.closest && e.target.closest(".acct-notice-x");
-    if (x) { signedOutWhy = ""; render(); return; }
+    if (x) { dismissNotice(); return; }
     var login = e.target.closest && e.target.closest("a.acct-btn:not(.signed-in)");
     if (login) {
       // Open the sign-in as a window of this page (not a plain new tab), so that

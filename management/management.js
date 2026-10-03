@@ -149,13 +149,25 @@
     $("topActions").innerHTML = actionsHtml || "";
     document.querySelector(".topbar").classList.toggle("bare", !title && !crumb && !actionsHtml);
   }
-  function panelOpen(html) { var p = $("panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false"); }
-  function panelClose() { var p = $("panel"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); document.querySelectorAll("table.data tr.sel").forEach(function (tr) { tr.classList.remove("sel"); }); }
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { panelClose(); closeDrawer(); } });
+  function panelOpen(html, which) { var p = $(which === "second" ? "panel2" : "panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false"); }
+  function panel2Close() { var p = $("panel2"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); }
+  function panelClose() { var p = $("panel"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); panel2Close(); document.querySelectorAll("table.data tr.sel").forEach(function (tr) { tr.classList.remove("sel"); }); }
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if ($("panel2").classList.contains("open")) panel2Close(); else { panelClose(); closeDrawer(); } } });
+  // A member clicked in a group's panel opens beside it, in the second panel, so the
+  // group stays in view (Rick, 2026-10-03: 「点击用户，应该在左侧显示用户详细信息」).
+  function memberClick(m) {
+    var upn = m.getAttribute("data-upn"), dom = m.getAttribute("data-domain") || upn.split("@")[1] || "";
+    openUserPanel(upn, dom, { beside: true, name: m.getAttribute("data-name") || "", owner: m.getAttribute("data-owner") === "1" });
+  }
   $("panel").addEventListener("click", function (e) {
     if (e.target.closest(".x")) { panelClose(); return; }
     var g = e.target.closest("button[data-group]"); if (g) { openGroupPanel(g.getAttribute("data-group")); return; }
-    var m = e.target.closest("button.mrow[data-upn]"); if (m) { openUserPanel(m.getAttribute("data-upn")); }
+    var m = e.target.closest("button.mrow[data-upn]"); if (m) memberClick(m);
+  });
+  $("panel2").addEventListener("click", function (e) {
+    if (e.target.closest(".x")) { panel2Close(); return; }
+    var g = e.target.closest("button[data-group]"); if (g) { openGroupPanel(g.getAttribute("data-group")); return; }
+    var m = e.target.closest("button.mrow[data-upn]"); if (m) memberClick(m);
   });
 
   // ================================================================================
@@ -459,9 +471,9 @@
           (g.description ? '<span class="k">' + t("简介", "About") + "</span><span>" + esc(g.description) + "</span>" : "") + "</div>" +
         "<h4>" + t("成员", "Members") + "</h4>" +
         (g.members.length ? g.members.map(function (m) {
-          return '<div class="mrow"><span class="avatar sm" style="background:' + hue(m.upn) + '">' + esc(initials(m.displayName || m.upn)) + '</span><span class="mname">' + esc(m.displayName) + '</span><span class="mupn">' + esc(m.upn) + "</span>" + (m.owner ? '<span class="tag accent">' + t("所有者", "Owner") + "</span>" : "<span></span>") + "</div>";
+          return '<button class="mrow link" type="button" data-upn="' + esc(m.upn) + '" data-name="' + esc(m.displayName || "") + '" data-owner="' + (m.owner ? "1" : "0") + '"><span class="avatar sm" style="background:' + hue(m.upn) + '">' + esc(initials(m.displayName || m.upn)) + '</span><span class="mname">' + esc(m.displayName) + '</span><span class="mupn">' + esc(m.upn) + "</span>" + (m.owner ? '<span class="tag accent">' + t("所有者", "Owner") + "</span>" : "<span></span>") + "</button>";
         }).join("") : '<div class="muted">' + t("没有成员。", "No members.") + "</div>") +
-        '<p class="hint">' + t("只读：成员的增减在 Teams 里完成。", "Read-only: members are added or removed in Teams.") + "</p>";
+        '<p class="hint">' + t("点击成员查看其信息。只读：成员的增减在 Teams 里完成。", "Click a member to see their details. Read-only: members are added or removed in Teams.") + "</p>";
     });
   }
   function renderTeams() {
@@ -643,11 +655,29 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   var IDENTITIES = ["家长", "学生", "老师", "行政"];
-  function openUserPanel(upn, domain) {
+  function openUserPanel(upn, domain, opts) {
+    opts = opts || {};
+    var where = opts.beside ? "second" : undefined;
+    // A member of a school this person does not manage (or a guest): a small card with
+    // what the group told us, since the directory cache of that school is not theirs to read.
+    var managed = !!(domain && dinfo(domain));
+    if (opts.beside && (!managed || opts.card)) {
+      panelOpen('<div class="ph"><span class="avatar" style="background:' + hue(upn) + '">' + esc(initials(opts.name || upn)) + "</span><h3>" + esc(opts.name || upn) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+        '<div class="pb"><div class="kv"><span class="k">' + t("账号", "Account") + "</span><span>" + esc(upn) + "</span>" +
+        '<span class="k">' + t("学校", "School") + "</span><span>" + (managed ? dlabel(domain) : esc(domain || "—")) + "</span>" +
+        (opts.owner ? '<span class="k">' + t("在此群组", "In this group") + '</span><span><span class="tag accent">' + t("所有者", "Owner") + "</span></span>" : "") + "</div>" +
+        '<div class="note">' + (managed ? t("该账号不在这所学校的目录缓存里（可能是访客账号，或还没有同步）。", "This account is not in that school's directory cache (a guest account, or not synced yet).")
+          : t("更多信息只有该机构的管理员或蜂巢员工可以查看。", "More details are visible only to that institution's administrators or Hive staff.")) + "</div></div>", "second");
+      return;
+    }
     if (domain) currentDomain = domain;
     var u = usersNow().filter(function (x) { return x.upn === upn; })[0];
     if (!u) { // not loaded yet (opened from a group in another school): load, then open
-      loadDomainData("users").then(function () { if (usersNow().some(function (x) { return x.upn === upn; })) openUserPanel(upn); });
+      if (opts.beside) panelOpen('<div class="ph"><h3>' + esc(opts.name || upn) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>", "second");
+      loadDomainData("users").then(function () {
+        if (usersNow().some(function (x) { return x.upn === upn; })) openUserPanel(upn, currentDomain, opts);
+        else if (opts.beside) openUserPanel(upn, domain, Object.assign({ card: true }, opts)); // not in that school's cache (a guest, or not synced yet): the small card
+      });
       return;
     }
     var kids = (u.extra && u.extra.children) || [];
@@ -693,7 +723,7 @@
           '<label class="f" style="margin-top:8px">' + t("备注", "Note") + '<input type="text" id="pnote" maxlength="200" value="' + esc(u.note) + '" /></label>' +
           '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>'
         : '<div class="kv"><span class="k">' + t("身份", "Identity") + "</span><span>" + esc(u.identity ? vl(u.identity) : "—") + '</span><span class="k">' + t("关联账号", "Linked") + "</span><span>" + esc(u.linked.join(", ") || "—") + "</span>" + (u.note ? '<span class="k">' + t("备注", "Note") + "</span><span>" + esc(u.note) + "</span>" : "") + '</div><div class="note">' + t("身份和关联由域蜂巢管理员或蜂巢员工维护。", "Identity and links are maintained by the domain Hive administrator or Hive staff.") + "</div>") +
-      "</div>");
+      "</div>", where);
     if ($("pform")) $("pform").addEventListener("submit", function (ev) {
       ev.preventDefault(); $("psave").disabled = true;
       post("domain/person", "PATCH", { domain: currentDomain, user: u.upn, identity: $("pid").value, linked: $("plink").value, note: $("pnote").value }).then(function (r) {
@@ -714,7 +744,7 @@
       post("domain/method", "DELETE", { domain: currentDomain, user: u.upn, id: b.getAttribute("data-del") }).then(function (r) {
         if (!r.ok) { b.disabled = false; $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         u.devices = u.devices.filter(function (x) { return x.id !== b.getAttribute("data-del"); }); u.verified = u.devices.length > 0;
-        renderUsers(); openUserPanel(u.upn);
+        renderUsers(); openUserPanel(u.upn, currentDomain, opts);
       });
     });
   }
@@ -746,7 +776,7 @@
           "<h4>" + t("成员", "Members") + "</h4>" +
           ((g.members || []).length ? g.members.map(function (upn) {
             var u = people[upn];
-            return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
+            return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '" data-domain="' + esc(dom) + '" data-name="' + esc((u && u.displayName) || "") + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
           }).join("") : '<div class="muted">' + t("本校没有成员。", "No members from this school.") + "</div>") +
           '<p class="hint">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</p>" +
         "</div>");

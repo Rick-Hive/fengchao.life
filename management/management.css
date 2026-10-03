@@ -201,6 +201,11 @@ table.data tr.sel td { background: var(--accent-soft); }
 /* ---- side panel ------------------------------------------------------------------------ */
 .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); background: var(--card); border-left: 1px solid var(--line); box-shadow: -8px 0 30px -12px rgba(15, 32, 60, 0.25); z-index: 20; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.18s ease; }
 .panel.open { transform: none; }
+/* The second panel sits to the left of the first (a member opened from a group); on a
+   narrow screen it covers the first instead. */
+.panel.second { right: min(440px, 100vw); z-index: 20; border-left: 1px solid var(--line); transform: translateX(200%); }
+.panel.second.open { transform: none; }
+@media (max-width: 960px) { .panel.second { right: 0; z-index: 21; } }
 .panel .ph { display: flex; align-items: center; gap: 10px; padding: var(--s4); border-bottom: 1px solid var(--line); }
 .panel .ph h3 { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel .pb { flex: 1; overflow-y: auto; padding: var(--s4) var(--s4) var(--s6); }
