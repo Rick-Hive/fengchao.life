@@ -40,6 +40,9 @@
             "loginParameterNames": [
               "prompt",
               "login_hint"
+            ],
+            "loginParameters": [
+              "prompt=login"
             ]
           }
         }
