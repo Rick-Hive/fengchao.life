@@ -135,8 +135,8 @@
     });
     $("fMenu").innerHTML =
       '<div class="cur"><b>' + esc(p ? p.displayName || upn : "") + "</b><span>" + esc(upn) + "</span></div>" +
-      '<button type="button" class="mi" role="menuitem" data-switch="">' + t("切换账号", "Switch account") +
-        "<small>" + t("结束当前会话，在微软的账号列表里选另一个账号登录。", "Ends this session and lets you pick another account in Microsoft's list.") + "</small></button>" +
+      '<button type="button" class="mi" role="menuitem" data-switch="">' + (others.length ? t("切换账号", "Switch account") : t("使用新账号登录", "Sign in with another account")) +
+        "<small>" + t("结束当前会话，到微软登录页用另一个账号登录。", "Ends this session and takes you to Microsoft's sign-in page for another account.") + "</small></button>" +
       (others.length ? '<div class="hd">' + t("我的其他账号", "My other accounts") + "</div>" + others.map(function (a) {
         return '<button type="button" class="mi" role="menuitem" data-switch="' + esc(a) + '" title="' + esc(a) + '">' + esc(a) + "</button>";
       }).join("") : "") +
@@ -149,13 +149,18 @@
   $("fWho").addEventListener("click", function () { menuOpen($("fMenu").hidden); });
   document.addEventListener("click", function (e) { if (!$("foot").contains(e.target) && !$("fMenu").hidden) menuOpen(false); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !$("fMenu").hidden) { menuOpen(false); $("fWho").focus(); } });
-  // 切换账号: end Hive's session (the Microsoft sessions in this browser stay), then go
-  // to the sign-in in this same tab — Microsoft shows its account list
-  // (prompt=select_account in staticwebapp.config.json), the person picks one, and
-  // the management center loads again as that account. Only one account can be
-  // signed in at a time (one platform cookie), so a switch is always sign-out + sign-in.
-  // The intended account is remembered so loadMe can say if Microsoft handed the same
-  // account straight back (browser single sign-on skipping the list).
+  // 使用新账号登录 / 切换账号: end Hive's session (the Microsoft sessions in this
+  // browser stay), then go to the sign-in in this same tab through the "entra"
+  // provider (staticwebapp.config.json customOpenIdConnectProviders), whose
+  // loginParameterNames pass prompt / login_hint through to Microsoft:
+  // prompt=login makes Microsoft show its sign-in page and ask for credentials
+  // even when browser single sign-on would otherwise hand the old account straight
+  // back (Rick, 2026-10-03: 「切换账号」 came back as the same account; the
+  // plain /.auth/login/aad cannot carry per-request parameters). login_hint
+  // pre-fills the chosen account. Only one account can be signed in at a time
+  // (one platform cookie), so a switch is always sign-out + sign-in. The intended
+  // account is remembered so loadMe can say what came back.
+  var SWITCH_LOGIN = "/.auth/login/entra?prompt=login";
   function switchAccount(to) {
     var from = (me && me.profile && me.profile.upn) || "";
     menuOpen(false);
@@ -165,7 +170,7 @@
     return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
       try { new BroadcastChannel("fc-auth").postMessage({ kind: "out", at: Date.now() }); } catch (e) {}
       try { localStorage.setItem("fc-auth-event", "out:" + Date.now()); } catch (e) {}
-      location.replace("/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1"));
+      location.replace(SWITCH_LOGIN + (to ? "&login_hint=" + encodeURIComponent(to) : "") + "&post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1"));
     });
   }
   // Microsoft's own sign-out for this account, in a new tab (logout_hint skips the
@@ -189,10 +194,9 @@
     var now = me.profile.upn || "", same = sw.from && now.toLowerCase() === String(sw.from).toLowerCase();
     var wrong = !same && sw.to && now.toLowerCase() !== String(sw.to).toLowerCase();
     if (same) {
-      flash(t("微软没有显示账号列表，直接以原账号 ", "Microsoft skipped its account list and signed in the same account, ") + "<b>" + esc(now) + "</b>" +
-        t(" 登录了（通常是浏览器的单点登录造成的）。要换账号，请先 ", " again (usually browser single sign-on). To switch, first ") +
-        '<a href="' + esc(microsoftLogoutUrl(now)) + '" target="_blank" rel="noopener">' + t("在微软退出该账号", "sign that account out at Microsoft") + "</a>" +
-        t("，再点「切换账号」。", ", then use Switch account again."));
+      flash(t("仍是原账号 ", "Still the same account, ") + "<b>" + esc(now) + "</b>" +
+        t("：你在微软登录页上又用它登录了，或者微软没有要求重新验证。要换账号，请在微软登录页选「使用其他账号」；也可以先 ", ". Either it was chosen again on Microsoft's sign-in page, or Microsoft did not ask again. To switch, choose \"Use another account\" on Microsoft's page, or first ") +
+        '<a href="' + esc(microsoftLogoutUrl(now)) + '" target="_blank" rel="noopener">' + t("在微软退出该账号", "sign that account out at Microsoft") + "</a>" + t("。", "."));
     } else if (wrong) {
       flash(t("已切换为 ", "Switched to ") + "<b>" + esc(now) + "</b>" + t("（不是你选的 ", " (not the ") + esc(sw.to) + t("）。", " you chose)."));
     } else {
