@@ -11,8 +11,7 @@
 //    most every 5 minutes, so the server-side idle clock follows real use, not
 //    just API calls;
 //  * one minute before the limit a small dialog counts down with a 继续使用
-//    button; at zero the session is ended: POST /api/logout, the Microsoft
-//    account is signed out through Microsoft's endpoint (see microsoftSignOut), every
+//    button; at zero the session is ended: POST /api/logout (see microsoftSignOut), every
 //    other tab is told (BroadcastChannel "fc-auth" / storage), and the page
 //    comes back home with ?signedout=timeout, where the header explains and
 //    offers 登录;
@@ -66,37 +65,23 @@
     try { localStorage.removeItem(KEY); } catch (e) {}
     location.replace("/?signedout=" + encodeURIComponent(why));
   }
-  // 退出 (Rick, 2026-10-02: 「点击退出无需登录 Teams 账号确认，后台自动登出所登录的
-  // Teams 账号」): end Hive's session (POST /api/logout — the server marks this
-  // sign-in as over), then send the browser through Microsoft's sign-out endpoint
-  // for this very account (logout_hint = the UPN, so Microsoft asks nothing and
-  // shows no account picker) and straight back home. A hidden frame was tried
-  // first; Microsoft refuses to be framed, so the account stayed signed in at
-  // Microsoft and the next 登录 went to the same account (Rick, 2026-10-03: 「It
-  // doesn't allow me to login with another account」). The brief pass through
-  // Microsoft is the price of a real sign-out; with https://fengchao.life/
-  // registered as a redirect URI on the Hive app registration it is a flash.
-  var TENANT = "edb20124-7377-4368-acbc-d4be58fe59c3";
-  function microsoftLogoutUrl(hint, back) {
-    return "https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout" +
-      "?post_logout_redirect_uri=" + encodeURIComponent(back) + (hint ? "&logout_hint=" + encodeURIComponent(hint) : "");
-  }
+  // 退出 ends Hive's session (POST /api/logout — the server marks this sign-in as
+  // over) and comes home. Nothing is done at Microsoft: the sign-in is configured
+  // with prompt=select_account, so the next 登录 shows Microsoft's account list
+  // (the previous account at the top, 「使用其他账户」 below) and the person
+  // chooses (Rick, 2026-10-03: 「Why don't you just open MS's login page for user
+  // to choose which account」). Earlier versions tried to sign the Microsoft
+  // account out too — a hidden frame (Microsoft refuses framing) and then a
+  // top-level visit to Microsoft's end-session page, which told the person to
+  // close the browser tab; both were worse than letting them choose.
   function microsoftSignOut(reason) {
     var why = reason || "user";
     try { sessionStorage.setItem("fc-signedout", why); localStorage.removeItem(KEY); } catch (e) {}
-    var back = location.origin + "/?signedout=" + encodeURIComponent(why);
-    return fetch("/api/me/session?peek=1", { credentials: "same-origin", cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-      .then(function (j) {
-        var hint = (j && j.user) || "";
-        return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
-          // This tab is leaving for Microsoft; the "out" broadcast below also reaches the
-          // other listeners *in this tab*, which must not pull it back to "/" first.
-          window.__fcLeaving = true;
-          announce("out");
-          // No account to name (already out at Hive): nothing to sign out at Microsoft either.
-          if (hint) location.replace(microsoftLogoutUrl(hint, back)); else goHome(why);
-        });
-      });
+    return fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
+      window.__fcLeaving = true; // the "out" broadcast also reaches this tab's own listeners; this tab leaves on its own terms
+      announce("out");
+      goHome(why);
+    });
   }
   function signOut(reason) {
     if (ended) return;
@@ -196,5 +181,5 @@
   // 「账号登录后自动返回主页面」 (Rick, 2026-10-02).
   touch(); ping();
 
-  window.fcSession = { touch: touch, ping: ping, signOut: signOut, expired: expired, microsoftSignOut: microsoftSignOut, microsoftLogoutUrl: microsoftLogoutUrl, config: cfg };
+  window.fcSession = { touch: touch, ping: ping, signOut: signOut, expired: expired, microsoftSignOut: microsoftSignOut, config: cfg };
 })();

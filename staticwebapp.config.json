@@ -15,7 +15,7 @@
         },
         "login": {
           "loginParameters": [
-            "prompt=login"
+            "prompt=select_account"
           ]
         }
       }

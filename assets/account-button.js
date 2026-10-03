@@ -12,9 +12,9 @@
 //
 // 退出登录 ends Hive's session (POST /api/logout — the server marks this
 // sign-in as over, because the platform does not let it clear its own cookie)
-// and signs the Microsoft account out through Microsoft's endpoint, named with
-// logout_hint so nothing is asked, coming straight back home — see
-// window.fcSession.microsoftSignOut in assets/session-guard.js.
+// and shows 登录 again. The Microsoft account is left alone: the sign-in uses
+// prompt=select_account, so the next 登录 shows Microsoft's account list and
+// the person picks the old account or another one (Rick, 2026-10-03).
 //
 // Who is signed in comes from Hive's own GET /api/me/session?peek=1, never from
 // the platform's /.auth/me: after 退出 the platform still thinks the person is
@@ -44,7 +44,6 @@
   var SITE = location.hostname === "fengchao.life" || location.hostname === "www.fengchao.life" ? "https://fengchao.life" : "";
   var LOGIN = SITE + "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
   var MANAGE = "/management/";
-  var TENANT = "edb20124-7377-4368-acbc-d4be58fe59c3";
   var PROTECTED = /^\/(account|admin|hub|management)(\/|$)/;
   var ON_HUB = /^\/(hub|management)(\/|$)/.test(location.pathname);
   var principal = null;
@@ -156,18 +155,14 @@
   // ---- sign out (same flow as the management center's 退出) ----------------------
   function signOut() {
     if (window.fcSession && window.fcSession.signOut) { window.fcSession.signOut("user"); return; }
-    // Pages without session-guard.js (the course site): the same flow, inline — end
-    // Hive's session, then through Microsoft's sign-out for this account (logout_hint:
-    // no picker, nothing to answer) and back home. See assets/session-guard.js.
+    // Pages without session-guard.js (the course site): end Hive's session and show
+    // 登录 again. Nothing is done at Microsoft — the next 登录 shows Microsoft's
+    // account list (prompt=select_account) and the person chooses.
     try { sessionStorage.setItem("fc-signedout", "user"); localStorage.removeItem("fc-last-active"); } catch (e) {}
-    var hint = (principal && principal.userDetails) || "";
-    var back = location.origin + "/?signedout=user";
     fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
-      if (hint) window.__fcLeaving = true;
       announce("out");
       principal = null; known = true; close();
-      if (hint) location.replace("https://login.microsoftonline.com/" + TENANT + "/oauth2/v2.0/logout?post_logout_redirect_uri=" + encodeURIComponent(back) + "&logout_hint=" + encodeURIComponent(hint));
-      else if (PROTECTED.test(location.pathname)) location.replace("/?signedout=user");
+      if (PROTECTED.test(location.pathname)) location.replace("/?signedout=user");
       else { signedOutWhy = "user"; render(); }
     });
   }
