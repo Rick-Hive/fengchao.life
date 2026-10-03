@@ -493,8 +493,10 @@
       if (state.teamSort === "kind") return order[a.kind] - order[b.kind] || a.name.localeCompare(b.name, "zh");
       return a.name.localeCompare(b.name, "zh");
     });
+    var others = state.teams.filter(function (g) { return g.kind !== "class" && g.kind !== "team"; }).length;
     $("tlist").innerHTML = rows.length ? rows.map(function (g) { return teamRow(g, q); }).join("") :
-      '<div class="empty">' + (q ? t("没有匹配「" + q + "」的团队。", "No team matches \"" + q + "\".") : t("没有加入任何群组。", "Not a member of any group.")) + "</div>";
+      '<div class="empty">' + (q ? t("没有匹配「" + q + "」的团队。", "No team matches \"" + q + "\".") : f !== "all" ? t("这一类里没有团队。", "No team of this kind.")
+        : (others ? t("没有加入任何 Teams 团队（另有 " + others + " 个不是 Teams 的群组，如邮件组 / 安全组，这里不显示）。", "Not a member of any team (" + others + " other group(s) that are not Teams — mail or security groups — are not shown here).") : t("没有加入任何团队。", "Not a member of any team."))) + "</div>";
   }
 
   // ================================================================================
@@ -1004,9 +1006,25 @@
   }
   window.addEventListener("hashchange", route);
 
+  // Roles granted while this page is open (Rick, 2026-10-03: a test account was made an
+  // administrator but 「UI stays unchanged」): whenever the tab comes back into view the
+  // roles and managed domains are read again and the navigation redrawn. No timer, so
+  // an unattended tab does not keep the session alive.
+  var rolesSeen = "";
+  function rolesKey() { return JSON.stringify([(me && me.roles) || [], (domainsInfo && domainsInfo.domains || []).map(function (d) { return [d.domain, d.can]; }), domainsInfo && domainsInfo.all]); }
+  function refreshRoles() {
+    if (!me) return;
+    Promise.all([api("me/summary"), api("domain/domains")]).then(function (rs) {
+      if (!rs[0].ok) return;
+      me = rs[0].body; domainsInfo = rs[1].ok ? rs[1].body : null;
+      var k = rolesKey();
+      if (k !== rolesSeen) { rolesSeen = k; foot(); nav(); if (/^#\/(domain|system)/.test(location.hash)) route(); }
+    }).catch(function () {});
+  }
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") refreshRoles(); });
   loadMe().then(function () {
     return api("domain/domains").then(function (r) { domainsInfo = r.ok ? r.body : null; }).catch(function () { domainsInfo = null; });
-  }).then(route).catch(function (r) {
+  }).then(function () { rolesSeen = rolesKey(); }).then(route).catch(function (r) {
     var msg = r && r.body ? errText(r) : String(r);
     $("content").innerHTML = '<div class="card"><h2>' + t("无法读取账号", "Could not load the account") + '</h2><p class="sub">' + esc(msg) + '</p><div class="actions"><a class="btn" href="/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent("/management/") + '">' + t("重新登录", "Sign in again") + "</a></div></div>";
     $("fName").textContent = t("未登录", "Signed out"); $("fAvatar").textContent = "?";
