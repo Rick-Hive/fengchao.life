@@ -30,10 +30,16 @@
   function $(id) { return document.getElementById(id); }
   function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function api(path, opts) {
-    return fetch("/api/" + path, Object.assign({ credentials: "same-origin", cache: "no-store" }, opts || {})).then(function (r) {
+    return fetch("/api/" + path, Object.assign({ credentials: "same-origin", cache: "no-store", redirect: "manual" }, opts || {})).then(function (r) {
+      // The platform itself found no sign-in (its cookie is gone) and answered with a
+      // redirect to the sign-in page: treat it as signed out, do not follow it from here.
+      if (r.type === "opaqueredirect" || r.status === 0) {
+        if (window.fcSession) window.fcSession.expired("signed_out");
+        return { ok: false, status: 401, body: { error: "signed out", code: "signed_out" } };
+      }
       return r.json().catch(function () { return {}; }).then(function (j) {
-        // The server ended the session (idle / maximum age): leave for the homepage, which explains.
-        if (r.status === 401 && j && (j.code === "session_expired" || j.code === "signed_out") && window.fcSession) window.fcSession.expired(j.reason || "signed_out");
+        // The server ended the session (idle / maximum age / 退出): leave for the homepage, which explains.
+        if (j && (j.code === "session_expired" || j.code === "signed_out") && window.fcSession) window.fcSession.expired(j.reason || "signed_out");
         return { ok: r.ok, status: r.status, body: j };
       });
     });
@@ -268,7 +274,7 @@
     var p = me.profile, hv = me.hive || {}, ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
     var canName = !!hv.canEditName;
-    var dept = [p.jobTitle, hv.institution || p.department].filter(Boolean).join(" · ");
+    var dept = [p.jobTitle, (EN ? (hv.institutionEn || hv.institution) : (hv.institution || hv.institutionEn)) || p.department].filter(Boolean).join(" · ");
     $("content").innerHTML =
       '<div class="idhead"><span class="avatar lg">' + esc(initials(p.displayName || p.upn)) + '</span><div class="idmain"><div class="idname">' + esc(p.displayName || p.upn) + "</div>" +
         '<div class="idmeta"><span>' + esc(p.upn) + "</span>" + (hv.identity ? '<span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + '<span class="tag">' + esc(roleNames(me.roles)) + "</span>" +
@@ -485,7 +491,7 @@
   // A school is shown by the name the system administrator gave it (系统 › 机构名称);
   // the domain itself is shown only to the system administrator (Rick, 2026-10-02).
   function dinfo(domain) { return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return d.domain === domain; })[0] || null; }
-  function dname(domain) { var d = dinfo(domain); return (d && d.name) || domain; }
+  function dname(domain) { var d = dinfo(domain); return (d && (EN ? (d.nameEn || d.name) : (d.name || d.nameEn))) || domain; }
   function dlabel(domain) { // name, plus the domain for the administrator when they differ
     var n = dname(domain);
     return esc(n) + (domainsInfo && domainsInfo.showDomains && n !== domain ? ' <span class="muted">' + esc(domain) + "</span>" : "");
@@ -872,22 +878,26 @@
     });
   }
   function viewInstitutions() {
-    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个机构名称；除系统管理员外，所有人只看到名称。", "Give each domain a school name; everyone but the system administrator sees only the name."));
+    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面按语言显示其一。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English school name; the page shows the one of its language. Everyone but the system administrator sees only the name."));
     var ds = (domainsInfo && domainsInfo.domains) || [];
     $("content").innerHTML =
-      '<div class="card"><table class="roles" id="itable"><thead><tr><th>' + t("域名", "Domain") + "</th><th>" + t("机构名称", "Institution name") + "</th><th></th></tr></thead><tbody>" +
+      '<div class="card"><table class="roles inst" id="itable"><thead><tr><th>' + t("域名", "Domain") + "</th><th>" + t("中文名称", "Chinese name") + "</th><th>" + t("英文名称", "English name") + "</th><th></th></tr></thead><tbody>" +
         ds.map(function (d) {
-          return '<tr data-domain="' + esc(d.domain) + '"><td>' + esc(d.domain) + (d.isDefault ? ' <span class="tag">' + t("默认", "default") + "</span>" : "") + '</td><td><input type="text" maxlength="60" value="' + esc(d.name || "") + '" placeholder="' + t("例如：北京某某学校", "e.g. Beijing Example School") + '" /></td><td><button class="btn secondary sm" type="button">' + t("保存", "Save") + "</button></td></tr>";
+          return '<tr data-domain="' + esc(d.domain) + '"><td>' + esc(d.domain) + (d.isDefault ? ' <span class="tag">' + t("默认", "default") + "</span>" : "") + "</td>" +
+            '<td><input type="text" data-n="zh" maxlength="60" value="' + esc(d.name || "") + '" placeholder="' + t("例如：北京某某学校", "e.g. 北京某某学校") + '" /></td>' +
+            '<td><input type="text" data-n="en" maxlength="80" value="' + esc(d.nameEn || "") + '" placeholder="e.g. Beijing Example School" /></td>' +
+            '<td><button class="btn secondary sm" type="button">' + t("保存", "Save") + "</button></td></tr>";
         }).join("") + '</tbody></table><div id="imsg"></div></div>';
     $("itable").addEventListener("click", function (ev) {
       var b = ev.target.closest("button"); if (!b) return;
-      var tr = b.closest("tr"), domain = tr.getAttribute("data-domain"), name = tr.querySelector("input").value.trim();
+      var tr = b.closest("tr"), domain = tr.getAttribute("data-domain");
+      var name = tr.querySelector("input[data-n=zh]").value.trim(), nameEn = tr.querySelector("input[data-n=en]").value.trim();
       b.disabled = true;
-      post("domain/institution", "PUT", { domain: domain, name: name }).then(function (r) {
+      post("domain/institution", "PUT", { domain: domain, name: name, nameEn: nameEn }).then(function (r) {
         b.disabled = false;
         if (!r.ok) { $("imsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
-        var d = dinfo(domain); if (d) d.name = name;
-        $("imsg").innerHTML = '<div class="msg ok">' + t("已保存：", "Saved: ") + esc(domain) + (name ? " → " + esc(name) : t("（已清除名称）", " (name cleared)")) + "</div>";
+        var d = dinfo(domain); if (d) { d.name = name; d.nameEn = nameEn; }
+        $("imsg").innerHTML = '<div class="msg ok">' + t("已保存：", "Saved: ") + esc(domain) + (name || nameEn ? " → " + esc([name, nameEn].filter(Boolean).join(" / ")) : t("（已清除名称）", " (names cleared)")) + "</div>";
       });
     });
   }
@@ -925,16 +935,13 @@
       // Just arrived from the sign-in tab: tell the other tabs, once, and take the marker out of the address.
       if (/[?&]signedin=1\b/.test(location.search)) {
         try { history.replaceState(null, "", location.pathname + location.search.replace(/([?&])signedin=1&?/, "$1").replace(/[?&]$/, "") + location.hash); } catch (e) {}
-        // Opened from 登录 on another tab: send that tab here and close this one
-        // (Rick, 2026-10-02). If the browser refuses to close it, this tab simply stays.
-        // The other tabs are told once, with `handed` when the opener was sent here
-        // directly, so the header script does not send it a second time (it did:
-        // 「好像登入了 2 次」).
-        var handed = false;
-        try { if (window.opener && !window.opener.closed) { window.opener.location.href = "/management/"; handed = true; } } catch (e) { /* cross-origin opener: the broadcast below does the job */ }
-        try { new BroadcastChannel("fc-auth").postMessage({ kind: "in", at: Date.now(), handed: handed }); } catch (e) {}
-        try { localStorage.setItem("fc-auth-event", "in:" + Date.now() + (handed ? ":handed" : "")); } catch (e) {}
-        if (window.opener) setTimeout(function () { try { window.close(); } catch (e) {} }, 400);
+        // Signed in in this very tab (no opener — the sign-in window was blocked, or
+        // the hand-off in index.html's head already happened): tell the other tabs
+        // once so their headers switch; nobody else navigates.
+        if (!window.__fcHandedOff) {
+          try { new BroadcastChannel("fc-auth").postMessage({ kind: "in", at: Date.now(), handed: true }); } catch (e) {}
+          try { localStorage.setItem("fc-auth-event", "in:" + Date.now() + ":handed"); } catch (e) {}
+        }
       }
       return me;
     });

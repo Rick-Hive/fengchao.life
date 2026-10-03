@@ -89,7 +89,7 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
 (async () => {
   // Not signed in / not in the directory.
   let r = await call(meFn, { action: "summary", user: null });
-  assert.strictEqual(r.status, 401);
+  assert.strictEqual(r.status, 403);
   r = await call(meFn, { action: "summary", user: "nobody@example.edu" });
   assert.strictEqual(r.status, 403);
 

@@ -46,7 +46,7 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   // 1. No principal → 401 signed_out.
   let c = ctx();
   assert.strictEqual(await S.guard(c, req({ user: null })), null);
-  assert.strictEqual(c.res.status, 401);
+  assert.strictEqual(c.res.status, 403);
   assert.strictEqual(c.res.body.code, "signed_out");
 
   // 2. First call: a new session, cookie issued, Strict + HttpOnly.
@@ -74,10 +74,10 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   assert.strictEqual(d.maxSeconds, 12 * 3600);
   assert.ok(new Date(d.expiresAt) - Date.now() <= 30 * MIN + 1000);
 
-  // 4. Idle too long → 401 session_expired/idle and all sign-in cookies expired.
+  // 4. Idle too long → 403 session_expired/idle (403, not 401: the platform turns 401 into a login redirect) and all sign-in cookies expired.
   c = ctx();
   assert.strictEqual(await S.guard(c, req({ cookie: cookieFor({ u: UPN, s: now - HOUR, t: now - 31 * MIN }) })), null);
-  assert.strictEqual(c.res.status, 401);
+  assert.strictEqual(c.res.status, 403);
   assert.strictEqual(c.res.body.code, "session_expired");
   assert.strictEqual(c.res.body.reason, "idle");
   assert.deepStrictEqual(names(c.res.cookies), ["StaticWebAppsAuthCookie", "StaticWebAppsAuthContextCookie", S.COOKIE].sort());
@@ -90,7 +90,7 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   //     signed_out, a soft one (the header's /api/me/session) says 200 signedIn:false…
   c = ctx();
   assert.strictEqual(await S.guard(c, req({ cookie: `${S.COOKIE}=${encodeURIComponent(marker.value)}` })), null);
-  assert.strictEqual(c.res.status, 401);
+  assert.strictEqual(c.res.status, 403);
   assert.strictEqual(c.res.body.code, "signed_out");
   c = ctx();
   assert.strictEqual(await S.guard(c, req({ cookie: `${S.COOKIE}=${encodeURIComponent(marker.value)}` }), { soft: true }), null);
@@ -207,6 +207,18 @@ function names(cookies) { return Array.from(new Set((cookies || []).map((c) => c
   assert.ok(await S.guard(c, req({ method: "POST", headers: { origin: "https://fengchao.life", "x-forwarded-host": "fengchao.life", host: "internal" } })), "forwarded host wins");
   c = ctx();
   assert.ok(await S.guard(c, req({ method: "POST" })), "no Origin / Sec-Fetch-Site (script) is allowed");
+  // Behind Static Web Apps the function sees the platform's Host, not the site's: the site's
+  // own Origin must still pass (live 2026-10-03: every 退出 / save was refused with 403).
+  c = ctx();
+  assert.ok(await S.guard(c, req({ method: "POST", headers: { origin: "https://fengchao.life", host: "green-bush-0425af100.7.azurestaticapps.net" } })), "the site's Origin passes whatever Host the platform shows");
+  c = ctx();
+  assert.ok(await S.guard(c, req({ method: "POST", headers: { origin: "https://green-bush-0425af100.7.azurestaticapps.net", host: "something.internal" } })), "the platform's own host passes");
+  c = ctx();
+  assert.ok(await S.guard(c, req({ method: "POST", headers: { origin: "https://preview.example", host: "internal", "x-ms-original-url": "https://preview.example/api/x" } })), "x-ms-original-url names the host");
+  c = ctx();
+  assert.strictEqual(await S.guard(c, req({ method: "POST", headers: { origin: "https://evil.example", host: "internal", "x-ms-original-url": "https://fengchao.life/api/x" } })), null, "a foreign Origin is still refused");
+  c = ctx();
+  assert.strictEqual(await S.guard(c, req({ method: "POST", headers: { origin: "https://fengchao.life", "sec-fetch-site": "cross-site" } })), null, "Sec-Fetch-Site decides when present");
 
   // 8. finish() attaches the cookie and no-store.
   c = ctx();

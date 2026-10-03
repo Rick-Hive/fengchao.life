@@ -10,7 +10,7 @@
 //   POST   domain/sync   {domain, mode}   one budgeted slice of a sync — "changes" (accounts created, updated
 //                                         or deleted since the last sync) or "full"; call again while done:false
 //   PATCH  domain/person                  {user, identity?, linked?, note?} → people.json       (域蜂巢管理员, staff)
-//   PUT    domain/institution             {domain, name} → institutions.json (the school's display name) (sysadmin)
+//   PUT    domain/institution             {domain, name, nameEn} → institutions.json (the school's display names) (sysadmin)
 //   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (域管理员 IT, sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
@@ -64,7 +64,7 @@ async function handler(context, req) {
   const method = String(req.method || "GET").toUpperCase();
   const p = getPrincipal(req);
   const actor = normUser(p && p.userDetails);
-  if (!actor) return fail(context, 401, "sign in first");
+  if (!actor) return fail(context, 403, "sign in first", { code: "signed_out" });
 
   const { roles } = await userRoles(req);
   const allowed = managedDomains(roles);
@@ -91,6 +91,7 @@ async function handler(context, req) {
       const isAdmin = can(roles, "admin");
       domains = domains.map((d) => Object.assign({}, d, {
         name: (inst[d.domain] && inst[d.domain].name) || "",
+        nameEn: (inst[d.domain] && inst[d.domain].nameEn) || "",
         can: { methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), full: isAdmin, institutions: isAdmin },
       }));
       context.res = { status: 200, body: { user: actor, roles, all, domains, mine: domainOf(actor), showDomains: isAdmin } };
@@ -130,14 +131,16 @@ async function handler(context, req) {
 
     if (method === "PUT" && action === "institution") {
       if (!can(roles, "admin")) return fail(context, 403, "institution names are set by the system administrator", { code: "forbidden" });
+      // Chinese and English names (Rick, 2026-10-03: 「机构名称需要中英文」); the page shows the one of its language.
       const name = String((req.body && req.body.name) || "").trim().slice(0, 60);
-      if (/[<>]/.test(name)) return fail(context, 400, "name: no < or >");
+      const nameEn = String((req.body && req.body.nameEn) || "").trim().slice(0, 80);
+      if (/[<>]/.test(name + nameEn)) return fail(context, 400, "name: no < or >");
       const doc = await readInstitutions();
-      if (name) doc.institutions[domain] = { name, by: actor, at: new Date().toISOString() };
+      if (name || nameEn) doc.institutions[domain] = { name, nameEn, by: actor, at: new Date().toISOString() };
       else delete doc.institutions[domain];
       await writeInstitutions(doc);
-      await audit(context, { actor, action: "institution.update", target: domain, name, result: "ok" });
-      context.res = { status: 200, body: { ok: true, domain, name } };
+      await audit(context, { actor, action: "institution.update", target: domain, name, nameEn, result: "ok" });
+      context.res = { status: 200, body: { ok: true, domain, name, nameEn } };
       return;
     }
 

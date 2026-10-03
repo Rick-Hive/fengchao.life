@@ -311,7 +311,7 @@ async function syncSlice(domain, mode, opts) {
   // (Rick, 2026-10-02: 「自动将职务/部门更新成域名所对应的学校机构名称」). A department
   // the school filled in itself is never overwritten.
   let institution = "";
-  try { const inst = (await readInstitutions()).institutions; institution = (inst[domain] && inst[domain].name) || ""; } catch { /* no names yet */ }
+  try { const inst = (await readInstitutions()).institutions; institution = (inst[domain] && (inst[domain].name || inst[domain].nameEn)) || ""; } catch { /* no names yet */ }
 
   const departmentFills = [];
   // Work through the pending accounts while there is time.

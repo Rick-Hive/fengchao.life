@@ -124,8 +124,7 @@
       // (Rick, 2026-10-02: 「好像登入了 2 次」). Other tabs just refresh their header.
       var origin = "";
       try { origin = sessionStorage.getItem("fc-login-origin") || ""; sessionStorage.removeItem("fc-login-origin"); } catch (e) {}
-      if (handed) return;
-      if (origin && !ON_HUB && Date.now() - Number(origin) < 30 * 60 * 1000) { location.href = MANAGE; return; }
+      if (!handed && origin && !ON_HUB && Date.now() - Number(origin) < 30 * 60 * 1000) { location.href = MANAGE; return; }
       refresh();
     }
   }

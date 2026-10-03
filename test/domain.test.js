@@ -217,18 +217,20 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   // 5e. Institution names: set by the system administrator only, shown to everyone in `domains`.
   r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: "示例学校" }, user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.status, 403, "a domain administrator cannot name schools");
-  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: " 示例学校 " }, user: ADMIN });
+  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: " 示例学校 ", nameEn: " Example School " }, user: ADMIN });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.name, "示例学校");
+  assert.strictEqual(r.body.nameEn, "Example School");
   r = await call({ action: "domains", user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.body.domains[0].name, "示例学校");
+  assert.strictEqual(r.body.domains[0].nameEn, "Example School");
   assert.strictEqual(r.body.showDomains, false, "a domain administrator is not shown raw domains");
   r = await call({ action: "domains", user: ADMIN });
   assert.strictEqual(r.body.showDomains, true);
   assert.strictEqual(r.body.domains[0].can.institutions, true);
-  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: "" }, user: ADMIN });
+  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: "", nameEn: "" }, user: ADMIN });
   assert.strictEqual(r.status, 200);
-  assert.deepStrictEqual(institutions.institutions, {}, "an empty name clears the entry");
+  assert.deepStrictEqual(institutions.institutions, {}, "empty names clear the entry");
 
   // 6. The groups view: per group, how many of this domain's members.
   r = await call({ action: "groups", query: { domain: DOMAIN }, user: DOMADMIN, roles: DOMROLE });

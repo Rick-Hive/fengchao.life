@@ -122,7 +122,7 @@
     lastPing = Date.now();
     return fetch("/api/me/session", { credentials: "same-origin", cache: "no-store" }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
-        if (r.status === 401 || (j && j.signedIn === false)) { expired(j && j.reason); return null; }
+        if (r.status === 401 || r.status === 403 || (j && (j.signedIn === false || j.code === "session_expired" || j.code === "signed_out"))) { expired((j && j.reason) || "signed_out"); return null; }
         if (r.ok && j && j.idleSeconds) {
           cfg.idleSeconds = j.idleSeconds;
           cfg.maxSeconds = j.maxSeconds || cfg.maxSeconds;

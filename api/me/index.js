@@ -149,7 +149,7 @@ async function handler(context, req) {
   const method = String(req.method || "GET").toUpperCase();
   const p = getPrincipal(req);
   const upn = normUser(p && p.userDetails);
-  if (!upn || !EMAIL_RE.test(upn)) return fail(context, 401, "sign in with your Office 365 account");
+  if (!upn || !EMAIL_RE.test(upn)) return fail(context, 403, "sign in with your Office 365 account", { code: "signed_out" });
 
   let user;
   try {
@@ -177,6 +177,7 @@ async function handler(context, req) {
             // The display name is set by the school's IT administrator or the system administrator, not by the person (Rick, 2026-10-02).
             canEditName: can(roles, "methods", myDomain),
             institution: (inst.institutions[myDomain] && inst.institutions[myDomain].name) || "",
+            institutionEn: (inst.institutions[myDomain] && inst.institutions[myDomain].nameEn) || "",
             vocab: { selfRoles: people.SELF_ROLES, topics: people.TOPICS, grades: people.GRADES, schooling: people.SCHOOLING, models: people.MODELS, higherEd: people.HIGHER_ED, maxChildren: people.MAX_CHILDREN, maxAccounts: people.MAX_ACCOUNTS },
           },
           // 基本资料: read from the Office 365 account; the fields in EDITABLE may be

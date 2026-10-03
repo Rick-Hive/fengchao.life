@@ -121,26 +121,36 @@ function sessionCookie(sess) {
   return { name: COOKIE, value: encode(sess), path: "/", maxAge: Math.ceil(maxMs() / 1000), secure: true, httpOnly: true, sameSite: "Strict" };
 }
 
-function requestHost(req) {
+// The hosts this site answers on. Behind Static Web Apps a function sees the
+// platform's own Host (and no X-Forwarded-Host), so the browser's Origin never
+// equalled it and every POST/PATCH/DELETE from the site itself was refused with
+// 403 — 退出, saving the profile, deleting a device (seen live 2026-10-03).
+// The original address travels in x-ms-original-url; the site's own hosts are
+// known; HIVE_SITE_HOSTS (comma list) adds more.
+function siteHosts(req) {
   const h = req.headers || {};
-  return String(h["x-forwarded-host"] || h.host || "").split(",")[0].trim().toLowerCase();
+  const out = new Set(["fengchao.life", "www.fengchao.life"]);
+  for (const v of String(process.env.HIVE_SITE_HOSTS || "").split(",")) if (v.trim()) out.add(v.trim().toLowerCase());
+  for (const name of ["x-forwarded-host", "host"]) { const v = String(h[name] || "").split(",")[0].trim().toLowerCase(); if (v) out.add(v); }
+  try { const u = String(h["x-ms-original-url"] || ""); if (u) out.add(new URL(u).host.toLowerCase()); } catch { /* not a URL */ }
+  return out;
 }
-
 // Is this a browser request from another site? (CSRF)
+// Browsers set Sec-Fetch-Site themselves and scripts cannot forge it, so when it
+// is present it decides. Without it (older browsers, scripts) the Origin must be
+// one of this site's hosts; no Origin at all (same-site navigations in some
+// browsers, tests) is allowed.
 function crossSite(req) {
   const h = req.headers || {};
   const sfs = String(h["sec-fetch-site"] || "").toLowerCase();
-  if (sfs && sfs !== "same-origin" && sfs !== "same-site" && sfs !== "none") return `Sec-Fetch-Site ${sfs}`;
+  if (sfs) return sfs === "same-origin" || sfs === "same-site" || sfs === "none" ? "" : `Sec-Fetch-Site ${sfs}`;
   const origin = String(h.origin || "").toLowerCase();
-  if (origin && origin !== "null") {
-    let oh = "";
-    try { oh = new URL(origin).host.toLowerCase(); } catch { return `Origin ${origin}`; }
-    const host = requestHost(req);
-    if (host && oh !== host) return `Origin ${origin}`;
-  } else if (origin === "null") {
-    return "Origin null";
-  }
-  return "";
+  if (!origin) return "";
+  if (origin === "null") return "Origin null";
+  let oh = "";
+  try { oh = new URL(origin).host.toLowerCase(); } catch { return `Origin ${origin}`; }
+  if (oh.endsWith(".azurestaticapps.net")) return "";
+  return siteHosts(req).has(oh) ? "" : `Origin ${origin}`;
 }
 
 // ---- the account behind the session -------------------------------------------------
@@ -181,7 +191,11 @@ function reply(context, status, body, cookies) {
 async function guard(context, req, opts) {
   const o = opts || {};
   // soft: never refuse — answer 200 { signedIn: false, reason } instead (the header's state check).
-  const refuse = (status, body, cookies) => { if (o.soft) reply(context, 200, Object.assign({ signedIn: false }, body), cookies); else reply(context, status, body, cookies); return null; };
+  // Refusals are 403, never 401: Static Web Apps rewrites every 401 — API replies
+  // included — into a redirect to the sign-in page (responseOverrides), which a
+  // fetch() cannot follow to Microsoft, so the page would see a network error
+  // instead of { code: "session_expired" } and could not explain or go home.
+  const refuse = (status, body, cookies) => { if (o.soft) reply(context, 200, Object.assign({ signedIn: false }, body), cookies); else reply(context, status === 401 ? 403 : status, body, cookies); return null; };
   const method = String(req.method || "GET").toUpperCase();
   const p = getPrincipal(req);
   const upn = String((p && p.userDetails) || "").trim().toLowerCase();
