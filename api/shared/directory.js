@@ -239,6 +239,8 @@ async function distributeChanges(changes, byDomain) {
 
 // One budgeted slice of a sync. Returns the document's status:
 // { done, domain, mode, total, remaining, syncedAt, fullAt, added }.
+// opts.scope = "domain" (a 域管理员 IT's own sync) keeps the "changes" intake to this
+// domain: nothing is written for other domains and the tenant delta token stays.
 async function syncSlice(domain, mode, opts) {
   const o = opts || {};
   const budget = o.budgetMs || DEFAULT_BUDGET_MS;
@@ -271,9 +273,19 @@ async function syncSlice(domain, mode, opts) {
       removed += mine.filter((c) => c.removed).length;
       added += mine.filter((c) => !c.removed).length;
       await store.write(`${domain}.json`, doc);
-      await distributeChanges(changes, byDomain);
-      await store.write(DELTA, { deltaLink, at: new Date().toISOString() });
-      log(`directory: ${changes.length} change(s) in the tenant since the last token, ${mine.length} for ${domain}`);
+      if (o.scope === "domain") {
+        // A 域管理员（IT）syncs their own school only (Rick, 2026-10-03): the other
+        // domains' caches are not touched and the tenant's delta token is not
+        // advanced, so their changes are still there for their own sync or the
+        // nightly run. This domain may see the same changes again until then —
+        // re-reading a changed account twice is harmless.
+        await distributeChanges(changes, { [domain]: mine });
+        log(`directory: ${changes.length} change(s) in the tenant since the last token, ${mine.length} for ${domain} (domain scope: token kept)`);
+      } else {
+        await distributeChanges(changes, byDomain);
+        await store.write(DELTA, { deltaLink, at: new Date().toISOString() });
+        log(`directory: ${changes.length} change(s) in the tenant since the last token, ${mine.length} for ${domain}`);
+      }
       doc = await readDomain(domain);
       if (!doc.run) { // nothing queued for this domain: it is up to date as of now
         doc.syncedAt = new Date().toISOString();

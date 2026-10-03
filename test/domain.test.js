@@ -260,7 +260,11 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(r.status, 400);
   r = await call({ action: "method", method: "DELETE", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, id: "not-a-real-method-id" }, user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.status, 404, JSON.stringify(r.body));
-  r = await call({ action: "method", method: "DELETE", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, id: "auth-lei-1" }, user: DOMADMIN, roles: DOMROLE });
+  // A 域管理员（IT）alone (the role an Entra User Administrator is mapped to) removes an
+  // ordinary user's device in their own domain — and nothing in another domain.
+  r = await call({ action: "method", method: "DELETE", body: { domain: "other.example.edu", user: "x@other.example.edu", id: "auth-lei-1" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403, "IT of one domain cannot touch another domain");
+  r = await call({ action: "method", method: "DELETE", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, id: "auth-lei-1" }, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.ok(calls.some((c) => c.method === "DELETE" && c.url.includes("microsoftAuthenticatorMethods/auth-lei-1")), "Graph delete issued");
   assert.strictEqual(leiMethods.length, 2);
@@ -296,7 +300,14 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   const batches = calls.filter((c) => c.url.includes("/$batch") && c.body.includes("/users/"));
   assert.strictEqual(batches.length, 1, "one per-account batch (the other batch is the class-team lookup)");
   assert.ok(batches[0].body.includes("u-new") && batches[0].body.includes("u-elaine") && !batches[0].body.includes("u-lei"), "only changed accounts re-read");
-  assert.ok(blobs["_delta.json"].includes("T2"), "token advanced");
+  // A 域管理员（IT）'s sync is scoped to their school: the other domain's cache is not
+  // created or touched and the tenant delta token stays where it was (Rick, 2026-10-03).
+  assert.ok(!blobs["_delta.json"].includes("T2"), "domain-scoped sync keeps the delta token");
+  assert.strictEqual(blobs["other.example.edu.json"], undefined, "other domain untouched by an IT admin's sync");
+  // The system administrator's sync is tenant-wide: token advances.
+  r = await call({ action: "sync", method: "POST", body: { domain: DOMAIN, mode: "changes" }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(blobs["_delta.json"].includes("T2"), "token advanced by the system administrator");
   r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
   assert.deepStrictEqual(r.body.users.map((x) => x.displayName), ["Elaine Chen-Wang", "New Person"]);
   // Running it again with nothing new is a no-op that still stamps the time.

@@ -8,7 +8,9 @@
 //   GET    domain/groups?domain=x         the groups those accounts belong to, with per-domain member counts
 //   GET    domain/sync?domain=x           the cache's status (when it was synced, whether a run is under way)
 //   POST   domain/sync   {domain, mode}   one budgeted slice of a sync — "changes" (accounts created, updated
-//                                         or deleted since the last sync) or "full"; call again while done:false
+//                                         or deleted since the last sync) or "full"; call again while done:false.
+//                                         A 域管理员（IT）'s sync is scoped to their own domain (other schools'
+//                                         caches and the tenant delta token are left alone); sysadmin = tenant-wide.
 //   PATCH  domain/person                  {user, identity?, linked?, note?} → people.json       (域蜂巢管理员, staff)
 //   PUT    domain/institution             {domain, name, nameEn} → institutions.json (the school's display names) (sysadmin)
 //   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (域管理员 IT, sysadmin)
@@ -122,7 +124,11 @@ async function handler(context, req) {
         if (mode !== "changes" && mode !== "new" && mode !== "full") return fail(context, 400, "mode must be changes, new or full");
         // A full pass of a school is heavier and drops vanished accounts: system administrators only.
         if (mode === "full" && !can(roles, "admin")) return fail(context, 403, "a full sync is run by the system administrator (or nightly)", { code: "forbidden" });
-        const st = await dir.syncSlice(domain, mode, { budgetMs: 20000, by: actor, log: (m) => context.log(m) });
+        // The system administrator's sync is tenant-wide intake (every school's cache
+        // learns its share, the delta token advances); a 域管理员（IT）'s sync touches
+        // only the school they manage.
+        const scope = can(roles, "admin") ? "tenant" : "domain";
+        const st = await dir.syncSlice(domain, mode, { budgetMs: 20000, by: actor, scope, log: (m) => context.log(m) });
         if (st.done) await audit(context, { actor, action: "directory.sync", target: domain, mode, users: st.users, added: st.added, removed: st.removed, result: "ok" });
         context.res = { status: 200, body: st };
         return;
