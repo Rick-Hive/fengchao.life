@@ -174,20 +174,40 @@ const ENTRA_IT_ROLES = {
   "966707d0-3269-4727-9be2-8c3a10f19b9d": "Password Administrator",
 };
 const ENTRA_SYSADMIN_ROLES = { "62e90394-69f5-4237-9190-012177145e10": "Global Administrator" };
+const ENTRA_TTL_MS = Number(process.env.HIVE_ENTRA_ROLES_MINUTES || 30) * 60 * 1000;
+const entraCache = new Map(); // upn → { at, roles }
 async function entraRolesFor(u) {
   const domain = (u.split("@")[1] || "").toLowerCase();
   if (!domain) return [];
   const { graph, q } = require("./graph");
   const who = await graph("GET", `/users/${encodeURIComponent(u)}?$select=id`);
   if (!who || !who.id) return [];
-  const page = await graph("GET", `/roleManagement/directory/roleAssignments?$filter=principalId eq '${q(who.id)}'&$select=roleDefinitionId,directoryScopeId`);
+  // Role management lists every assignment, scoped ones included. If the tenant
+  // refuses that read, fall back to directory-role membership (tenant-wide
+  // assignments only), which Directory.Read.All always allows.
+  let assignments;
+  try {
+    const page = await graph("GET", `/roleManagement/directory/roleAssignments?$filter=principalId eq '${q(who.id)}'&$select=roleDefinitionId,directoryScopeId`);
+    assignments = ((page && page.value) || []).map((a) => ({ id: String(a.roleDefinitionId || "").toLowerCase(), scope: a.directoryScopeId || "/" }));
+  } catch (err) {
+    const page = await graph("GET", `/users/${encodeURIComponent(who.id)}/memberOf/microsoft.graph.directoryRole?$select=roleTemplateId`);
+    assignments = ((page && page.value) || []).map((r) => ({ id: String(r.roleTemplateId || "").toLowerCase(), scope: "/" }));
+  }
   const out = new Set();
-  for (const a of (page && page.value) || []) {
-    const id = String(a.roleDefinitionId || "").toLowerCase();
-    if (ENTRA_SYSADMIN_ROLES[id] && (!a.directoryScopeId || a.directoryScopeId === "/")) out.add("staff:sysadmin");
-    else if (ENTRA_IT_ROLES[id] || ENTRA_SYSADMIN_ROLES[id]) out.add(`domain_it:${domain}`);
+  for (const a of assignments) {
+    if (ENTRA_SYSADMIN_ROLES[a.id] && a.scope === "/") out.add("staff:sysadmin");
+    else if (ENTRA_IT_ROLES[a.id] || ENTRA_SYSADMIN_ROLES[a.id]) out.add(`domain_it:${domain}`);
   }
   return Array.from(out);
+}
+// The same, remembered for ENTRA_TTL_MS per account, so every request can carry
+// Entra's roles without a Graph call each time. A failure is not remembered.
+async function entraRolesCached(u) {
+  const hit = entraCache.get(u);
+  if (hit && Date.now() - hit.at < ENTRA_TTL_MS) return hit.roles;
+  const roles = await entraRolesFor(u);
+  entraCache.set(u, { at: Date.now(), roles });
+  return roles;
 }
 
 // Hive's roles for one account (lowercased UPN): bootstrap admin + roles.json
@@ -204,7 +224,7 @@ async function rolesFor(user, withEntra) {
     if (entry) entry.roles.forEach((r) => roles.add(r));
   } catch { /* bootstrap roles only */ }
   if (withEntra) {
-    try { (await entraRolesFor(u)).forEach((r) => roles.add(r)); } catch { /* Hive's own roles only */ }
+    try { (await (withEntra === "fresh" ? entraRolesFor(u) : entraRolesCached(u))).forEach((r) => roles.add(r)); } catch { /* Hive's own roles only */ }
   }
   // The route rules in staticwebapp.config.json know only `admin`; the system
   // administrator carries both names.
@@ -220,7 +240,7 @@ async function userRoles(req) {
   if (!p) return { user: "", roles: [] };
   const user = normUser(p.userDetails);
   const roles = new Set((p.userRoles || []).filter((r) => r !== "anonymous" && r !== "authenticated"));
-  if (user) (await rolesFor(user)).forEach((r) => roles.add(r));
+  if (user) (await rolesFor(user, true)).forEach((r) => roles.add(r)); // Hive's + Entra's (cached)
   return { user, roles: Array.from(roles) };
 }
 
@@ -231,4 +251,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, entraRolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, entraRolesFor, entraRolesCached, _entraCache: entraCache, userRoles, userHasRole, normUser };

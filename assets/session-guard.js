@@ -57,23 +57,26 @@
     try { new BroadcastChannel("fc-auth").postMessage({ kind: kind, at: Date.now() }); } catch (e) {}
     try { localStorage.setItem("fc-auth-event", kind + ":" + Date.now()); } catch (e) {}
   }
-  // The homepage rewrites its address as it routes, so the reason travels in
-  // sessionStorage (this tab only) as well as in the query; the header reads either.
+  // Leave through the platform's sign-out and come home. /api/logout ends Hive's
+  // session, but Static Web Apps' own sign-in cookie stays valid (a function
+  // cannot clear it), and while it lives /.auth/login/aad hands the same account
+  // straight back without visiting Microsoft — on a shared computer the next
+  // person's 登录 would be the previous account, no password asked (found
+  // 2026-10-03 while fixing 切换账号). /.auth/logout is the only thing that clears
+  // that cookie; it passes through Microsoft's sign-out (a brief redirect, or a
+  // "which account" page when the browser holds several) and returns to the
+  // address given. Rick chose this over leaving the gap (2026-10-03, option 2).
+  // The reason travels in sessionStorage (this tab only): the redirect chain
+  // drops the query, and the homepage rewrites its address as it routes anyway.
   function goHome(reason) {
     var why = reason || "timeout";
     try { sessionStorage.setItem("fc-signedout", why); } catch (e) {}
     try { localStorage.removeItem(KEY); } catch (e) {}
-    location.replace("/?signedout=" + encodeURIComponent(why));
+    location.replace("/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent("/?signedout=" + why));
   }
   // 退出 ends Hive's session (POST /api/logout — the server marks this sign-in as
-  // over) and comes home. Nothing is done at Microsoft: the sign-in is configured
-  // with prompt=select_account, so the next 登录 shows Microsoft's account list
-  // (the previous account at the top, 「使用其他账户」 below) and the person
-  // chooses (Rick, 2026-10-03: 「Why don't you just open MS's login page for user
-  // to choose which account」). Earlier versions tried to sign the Microsoft
-  // account out too — a hidden frame (Microsoft refuses framing) and then a
-  // top-level visit to Microsoft's end-session page, which told the person to
-  // close the browser tab; both were worse than letting them choose.
+  // over), then goHome() clears the platform cookie and comes home. The next 登录
+  // shows Microsoft's account list (prompt=select_account) and the person chooses.
   function microsoftSignOut(reason) {
     var why = reason || "user";
     try { sessionStorage.setItem("fc-signedout", why); localStorage.removeItem(KEY); } catch (e) {}

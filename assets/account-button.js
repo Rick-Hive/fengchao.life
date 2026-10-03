@@ -42,7 +42,9 @@
   // set its cookie there, and the hub's www→apex redirect would then arrive on
   // fengchao.life without it.
   var SITE = location.hostname === "fengchao.life" || location.hostname === "www.fengchao.life" ? "https://fengchao.life" : "";
-  var LOGIN = SITE + "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
+  // "entra" = Microsoft through api/oidc-config (account list on every sign-in,
+  // and a sign-out that does not visit Microsoft's page).
+  var LOGIN = SITE + "/.auth/login/entra?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
   var MANAGE = "/management/";
   var PROTECTED = /^\/(account|admin|hub|management)(\/|$)/;
   var ON_HUB = /^\/(hub|management)(\/|$)/.test(location.pathname);
@@ -137,13 +139,8 @@
   function onEvent(kind, handed) {
     if (kind === "out") signedOutHere();
     else if (kind === "in") {
-      // The tab that started the sign-in goes to the management center — unless the
-      // sign-in window has already sent it there itself through window.opener
-      // (handed), in which case navigating again here would load the page twice
-      // (Rick, 2026-10-02: 「好像登入了 2 次」). Other tabs just refresh their header.
-      var origin = "";
-      try { origin = sessionStorage.getItem("fc-login-origin") || ""; sessionStorage.removeItem("fc-login-origin"); } catch (e) {}
-      if (!handed && origin && !ON_HUB && Date.now() - Number(origin) < 30 * 60 * 1000) { location.href = MANAGE; return; }
+      // Another tab signed in (the sign-in runs in its own tab since 2026-10-03):
+      // just refresh this header.
       refresh();
     }
   }
@@ -155,15 +152,18 @@
   // ---- sign out (same flow as the management center's 退出) ----------------------
   function signOut() {
     if (window.fcSession && window.fcSession.signOut) { window.fcSession.signOut("user"); return; }
-    // Pages without session-guard.js (the course site): end Hive's session and show
-    // 登录 again. Nothing is done at Microsoft — the next 登录 shows Microsoft's
-    // account list (prompt=select_account) and the person chooses.
+    // Pages without session-guard.js (the course site): end Hive's session, then
+    // leave through the platform's sign-out — it clears Static Web Apps' own
+    // sign-in cookie, which /api/logout cannot, and while that cookie lives the
+    // next 登录 would hand this account straight back without Microsoft (see
+    // assets/session-guard.js goHome) — and come back to this page (home for a
+    // signed-in-only page), where the notice 已退出 shows from sessionStorage.
     try { sessionStorage.setItem("fc-signedout", "user"); localStorage.removeItem("fc-last-active"); } catch (e) {}
     fetch("/api/logout", { method: "POST", credentials: "same-origin", cache: "no-store" }).catch(function () {}).then(function () {
       announce("out");
       principal = null; known = true; close();
-      if (PROTECTED.test(location.pathname)) location.replace("/?signedout=user");
-      else { signedOutWhy = "user"; render(); }
+      var back = PROTECTED.test(location.pathname) ? "/" : location.pathname;
+      location.replace("/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent(back));
     });
   }
 
@@ -172,12 +172,13 @@
     if (x) { dismissNotice(); return; }
     var login = e.target.closest && e.target.closest("a.acct-btn:not(.signed-in)");
     if (login) {
-      // Open the sign-in as a window of this page (not a plain new tab), so that
-      // once Microsoft is done it can send this tab on and close itself.
+      // Sign in in this tab: Microsoft, then straight to the management center
+      // (Rick, 2026-10-03: 「登录成功后……先是加载主页，然后渲染管理中心。能否直接
+      // 渲染管理中心？」 — the earlier sign-in window sent this tab on only after
+      // it had finished, so the homepage stayed in view until then). Other tabs
+      // learn of the sign-in from the management center's "in" broadcast.
       e.preventDefault();
-      try { sessionStorage.setItem("fc-login-origin", String(Date.now())); } catch (err) {}
-      var w = window.open(login.href, "fc-signin");
-      if (!w) location.href = login.href; // popup blocked: sign in here instead
+      location.href = login.href;
       return;
     }
     var out = e.target.closest && e.target.closest("[data-out]");

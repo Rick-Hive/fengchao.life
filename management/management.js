@@ -151,18 +151,18 @@
   // 使用新账号登录 / 切换账号. Checked live (Rick, 2026-10-03, twice): after
   // POST /api/logout the platform's own sign-in cookie is still valid — a
   // function cannot clear it — and with that cookie /.auth/login/<provider>
-  // never goes to Microsoft at all: it hands the same account straight back,
-  // whatever prompt= the provider is configured with (that, not browser single
-  // sign-on, is why 「切换账号」 came back as the same account). The only thing
-  // that clears the platform cookie is /.auth/logout, so a switch is
-  // /api/logout (Hive's session) → /.auth/logout (platform cookie; Static Web
-  // Apps also visits Microsoft's sign-out, which may ask which account to sign
-  // out) → /.auth/login/aad, whose prompt=select_account makes Microsoft show
-  // its account list with 「使用其他账户」, → the management center as whichever
-  // account was chosen. Only one account can be signed in at a time (one
-  // platform cookie). The intended account is remembered so loadMe can say
-  // what came back.
-  var SWITCH_LOGIN = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
+  // never goes to Microsoft at all: it hands the same account straight back
+  // (that, not browser single sign-on, is why 「切换账号」 came back as the
+  // same account). The only thing that clears the platform cookie is
+  // /.auth/logout, so a switch is /api/logout (Hive's session) → /.auth/logout
+  // (platform cookie; no Microsoft page, because the "entra" provider's
+  // discovery document — api/oidc-config — has no end_session_endpoint) →
+  // /.auth/login/entra (prompt=select_account baked into its authorize
+  // address) → Microsoft's account list with 「使用其他账户」 → the management
+  // center as whichever account was chosen. Only one account can be signed in
+  // at a time (one platform cookie). The intended account is remembered so
+  // loadMe can say what came back.
+  var SWITCH_LOGIN = "/.auth/login/entra?post_login_redirect_uri=" + encodeURIComponent("/management/?signedin=1");
   function platformLogout(then) { return "/.auth/logout?post_logout_redirect_uri=" + encodeURIComponent(then); }
   function switchAccount(to) {
     var from = (me && me.profile && me.profile.upn) || "";
@@ -210,8 +210,8 @@
     if (ms) flash.timer = setTimeout(function () { f.hidden = true; }, ms);
   }
   $("flash").addEventListener("click", function (e) { if (e.target.closest(".x")) $("flash").hidden = true; });
-  // 退出: Hive's session only; the Microsoft sessions in this browser stay, so the next
-  // 登录 shows Microsoft's account list (assets/session-guard.js, loaded before this file).
+  // 退出: /api/logout, then the platform's sign-out and home (assets/session-guard.js,
+  // loaded before this file); the next 登录 shows Microsoft's account list.
   $("fOut").addEventListener("click", function () {
     $("fOut").disabled = true;
     if (window.fcSession) window.fcSession.signOut("user");

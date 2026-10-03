@@ -67,17 +67,32 @@ const R = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
     if (/roleAssignments/.test(url)) { if (assignments instanceof Error) throw assignments; return { value: assignments }; }
     throw new Error("unexpected " + url);
   };
-  assert.deepStrictEqual(await R.rolesFor("Test.Admin@sciencebug.net", true), ["domain_it:sciencebug.net"]);
+  assert.deepStrictEqual(await R.rolesFor("Test.Admin@sciencebug.net", "fresh"), ["domain_it:sciencebug.net"]);
   assert.ok(/principalId eq 'u-1'/.test(calls[1]), "assignments are looked up by the account's object id");
   assignments = [{ roleDefinitionId: "62e90394-69f5-4237-9190-012177145e10", directoryScopeId: "/" }];
-  assert.deepStrictEqual((await R.rolesFor("ga@sciencebug.net", true)).sort(), ["admin", "staff:sysadmin"]);
+  assert.deepStrictEqual((await R.rolesFor("ga@sciencebug.net", "fresh")).sort(), ["admin", "staff:sysadmin"]);
   assignments = [{ roleDefinitionId: "62e90394-69f5-4237-9190-012177145e10", directoryScopeId: "/administrativeUnits/au1" }];
-  assert.deepStrictEqual(await R.rolesFor("ga-au@sciencebug.net", true), ["domain_it:sciencebug.net"], "a scoped Global Administrator is IT of their domain only");
+  assert.deepStrictEqual(await R.rolesFor("ga-au@sciencebug.net", "fresh"), ["domain_it:sciencebug.net"], "a scoped Global Administrator is IT of their domain only");
   assignments = [{ roleDefinitionId: "b0f54661-2d74-4c50-afa3-1ec803f12efe", directoryScopeId: "/" }]; // Billing Administrator
-  assert.deepStrictEqual(await R.rolesFor("billing@sciencebug.net", true), []);
-  assignments = new Error("Graph down");
-  assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net", true), [], "Graph trouble adds nothing and does not throw");
-  assert.deepStrictEqual(await R.rolesFor("boot@fengchao.life", true), ["admin"]);
+  assert.deepStrictEqual(await R.rolesFor("billing@sciencebug.net", "fresh"), []);
+  // role management refused → directory-role membership (tenant-wide) is used instead
+  assignments = new Error("Authorization_RequestDenied");
+  graphMod.graph = async (m, url) => {
+    calls.push(url);
+    if (/^\/users\/[^/]+\?\$select=id/.test(url)) return { id: "u-1" };
+    if (/roleAssignments/.test(url)) throw assignments;
+    if (/memberOf\/microsoft\.graph\.directoryRole/.test(url)) return { value: [{ roleTemplateId: "FE930BE7-5E62-47DB-91AF-98C3A49A38B1" }] };
+    throw new Error("unexpected " + url);
+  };
+  assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net", "fresh"), ["domain_it:sciencebug.net"], "fallback to memberOf");
+  // cached form: one Graph read per account per TTL, used by userRoles on every request
+  calls.length = 0; R._entraCache.clear();
+  assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net", true), ["domain_it:sciencebug.net"]);
+  assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net", true), ["domain_it:sciencebug.net"]);
+  assert.strictEqual(calls.filter((c) => /^\/users\/[^/]+\?/.test(c)).length, 1, "second call came from the cache");
+  graphMod.graph = async () => { throw new Error("Graph down"); }; R._entraCache.clear();
+  assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net", "fresh"), [], "Graph trouble adds nothing and does not throw");
+  assert.deepStrictEqual(await R.rolesFor("boot@fengchao.life", "fresh"), ["admin"]);
   calls.length = 0;
   assert.deepStrictEqual(await R.rolesFor("test.admin@sciencebug.net"), [], "without the flag Graph is not asked");
   assert.strictEqual(calls.length, 0);

@@ -13,6 +13,8 @@
   <script>
     // One address for the whole site: the sign-in cookie belongs to the host it was made on.
     if (location.hostname === "www.fengchao.life") location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
+    // Since 2026-10-03 登录 signs in in its own tab, so there is normally no opener
+    // and this block does nothing. Kept for a sign-in window opened by hand.
     // Arrived in the sign-in window (opened by 登录 on another tab; ?signedin=1): hand
     // that tab over *before this page renders* and close this window, so the
     // person sees the management center load once, in the tab they started from

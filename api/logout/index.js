@@ -5,15 +5,14 @@
 // (Rick, 2026-09-29: signing out should not ask for anything). This ends the
 // site's session by expiring every cookie that keeps a browser signed in to
 // fengchao.life: Static Web Apps' two session cookies and Hive's own fc-sess.
-// The Microsoft session in the browser stays; since 2026-10-02 the sign-in
-// asks for credentials every time anyway (prompt=login in
-// staticwebapp.config.json), so a later 登录 is a real re-login.
+// The Microsoft session in the browser may stay; the next 登录 shows Microsoft's
+// account list (prompt=select_account in staticwebapp.config.json).
 //
 // POST only, so a prefetch or a stray link cannot sign anyone out, and a
 // request from another site is refused (nobody else gets to sign our users
-// out). The caller (assets/session-guard.js) then signs the Microsoft account
-// out of the browser as well, naming it with logout_hint so Microsoft asks
-// nothing (Rick, 2026-10-02).
+// out). The caller (assets/session-guard.js goHome, account-button.js signOut,
+// management.js switchAccount) then goes through /.auth/logout, the only thing
+// that clears the platform's own sign-in cookie (2026-10-03).
 const { signOutCookies, signInKey, parseCookies, crossSite } = require("../shared/session");
 const { getPrincipal } = require("../shared/auth");
 
