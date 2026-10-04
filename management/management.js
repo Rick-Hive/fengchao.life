@@ -69,6 +69,7 @@
     return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
   }
   var ICON = {
+    camera: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     book: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5V5.5M8 7h8M8 10.5h8"/></svg>',
     user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.3-3.9 4.2-5.9 7.5-5.9s6.2 2 7.5 5.9"/></svg>',
     teams: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 19c.9-3.3 3.2-5 6-5s5.1 1.7 6 5M15.5 14.5c2.6 0 4.5 1.3 5.5 4"/></svg>',
@@ -125,9 +126,30 @@
     var d = (domainsInfo.domains || []).filter(function (x) { return x.domain === currentDomain; })[0];
     return !!(d && d.can && d.can[what]);
   }
+  // The person's Microsoft 365 photo (GET /api/me/photo → image, or 204 when none).
+  // Fetched once per page load (and again after a change), then painted into every
+  // avatar that carries data-photo="me"; without a photo the initials stay.
+  var photoUrl = null, photoVersion = 0;
+  function loadPhoto(force) {
+    if (photoUrl !== null && !force) return Promise.resolve(photoUrl);
+    return fetch("/api/me/photo?v=" + (++photoVersion), { credentials: "same-origin", cache: "no-store" }).then(function (r) {
+      if (r.status !== 200) { photoUrl = ""; return ""; }
+      return r.blob().then(function (b) { if (photoUrl && /^blob:/.test(photoUrl)) { try { URL.revokeObjectURL(photoUrl); } catch (e) {} } photoUrl = URL.createObjectURL(b); return photoUrl; });
+    }).catch(function () { photoUrl = ""; return ""; }).then(function (u) { paintPhotos(); return u; });
+  }
+  function paintPhotos() {
+    document.querySelectorAll('[data-photo="me"]').forEach(function (el) {
+      var img = el.querySelector("img");
+      if (photoUrl) {
+        if (!img) { img = document.createElement("img"); img.alt = ""; el.appendChild(img); }
+        img.src = photoUrl; el.classList.add("has-photo");
+      } else { if (img) img.remove(); el.classList.remove("has-photo"); }
+    });
+  }
   function foot() {
     var p = me && me.profile, upn = p ? p.upn || "" : "";
     $("fAvatar").textContent = initials(p ? p.displayName || upn : "?");
+    $("fAvatar").setAttribute("data-photo", "me"); paintPhotos();
     $("fName").textContent = p ? (p.displayName || upn) : t("未登录", "Signed out");
     $("fUpn").textContent = upn;
     $("fWho").title = t("账号", "Account");
@@ -371,10 +393,11 @@
     var canName = !!hv.canEditName;
     var dept = [p.jobTitle, pickName(hv.institution, hv.institutionEn) || p.department].filter(Boolean).join(" · ");
     $("content").innerHTML =
-      '<div class="idhead"><span class="avatar lg">' + esc(initials(p.displayName || p.upn)) + '</span><div class="idmain"><div class="idname">' + esc(p.displayName || p.upn) + "</div>" +
+      '<div class="idhead"><button type="button" class="avatar lg photo-btn" id="phBtn" data-photo="me" title="' + t("更换头像", "Change photo") + '" aria-label="' + t("更换头像", "Change photo") + '">' + esc(initials(p.displayName || p.upn)) + '<span class="cam">' + ICON.camera + '</span></button><input type="file" id="phFile" accept="image/jpeg,image/png" hidden /><div class="idmain"><div class="idname">' + esc(p.displayName || p.upn) + "</div>" +
         '<div class="idmeta"><span>' + esc(p.upn) + "</span>" + (hv.identity ? '<span class="tag accent">' + esc(vl(hv.identity)) + "</span>" : "") + '<span class="tag">' + esc(roleNames(me.roles)) + "</span>" +
         (p.created ? '<span class="muted">' + t("账号创建于 ", "Account since ") + esc(day(p.created)) + "</span>" : "") + "</div></div>" +
         '<div class="idside">' + (strong ? '<span class="status ok">' + t("已启用验证器", "Authenticator on") + "</span>" : '<span class="status bad">' + t("未登记验证器", "No authenticator") + "</span>") + "</div></div>" +
+      '<div id="phEdit" class="card ph-edit" hidden></div>' +
 
       '<section class="card" id="profileCard"><header class="ch"><h2>' + t("基本资料", "Basic information") + '</h2><p>' + t("资料保存后将同步更新至 Teams 和 Outlook。", "Saved details are updated in Teams and Outlook.") + "</p></header>" +
         '<form id="pf" autocomplete="off">' +
@@ -397,6 +420,48 @@
       '<section class="card" id="extraCard"></section>';
 
     renderExtra();
+    paintPhotos(); loadPhoto();
+    // 更换头像 (Rick, 2026-10-04): pick a JPEG/PNG → crop to a centred square and scale
+    // to 648×648 (Microsoft's largest size) as JPEG in the browser → preview → save
+    // (PUT /api/me/photo) → every avatar on the page updates. Teams and Outlook read the
+    // same photo; Outlook on the web shows it within minutes, Teams may cache the old
+    // one for up to a day.
+    $("phBtn").addEventListener("click", function () { $("phFile").click(); });
+    $("phFile").addEventListener("change", function () {
+      var f = $("phFile").files && $("phFile").files[0]; if (!f) return;
+      $("phFile").value = "";
+      if (!/^image\/(jpeg|png)$/.test(f.type)) { showPhotoEditor(null, t("请选择 JPEG 或 PNG 图片。", "Please choose a JPEG or PNG image.")); return; }
+      if (f.size > 12 * 1024 * 1024) { showPhotoEditor(null, t("图片太大（超过 12 MB），请先缩小。", "The image is too large (over 12 MB); please shrink it first.")); return; }
+      var url = URL.createObjectURL(f), img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var side = Math.min(img.naturalWidth, img.naturalHeight);
+        if (side < 48) { showPhotoEditor(null, t("图片太小，至少 48×48 像素。", "The image is too small; at least 48×48 pixels.")); return; }
+        var out = 648, c = document.createElement("canvas"); c.width = out; c.height = out;
+        var ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, out, out);
+        var data = c.toDataURL("image/jpeg", 0.9);
+        showPhotoEditor(data, "", { from: img.naturalWidth + "×" + img.naturalHeight, kb: Math.round((data.length - 23) * 3 / 4 / 1024) });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); showPhotoEditor(null, t("这个文件无法作为图片打开。", "This file cannot be opened as an image.")); };
+      img.src = url;
+    });
+    function showPhotoEditor(data, err, info) {
+      var box = $("phEdit"); box.hidden = false;
+      if (err) { box.innerHTML = '<div class="msg err">' + esc(err) + '</div><div class="actions"><button class="btn secondary sm" type="button" id="phCancel">' + t("关闭", "Close") + "</button></div>"; $("phCancel").addEventListener("click", function () { box.hidden = true; }); return; }
+      box.innerHTML = '<div class="ph-row"><img class="ph-prev" src="' + data + '" alt="" /><div class="ph-txt"><b>' + t("新头像预览", "New photo preview") + "</b><small>" +
+          t("已居中裁成正方形并缩放到 648×648（微软的最大尺寸，约 " + info.kb + " KB；原图 " + info.from + "）。保存后 Outlook 几分钟内更新，Teams 可能要几小时到一天。", "Cropped to a centred square and scaled to 648×648 (Microsoft's largest size, about " + info.kb + " KB; original " + info.from + "). Outlook updates within minutes; Teams may take up to a day.") +
+        '</small><div class="actions"><button class="btn sm" type="button" id="phSave">' + t("保存头像", "Save photo") + '</button><button class="btn secondary sm" type="button" id="phRe">' + t("换一张", "Choose another") + '</button><button class="btn secondary sm" type="button" id="phCancel">' + t("取消", "Cancel") + '</button></div><div id="phMsg"></div></div></div>';
+      $("phCancel").addEventListener("click", function () { box.hidden = true; });
+      $("phRe").addEventListener("click", function () { $("phFile").click(); });
+      $("phSave").addEventListener("click", function () {
+        var b = $("phSave"); b.disabled = true; b.textContent = t("保存中…", "Saving…");
+        post("me/photo", "PUT", { image: data }).then(function (r) {
+          if (!r.ok) { b.disabled = false; b.textContent = t("保存头像", "Save photo"); $("phMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          loadPhoto(true).then(function () { box.hidden = true; flash(t("头像已更新。Teams 可能要几小时才会显示新头像。", "Photo updated. Teams may take a few hours to show it."), 6000); });
+        });
+      });
+    }
     $("pf").addEventListener("submit", function (ev) {
       ev.preventDefault();
       var body = {}, vals = {};

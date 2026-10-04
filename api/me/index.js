@@ -13,7 +13,7 @@
 // never from the request. Graph is called with Hive's app identity
 // (../shared/graph.js). Passwords are not handled here at all — the page links
 // to Microsoft's own change-password and self-service reset pages.
-const { graph, list, batch, q } = require("../shared/graph");
+const { graph, graphRaw, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
 const { rolesFor, userRoles, normUser, can } = require("../shared/roles");
 const { audit } = require("../shared/audit");
@@ -139,6 +139,33 @@ function groupKind(g) {
   return "other";
 }
 
+// The profile photo (Rick, 2026-10-04): JPEG or PNG, square, 48–1024 px, ≤ 4 MB —
+// Microsoft's limits for a user photo (it derives the 48…648 sizes itself). The
+// browser crops and scales to 648×648 JPEG before sending; this re-checks the
+// bytes rather than trusting the client. Dimensions are read from the file's
+// own header (PNG IHDR / JPEG SOF), no image library needed.
+const PHOTO_MAX_BYTES = 4 * 1024 * 1024;
+function imageInfo(buf) {
+  if (buf.length > 24 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return { type: "image/png", width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+  if (buf.length > 4 && buf[0] === 0xff && buf[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) { i++; continue; }
+      const marker = buf[i + 1];
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { i += 2; continue; }
+      const len = buf.readUInt16BE(i + 2);
+      if ((marker >= 0xc0 && marker <= 0xcf) && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { type: "image/jpeg", height: buf.readUInt16BE(i + 5), width: buf.readUInt16BE(i + 7) };
+      }
+      i += 2 + len;
+    }
+    return { type: "image/jpeg", width: 0, height: 0 };
+  }
+  return null;
+}
+
 function fail(context, status, error, extra) {
   context.res = { status, body: Object.assign({ error }, extra || {}) };
 }
@@ -161,6 +188,34 @@ async function handler(context, req) {
   }
 
   try {
+    // The photo itself, for the page's <img> (private, short cache; 204 = none yet).
+    if (method === "GET" && action === "photo") {
+      const r = await graphRaw("GET", `/users/${user.id}/photo/$value`);
+      if (r.status === 404 || !r.buffer) { context.res = { status: 204, headers: { "Cache-Control": "private, max-age=60" }, body: null }; return; }
+      context.res = { status: 200, headers: { "Content-Type": r.contentType || "image/jpeg", "Cache-Control": "private, max-age=300" }, body: r.buffer, isRaw: true };
+      return;
+    }
+    if (method === "PUT" && action === "photo") {
+      const b = req.body && typeof req.body === "object" ? req.body : {};
+      const m = /^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/=]+)$/.exec(String(b.image || ""));
+      if (!m) return fail(context, 400, "image must be a JPEG or PNG data URL");
+      const buf = Buffer.from(m[2], "base64");
+      if (buf.length > PHOTO_MAX_BYTES) return fail(context, 400, "the photo must be 4 MB or smaller");
+      const info = imageInfo(buf);
+      if (!info || info.type !== m[1]) return fail(context, 400, "the file is not a JPEG or PNG image");
+      if (!info.width || info.width !== info.height) return fail(context, 400, "the photo must be square");
+      if (info.width < 48 || info.width > 1024) return fail(context, 400, "the photo must be between 48 and 1024 pixels");
+      try {
+        await graphRaw("PUT", `/users/${user.id}/photo/$value`, buf, info.type);
+      } catch (err) {
+        await audit(context, { actor: upn, action: "photo.update", target: upn, bytes: buf.length, result: "failed", error: err.code || err.status });
+        if (err.status === 403) return fail(context, 403, "Microsoft refused to change this account's photo.", { code: err.code });
+        throw err;
+      }
+      await audit(context, { actor: upn, action: "photo.update", target: upn, bytes: buf.length, px: info.width, result: "ok" });
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, px: info.width, bytes: buf.length } };
+      return;
+    }
     if (method === "GET" && action === "summary") {
       const [ms, rolesAll, doc, inst] = await Promise.all([methods(user.id), userRoles(req), people.readPeople(), people.readInstitutions()]);
       const roles = rolesAll.roles;

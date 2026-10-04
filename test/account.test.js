@@ -71,8 +71,19 @@ global.fetch = async function (url, opts) {
     const reqs = JSON.parse(opts.body).requests;
     return json(200, { responses: reqs.map((r) => r.url.startsWith("/teams/g1") ? { id: r.id, status: 200, body: { id: "g1", specialization: "educationClass" } } : r.url.includes("/members/$count") ? { id: r.id, status: 200, body: "7" } : { id: r.id, status: 404, body: {} }) });
   }
+  // Profile photo: none at first (404), then whatever was PUT.
+  if (method === "GET" && p === `/users/${UID}/photo/$value`) {
+    if (!photoBytes) return { ok: false, status: 404, headers: { get: () => null }, text: async () => "", arrayBuffer: async () => new ArrayBuffer(0) };
+    return { ok: true, status: 200, headers: { get: (h) => (h === "content-type" ? "image/jpeg" : null) }, arrayBuffer: async () => photoBytes.buffer.slice(photoBytes.byteOffset, photoBytes.byteOffset + photoBytes.length) };
+  }
+  if (method === "PUT" && p === `/users/${UID}/photo/$value`) { photoBytes = Buffer.from(opts.body); photoType = opts.headers["Content-Type"]; return { ok: true, status: 200, headers: { get: () => null }, arrayBuffer: async () => new ArrayBuffer(0), text: async () => "" }; }
   return json(500, { error: { code: "unhandled", message: method + " " + p } });
 };
+let photoBytes = null, photoType = "";
+// Minimal valid JPEG header (SOI, SOF0 with the given size, then EOI) and PNG (IHDR only).
+function fakeJpeg(w, h) { const sof = Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, (h >> 8) & 255, h & 255, (w >> 8) & 255, w & 255, 0x03, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1]); return Buffer.concat([Buffer.from([0xff, 0xd8]), sof, Buffer.from([0xff, 0xd9])]); }
+function fakePng(w, h) { const b = Buffer.alloc(33); Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b); b.writeUInt32BE(13, 8); b.write("IHDR", 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20); return b; }
+const dataUrl = (type, buf) => `data:${type};base64,${buf.toString("base64")}`;
 
 const meFn = require(path.join(__dirname, "..", "api", "me", "index.js"));
 const rolesFn = require(path.join(__dirname, "..", "api", "auth-roles", "index.js"));
@@ -165,6 +176,30 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
   r = await call(rolesFn, { method: "POST", user: null, body: "garbage" });
   assert.strictEqual(r.status, 200);
   assert.deepStrictEqual(r.body.roles, []);
+
+  // Profile photo (2026-10-04): none → 204; a square JPEG is written to Graph as-is;
+  // non-square, too large, wrong type and non-image are refused before Graph.
+  r = await call(meFn, { action: "photo" });
+  assert.strictEqual(r.status, 204, "no photo yet");
+  r = await call(meFn, { action: "photo", method: "PUT", body: { image: dataUrl("image/jpeg", fakeJpeg(648, 400)) } });
+  assert.strictEqual(r.status, 400, "non-square refused: " + JSON.stringify(r.body));
+  r = await call(meFn, { action: "photo", method: "PUT", body: { image: dataUrl("image/jpeg", fakeJpeg(2000, 2000)) } });
+  assert.strictEqual(r.status, 400, "over 1024 px refused");
+  r = await call(meFn, { action: "photo", method: "PUT", body: { image: dataUrl("image/png", fakeJpeg(648, 648)) } });
+  assert.strictEqual(r.status, 400, "declared PNG but JPEG bytes refused");
+  r = await call(meFn, { action: "photo", method: "PUT", body: { image: "data:image/gif;base64,R0lGODlh" } });
+  assert.strictEqual(r.status, 400, "GIF refused");
+  r = await call(meFn, { action: "photo", method: "PUT", body: { image: dataUrl("image/jpeg", fakeJpeg(648, 648)) } });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(r.body.px, 648);
+  assert.strictEqual(photoType, "image/jpeg");
+  assert.ok(photoBytes && photoBytes[0] === 0xff && photoBytes[1] === 0xd8, "JPEG bytes reached Graph");
+  r = await call(meFn, { action: "photo", method: "PUT", body: { image: dataUrl("image/png", fakePng(96, 96)) } });
+  assert.strictEqual(r.status, 200, "a square PNG is accepted too");
+  assert.strictEqual(photoType, "image/png");
+  r = await call(meFn, { action: "photo" });
+  assert.strictEqual(r.status, 200);
+  assert.ok(r.isRaw && Buffer.isBuffer(r.body) && r.body.length === photoBytes.length, "photo served back as bytes");
 
   console.log("account: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

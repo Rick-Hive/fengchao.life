@@ -124,8 +124,29 @@ async function batch(requests, extraHeaders) {
   return out;
 }
 
+// A Graph request whose body is binary (profile photos): returns
+// { status, buffer, contentType } and does not parse anything. 404 is returned,
+// not thrown (no photo yet); other errors throw like graph().
+async function graphRaw(method, path, body, contentType) {
+  const url = /^https:/.test(path) ? path : GRAPH + path;
+  const headers = { Authorization: `Bearer ${await token()}` };
+  if (body !== undefined) headers["Content-Type"] = contentType || "application/octet-stream";
+  const res = await fetch(url, { method, headers, body });
+  if (res.status === 404) return { status: 404, buffer: null, contentType: "" };
+  if (!res.ok) {
+    const text = await res.text();
+    let data = null; try { data = JSON.parse(text); } catch { data = null; }
+    const e = (data && data.error) || {};
+    const err = new Error(`Graph ${method} ${path} -> HTTP ${res.status}: ${e.code || ""} ${e.message || text.slice(0, 200)}`.trim());
+    err.status = res.status; err.code = e.code || "";
+    throw err;
+  }
+  const buffer = res.status === 204 ? null : Buffer.from(await res.arrayBuffer());
+  return { status: res.status, buffer, contentType: res.headers.get("content-type") || "" };
+}
+
 function q(s) {
   return String(s).replace(/'/g, "''");
 }
 
-module.exports = { graph, list, batch, q, _reset: () => { cached = { token: "", exp: 0 }; } };
+module.exports = { graph, graphRaw, list, batch, q, _reset: () => { cached = { token: "", exp: 0 }; } };
