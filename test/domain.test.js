@@ -396,5 +396,36 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(otherDoc.users.length, 0);
   assert.ok(otherDoc.fullAt);
 
+  // 12. /api/roles: the 角色分配 page's search reads the directory caches (no Graph),
+  // and the entries carry the person's name and school.
+  let stored = { entries: [{ user: `lei@${DOMAIN}`, roles: [`domain_it:${DOMAIN}`], by: ADMIN, at: "2026-10-01T00:00:00Z" }] };
+  rolesMod.readRoles = async () => JSON.parse(JSON.stringify(stored));
+  rolesMod.writeRoles = async (doc) => { stored = JSON.parse(JSON.stringify(doc)); };
+  const rolesApi = require(path.join(__dirname, "..", "api", "roles", "index.js")); // after the stubs: it destructures them at load
+  async function rcall(opts) {
+    const context = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
+    await rolesApi(context, Object.assign({ method: "GET", params: {}, query: {}, body: null, headers: { "x-ms-client-principal": principal(ADMIN, ["admin"]) } }, opts));
+    return context.res;
+  }
+  if (!blobs[`${DOMAIN}.json`]) { await dir.syncSlice(DOMAIN, "full", { budgetMs: 20000 }); }
+  r = await rcall({ query: { q: "lei" } });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(r.body.people.some((p) => p.upn === `lei@${DOMAIN}` && p.domain === DOMAIN && p.displayName), "search finds Lei by account: " + JSON.stringify(r.body.people));
+  r = await rcall({ query: { q: "elaine" } });
+  assert.ok(r.body.people.length >= 1 && /elaine/i.test(r.body.people[0].displayName + r.body.people[0].upn), "search by name");
+  r = await rcall({ query: { q: "zzzz-nobody" } });
+  assert.deepStrictEqual(r.body.people, []);
+  r = await rcall({});
+  assert.strictEqual(r.status, 200);
+  const leiEntry = r.body.entries.find((e) => e.user === `lei@${DOMAIN}`);
+  assert.ok(leiEntry && leiEntry.displayName && leiEntry.domain === DOMAIN && leiEntry.inDirectory === true, "entry joined with the directory: " + JSON.stringify(leiEntry));
+  r = await rcall({ method: "POST", body: { user: `Elaine@${DOMAIN}`, roles: [`domain_hive:${DOMAIN}`, "staff:sales"] } });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(stored.entries.some((e) => e.user === `elaine@${DOMAIN}` && e.roles.length === 2), "saved lowercase with both roles");
+  r = await rcall({ method: "POST", body: { user: `x@${DOMAIN}`, roles: ["domain_it:not-a-domain"] } });
+  assert.strictEqual(r.status, 400);
+  r = await rcall({ headers: { "x-ms-client-principal": principal(`lei@${DOMAIN}`, IT) } });
+  assert.strictEqual(r.status, 403, "a domain administrator does not see 角色分配");
+
   console.log("domain: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

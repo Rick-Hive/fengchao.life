@@ -43,7 +43,7 @@ module.exports = async function (context, req) {
       return;
     }
     const user = normUser(claim(claims, "preferred_username", "upn", "email", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn") || body.userDetails);
-    const roles = await rolesFor(user, "fresh"); // Hive's roles + Entra's administrator roles, read now
+    const roles = await rolesFor(user);
     context.log(`auth-roles: ${user || "(no account)"} → ${roles.join(",") || "(none)"}`);
     context.res = { status: 200, body: { roles } };
     // Hive's own sign-in record (Entra has the full one; this one is Hive-side and

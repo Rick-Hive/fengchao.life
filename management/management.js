@@ -957,70 +957,219 @@
   // ================================================================================
   // 系统 › 角色分配 / 数据同步
   // ================================================================================
-  function viewRoles() {
-    setTitle(t("系统", "System"), t("角色分配", "Roles"), "", t("谁可以管理哪所学校。", "Who manages which school."));
-    var doms = (domainsInfo && domainsInfo.domains) || [];
-    var domOpts = doms.map(function (d) { return '<label class="chk"><input type="checkbox" data-dom="' + esc(d.domain) + '" /> ' + dlabel(d.domain) + "</label>"; }).join("");
-    $("content").innerHTML =
-      '<div class="card"><p class="sub">' +
-        t("普通用户无需分配。域管理员（IT）管本域账号的登录设备；域蜂巢管理员管本域账号的身份、关联和资料；Staff 是蜂巢员工，按职能分，能看所有学校；系统管理员拥有全部权限。域角色和 Staff 立即生效；系统管理员在对方下次登录后生效。",
-          "Ordinary users need no role. Domain administrator (IT): the domain's sign-in devices. Domain Hive administrator: the domain's 身份, links and profiles. Staff: Hive's own people by function, across every school. System administrator: everything. Domain roles and Staff work at once; System administrator takes effect at the person's next sign-in.") + "</p>" +
-        '<table class="roles" id="rtable"><thead><tr><th>' + t("账号", "Account") + "</th><th>" + t("角色", "Roles") + "</th><th>" + t("授予", "By") + '</th><th></th></tr></thead><tbody><tr><td colspan="4" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table>" +
-        '<form class="role-form" id="rform" autocomplete="off">' +
-          '<label class="f">' + t("账号", "Account") + '<input type="email" id="ruser" placeholder="name@school-domain" required /></label>' +
-          '<div class="f-title">' + t("域角色（勾选角色，再勾选域）", "Domain roles (tick the role, then the domains)") + "</div>" +
-          '<div class="chks"><label class="chk"><input type="checkbox" id="rIT" /> ' + t("域管理员（IT）", "Domain administrator (IT)") + '</label><label class="chk"><input type="checkbox" id="rHive" /> ' + t("域蜂巢管理员", "Domain Hive administrator") + "</label></div>" +
-          '<div class="chks" id="rdoms">' + domOpts + '<label class="chk">' + t("其它域：", "Other domain: ") + '<input type="text" id="rdomOther" placeholder="school.edu" style="width:180px" /></label></div>' +
-          '<div class="f-title">Staff</div>' +
-          '<div class="grid2"><label class="f">' + t("蜂巢员工职能", "Hive staff function") + '<select id="rStaff"><option value="">' + t("不是员工", "Not staff") + "</option>" + Object.keys(STAFF_FN).map(function (k) { return '<option value="' + k + '">' + esc(STAFF_FN[k][EN ? 1 : 0]) + "</option>"; }).join("") + "</select></label></div>" +
-          '<div class="actions"><button class="btn" type="submit">' + t("保存角色", "Save roles") + '</button><button class="btn secondary" type="button" id="rClear">' + t("清空表单", "Clear") + "</button></div></form><div id=\"rmsg\"></div></div>";
-    function render(entries) {
-      var tb = $("rtable").tBodies[0];
-      tb.innerHTML = entries.length ? entries.map(function (e) {
-        return '<tr><td><a href="#" data-edit="' + esc(e.user) + '">' + esc(e.user) + "</a></td><td>" + e.roles.map(function (r) { return esc(roleName(r)); }).join("<br/>") + '</td><td class="muted">' + esc(e.by || "") + (e.at ? "<br/>" + esc(day(e.at)) : "") + '</td><td><button class="btn danger sm" type="button" data-user="' + esc(e.user) + '">' + t("移除", "Remove") + "</button></td></tr>";
-      }).join("") : '<tr><td colspan="4" class="muted">' + t("还没有分配任何角色", "No roles assigned yet") + "</td></tr>";
-    }
-    function msg(ok, txt) { $("rmsg").innerHTML = '<div class="msg ' + (ok ? "ok" : "err") + '">' + esc(txt) + "</div>"; }
-    function clearForm() { $("ruser").value = ""; $("rIT").checked = false; $("rHive").checked = false; $("rdomOther").value = ""; $("rStaff").value = ""; $("rform").querySelectorAll("input[data-dom]").forEach(function (c) { c.checked = false; }); }
-    function fill(e) {
-      clearForm(); $("ruser").value = e.user;
-      e.roles.forEach(function (r) {
-        var m;
-        if ((m = /^domain_(it|hive|admin):(.+)$/.exec(r))) {
-          if (m[1] !== "hive") $("rIT").checked = true;
-          if (m[1] !== "it") $("rHive").checked = true;
-          var c = $("rform").querySelector('input[data-dom="' + m[2] + '"]'); if (c) c.checked = true; else $("rdomOther").value = m[2];
-        } else if ((m = /^staff:(.+)$/.exec(r))) $("rStaff").value = m[1];
-        else if (r === "admin") $("rStaff").value = "sysadmin";
-        else if (r === "coordinator") $("rStaff").value = "community";
-      });
-      $("ruser").focus();
-    }
-    var entries = [];
-    api("roles").then(function (r) { if (!r.ok) return msg(false, errText(r)); entries = r.body.entries || []; render(entries); });
-    $("rClear").addEventListener("click", clearForm);
-    $("rform").addEventListener("submit", function (ev) {
-      ev.preventDefault();
-      var user = $("ruser").value.trim().toLowerCase();
-      var roles = [];
-      var ds = Array.prototype.map.call($("rform").querySelectorAll("input[data-dom]:checked"), function (c) { return c.getAttribute("data-dom"); });
-      $("rdomOther").value.split(/[\s,;，；]+/).map(function (d) { return d.trim().toLowerCase(); }).filter(Boolean).forEach(function (d) { if (ds.indexOf(d) < 0) ds.push(d); });
-      if (($("rIT").checked || $("rHive").checked) && !ds.length) return msg(false, t("请勾选至少一个域。", "Tick at least one domain."));
-      ds.forEach(function (d) { if ($("rIT").checked) roles.push("domain_it:" + d); if ($("rHive").checked) roles.push("domain_hive:" + d); });
-      if ($("rStaff").value) roles.push("staff:" + $("rStaff").value);
-      post("roles", "POST", { user: user, roles: roles }).then(function (r) {
-        if (!r.ok) return msg(false, errText(r));
-        entries = r.body.entries || []; render(entries); clearForm();
-        msg(true, roles.length ? t("已保存：", "Saved: ") + user + " — " + roleNames(roles) : t("已设为普通用户：", "Now an ordinary user: ") + user);
-      });
+  // ================================================================================
+  // 系统 › 角色分配 (Rick, 2026-10-04: roles come from here alone — Entra administrator
+  // roles are being withdrawn from people). Search any account of any school (from
+  // the directory cache), open the role editor in the side panel, save.
+  // ================================================================================
+  var ROLE_KIND = { it: ["域管理员（IT）", "Domain administrator (IT)"], hive: ["域蜂巢管理员", "Domain Hive administrator"], staff: ["Staff", "Staff"], sys: ["系统管理员", "System administrator"] };
+  function roleKind(r) {
+    if (/^domain_it:/.test(r)) return "it";
+    if (/^domain_hive:/.test(r)) return "hive";
+    if (/^domain_admin:/.test(r)) return "it"; // legacy IT + Hive: shown as two chips by roleChips
+    if (r === "admin" || r === "staff:sysadmin") return "sys";
+    return "staff";
+  }
+  function roleChips(roles) {
+    var out = [], seen = {};
+    (roles || []).forEach(function (r) {
+      var m;
+      if ((m = /^domain_admin:(.+)$/.exec(r))) { out.push(["it", m[1]]); out.push(["hive", m[1]]); return; }
+      if (r === "admin" && (roles || []).indexOf("staff:sysadmin") >= 0) return;
+      out.push([roleKind(r), (m = /^domain_(it|hive):(.+)$/.exec(r)) ? m[2] : (m = /^staff:(.+)$/.exec(r)) ? m[1] : ""]);
     });
-    $("rtable").addEventListener("click", function (ev) {
-      var a = ev.target.closest("a[data-edit]");
-      if (a) { ev.preventDefault(); var e = entries.filter(function (x) { return x.user === a.getAttribute("data-edit"); })[0]; if (e) fill(e); return; }
-      var b = ev.target.closest("button[data-user]"); if (!b) return;
-      var user = b.getAttribute("data-user");
-      if (!window.confirm(t("移除 " + user + " 的所有角色（变为普通用户）？", "Remove all roles from " + user + " (ordinary user)?"))) return;
-      post("roles", "DELETE", { user: user }).then(function (r) { if (!r.ok) return msg(false, errText(r)); entries = r.body.entries || []; render(entries); msg(true, t("已移除：", "Removed: ") + user); });
+    return out.filter(function (x) { var k = x.join("|"); if (seen[k]) return false; seen[k] = 1; return true; }).map(function (x) {
+      var kind = x[0], arg = x[1], label;
+      if (kind === "it" || kind === "hive") label = ROLE_KIND[kind][EN ? 1 : 0] + " · " + dname(arg);
+      else if (kind === "sys") label = ROLE_KIND.sys[EN ? 1 : 0];
+      else label = "Staff · " + (STAFF_FN[arg] ? STAFF_FN[arg][EN ? 1 : 0] : arg);
+      return '<span class="tag role-' + kind + '">' + esc(label) + "</span>";
+    }).join("");
+  }
+  function viewRoles() {
+    setTitle(t("系统", "System"), t("角色分配", "Roles"), "", t("搜索任何学校的任何账号，赋予或收回角色。普通用户无需分配；改动即时生效。", "Search any account of any school and grant or withdraw roles. Ordinary users need none; changes take effect at once."));
+    var doms = (domainsInfo && domainsInfo.domains) || [];
+    var state = { entries: [], kind: "all", domain: "", q: "" };
+    $("content").innerHTML =
+      '<div class="toolbar" id="rbar">' +
+        '<div class="search rsearch">' + ICON.search + '<input type="search" id="rq" autocomplete="off" placeholder="' + t("搜索姓名或账号，添加或修改…", "Search a name or account to add or edit…") + '" /><div class="sugg" id="rsugg" hidden></div></div>' +
+        '<span class="spacer"></span>' +
+        '<button class="chip" data-k="all" aria-pressed="true">' + t("全部", "All") + "</button>" +
+        '<button class="chip" data-k="it" aria-pressed="false">' + t("域管理员（IT）", "Domain IT") + "</button>" +
+        '<button class="chip" data-k="hive" aria-pressed="false">' + t("域蜂巢管理员", "Domain Hive") + "</button>" +
+        '<button class="chip" data-k="staff" aria-pressed="false">Staff</button>' +
+        '<button class="chip" data-k="sys" aria-pressed="false">' + t("系统管理员", "System admin") + "</button>" +
+        (doms.length > 1 ? '<select id="rdom"><option value="">' + t("所有学校", "All schools") + "</option>" + doms.map(function (d) { return '<option value="' + esc(d.domain) + '">' + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>" : "") +
+      "</div>" +
+      '<div class="tbl-wrap"><table class="data roles2" id="rtable"><thead><tr><th>' + t("人员", "Person") + "</th><th>" + t("学校", "School") + "</th><th>" + t("角色", "Roles") + "</th><th>" + t("授予", "Granted") + '</th></tr></thead>' +
+        '<tbody><tr><td colspan="4" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
+      '<p class="muted" id="rfoot" style="font-size:.8rem"></p><div id="rmsg"></div>';
+
+    // `q` highlights the match in the name (hl() escapes and wraps it in <mark>).
+    function personCell(name, upn, extra, q) {
+      var shown = name || upn.split("@")[0];
+      return '<div class="pcell"><span class="avatar" style="background:' + hue(upn) + ';color:#fff">' + esc(initials(name || upn)) + '</span><div><span class="dn">' + (q ? hl(shown, q) : esc(shown)) + '</span><span class="sub">' + (q ? hl(upn, q) : esc(upn)) + (extra ? " · " + esc(extra) : "") + "</span></div></div>";
+    }
+    function render() {
+      var rows = state.entries.filter(function (e) {
+        if (state.kind !== "all" && !e.roles.some(function (r) { return roleKind(r) === state.kind || (state.kind === "hive" && /^domain_admin:/.test(r)); })) return false;
+        if (state.domain && e.domain !== state.domain && !e.roles.some(function (r) { return r.indexOf(":" + state.domain) > 0; })) return false;
+        return true;
+      });
+      var tb = $("rtable").tBodies[0];
+      tb.innerHTML = rows.length ? rows.map(function (e) {
+        return '<tr class="pick" data-user="' + esc(e.user) + '"><td>' + personCell(e.displayName, e.user, e.inDirectory ? "" : t("不在目录缓存中", "not in the directory cache")) + "</td>" +
+          "<td>" + esc(dname(e.domain)) + "</td><td><div class=\"tags\">" + roleChips(e.roles) + "</div></td>" +
+          '<td class="muted"><span class="sub">' + esc(e.by || "") + "</span><span class=\"sub\">" + esc(day(e.at)) + "</span></td></tr>";
+      }).join("") : '<tr><td colspan="4" class="muted">' + (state.entries.length ? t("没有符合筛选的人员。", "Nobody matches the filter.") : t("还没有分配任何角色。在上方搜索一个账号开始。", "No roles assigned yet. Search for an account above to start.")) + "</td></tr>";
+      $("rfoot").textContent = t("共 ", "") + state.entries.length + t(" 人有角色", " people hold roles") + (rows.length !== state.entries.length ? t("，显示 ", ", showing ") + rows.length : "") + t("。系统管理员由 roles.json 和启动账号共同决定。", ". System administrators come from roles.json and the bootstrap account.");
+    }
+    function load() { return api("roles").then(function (r) { if (!r.ok) { $("rmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; } state.entries = r.body.entries || []; render(); }); }
+    load();
+    $("rbar").addEventListener("click", function (e) {
+      var c = e.target.closest(".chip[data-k]"); if (!c) return;
+      state.kind = c.getAttribute("data-k");
+      $("rbar").querySelectorAll(".chip[data-k]").forEach(function (x) { x.setAttribute("aria-pressed", x === c ? "true" : "false"); });
+      render();
+    });
+    var rdom = $("rdom"); if (rdom) rdom.addEventListener("change", function () { state.domain = rdom.value; render(); });
+    $("rtable").addEventListener("click", function (e) {
+      var tr = e.target.closest("tr[data-user]"); if (!tr) return;
+      var en = state.entries.filter(function (x) { return x.user === tr.getAttribute("data-user"); })[0]; if (!en) return;
+      document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); }); tr.classList.add("sel");
+      openRoleEditor({ upn: en.user, displayName: en.displayName, domain: en.domain, lastSignIn: en.lastSignIn }, en.roles, function () { load(); });
+    });
+    // Search-as-you-type over the directory caches (12 best matches); Enter or a click
+    // opens the editor for that account, with their current roles if any.
+    var timer = 0, seq = 0;
+    function suggest(q) {
+      var box = $("rsugg");
+      if (q.length < 2) { box.hidden = true; box.innerHTML = ""; return; }
+      var my = ++seq;
+      api("roles?q=" + encodeURIComponent(q)).then(function (r) {
+        if (my !== seq || !r.ok) return;
+        var people = r.body.people || [];
+        box.innerHTML = people.length ? people.map(function (p) {
+          var en = state.entries.filter(function (x) { return x.user === p.upn; })[0];
+          return '<button type="button" class="sg" data-upn="' + esc(p.upn) + '" data-name="' + esc(p.displayName) + '" data-domain="' + esc(p.domain) + '" data-last="' + esc(p.lastSignIn || "") + '">' +
+            personCell(p.displayName, p.upn, dname(p.domain), q) + '<span class="sgr">' + (en ? roleChips(en.roles) : '<span class="muted">' + t("普通用户", "User") + "</span>") + "</span></button>";
+        }).join("") : '<div class="sg none">' + t("没有找到。请检查拼写，或先在「用户」页同步该学校。", "Nothing found. Check the spelling, or sync that school on the Users page first.") + "</div>";
+        box.hidden = false;
+      });
+    }
+    $("rq").addEventListener("input", function () { clearTimeout(timer); var q = $("rq").value.trim(); timer = setTimeout(function () { suggest(q); }, 180); });
+    $("rq").addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { $("rsugg").hidden = true; return; }
+      if (e.key === "Enter") { e.preventDefault(); var f = $("rsugg").querySelector(".sg[data-upn]"); if (f) f.click(); }
+      if (e.key === "ArrowDown") { var f2 = $("rsugg").querySelector(".sg[data-upn]"); if (f2) { e.preventDefault(); f2.focus(); } }
+    });
+    $("rsugg").addEventListener("keydown", function (e) {
+      var items = Array.prototype.slice.call($("rsugg").querySelectorAll(".sg[data-upn]")), i = items.indexOf(document.activeElement);
+      if (e.key === "ArrowDown" && items[i + 1]) { e.preventDefault(); items[i + 1].focus(); }
+      if (e.key === "ArrowUp") { e.preventDefault(); if (i > 0) items[i - 1].focus(); else $("rq").focus(); }
+      if (e.key === "Escape") { $("rsugg").hidden = true; $("rq").focus(); }
+    });
+    $("rsugg").addEventListener("click", function (e) {
+      var b = e.target.closest(".sg[data-upn]"); if (!b) return;
+      var upn = b.getAttribute("data-upn"), en = state.entries.filter(function (x) { return x.user === upn; })[0];
+      $("rsugg").hidden = true; $("rq").value = "";
+      openRoleEditor({ upn: upn, displayName: b.getAttribute("data-name"), domain: b.getAttribute("data-domain"), lastSignIn: b.getAttribute("data-last") }, en ? en.roles : [], function () { load(); });
+    });
+    document.addEventListener("click", function (e) { if (!e.target.closest(".rsearch")) { var bx = $("rsugg"); if (bx) bx.hidden = true; } });
+  }
+
+  // The role editor, in the side panel: school roles as switches per school, the
+  // staff function, the system administrator switch; a live preview; save / remove.
+  function openRoleEditor(person, roles, onSaved) {
+    var doms = ((domainsInfo && domainsInfo.domains) || []).map(function (d) { return d.domain; });
+    var own = (person.domain || person.upn.split("@")[1] || "").toLowerCase();
+    // Current state, from the roles given.
+    var st = { it: {}, hive: {}, staff: "", sys: false, schools: [] };
+    (roles || []).forEach(function (r) {
+      var m;
+      if ((m = /^domain_(it|hive|admin):(.+)$/.exec(r))) { if (m[1] !== "hive") st.it[m[2]] = true; if (m[1] !== "it") st.hive[m[2]] = true; if (st.schools.indexOf(m[2]) < 0) st.schools.push(m[2]); }
+      else if ((m = /^staff:(.+)$/.exec(r))) { if (m[1] === "sysadmin") st.sys = true; else st.staff = m[1]; }
+      else if (r === "admin") st.sys = true;
+      else if (r === "coordinator") st.staff = "community";
+    });
+    if (own && st.schools.indexOf(own) < 0) st.schools.unshift(own);
+    var isMe = !!(me && me.profile && me.profile.upn && me.profile.upn.toLowerCase() === person.upn.toLowerCase());
+
+    function compose() {
+      var out = [];
+      st.schools.forEach(function (d) { if (st.it[d]) out.push("domain_it:" + d); if (st.hive[d]) out.push("domain_hive:" + d); });
+      if (st.staff) out.push("staff:" + st.staff);
+      if (st.sys) out.push("staff:sysadmin");
+      return out;
+    }
+    function schoolCard(d) {
+      var known = doms.indexOf(d) >= 0;
+      return '<div class="rschool" data-d="' + esc(d) + '"><div class="rsh"><b>' + esc(dname(d)) + "</b>" + (d !== own ? '<button type="button" class="lnk" data-drop="' + esc(d) + '">' + t("移除", "Remove") + "</button>" : '<span class="muted">' + t("所在学校", "Their school") + "</span>") + (known ? "" : ' <span class="tag warn">' + t("未知域", "Unknown domain") + "</span>") + "</div>" +
+        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("账号安全：查看本校账号，删除验证设备，重置密码，同步变动。", "Account security: see the school's accounts, remove authenticator devices, reset passwords, sync changes.") + "</small></span></label>" +
+        '<label class="sw"><input type="checkbox" data-role="hive" data-d="' + esc(d) + '"' + (st.hive[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.hive[EN ? 1 : 0] + "</b><small>" + t("蜂巢信息：身份、关联账号、备注；不能动设备和密码。", "Hive information: identity, linked accounts, notes; no devices or passwords.") + "</small></span></label></div>";
+    }
+    function preview() {
+      var rs = compose();
+      $("rprev").innerHTML = rs.length ? '<span class="k">' + t("保存后：", "After saving: ") + "</span>" + roleChips(rs) : '<span class="k">' + t("保存后：", "After saving: ") + "</span>" + t("普通用户（无角色）", "ordinary user (no roles)");
+    }
+    function addable() { return doms.filter(function (d) { return st.schools.indexOf(d) < 0; }); }
+    function draw() {
+      $("rschools").innerHTML = st.schools.map(schoolCard).join("");
+      var more = addable();
+      $("raddwrap").innerHTML = more.length ? '<select id="radd"><option value="">' + t("＋ 添加其他学校…", "+ Add another school…") + "</option>" + more.map(function (d) { return '<option value="' + esc(d) + '">' + esc(dname(d)) + "</option>"; }).join("") + "</select>" : "";
+      preview();
+    }
+    panelOpen(
+      '<div class="ph"><span class="avatar" style="background:' + hue(person.upn) + ';color:#fff">' + esc(initials(person.displayName || person.upn)) + "</span><h3>" + esc(person.displayName || person.upn) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+      '<div class="pb">' +
+        '<div class="kv"><span class="k">' + t("账号", "Account") + "</span><span>" + esc(person.upn) + "</span>" +
+          '<span class="k">' + t("学校", "School") + "</span><span>" + esc(dname(own)) + "</span>" +
+          (person.lastSignIn ? '<span class="k">' + t("最近登录", "Last sign-in") + "</span><span>" + esc(when(person.lastSignIn)) + "</span>" : "") +
+          '<span class="k">' + t("当前角色", "Current roles") + "</span><span>" + ((roles || []).length ? roleChips(roles) : '<span class="muted">' + t("普通用户", "User") + "</span>") + "</span></div>" +
+        "<h4>" + t("学校角色", "School roles") + '</h4><div id="rschools"></div><div id="raddwrap" class="raddwrap"></div>' +
+        "<h4>" + t("蜂巢工作人员", "Hive staff") + '</h4><div class="rstaff" id="rstaff">' +
+          '<button type="button" class="chip" data-staff="" aria-pressed="' + (!st.staff) + '">' + t("不是员工", "Not staff") + "</button>" +
+          Object.keys(STAFF_FN).filter(function (k) { return k !== "sysadmin"; }).map(function (k) { return '<button type="button" class="chip" data-staff="' + k + '" aria-pressed="' + (st.staff === k) + '">' + esc(STAFF_FN[k][EN ? 1 : 0]) + "</button>"; }).join("") +
+        '</div><p class="muted" style="font-size:12px;margin:6px 0 0">' + t("蜂巢员工按职能分，可以查看所有学校的账号与资料。", "Hive staff, by function, see every school's accounts and details.") + "</p>" +
+        "<h4>" + t("系统管理员", "System administrator") + "</h4>" +
+        '<label class="sw danger"><input type="checkbox" id="rsys"' + (st.sys ? " checked" : "") + (isMe ? " disabled" : "") + ' /><span class="track"></span><span class="swt"><b>' + t("系统管理员", "System administrator") + "</b><small>" + t("所有学校的一切，包括角色分配本身。请只给蜂巢的运维人员。", "Everything, for every school — including this page. Hive operations people only.") + (isMe ? " " + t("（不能改自己的）", "(not for your own account)") : "") + "</small></span></label>" +
+        '<div class="rprev" id="rprev"></div>' +
+        '<div class="actions"><button class="btn" type="button" id="rsave">' + t("保存", "Save") + "</button>" + ((roles || []).length && !isMe ? '<button class="btn secondary" type="button" id="rremove">' + t("移除全部角色", "Remove all roles") + "</button>" : "") + '</div><div id="rpmsg"></div>' +
+      "</div>");
+    draw();
+    var pb = $("panel").querySelector(".pb");
+    pb.addEventListener("change", function (e) {
+      var c = e.target;
+      if (c.matches("input[data-role]")) { st[c.getAttribute("data-role")][c.getAttribute("data-d")] = c.checked; preview(); return; }
+      if (c.id === "rsys") {
+        if (c.checked && !window.confirm(t("把 " + (person.displayName || person.upn) + " 设为系统管理员？他将拥有所有学校的全部权限，包括分配角色。", "Make " + (person.displayName || person.upn) + " a system administrator? They will have every permission for every school, including assigning roles."))) { c.checked = false; return; }
+        st.sys = c.checked; preview(); return;
+      }
+      if (c.id === "radd" && c.value) { st.schools.push(c.value); draw(); }
+    });
+    pb.addEventListener("click", function (e) {
+      var sc = e.target.closest(".chip[data-staff]");
+      if (sc) { st.staff = sc.getAttribute("data-staff"); pb.querySelectorAll(".chip[data-staff]").forEach(function (x) { x.setAttribute("aria-pressed", x === sc ? "true" : "false"); }); preview(); return; }
+      var drop = e.target.closest("button[data-drop]");
+      if (drop) { var d = drop.getAttribute("data-drop"); st.schools = st.schools.filter(function (x) { return x !== d; }); delete st.it[d]; delete st.hive[d]; draw(); return; }
+      if (e.target.closest("#rsave")) {
+        var rs = compose(), b = $("rsave"); b.disabled = true; b.textContent = t("保存中…", "Saving…");
+        post("roles", "POST", { user: person.upn, roles: rs }).then(function (r) {
+          b.disabled = false; b.textContent = t("保存", "Save");
+          if (!r.ok) { $("rpmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          $("rpmsg").innerHTML = '<div class="msg ok">' + (rs.length ? t("已保存。", "Saved.") : t("已设为普通用户。", "Now an ordinary user.")) + (rs.some(function (x) { return x === "staff:sysadmin"; }) && !(roles || []).some(function (x) { return x === "staff:sysadmin" || x === "admin"; }) ? " " + t("新的系统管理员需要重新登录一次，「系统」菜单才会出现。", "A new system administrator must sign in again before the System menu appears.") : "") + "</div>";
+          roles = rs; onSaved && onSaved(rs);
+          if (!rs.length) setTimeout(panelClose, 900);
+        });
+        return;
+      }
+      if (e.target.closest("#rremove")) {
+        if (!window.confirm(t("移除 " + (person.displayName || person.upn) + " 的所有角色（变为普通用户）？", "Remove all roles from " + (person.displayName || person.upn) + " (ordinary user)?"))) return;
+        post("roles", "DELETE", { user: person.upn }).then(function (r) {
+          if (!r.ok) { $("rpmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          onSaved && onSaved([]); panelClose();
+        });
+      }
     });
   }
   function viewInstitutions() {
