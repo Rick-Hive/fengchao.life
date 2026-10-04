@@ -120,6 +120,8 @@ const dir = require(path.join(__dirname, "..", "api", "shared", "directory.js"))
 let blobs = {};
 dir._store.read = async (n) => (blobs[n] ? JSON.parse(blobs[n]) : null);
 dir._store.write = async (n, o) => { blobs[n] = JSON.stringify(o); };
+const auditMod = require(path.join(__dirname, "..", "api", "shared", "audit.js"));
+const auditLines = []; auditMod.audit = async (ctx, e) => { auditLines.push(e); };
 const domainFn = require(path.join(__dirname, "..", "api", "domain", "index.js"));
 const schedFn = require(path.join(__dirname, "..", "api", "directory-sync", "index.js"));
 process.env.HIVE_SYNC_KEY = "a-long-enough-shared-secret-for-tests";
@@ -270,6 +272,31 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(leiMethods.length, 2);
   r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.body.users[1].devices.length, 1, "cached row updated without a sync");
+  // 8b. 重置密码: IT of the domain gives an ordinary user a temporary password that must
+  // be changed at the next sign-in; the value comes back once and is never logged.
+  calls.length = 0;
+  r = await call({ action: "password", method: "POST", body: { domain: DOMAIN, user: `lei@${DOMAIN}` }, user: DOMADMIN, roles: HIVE });
+  assert.strictEqual(r.status, 403, "域蜂巢管理员 does not reset passwords");
+  r = await call({ action: "password", method: "POST", body: { domain: DOMAIN, user: "x@other.example.edu" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "account must be in this domain");
+  r = await call({ action: "password", method: "POST", body: { domain: DOMAIN, user: DOMADMIN }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "not one's own password");
+  r = await call({ action: "password", method: "POST", body: { domain: DOMAIN, user: `lei@${DOMAIN}` }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(/^[A-Za-z0-9!#%&*+=?@]{14}$/.test(r.body.password), "14-char temporary password: " + r.body.password);
+  assert.ok(/[A-Z]/.test(r.body.password) && /[a-z]/.test(r.body.password) && /[0-9]/.test(r.body.password) && /[!#%&*+=?@]/.test(r.body.password), "all four classes");
+  assert.strictEqual(r.body.mustChange, true);
+  const pwPatch = calls.find((c) => c.method === "PATCH" && /\/users\/u-lei$/.test(c.url));
+  assert.ok(pwPatch, "Graph PATCH issued on the account");
+  const pp = JSON.parse(pwPatch.body).passwordProfile;
+  assert.strictEqual(pp.password, r.body.password);
+  assert.strictEqual(pp.forceChangePasswordNextSignIn, true);
+  assert.ok(!auditLines.some((l) => JSON.stringify(l).includes(r.body.password)), "the password is not in the audit log");
+  assert.ok(auditLines.some((l) => l.action === "password.reset" && l.target === `lei@${DOMAIN}` && l.result === "ok"), "audited");
+  // Two resets never give the same password.
+  const r2 = await call({ action: "password", method: "POST", body: { domain: DOMAIN, user: `lei@${DOMAIN}` }, user: DOMADMIN, roles: IT });
+  assert.notStrictEqual(r2.body.password, r.body.password);
+
   // Unlike one's own account (api/me), an administrator may remove the last device
   // (a lost phone); the reply says how many strong methods remain so the UI can warn.
   r = await call({ action: "method", method: "DELETE", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, id: "auth-lei-2" }, user: DOMADMIN, roles: DOMROLE });

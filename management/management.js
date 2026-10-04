@@ -768,6 +768,7 @@
       return;
     }
     var kids = (u.extra && u.extra.children) || [];
+    var isSelf = !!(me && me.profile && me.profile.upn && me.profile.upn.toLowerCase() === String(u.upn).toLowerCase());
     var idOpts = ['<option value="">' + t("— 未填 —", "— not set —") + "</option>"].concat(IDENTITIES.map(function (i) { return '<option value="' + i + '"' + (u.identity === i ? " selected" : "") + ">" + i + "</option>"; })).join("");
     panelOpen(
       '<div class="ph"><span class="avatar">' + esc(initials(u.displayName || u.upn)) + "</span><h3>" + esc(u.displayName || u.upn) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
@@ -787,7 +788,8 @@
           return '<div class="devrow"><div class="m"><b>' + esc(x.name) + "</b><small>" + esc((KIND[x.kind] || [x.kind, x.kind])[EN ? 1 : 0]) + (x.version ? " · " + esc(x.version) : "") + (x.created ? " · " + esc(day(x.created)) : "") + "</small></div>" +
             (canDo("methods") ? '<button class="btn danger sm" type="button" data-del="' + esc(x.id) + '" data-name="' + esc(x.name) + '">' + t("删除", "Delete") + "</button>" : "") + "</div>";
         }).join("") : '<div class="muted" style="font-size:.86rem">' + t("没有登记验证器。", "No authenticator registered.") + "</div>") + "</div>" +
-        (canDo("methods") ? '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。重置密码和临时通行码在二期加入。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready. Password reset and Temporary Access Pass come in phase 2.") + "</div>"
+        (canDo("methods") ? '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready.") + "</div>" +
+          (isSelf ? "" : "<h4>" + t("密码", "Password") + '</h4><div id="ppw"><div class="devrow"><div class="m"><b>' + t("重置密码", "Reset password") + "</b><small>" + t("生成一个临时密码，对方下次登录必须改掉。", "Makes a temporary password that must be changed at the next sign-in.") + '</small></div><button class="btn secondary sm" type="button" id="pwReset">' + t("重置", "Reset") + "</button></div></div>")
           : '<div class="note">' + t("登录设备由域管理员（IT）管理。", "Sign-in devices are managed by the domain administrator (IT).") + "</div>") +
         "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '">' + esc(g.name) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
@@ -821,6 +823,25 @@
         u.linked = rec.linked || []; u.note = rec.note || "";
         $("pmsg").innerHTML = '<div class="msg ok">' + t("已保存。", "Saved.") + "</div>";
         renderUsers();
+      });
+    });
+    // 重置密码: one confirm, then the temporary password is shown once, with a copy
+    // button, and never again (it is not stored anywhere). The admin passes it on
+    // by phone or in person; Microsoft asks for a new password at the first sign-in.
+    var pwBtn = $("pwReset");
+    if (pwBtn) pwBtn.addEventListener("click", function () {
+      if (!window.confirm(t("重置 " + (u.displayName || u.upn) + " 的密码？对方现有密码立即失效，下次登录要用临时密码并设置新密码。", "Reset " + (u.displayName || u.upn) + "'s password? The current password stops working at once; they sign in with the temporary one and set a new password."))) return;
+      pwBtn.disabled = true; pwBtn.textContent = t("重置中…", "Resetting…");
+      post("domain/password", "POST", { domain: currentDomain, user: u.upn }).then(function (r) {
+        if (!r.ok) { pwBtn.disabled = false; pwBtn.textContent = t("重置", "Reset"); $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        $("ppw").innerHTML = '<div class="pwbox"><div class="lbl">' + t("临时密码（只显示这一次）", "Temporary password (shown only once)") + '</div><div class="val"><code id="pwVal">' + esc(r.body.password) + '</code><button class="btn secondary sm" type="button" id="pwCopy">' + t("复制", "Copy") + "</button></div>" +
+          "<small>" + t("有效期：对方的旧密码已立即失效，这个临时密码在对方用它登录并设置新密码之前一直有效——请尽快电话或当面告知，并提醒对方尽快登录。关闭面板后不再显示。", "Validity: the old password has stopped working now; this temporary one stays valid until they sign in with it and set a new password — pass it on by phone or in person soon, and ask them to sign in promptly. It is not shown again after this panel closes.") + "</small></div>";
+        $("pwCopy").addEventListener("click", function () {
+          var v = $("pwVal").textContent;
+          var done = function () { $("pwCopy").textContent = t("已复制 ✓", "Copied ✓"); };
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, function () { window.prompt(t("复制临时密码：", "Copy the temporary password:"), v); });
+          else window.prompt(t("复制临时密码：", "Copy the temporary password:"), v);
+        });
       });
     });
     $("pdev").addEventListener("click", function (ev) {

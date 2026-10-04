@@ -14,6 +14,7 @@
 //   PATCH  domain/person                  {user, identity?, linked?, note?} → people.json       (域蜂巢管理员, staff)
 //   PUT    domain/institution             {domain, name, nameEn} → institutions.json (the school's display names) (sysadmin)
 //   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (域管理员 IT, sysadmin)
+//   POST   domain/password                {user} → temporary password, must change at next sign-in (域管理员 IT, sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
 // domain; the target account's UPN must end in it, or the call is refused — a
@@ -40,6 +41,20 @@ function fail(context, status, error, extra) {
 }
 
 // The cached rows plus Hive's own facts about each person.
+// A temporary password Microsoft accepts (3 of 4 character classes, 8–256 chars):
+// 14 characters from an alphabet without look-alikes, one of each class forced,
+// from the system's random source. Easy to read out over the phone.
+const PW_ALPHABET = { upper: "ABCDEFGHJKLMNPQRSTUVWXYZ", lower: "abcdefghijkmnpqrstuvwxyz", digit: "23456789", symbol: "!#%&*+=?@" };
+function temporaryPassword() {
+  const crypto = require("crypto");
+  const pick = (set) => set[crypto.randomInt(set.length)];
+  const all = Object.values(PW_ALPHABET).join("");
+  const chars = [pick(PW_ALPHABET.upper), pick(PW_ALPHABET.lower), pick(PW_ALPHABET.digit), pick(PW_ALPHABET.symbol)];
+  while (chars.length < 14) chars.push(pick(all));
+  for (let i = chars.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+  return chars.join("");
+}
+
 async function usersView(domain) {
   const [doc, peopleDoc, rolesDoc] = await Promise.all([dir.readDomain(domain), readPeople(), readRoles().catch(() => ({ entries: [] }))]);
   const people = peopleDoc.people;
@@ -209,6 +224,37 @@ async function handler(context, req) {
       return;
     }
 
+    // 重置密码 (Rick, 2026-10-04): a 域管理员（IT）or the system administrator gives an
+    // ordinary user of this domain a random temporary password that must be changed
+    // at the next sign-in. The password is returned once to the caller and never
+    // stored or logged; the audit line records who reset whose password, not the
+    // value. Needs the app permission User-PasswordProfile.ReadWrite.All and the
+    // User Administrator (or Password Administrator) role on Hive's service
+    // principal; Microsoft refuses administrator accounts (403), which is passed
+    // on as a clear message. Hive's own session check notices the password
+    // change and signs the person's old Hive sessions out within 30 minutes.
+    if (method === "POST" && action === "password") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "passwords are reset by the 域管理员（IT）", { code: "forbidden" });
+      const b = req.body || {};
+      const user = normUser(b.user);
+      if (!EMAIL_RE.test(user) || domainOf(user) !== domain) return fail(context, 400, "user must be an account in this domain");
+      if (user === actor) return fail(context, 400, "use 登录与安全 › 修改密码 for your own password", { code: "self" });
+      const u = await graph("GET", `/users/${encodeURIComponent(user)}?$select=id,userPrincipalName,userType,accountEnabled`);
+      if (!u || !u.id) return fail(context, 404, "no such account");
+      if (u.userType === "Guest") return fail(context, 400, "a guest account's password is not managed here");
+      const password = temporaryPassword();
+      try {
+        await graph("PATCH", `/users/${u.id}`, { passwordProfile: { password, forceChangePasswordNextSignIn: true } });
+      } catch (err) {
+        await audit(context, { actor, action: "password.reset", target: user, result: "failed", error: err.code || err.status });
+        if (err.status === 403) return fail(context, 403, "Microsoft refused to reset this account's password.", { code: err.code || "forbidden" });
+        throw err;
+      }
+      await audit(context, { actor, action: "password.reset", target: user, result: "ok" });
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user, password, mustChange: true } };
+      return;
+    }
+
     fail(context, 404, `unknown action: ${method} ${action}`);
   } catch (err) {
     context.log.error(`domain/${action} by ${actor}: ${(err && err.stack) || err}`);
@@ -223,3 +269,4 @@ module.exports = async function (context, req) {
   await handler(context, req);
   finish(context, s);
 };
+module.exports._temporaryPassword = temporaryPassword;

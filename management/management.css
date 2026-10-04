@@ -320,3 +320,10 @@ button.mrow.link:hover { background: #f1f4f8; }
 /* 其它 Teams 账号：一行一个 + 添加另一个 */
 .acct-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .acct-row input{flex:1;min-width:0}
+
+/* 重置密码: the temporary password, shown once in the person panel */
+.pwbox { border: 1px solid var(--line-strong); border-radius: 8px; padding: var(--s3); background: #fffbeb; }
+.pwbox .lbl { font-size: 12px; color: var(--muted); margin-bottom: var(--s1); }
+.pwbox .val { display: flex; align-items: center; gap: var(--s2); }
+.pwbox code { font-size: 18px; letter-spacing: 1px; font-weight: 600; user-select: all; flex: 1; word-break: break-all; }
+.pwbox small { display: block; margin-top: var(--s2); font-size: 12px; color: var(--muted); }
