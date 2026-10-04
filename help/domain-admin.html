@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>域管理员操作手册 · 蜂巢帮助</title>
+  <meta name="description" content="蜂巢管理中心的域管理员（IT）操作手册：角色与登录、本校用户、验证设备与密码重置、同步变动、Teams 群组、身份与关联账号、安全与审计。" />
+  <link rel="icon" type="image/png" href="/assets/favicon.png" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+<link rel="stylesheet" href="/assets/site-header.css" />
+<style>
+  :root {
+    --bg: #f2f4f8; --surface: #ffffff; --surface-2: #f8fafc;
+    --ink: #1c1c1c; --ink-soft: #333333; --ink-faint: #6b7787; --line: #dde3ec;
+    --accent: #1d4a83; --accent-ink: #123a63; --accent-soft: #e8eef5; --accent-soft-line: #c3d3e5;
+    --good: #15803d; --good-soft: #e7f2ea; --good-line: #bcdcc8;
+    --warn: #b45309; --warn-soft: #fdf0e0; --warn-line: #ecd2ab;
+    --shadow: 0 1px 3px rgba(30,41,59,.07), 0 4px 14px rgba(30,41,59,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+      --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+      --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+      --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+      --good: #6fc490; --good-soft: #17281f; --good-line: #2f4a39;
+      --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121821; --surface: #19212c; --surface-2: #1f2835;
+    --ink: #e9eef4; --ink-soft: #c2cbd6; --ink-faint: #8593a3;
+    --line: #2c3747; --accent: #7db2e8; --accent-ink: #bcd8f2;
+    --accent-soft: #1b2b3d; --accent-soft-line: #2f455d;
+    --good: #6fc490; --good-soft: #17281f; --good-line: #2f4a39;
+    --warn: #e0a250; --warn-soft: #2b2113; --warn-line: #4a3620;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Heiti SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
+    line-height: 1.75; padding: 0;
+  }
+  /* The site header runs edge to edge above; the column keeps its gutters (Rick, 2026-09-24). */
+  .wrap { max-width: 800px; margin: 0 auto; padding: 22px 20px 60px; }
+  html { scroll-padding-top: calc(var(--header-h, 96px) + 12px); }
+  .helpnav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .helpnav a {
+    text-decoration: none; font-size: .86rem; font-weight: 600; padding: 6px 15px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--accent-ink); background: var(--surface);
+  }
+  .helpnav a:hover { border-color: var(--accent); }
+  .helpnav a[aria-current="page"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* Centred, four equal tabs (Rick, 2026-09-24); two by two on a phone. */
+  .helpnav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; max-width: 640px; margin-left: auto; margin-right: auto; }
+  .helpnav a { text-align: center; white-space: nowrap; }
+  @media (max-width: 480px) { .helpnav { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 360px; } }
+  .mast-top { display: flex; align-items: center; gap: 10px; }
+  .eyebrow {
+    display: inline-block; font-size: .76rem; font-weight: 600; letter-spacing: .09em;
+    color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-soft-line);
+    padding: 3px 11px; border-radius: 999px; margin-bottom: 11px;
+  }
+  h1, h2 { font-family: "Songti SC", "SimSun", "Source Han Serif SC", "Noto Serif CJK SC", serif; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(1.4rem, 1.1rem + 1.3vw, 1.85rem); font-weight: 700; }
+  h2 { font-size: 1.15rem; font-weight: 700; margin: 30px 0 8px; color: var(--accent-ink); }
+  .sub { color: var(--ink-soft); margin: 9px 0 0; font-size: .97rem; }
+  .toc { margin: 18px 0 0; padding: 14px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; font-size: .92rem; }
+  .toc b { display: block; margin-bottom: 6px; color: var(--accent-ink); }
+  .toc a { color: var(--accent-ink); text-decoration: none; margin-right: 14px; white-space: nowrap; }
+  .toc a:hover { text-decoration: underline; }
+  details.q { scroll-margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 10px 0; box-shadow: var(--shadow); }
+  details.q summary { cursor: pointer; font-weight: 700; font-size: 1.02rem; list-style: none; display: flex; gap: 10px; align-items: flex-start; }
+  details.q summary::-webkit-details-marker { display: none; }
+  details.q summary::before { content: "＋"; color: var(--accent); flex: none; font-weight: 700; }
+  details.q[open] summary::before { content: "－"; }
+  details.q p { margin: 10px 0 0; color: var(--ink-soft); font-size: .96rem; }
+  details.q p strong { color: var(--ink); }
+  details.q a { color: var(--accent-ink); }
+  details.q code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: .88em; color: var(--accent-ink); }
+  .cta { display: inline-block; margin-top: 26px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; border-radius: 999px; padding: 11px 22px; }
+  .cta:hover { background: var(--accent-ink); }
+  footer.page { margin-top: 38px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--ink-faint); font-size: .81rem; }
+  /* ---- case studies (Rick, 2026-09-23) ---- */
+  .case { scroll-margin-top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 20px; margin: 18px 0; box-shadow: var(--shadow); }
+  .case h3 { margin: 16px 0 4px; font-size: .95rem; color: var(--accent-ink); }
+  .case p { margin: 4px 0 0; color: var(--ink-soft); font-size: .96rem; }
+  .case p strong, .case li strong { color: var(--ink); }
+  .case a, .lessons a, .admin-box a { color: var(--accent-ink); }
+  .case code { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: .86em; color: var(--accent-ink); word-break: break-all; }
+  ol.fix { list-style: none; counter-reset: f; margin: 6px 0 0; padding: 0; }
+  ol.fix > li { counter-increment: f; position: relative; padding: 8px 0 8px 34px; border-top: 1px dashed var(--line); color: var(--ink-soft); font-size: .95rem; }
+  ol.fix > li:first-child { border-top: 0; }
+  ol.fix > li::before { content: counter(f); position: absolute; left: 0; top: 9px; width: 23px; height: 23px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--accent-soft-line); color: var(--accent-ink); font-size: .78rem; font-weight: 700; display: grid; place-items: center; }
+  .role { display: inline-block; font-size: .72rem; font-weight: 700; border-radius: 6px; padding: 0 7px; margin-right: 7px; vertical-align: 1px; }
+  .role.admin { color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-soft-line); }
+  .role.user { color: var(--good); background: var(--good-soft); border: 1px solid var(--good-line); }
+  .result { margin-top: 8px !important; padding: 8px 12px; background: var(--good-soft); border: 1px solid var(--good-line); border-radius: 8px; color: var(--good) !important; font-weight: 600; }
+  ul.avoid { margin: 4px 0 0; padding-left: 20px; color: var(--ink-soft); font-size: .95rem; }
+  ul.avoid li { margin: 3px 0; }
+  /* Centred, equal widths; pictures shown together are the same size on disk (Rick, 2026-09-24). */
+  .shots { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; margin: 12px 0 2px; }
+  .shots figure { margin: 0; flex: 0 1 250px; min-width: 0; }
+  .shots img { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--line); }
+  .shots figcaption { font-size: .84rem; color: var(--ink-faint); margin-top: 5px; text-align: center; }
+  .lessons, .admin-box { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 4px 20px 16px; margin: 22px 0; box-shadow: var(--shadow); scroll-margin-top: 16px; }
+  .lessons h2, .admin-box h2 { margin-top: 16px; }
+  .lessons ol, .admin-box ul { margin: 6px 0 0; padding-left: 22px; color: var(--ink-soft); font-size: .96rem; }
+  .lessons li, .admin-box li { margin: 6px 0; }
+  .lessons li strong, .admin-box li strong, .admin-box p strong { color: var(--ink); }
+  .admin-box { background: var(--surface-2); }
+  .admin-box p { margin: 4px 0 0; color: var(--ink-soft); font-size: .93rem; }
+  /* ---- grouped, folded cases (Rick, 2026-09-23) ---- */
+  .case { padding: 13px 18px; margin: 10px 0; }
+  details.case summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; font-weight: 700; font-size: 1.03rem; color: var(--ink); }
+  details.case summary::-webkit-details-marker { display: none; }
+  details.case summary::before { content: "＋"; color: var(--accent); flex: none; font-weight: 700; }
+  details.case[open] summary::before { content: "－"; }
+  details.case summary .num, .cases-toc .num { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent-ink); min-width: 2.1em; }
+  .case-body { margin-top: 4px; padding-top: 2px; }
+  h2.cat { margin: 30px 0 4px; scroll-margin-top: 16px; }
+  .cat-note { margin: 0 0 6px; color: var(--ink-soft); font-size: .93rem; }
+  .cat-note strong { color: var(--ink); }
+  .cases-toc a { display: flex; gap: 8px; white-space: normal; margin: 3px 0 3px 12px; }
+  .toc-cat { font-weight: 700; color: var(--ink); margin: 10px 0 2px; }
+  .toc-cat:first-of-type { margin-top: 2px; }
+  .toc-more { margin-top: 12px; padding-top: 8px; border-top: 1px dashed var(--line); font-weight: 400; }
+  .toc-more a { display: inline; margin: 0 16px 0 0; }
+  .fix-box { margin: 8px 0 12px; padding: 12px 16px 10px; background: var(--good-soft); border: 1px solid var(--good-line); border-radius: 12px; font-size: .94rem; }
+  .fix-box b { color: var(--good); }
+  .fix-box ol { margin: 6px 0 0; padding-left: 22px; color: var(--ink-soft); }
+  .fix-box li { margin: 4px 0; }
+  .fix-box li strong { color: var(--ink); }
+  .fix-box a { color: var(--accent-ink); }
+  .tbl-wrap { overflow-x: auto; margin: 6px 0 4px; }
+  table.log { width: 100%; border-collapse: collapse; font-size: .9rem; color: var(--ink-soft); }
+  table.log th, table.log td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  table.log th { background: var(--surface-2); color: var(--ink); font-weight: 700; }
+  table.log td:first-child { color: var(--ink); min-width: 10.5em; }
+  table.log .ts { white-space: nowrap; }
+  .tbl-wrap + p { margin-top: 10px; }
+  /* On a phone each record becomes a small card: time, what happened, result. */
+  @media (max-width: 560px) {
+    table.log thead { display: none; }
+    table.log, table.log tbody, table.log tr, table.log td { display: block; width: auto; }
+    table.log tr { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; padding: 7px 11px; background: var(--surface); }
+    table.log td { border: 0; padding: 2px 0; }
+    table.log td:first-child { font-weight: 700; min-width: 0; font-size: .85rem; }
+    table.log td:last-child { color: var(--ink); }
+    table.log td:last-child::before { content: "→ "; color: var(--ink-faint); }
+  }
+  .log-note { font-size: .82rem; color: var(--ink-faint); margin: 0 0 4px; }
+  /* Data tables with more than three columns: on a phone each row becomes a card, each cell labelled by its column (Rick, 2026-09-28). */
+  .case h4 { margin: 14px 0 4px; font-size: .9rem; color: var(--ink); }
+  table.grid { width: 100%; border-collapse: collapse; font-size: .88rem; color: var(--ink-soft); }
+  table.grid th, table.grid td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; vertical-align: top; }
+  table.grid th { background: var(--surface-2); color: var(--ink); font-weight: 700; white-space: nowrap; }
+  table.grid.compact td:not(:first-child), table.grid.compact th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+  table.grid td:first-child { color: var(--ink); }
+  table.grid .ts { white-space: nowrap; }
+  @media (max-width: 560px) {
+    table.grid:not(.compact) thead { display: none; }
+    table.grid:not(.compact), table.grid:not(.compact) tbody, table.grid:not(.compact) tr, table.grid:not(.compact) td { display: block; width: auto; }
+    table.grid:not(.compact) tr { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; padding: 7px 11px; background: var(--surface); }
+    table.grid:not(.compact) td { border: 0; padding: 2px 0; display: flex; gap: 8px; }
+    table.grid:not(.compact) td::before { content: attr(data-l); flex: 0 0 6.6em; color: var(--ink-faint); font-size: .8rem; }
+    table.grid:not(.compact) td:first-child { font-weight: 700; }
+    table.grid.compact th { white-space: normal; }
+  }
+  table.log .ec { color: var(--ink-faint); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+</style>
+</head>
+<body>
+<header class="site-header" data-site-header></header>
+<script src="/assets/i18n.js"></script>
+<script src="/assets/site-header.js"></script>
+<div class="wrap">
+  <!-- No Teams help tabs here: this page is for administrators and is reached from the
+       Management Center's 本域管理 menu; section 9 links the Teams help pages. -->
+
+  <div class="mast-top"><span class="eyebrow" data-en="HIVE MANAGEMENT CENTER">蜂巢管理中心</span></div>
+  <h1 data-en="Domain administrator handbook">域管理员操作手册</h1>
+  <p class="sub" data-en="For the IT administrator of a school: what you can do in the Hive Management Center for the accounts of your own school, how to do it, and what to watch. Everything here acts on Microsoft 365 through Hive, so what you change is what Teams and Outlook see.">给学校的 IT 管理员：在蜂巢管理中心里，你能对<strong>本校账号</strong>做什么、怎么做、要注意什么。这里的每一步操作都通过蜂巢作用在 Microsoft 365 上——你改的，就是 Teams 和 Outlook 看到的。</p>
+
+  <nav class="toc cases-toc" aria-label="目录" data-en-label="Contents">
+    <b data-en="Contents">目录</b>
+    <a href="#s1"><span class="num">1</span><span data-en="Roles: who is a domain administrator">角色：谁是域管理员</span></a>
+    <a href="#s2"><span class="num">2</span><span data-en="Signing in, switching accounts, signing out">登录、切换账号、退出</span></a>
+    <a href="#s3"><span class="num">3</span><span data-en="The Users page and where its data comes from">「用户」页与数据来源</span></a>
+    <a href="#s4"><span class="num">4</span><span data-en="The person panel">人员面板</span></a>
+    <a href="#s5"><span class="num">5</span><span data-en="Common situations, step by step">常见情况的处理步骤</span></a>
+    <a href="#s6"><span class="num">6</span><span data-en="Teams groups">Teams 群组</span></a>
+    <a href="#s7"><span class="num">7</span><span data-en="Identity, linked accounts and self-reported details">身份、关联账号与补充资料</span></a>
+    <a href="#s8"><span class="num">8</span><span data-en="Security, audit and the limits of the role">安全、审计与权限边界</span></a>
+    <a href="#s9"><span class="num">9</span><span data-en="Getting help">获取帮助</span></a>
+  </nav>
+
+  <!-- ===================== 1 ===================== -->
+  <h2 class="cat" id="s1" data-en="1　Roles: who is a domain administrator">1　角色：谁是域管理员</h2>
+  <p class="cat-note" data-en="Hive knows four kinds of people. Your role decides which pages you see and which buttons work.">蜂巢里有四类人。你的角色决定你看到哪些页面、哪些按钮可用。</p>
+  <div class="case" style="padding:14px 18px">
+    <div class="tbl-wrap"><table class="grid">
+      <thead><tr><th data-en="Role">角色</th><th data-en="Who">是谁</th><th data-en="Can do">可以做</th></tr></thead>
+      <tbody>
+        <tr><td data-en="User">普通用户</td><td data-en="Every teacher, parent and student with a school account">每一位有学校账号的老师、家长、学生</td><td data-en="Their own profile, sign-in security, their own Teams">自己的资料、登录与安全、自己的 Teams</td></tr>
+        <tr><td data-en="Domain administrator (IT)">域管理员（IT）</td><td data-en="The school's IT contact. Anyone who holds User Administrator (or Authentication / Helpdesk / Password Administrator) in the school's Microsoft 365 is one automatically; the system administrator can also appoint one.">学校的 IT 负责人。在学校的 Microsoft 365 里持有「用户管理员」（或身份验证 / 支持 / 密码管理员）角色的账号<strong>自动</strong>就是；系统管理员也可以在「角色分配」里指定。</td><td data-en="Everything in this handbook: see the school's accounts, remove authenticator devices, reset passwords, sync changes">本手册里的一切：查看本校账号、删除验证设备、重置密码、同步变动</td></tr>
+        <tr><td data-en="Domain Hive administrator">域蜂巢管理员</td><td data-en="The school's Hive contact (not IT)">学校里负责蜂巢事务的人（非 IT）</td><td data-en="See the school's accounts; set identity, linked accounts and notes; not devices or passwords">查看本校账号；填身份、关联账号、备注；不能动设备和密码</td></tr>
+        <tr><td data-en="System administrator">系统管理员</td><td data-en="Hive staff">蜂巢的系统管理员</td><td data-en="Everything, for every school">所有学校的一切</td></tr>
+      </tbody>
+    </table></div>
+    <p data-en="Your own role shows at the bottom-left of the Management Center under your name, and on the first line of Profile. If it says User but you are the school's User Administrator, sign out and in again, or tell the system administrator.">你的角色显示在管理中心左下角你的名字下方，以及「个人资料」的第一行。如果显示「普通用户」而你确实是学校的用户管理员，请退出再登录一次，或联系系统管理员。</p>
+  </div>
+
+  <!-- ===================== 2 ===================== -->
+  <h2 class="cat" id="s2" data-en="2　Signing in, switching accounts, signing out">2　登录、切换账号、退出</h2>
+  <div class="case" style="padding:14px 18px">
+    <h3 data-en="Signing in">登录</h3>
+    <p data-en="Open <a href='https://fengchao.life/'>fengchao.life</a> and press Sign in at the top right. Microsoft shows its account list — pick your school account (or “Use another account” and type it), approve on your authenticator, and the Management Center opens. Only one account can be signed in at a time in one browser.">打开 <a href="https://fengchao.life/">fengchao.life</a>，点右上角「登录」。微软会显示账号列表——选你的学校账号（或点「使用其他账户」输入），在验证器上批准，管理中心随即打开。同一个浏览器里同一时间只能登录一个账号。</p>
+    <h3 data-en="Switching accounts">切换账号</h3>
+    <p data-en="Click your name at the bottom-left → Sign in with another account (or Switch account when you have listed other accounts in More about you). Hive ends the current session, Microsoft asks which account to sign out of, then shows its account list for the new sign-in.">点左下角你的名字 →「使用新账号登录」（如果你在补充资料里登记了其它账号，则叫「切换账号」，并列出它们）。蜂巢先结束当前会话，微软会问「退出哪个账号」，然后显示账号列表供你用新账号登录。</p>
+    <h3 data-en="Signing out and timeouts">退出与超时</h3>
+    <p data-en="Sign out at the bottom-left ends the Hive session and Microsoft's sign-in cookie for this site. After <strong>30 minutes without activity</strong>, or <strong>12 hours</strong> after signing in, you are signed out automatically (a countdown appears in the last minute). On a shared computer, always press Sign out and close the browser when you leave.">左下角的「退出」结束蜂巢会话以及本站在微软那里的登录 cookie。<strong>30 分钟无操作</strong>，或登录满 <strong>12 小时</strong>，会自动退出（最后一分钟有倒计时提示）。在公用电脑上，离开前务必点「退出」并关闭浏览器。</p>
+  </div>
+
+  <!-- ===================== 3 ===================== -->
+  <h2 class="cat" id="s3" data-en="3　The Users page and where its data comes from">3　「用户」页与数据来源</h2>
+  <div class="case" style="padding:14px 18px">
+    <p data-en="Left menu → My domain → Users. You see only the school(s) you manage. The table lists every account of the school: account name, display name and last sign-in, whether an authenticator is registered (Authentication Yes/No), the device, Teams groups, Identity and linked accounts.">左侧菜单 →「本域管理」→「用户」。你只会看到自己管理的学校。表格列出本校所有账号：账号、显示名与最近登录、是否登记了验证器（验证 Yes/No）、设备、Teams 群组、身份、关联账号。</p>
+    <h3 data-en="Where the data comes from">数据从哪里来</h3>
+    <p data-en="The page reads a <strong>cache</strong> in Hive, not Microsoft live — that is why it opens instantly even for a large school. The cache is refreshed every night at 01:00 Beijing time; the line under the table says when it was last synced.">页面读的是蜂巢里的一份<strong>缓存</strong>，不是实时去问微软——所以即使学校很大也能秒开。缓存每天北京时间 01:00 自动刷新；表格下方一行字写着上次同步时间。</p>
+    <h3 data-en="Sync changes — when to press it">「同步变动」——什么时候点</h3>
+    <p data-en="When something changed in the school's Microsoft 365 today and you need to see it now — a new teacher's account, a renamed account, a deleted one. It reads only what was created, changed or deleted since the last sync, for <strong>your school only</strong>, and usually finishes in seconds. Full sync (re-reading everyone) is reserved for the system administrator and the nightly run.">当学校的 Microsoft 365 里今天有了变动、你现在就要看到——新入职老师的账号、改了名的账号、被删掉的账号。它只读取上次同步之后新增、修改、删除的部分，而且<strong>只针对你的学校</strong>，通常几秒钟完成。「完整同步」（重读所有人）留给系统管理员和夜间任务。</p>
+    <h3 data-en="Filters, search, export">筛选、搜索、导出</h3>
+    <p data-en="Chips above the table: All / No authenticator (accounts that cannot pass sign-in yet — follow these up at term start) / No identity. The search box matches account, name and group. Export CSV downloads the table as you see it.">表格上方的筛选：全部 / 未登记验证器（这些账号还过不了登录验证——开学时重点跟进）/ 身份未填。搜索框匹配账号、姓名、群组。「导出 CSV」把当前看到的表格下载下来。</p>
+  </div>
+
+  <!-- ===================== 4 ===================== -->
+  <h2 class="cat" id="s4" data-en="4　The person panel">4　人员面板</h2>
+  <p class="cat-note" data-en="Click any row to open the person's panel on the right. Everything you can do for one account is here.">点任意一行，右侧打开这个人的面板。你能对一个账号做的事都在这里。</p>
+  <div class="case" style="padding:14px 18px">
+    <h3 data-en="Facts">基本信息</h3>
+    <p data-en="Account, school, Identity, roles, safe email, city, children, whether sign-in is verified, last sign-in, created date, and whether the account is enabled. These come from Microsoft 365 and from what the person filled in themselves.">账号、学校、身份、角色、安全邮箱、城市、孩子、是否已验证、最近登录、创建日期、账号是否启用。来自 Microsoft 365 以及本人自己填写的内容。</p>
+    <h3 data-en="Authentication devices — authenticator devices">验证设备</h3>
+    <p data-en="Each device that can approve this person's sign-ins, with its model, authenticator version and the date it was added. <strong>Delete</strong> removes one; at the next sign-in Microsoft asks the person to register a new device. Removing the <em>only</em> device is allowed (a lost phone), but do it when the person is ready with the new phone, otherwise they are locked out until then.">能批准这个人登录的每一台设备，含型号、验证器版本、添加日期。<strong>「删除」</strong>移除一台；对方下次登录时微软会要求重新注册设备。允许删除<em>唯一</em>的设备（手机丢了），但请在对方新手机已经准备好时再删，否则在此之前他登不进去。</p>
+    <h3 data-en="Password — reset">密码——重置</h3>
+    <p data-en="<strong>Reset</strong> → confirm → Hive sets a 14-character temporary password and shows it <strong>once</strong>, with a Copy button. The person's old password stops working at once; the temporary one stays valid until they sign in with it and set a new password, which Microsoft requires at that first sign-in. Pass it on by phone or in person — not in a group chat or an email to the very mailbox they cannot open. The box disappears when the panel closes and Hive keeps no copy.">点<strong>「重置」</strong>→ 确认 → 蜂巢为该账号设置一个 14 位临时密码，并<strong>只显示一次</strong>，带「复制」按钮。对方的旧密码立即失效；临时密码在对方用它登录并设置新密码之前一直有效（首次登录时微软会强制改密）。请通过电话或当面告知——不要发到群里，也不要发到他正好打不开的那个邮箱。关闭面板后不再显示，蜂巢不保存副本。</p>
+    <h3 data-en="Identity / Linked accounts / Note">身份 / 关联账号 / 备注</h3>
+    <p data-en="See section 7.">见第 7 节。</p>
+    <h3 data-en="Teams groups">Teams 群组</h3>
+    <p data-en="The groups and teams this person belongs to; click one to open the group's panel with its members from your school.">这个人所在的群组和团队；点一个，打开该群组的面板，列出本校成员。</p>
+  </div>
+
+  <!-- ===================== 5 ===================== -->
+  <h2 class="cat" id="s5" data-en="5　Common situations, step by step">5　常见情况的处理步骤</h2>
+
+  <details class="case" id="case-new-phone">
+    <summary><span class="num">5.1</span><span class="ttl" data-en="“I changed phones and the sign-in prompt still goes to the old one.”">「我换了手机，验证提示还发到旧手机上。」</span></summary>
+    <div class="case-body">
+      <ol class="fix">
+        <li data-en="If the old phone still works, the person approves once on it and adds the new phone themselves at <code>mysignins.microsoft.com/security-info</code>. Nothing for you to do.">如果旧手机还能用，让本人在旧手机上批准一次，然后自己到 <code>mysignins.microsoft.com/security-info</code> 添加新手机。你无需操作。</li>
+        <li data-en="Old phone gone: open the person's panel → Authentication devices → Delete the old device.">旧手机不在了：打开人员面板 →「验证设备」→「删除」旧设备。</li>
+        <li data-en="Tell the person to sign in to Teams: Microsoft will say “More information required” and walk them through registering the new phone. Point them to the <a href='/help/teams-setup.html'>setup wizard</a>.">让本人登录 Teams：微软会提示「需要更多信息」，引导注册新手机。可把<a href="/help/teams-setup.html">设置向导</a>发给他。</li>
+      </ol>
+      <p class="result" data-en="Result: the next sign-in registers the new phone; the old one can no longer approve anything.">结果：下次登录时注册新手机；旧手机再也批准不了任何登录。</p>
+    </div>
+  </details>
+
+  <details class="case" id="case-forgot">
+    <summary><span class="num">5.2</span><span class="ttl" data-en="“I forgot my password.”">「我忘记密码了。」</span></summary>
+    <div class="case-body">
+      <ol class="fix">
+        <li data-en="Confirm it is really the account owner asking — call back on a known number, or do it in person. A password reset is the single most sensitive thing you can do here.">先确认提出请求的确实是账号本人——用已知号码回拨，或当面处理。重置密码是这里最敏感的操作。</li>
+        <li data-en="Person panel → Password → Reset → confirm. Read the temporary password to them or let them copy it from your screen.">人员面板 →「密码」→「重置」→ 确认。把临时密码念给对方，或让他从你屏幕上抄。</li>
+        <li data-en="They sign in with it; Microsoft asks for a new password at once, then for the authenticator as usual.">对方用临时密码登录；微软立刻要求设置新密码，然后照常要求验证器批准。</li>
+      </ol>
+      <p class="result" data-en="Result: a new password chosen by the owner; the temporary one is dead. The reset is in the audit log with your name.">结果：本人设好新密码，临时密码作废。这次重置带着你的名字记入审计日志。</p>
+    </div>
+  </details>
+
+  <details class="case" id="case-lost-everything">
+    <summary><span class="num">5.3</span><span class="ttl" data-en="“Phone lost and password forgotten.”">「手机丢了，密码也忘了。」</span></summary>
+    <div class="case-body">
+      <ol class="fix">
+        <li data-en="Verify identity in person — this combination is exactly what an attacker would claim.">当面核实身份——这正是冒充者会说的组合。</li>
+        <li data-en="Person panel → Authentication devices → Delete the lost phone (even if it is the only device).">人员面板 →「验证设备」→「删除」丢失的手机（即使它是唯一设备）。</li>
+        <li data-en="Same panel → Password → Reset; hand over the temporary password.">同一面板 →「密码」→「重置」，交付临时密码。</li>
+        <li data-en="They sign in on the new phone: new password first, then “More information required” → register the authenticator.">对方在新手机上登录：先设新密码，再按「需要更多信息」注册验证器。</li>
+      </ol>
+    </div>
+  </details>
+
+  <details class="case" id="case-new-teacher">
+    <summary><span class="num">5.4</span><span class="ttl" data-en="A new teacher has joined; the account is not in the list.">新老师入职，列表里没有这个账号。</span></summary>
+    <div class="case-body">
+      <p data-en="Hive does not create accounts — the school creates them in Microsoft 365 as before. Once the account exists, press <strong>Sync changes</strong> on the Users page; the row appears within seconds, with Authentication No until the teacher registers an authenticator. Set the Identity (Teacher) in the person panel if you like.">蜂巢不创建账号——账号仍由学校在 Microsoft 365 里按原来的方式创建。账号建好后，在「用户」页点<strong>「同步变动」</strong>，几秒钟后这一行出现，在老师注册验证器之前「验证」为 No。可顺手在人员面板里把身份设为「老师」。</p>
+    </div>
+  </details>
+
+  <details class="case" id="case-term-start">
+    <summary><span class="num">5.5</span><span class="ttl" data-en="Term start: who still cannot sign in?">开学了：谁还登不进去？</span></summary>
+    <div class="case-body">
+      <p data-en="Users page → chip <strong>No authenticator</strong>. Everyone listed has an account but no authenticator yet, so their first Teams sign-in will stop at “More information required”. Send them the <a href='/help/teams-setup.html'>setup wizard</a> ahead of time; export the list with Export CSV if you want to work through it with colleagues.">「用户」页 → 筛选<strong>「未登记验证器」</strong>。列出的人都有账号但还没有验证器，第一次登录 Teams 会停在「需要更多信息」。提前把<a href="/help/teams-setup.html">设置向导</a>发给他们；需要和同事分工的话用「导出 CSV」导出名单。</p>
+    </div>
+  </details>
+
+  <details class="case" id="case-two-devices">
+    <summary><span class="num">5.6</span><span class="ttl" data-en="An account shows two authenticator devices.">一个账号上显示两台验证设备。</span></summary>
+    <div class="case-body">
+      <p data-en="Usually the person added a new phone and never removed the old one — harmless. Ask them; if both are theirs, leave it or delete the one no longer used. If they do not recognise a device, delete it and reset the password the same day, then tell the system administrator. See <a href='/help/teams-cases.html#case-two-phones'>case 6.1</a>.">多半是本人加了新手机、没删旧的——无害。问一下本人；如果两台都是他的，保留或删掉不再用的那台。如果本人不认识其中一台，当天删掉并重置密码，然后告知系统管理员。参见<a href="/help/teams-cases.html#case-two-phones">案例 6.1</a>。</p>
+    </div>
+  </details>
+
+  <!-- ===================== 6 ===================== -->
+  <h2 class="cat" id="s6" data-en="6　Teams groups">6　Teams 群组</h2>
+  <div class="case" style="padding:14px 18px">
+    <p data-en="Left menu → My domain → Teams groups: every team and group that has members from your school, with its kind (Class team = a class team created from the Education template; Team; Group = a Microsoft 365, mail or security group without Teams on top), visibility and the number of members from your school. View members lists them; clicking a member opens their panel.">左侧菜单 →「本域管理」→「Teams 群组」：所有含本校成员的团队和群组，标明类型（班级团队 = 用教育版班级模板创建的团队；普通团队；群组 = 没有 Teams 的 Microsoft 365 / 邮件 / 安全组）、可见性、本校成员数。「查看成员」列出成员，点成员可打开其面板。</p>
+    <p data-en="This page is <strong>read-only</strong>: adding or removing members is still done in Teams or the Microsoft 365 admin center. Membership changes made there show up after the nightly sync (or Full sync by the system administrator).">本页是<strong>只读</strong>的：增删成员仍在 Teams 或 Microsoft 365 管理中心里做。那里改的成员关系在夜间同步（或系统管理员的「完整同步」）之后显示。</p>
+  </div>
+
+  <!-- ===================== 7 ===================== -->
+  <h2 class="cat" id="s7" data-en="7　Identity, linked accounts and self-reported details">7　身份、关联账号与补充资料</h2>
+  <div class="case" style="padding:14px 18px">
+    <p data-en="At the bottom of the person panel: <strong>Identity</strong> (Parent / Student / Teacher / Staff — Hive's own label, independent of Microsoft; when empty it falls back to the department set in Microsoft 365), <strong>Linked accounts</strong> (a child's or parent's account, comma-separated; both sides are linked) and a <strong>Note</strong> of up to 200 characters. Save writes them to Hive only.">人员面板底部：<strong>身份</strong>（家长 / 学生 / 老师 / 行政——蜂巢自己的标签，与微软无关；为空时回退到 Microsoft 365 里的部门字段）、<strong>关联账号</strong>（孩子或家长的账号，逗号分隔，双方互相关联）、以及不超过 200 字的<strong>备注</strong>。「保存」只写入蜂巢。</p>
+    <p data-en="<strong>More about them (self-reported)</strong> shows what the person entered on their own Profile page — their roles, interests, other accounts, children with age and grade. It is read-only for you; ask the person to update it themselves. A parent who lists a child's account there is linked to that child automatically.">「<strong>补充资料（本人填写）</strong>」显示本人在自己的「个人资料」页填写的内容——身份/角色、感兴趣的话题、其它账号、孩子的年龄与年级。对你是只读的，需要改请让本人自己改。家长在那里填了孩子的账号，会自动与孩子关联。</p>
+  </div>
+
+  <!-- ===================== 8 ===================== -->
+  <h2 class="cat" id="s8" data-en="8　Security, audit and the limits of the role">8　安全、审计与权限边界</h2>
+  <div class="admin-box" id="for-admins">
+    <h2 data-en="Rules of thumb">几条原则</h2>
+    <ul>
+      <li data-en="<strong>Verify before you act.</strong> Removing a device or resetting a password on a stranger's say-so hands the account to them. Call back on a known number or do it in person."><strong>先核实，再操作。</strong>凭陌生来电就删设备、重置密码，等于把账号交给对方。用已知号码回拨，或当面处理。</li>
+      <li data-en="<strong>Every change is logged</strong> — who, when, which account, which device, result — in Hive's audit log and in Microsoft's. There is no silent action."><strong>每一步都有记录</strong>——谁、何时、对哪个账号、哪台设备、结果——同时记在蜂巢和微软的审计日志里。没有无痕操作。</li>
+      <li data-en="<strong>Temporary passwords travel by voice.</strong> Never paste one into a group chat, a ticket or an email."><strong>临时密码口头传递。</strong>不要贴进群聊、工单或邮件。</li>
+      <li data-en="<strong>Sign out on shared computers</strong> and close the browser. The automatic timeout is a safety net, not a habit."><strong>公用电脑上务必退出</strong>并关闭浏览器。自动超时是兜底，不是习惯。</li>
+      <li data-en="<strong>Your own account</strong>: keep two authenticator devices if you can, and change your password under Sign-in and security → Change password."><strong>你自己的账号</strong>：条件允许就保留两台验证设备；改密码走「登录与安全」→「修改密码」。</li>
+    </ul>
+    <h2 data-en="What a domain administrator cannot do">域管理员做不了的事</h2>
+    <ul>
+      <li data-en="Create, rename, disable or delete accounts — the school does that in Microsoft 365.">创建、改名、停用、删除账号——由学校在 Microsoft 365 里做。</li>
+      <li data-en="Change group or team membership (read-only here).">修改群组或团队成员（这里只读）。</li>
+      <li data-en="Touch an account that is itself an administrator in Microsoft 365: Microsoft refuses device removal and password resets for those, whoever asks.">动一个本身是 Microsoft 365 管理员的账号：对这类账号，微软拒绝任何人通过蜂巢删设备或重置密码。</li>
+      <li data-en="See or change another school.">查看或更改其他学校。</li>
+      <li data-en="Assign Hive roles (system administrator → Roles).">分配蜂巢角色（系统管理员 →「角色分配」）。</li>
+    </ul>
+  </div>
+
+  <!-- ===================== 9 ===================== -->
+  <h2 class="cat" id="s9" data-en="9　Getting help">9　获取帮助</h2>
+  <div class="case" style="padding:14px 18px">
+    <p data-en="For the people you support: the <a href='/help/teams-setup.html'>setup wizard</a>, the <a href='/help/teams-faq.html'>Q&amp;A</a> and the <a href='/help/teams-cases.html'>case studies</a> answer most authenticator questions and are safe to forward. For anything the Management Center does not let you do, or an account that looks compromised, contact Hive's system administrator the same day.">给你支持的人：<a href="/help/teams-setup.html">设置向导</a>、<a href="/help/teams-faq.html">问答</a>和<a href="/help/teams-cases.html">案例分析</a>能回答大多数验证器问题，可以直接转发。管理中心做不了的事，或疑似被盗用的账号，请当天联系蜂巢的系统管理员。</p>
+    <a class="cta" href="/management/#/domain/users" data-en="Open the Management Center →">打开管理中心 →</a>
+  </div>
+
+  <footer class="page" data-en="Hive · Domain administrator handbook · updated 2026-10-04">蜂巢 · 域管理员操作手册 · 更新于 2026-10-04</footer>
+</div>
+<script>
+(function () {
+  "use strict";
+  var LANG = "zh";
+  try { var s = localStorage.getItem("fc-lang"); if (s === "en" || s === "zh") LANG = s; } catch (e) {}
+  if (LANG === "en") {
+    document.documentElement.lang = "en";
+    document.title = "Domain administrator handbook · Hive Help";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en]"), function (el) { el.innerHTML = el.getAttribute("data-en"); });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-en-label]"), function (el) { el.setAttribute("aria-label", el.getAttribute("data-en-label")); });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("table.grid"), function (t) {
+    var hs = Array.prototype.map.call(t.querySelectorAll("thead th"), function (h) { return h.textContent; });
+    Array.prototype.forEach.call(t.querySelectorAll("tbody tr"), function (tr) {
+      Array.prototype.forEach.call(tr.children, function (c, i) { if (hs[i]) c.setAttribute("data-l", hs[i]); });
+    });
+  });
+  var b = document.getElementById("langBtn");
+  if (b) {
+    b.textContent = LANG === "en" ? "中文" : "EN";
+    b.addEventListener("click", function () {
+      try { localStorage.setItem("fc-lang", LANG === "en" ? "zh" : "en"); } catch (e) {}
+      location.reload();
+    });
+  }
+  function openCase(id) {
+    var t = id && document.getElementById(id);
+    if (t && t.tagName === "DETAILS") { t.open = true; setTimeout(function () { t.scrollIntoView({ block: "start" }); }, 0); }
+  }
+  openCase(location.hash.slice(1));
+  window.addEventListener("hashchange", function () { openCase(location.hash.slice(1)); });
+})();
+</script>
+</body>
+</html>
