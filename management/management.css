@@ -390,3 +390,11 @@ table.roles2 { min-width: 720px; }
 .panel .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .panel label.f { margin-bottom: var(--s3); display: block; }
 .panel label.f small { display: block; color: var(--faint); font-size: 12px; margin-top: 4px; }
+.req { color: var(--bad); font-weight: 600; }
+.plans { display: grid; gap: var(--s2); }
+.plan { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: var(--r); padding: var(--s2) var(--s3); cursor: pointer; font-size: 13px; background: #fbfcfe; }
+.plan input { margin-top: 3px; accent-color: var(--accent); }
+.plan:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.plan.off { opacity: 0.6; cursor: default; }
+.plan .plantxt b { display: block; font-weight: 600; }
+.plan .plantxt small { color: var(--muted); font-size: 12px; }

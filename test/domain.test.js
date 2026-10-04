@@ -97,6 +97,8 @@ global.fetch = async function (url, opts) {
     { skuId: "94763226-9b3c-4e75-a931-5c89701abe66", skuPartNumber: "STANDARDWOFFPACK_FACULTY", capabilityStatus: "Enabled", prepaidUnits: { enabled: 500 }, consumedUnits: 12 },
     { skuId: "314c4481-f395-4525-be8b-2ec4bb1e9d91", skuPartNumber: "STANDARDWOFFPACK_STUDENT", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1000 }, consumedUnits: 999 },
     { skuId: "0000-dead", skuPartNumber: "OLD_PLAN", capabilityStatus: "Suspended", prepaidUnits: { enabled: 5 }, consumedUnits: 0 },
+    { skuId: "f30db892-07e9-47e9-837c-80727f46fd3d", skuPartNumber: "FLOW_FREE", capabilityStatus: "Enabled", prepaidUnits: { enabled: 10000 }, consumedUnits: 3 },
+    { skuId: "e2be619b-b125-455f-8660-fb503e431a5d", skuPartNumber: "ENTERPRISEPACK", capabilityStatus: "Enabled", prepaidUnits: { enabled: 5 }, consumedUnits: 0 },
   ] });
   if (method === "POST" && p === "/users") {
     const b = JSON.parse(opts.body); createdUsers.push(b);
@@ -324,7 +326,8 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
 
   // 10. 同步变动: the delta since the last token — one created, one renamed, one deleted —
   //     applied to the cache; only the changed accounts are re-read from Graph.
-  assert.ok(blobs["_delta.json"] && blobs["_delta.json"].includes("T1"), "the full sync took a delta token");
+  const deltaTok = () => (blobs["_delta.json"] ? new URL(JSON.parse(blobs["_delta.json"]).deltaLink).searchParams.get("$deltatoken") : ""); // (a plain includes("T2") matched the ISO timestamp "T20:…" after 20:00 UTC)
+  assert.strictEqual(deltaTok(), "T1", "the full sync took a delta token");
   users.push({ id: "u-new", userPrincipalName: `newbie@${DOMAIN}`, displayName: "New Person", accountEnabled: true, createdDateTime: new Date().toISOString(), userType: "Member" });
   users.find((x) => x.id === "u-elaine").displayName = "Elaine Chen-Wang";
   deltaChanges = [
@@ -344,12 +347,12 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.ok(batches[0].body.includes("u-new") && batches[0].body.includes("u-elaine") && !batches[0].body.includes("u-lei"), "only changed accounts re-read");
   // A 域管理员（IT）'s sync is scoped to their school: the other domain's cache is not
   // created or touched and the tenant delta token stays where it was (Rick, 2026-10-03).
-  assert.ok(!blobs["_delta.json"].includes("T2"), "domain-scoped sync keeps the delta token");
+  assert.strictEqual(deltaTok(), "T1", "domain-scoped sync keeps the delta token");
   assert.strictEqual(blobs["other.example.edu.json"], undefined, "other domain untouched by an IT admin's sync");
   // The system administrator's sync is tenant-wide: token advances.
   r = await call({ action: "sync", method: "POST", body: { domain: DOMAIN, mode: "changes" }, user: ADMIN, roles: ["admin"] });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
-  assert.ok(blobs["_delta.json"].includes("T2"), "token advanced by the system administrator");
+  assert.strictEqual(deltaTok(), "T2", "token advanced by the system administrator");
   r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
   assert.deepStrictEqual(r.body.users.map((x) => x.displayName), ["Elaine Chen-Wang", "New Person"]);
   // Running it again with nothing new is a no-op that still stamps the time.
@@ -411,39 +414,50 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(otherDoc.users.length, 0);
   assert.ok(otherDoc.fullAt);
 
-  // 11b. 新建账号: licences with free seats; the account is created in this domain with a
-  // temporary password, the licence, Hive's 身份, and appears in the cache at once.
+  // 11b. 新建账号: the two A1 plans + the always-on extra; the account is created with the
+  // chosen plan and Power Automate Free, 身份, city and postcode, and appears in the cache.
   r = await call({ action: "licenses", query: { domain: DOMAIN }, user: DOMADMIN, roles: HIVE });
   assert.strictEqual(r.status, 403, "域蜂巢管理员 does not create accounts");
   r = await call({ action: "licenses", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
-  assert.deepStrictEqual(r.body.plans.map((x) => [x.name, x.free, x.audience]), [["Office 365 A1 for faculty", 488, "faculty"], ["Office 365 A1 for students", 1, "student"]], "suspended plan left out, most free seats first");
-  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "Li.Ming", givenName: "明", surname: "李", identity: "老师", skuId: "94763226-9b3c-4e75-a931-5c89701abe66" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.body.faculty.name, "Office 365 A1 for faculty"); assert.strictEqual(r.body.faculty.free, 488);
+  assert.strictEqual(r.body.student.name, "Office 365 A1 for students"); assert.strictEqual(r.body.student.free, 1);
+  assert.deepStrictEqual(r.body.extras.map((x) => x.name), ["Power Automate Free"], "always-on extra listed; E3 and suspended plans are not offered");
+  const base = { domain: DOMAIN, account: "Li.Ming", givenName: "明", surname: "李", identity: "老师", city: "南京", postalCode: "210000", plan: "faculty" };
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { city: "" }), user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "city required"); assert.ok(r.body.problems.join().includes("city"));
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { postalCode: "" }), user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "postal code required");
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { identity: "" }), user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "identity required");
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { plan: "student" }), user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "students plan refused for a teacher"); assert.ok(r.body.problems.join().includes("学生 only"));
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { identity: "学生", plan: "faculty" }), user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "faculty plan refused for a student");
+  r = await call({ action: "user", method: "POST", body: base, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.user, `li.ming@${DOMAIN}`);
   assert.strictEqual(r.body.displayName, "李明", "CJK display name = surname + given name, no space");
   assert.ok(/^[A-Za-z0-9!#%&*+=?@]{14}$/.test(r.body.password), "temporary password");
-  assert.deepStrictEqual(r.body.licence, { skuId: "94763226-9b3c-4e75-a931-5c89701abe66", ok: true });
+  assert.deepStrictEqual(r.body.licence, { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] });
   const cu = createdUsers[createdUsers.length - 1];
   assert.strictEqual(cu.userPrincipalName, `li.ming@${DOMAIN}`);
-  assert.strictEqual(cu.mailNickname, "li.ming");
-  assert.strictEqual(cu.usageLocation, "CN");
+  assert.strictEqual(cu.city, "南京"); assert.strictEqual(cu.postalCode, "210000"); assert.strictEqual(cu.usageLocation, "CN");
   assert.strictEqual(cu.passwordProfile.forceChangePasswordNextSignIn, true);
-  assert.strictEqual(cu.passwordProfile.password, r.body.password);
-  assert.strictEqual(licenseCalls[licenseCalls.length - 1].body.addLicenses[0].skuId, "94763226-9b3c-4e75-a931-5c89701abe66");
+  assert.deepStrictEqual(licenseCalls[licenseCalls.length - 1].body.addLicenses.map((x) => x.skuId), ["94763226-9b3c-4e75-a931-5c89701abe66", "f30db892-07e9-47e9-837c-80727f46fd3d"], "A1 faculty + Power Automate Free in one call");
   r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
   const newRow = r.body.users.find((x) => x.upn === `li.ming@${DOMAIN}`);
-  assert.ok(newRow && newRow.displayName === "李明" && newRow.identity === "老师" && newRow.verified === false, "new account in the cache with 身份: " + JSON.stringify(newRow));
-  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "li.ming", displayName: "Again" }, user: DOMADMIN, roles: IT });
+  assert.ok(newRow && newRow.displayName === "李明" && newRow.identity === "老师" && newRow.verified === false && newRow.city === "南京", "new account in the cache with 身份: " + JSON.stringify(newRow));
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { displayName: "Again" }), user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 409, "existing account refused");
-  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "bad name!", displayName: "X" }, user: DOMADMIN, roles: IT });
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { account: "bad name!" }), user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 400);
-  r = await call({ action: "user", method: "POST", body: { domain: "other.example.edu", account: "x", displayName: "X" }, user: DOMADMIN, roles: IT });
+  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { domain: "other.example.edu", account: "x" }), user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 403, "not another domain");
-  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "ann.lee", givenName: "Ann", surname: "Lee" }, user: ADMIN, roles: ["admin"] });
-  assert.strictEqual(r.status, 200);
+  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "ann.lee", givenName: "Ann", surname: "Lee", identity: "学生", city: "Nanjing", postalCode: "210000", plan: "student" }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.displayName, "Ann Lee", "Latin display name = given name + surname");
-  assert.strictEqual(r.body.licence, null, "no licence chosen → none assigned");
+  assert.deepStrictEqual(licenseCalls[licenseCalls.length - 1].body.addLicenses.map((x) => x.skuId), ["314c4481-f395-4525-be8b-2ec4bb1e9d91", "f30db892-07e9-47e9-837c-80727f46fd3d"], "student plan for a 学生");
   users.splice(users.findIndex((x) => x.userPrincipalName === `li.ming@${DOMAIN}`), 1); users.splice(users.findIndex((x) => x.userPrincipalName === `ann.lee@${DOMAIN}`), 1);
 
   // 12. /api/roles: the 角色分配 page's search reads the directory caches (no Graph),

@@ -15,8 +15,8 @@
 //   PUT    domain/institution             {domain, name, nameEn} → institutions.json (the school's display names) (sysadmin)
 //   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (域管理员 IT, sysadmin)
 //   POST   domain/password                {user} → temporary password, must change at next sign-in (域管理员 IT, sysadmin)
-//   GET    domain/licenses?domain=x       the tenant's licence plans with free seats                     (域管理员 IT, sysadmin)
-//   POST   domain/user                    {domain, account, givenName, surname, displayName, identity, jobTitle, skuId, usageLocation}
+//   GET    domain/licenses?domain=x       {faculty, student, extras[]} — the A1 plans and the always-on extras, with free seats
+//   POST   domain/user                    {domain, account, givenName, surname, displayName?, identity, city, postalCode, jobTitle?, plan, usageLocation?}
 //                                         → create the account (temporary password returned once)         (域管理员 IT, sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
@@ -55,6 +55,21 @@ const LICENSE_NAMES = {
   O365_BUSINESS_ESSENTIALS: "Microsoft 365 Business Basic", O365_BUSINESS_PREMIUM: "Microsoft 365 Business Standard", SPB: "Microsoft 365 Business Premium",
   STANDARDPACK: "Office 365 E1", ENTERPRISEPACK: "Office 365 E3", TEAMS_EXPLORATORY: "Teams Exploratory", FLOW_FREE: "Power Automate Free", POWER_BI_STANDARD: "Power BI (free)",
 };
+
+// The licence choice for a new account (Rick, 2026-10-04): Office 365 A1 for
+// students (学生 only) or Office 365 A1 for faculty (everyone else) — the Plus
+// variants stand in when a tenant has those instead — plus the always-on extras
+// (Microsoft Power Automate Free) that every new account gets. Each with its free
+// seats, from the tenant's subscribedSkus.
+const A1 = { faculty: ["STANDARDWOFFPACK_FACULTY", "STANDARDWOFFPACK_IW_FACULTY"], student: ["STANDARDWOFFPACK_STUDENT", "STANDARDWOFFPACK_IW_STUDENT"] };
+const ALWAYS_ON = ["FLOW_FREE"];
+async function licencePlans() {
+  const skus = await list("/subscribedSkus?$select=skuId,skuPartNumber,prepaidUnits,consumedUnits,capabilityStatus", 100);
+  const plan = (k) => { const total = (k.prepaidUnits && k.prepaidUnits.enabled) || 0; return { skuId: k.skuId, part: k.skuPartNumber, name: LICENSE_NAMES[k.skuPartNumber] || k.skuPartNumber, total, used: k.consumedUnits || 0, free: Math.max(0, total - (k.consumedUnits || 0)) }; };
+  const enabled = skus.filter((k) => k.capabilityStatus === "Enabled");
+  const find = (parts) => { for (const pn of parts) { const k = enabled.find((x) => x.skuPartNumber === pn); if (k) return plan(k); } return null; };
+  return { faculty: find(A1.faculty), student: find(A1.student), extras: ALWAYS_ON.map((pn) => find([pn])).filter(Boolean) };
+}
 
 // A temporary password Microsoft accepts (3 of 4 character classes, 8–256 chars):
 // 14 characters from an alphabet without look-alikes, one of each class forced,
@@ -252,12 +267,8 @@ async function handler(context, req) {
     // an ordinary account; Microsoft will not let this create an administrator.
     if (method === "GET" && action === "licenses") {
       if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are created by the 域管理员（IT）", { code: "forbidden" });
-      const skus = await list("/subscribedSkus?$select=skuId,skuPartNumber,prepaidUnits,consumedUnits,capabilityStatus", 100);
-      const plans = skus.filter((k) => k.capabilityStatus === "Enabled").map((k) => {
-        const total = (k.prepaidUnits && k.prepaidUnits.enabled) || 0;
-        return { skuId: k.skuId, part: k.skuPartNumber, name: LICENSE_NAMES[k.skuPartNumber] || k.skuPartNumber, total, used: k.consumedUnits || 0, free: Math.max(0, total - (k.consumedUnits || 0)), audience: /STUDENT|STUUSE/i.test(k.skuPartNumber) ? "student" : /FACULTY|EDU/i.test(k.skuPartNumber) ? "faculty" : "" };
-      }).sort((a, b) => b.free - a.free || a.name.localeCompare(b.name));
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { plans, usageLocation: process.env.HIVE_USAGE_LOCATION || "CN" } };
+      const lic = await licencePlans();
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: Object.assign({ usageLocation: process.env.HIVE_USAGE_LOCATION || "CN" }, lic) };
       return;
     }
     if (method === "POST" && action === "user") {
@@ -270,23 +281,34 @@ async function handler(context, req) {
       const displayName = String(b.displayName || "").trim() || (cjk ? [surname, givenName] : [givenName, surname]).filter(Boolean).join(cjk ? "" : " ");
       const identity = String(b.identity || "").trim();
       const jobTitle = String(b.jobTitle || "").trim();
-      const skuId = String(b.skuId || "").trim();
+      const city = String(b.city || "").trim();
+      const postalCode = String(b.postalCode || "").trim();
+      const plan = String(b.plan || "").trim().toLowerCase(); // "faculty" | "student" (Rick, 2026-10-04: A1 for students is for students only; everyone else gets A1 for faculty)
       const usageLocation = String(b.usageLocation || process.env.HIVE_USAGE_LOCATION || "CN").trim().toUpperCase();
       const problems = [];
       if (!/^[a-z0-9][a-z0-9._-]{0,62}$/.test(nick) || /\.\.|\.$/.test(nick)) problems.push("account name: letters, digits, . _ - only (2–63), e.g. li.ming");
       if (!displayName || displayName.length > 64) problems.push("display name is missing or longer than 64");
       if (givenName.length > 40 || surname.length > 40) problems.push("given name / surname longer than 40");
-      if (identity && !IDENTITIES.includes(identity)) problems.push("identity must be one of " + IDENTITIES.join(" / "));
+      if (!identity) problems.push("身份 (role) is required"); else if (!IDENTITIES.includes(identity)) problems.push("identity must be one of " + IDENTITIES.join(" / "));
+      if (!city) problems.push("city is required"); else if (city.length > 40) problems.push("city longer than 40");
+      if (!postalCode) problems.push("postal code is required"); else if (!/^[A-Za-z0-9 -]{3,12}$/.test(postalCode)) problems.push("postal code: 3–12 letters or digits");
       if (jobTitle.length > 60) problems.push("job title longer than 60");
-      if (skuId && !/^[0-9a-f-]{36}$/i.test(skuId)) problems.push("licence id malformed");
+      if (plan !== "faculty" && plan !== "student") problems.push("licence must be faculty or student");
+      if (plan === "student" && identity !== "学生") problems.push("Office 365 A1 for students is for 学生 only");
+      if (plan === "faculty" && identity === "学生") problems.push("a 学生 gets Office 365 A1 for students");
       if (!/^[A-Z]{2}$/.test(usageLocation)) problems.push("usage location must be a two-letter country code");
       if (problems.length) return fail(context, 400, "please check the form", { problems });
+      const lic = await licencePlans();
+      const main = lic[plan];
+      if (!main) return fail(context, 409, `the tenant has no ${plan === "student" ? "Office 365 A1 for students" : "Office 365 A1 for faculty"} plan`, { code: "no_plan" });
+      if (!main.free) return fail(context, 409, `${main.name}: no free seats left`, { code: "no_seats" });
+      const skuIds = [main.skuId].concat(lic.extras.filter((x) => x.free).map((x) => x.skuId));
       const upn = `${nick}@${domain}`;
       // Taken already? (Graph would answer 400 too, but this is a clearer message.)
       try { await graph("GET", `/users/${encodeURIComponent(upn)}?$select=id`); return fail(context, 409, `${upn} already exists`, { code: "exists" }); } catch (err) { if (err.status !== 404) throw err; }
       const password = temporaryPassword();
       const body = {
-        accountEnabled: true, displayName, mailNickname: nick, userPrincipalName: upn, usageLocation,
+        accountEnabled: true, displayName, mailNickname: nick, userPrincipalName: upn, usageLocation, city, postalCode,
         passwordProfile: { password, forceChangePasswordNextSignIn: true },
         passwordPolicies: "DisablePasswordExpiration",
       };
@@ -304,22 +326,19 @@ async function handler(context, req) {
         if (err.status === 400 || err.status === 403) return fail(context, err.status, "Microsoft refused to create the account: " + (err.message.split(": ").slice(1).join(": ") || err.code), { code: err.code });
         throw err;
       }
-      let licence = null;
-      if (skuId) {
-        try {
-          await graph("POST", `/users/${created.id}/assignLicense`, { addLicenses: [{ skuId, disabledPlans: [] }], removeLicenses: [] });
-          licence = { skuId, ok: true };
-        } catch (err) {
-          licence = { skuId, ok: false, error: err.code || String(err.status) };
-          await audit(context, { actor, action: "license.assign", target: upn, skuId, result: "failed", error: err.code || err.status });
-        }
+      // The chosen A1 plan plus every always-on extra (Power Automate Free), in one call.
+      let licence;
+      try {
+        await graph("POST", `/users/${created.id}/assignLicense`, { addLicenses: skuIds.map((id) => ({ skuId: id, disabledPlans: [] })), removeLicenses: [] });
+        licence = { ok: true, plans: [main.name].concat(lic.extras.filter((x) => x.free).map((x) => x.name)) };
+      } catch (err) {
+        licence = { ok: false, plans: [main.name], error: err.code || String(err.status) };
+        await audit(context, { actor, action: "license.assign", target: upn, skuIds, result: "failed", error: err.code || err.status });
       }
       // Hive's own record (身份) and the directory cache.
-      if (identity) {
-        try { const doc = await people.readPeople(); doc.people[upn] = Object.assign({}, doc.people[upn] || {}, { identity, updated: new Date().toISOString(), by: actor }); await people.writePeople(doc); } catch { /* best effort */ }
-      }
+      try { const doc = await people.readPeople(); doc.people[upn] = Object.assign({}, doc.people[upn] || {}, { identity, updated: new Date().toISOString(), by: actor }); await people.writePeople(doc); } catch { /* best effort */ }
       try { await dir.addUser(domain, Object.assign({ createdDateTime: new Date().toISOString(), accountEnabled: true, userType: "Member" }, created, body)); } catch { /* the next sync adds it */ }
-      await audit(context, { actor, action: "user.create", target: upn, displayName, identity, skuId: skuId || "", result: "ok" });
+      await audit(context, { actor, action: "user.create", target: upn, displayName, identity, plan, city, result: "ok" });
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: upn, id: created.id, displayName, password, mustChange: true, licence } };
       return;
     }
