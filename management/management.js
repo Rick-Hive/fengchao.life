@@ -724,6 +724,7 @@
         '<button class="chip" data-f="all" aria-pressed="' + (state.userFilter === "all") + '">' + t("全部", "All") + "</button>" +
         '<button class="chip" data-f="noauth" aria-pressed="' + (state.userFilter === "noauth") + '">' + t("未登记验证器", "No authenticator") + "</button>" +
         '<button class="chip" data-f="noid" aria-pressed="' + (state.userFilter === "noid") + '">' + t("身份未填", "No identity") + "</button>" +
+        '<button class="chip" data-f="never" aria-pressed="' + (state.userFilter === "never") + '">' + t("从未登录", "Never signed in") + "</button>" +
         '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="uq" value="' + esc(state.userQ) + '" placeholder="' + t("搜索账号、姓名、群组…", "Search account, name, group…") + '" /></div>' +
       "</div>" +
       '<div class="kpis" id="ukpi"></div>' +
@@ -774,6 +775,7 @@
     var rows = d.users.filter(function (u) {
       if (f === "noauth" && u.verified !== false) return false;
       if (f === "noid" && u.identity) return false;
+      if (f === "never" && u.lastSignIn) return false;
       if (q) {
         var hay = [u.upn, u.displayName, u.identity, u.linked.join(" "), u.groups.map(function (g) { return g.name; }).join(" "), u.devices.map(function (x) { return x.name; }).join(" ")].join(" ").toLowerCase();
         if (hay.indexOf(q) < 0) return false;
@@ -781,7 +783,13 @@
       return true;
     });
     var n = d.users.length, noauth = d.users.filter(function (u) { return u.verified === false; }).length, noid = d.users.filter(function (u) { return !u.identity; }).length;
+    // Never signed in to Microsoft 365 (no successful sign-in on record — Rick, 2026-10-04:
+    // 「Display how many users haven't login office 365 successfully」). The date comes from
+    // Entra's signInActivity; when the tenant does not expose it, nobody has one and the
+    // tile says so instead of a number.
+    var never = d.users.filter(function (u) { return !u.lastSignIn; }).length, anySignIn = d.users.some(function (u) { return u.lastSignIn; });
     $("ukpi").innerHTML = '<div class="kpi"><div class="l">' + t("账号", "Accounts") + '</div><div class="v">' + n + "</div></div>" +
+      '<div class="kpi"><div class="l">' + t("从未登录", "Never signed in") + '</div><div class="v' + (never && anySignIn ? " warn" : "") + '">' + (anySignIn || !n ? never : "—") + "</div>" + (anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") + "</div>" +
       '<div class="kpi"><div class="l">' + t("未登记验证器", "No authenticator") + '</div><div class="v' + (noauth ? " bad" : "") + '">' + noauth + "</div></div>" +
       '<div class="kpi"><div class="l">' + t("身份未填", "No identity") + '</div><div class="v">' + noid + "</div></div>" +
       '<div class="kpi"><div class="l">' + t("群组", "Groups") + '</div><div class="v">' + (state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)) + "</div></div>";

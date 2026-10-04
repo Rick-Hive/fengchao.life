@@ -176,6 +176,8 @@ div.msg.ok { background: var(--ok-soft); color: var(--ok); } div.msg.err { backg
 .kpi .l { font-size: 12px; color: var(--faint); }
 .kpi .v { font-size: 22px; font-weight: 600; margin-top: 2px; letter-spacing: -0.01em; }
 .kpi .v.bad { color: var(--warn); }
+.kpi .v.warn { color: var(--warn); }
+.kpi .s { font-size: 11px; color: var(--faint); margin-top: 2px; }
 
 /* ---- toolbar: chips, sort, search ------------------------------------------------- */
 .toolbar { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-bottom: var(--s4); }
