@@ -400,3 +400,9 @@ table.roles2 { min-width: 720px; }
 .plan.off { opacity: 0.6; cursor: default; }
 .plan .plantxt b { display: block; font-weight: 600; }
 .plan .plantxt small { color: var(--muted); font-size: 12px; }
+
+/* ---- saved → slide out (2026-10-04) ------------------------------------------------- */
+.flash.ok { background: var(--ok-soft); border-color: #bcdcc8; }
+.btn.saved { background: var(--ok); border-color: var(--ok); color: #fff; }
+.btn.secondary.saved { background: var(--ok-soft); color: var(--ok); border-color: #bcdcc8; }
+.panel { transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }

@@ -234,6 +234,18 @@
     if (ms) flash.timer = setTimeout(function () { f.hidden = true; }, ms);
   }
   $("flash").addEventListener("click", function (e) { if (e.target.closest(".x")) $("flash").hidden = true; });
+  // A green confirmation banner (the amber one is for warnings).
+  function flashOk(html, ms) { flash(html, ms || 3500); $("flash").classList.add("ok"); }
+  var _flash = flash; flash = function (html, ms) { $("flash").classList.remove("ok"); return _flash(html, ms); };
+  // A save in the side panel (Rick, 2026-10-04: 「点击保存后，应该有个保存的动作，然后窗口
+  // 向右滑动关闭」): the button says 保存中… while the request runs, then 已保存 ✓ for a
+  // moment, the panel slides out to the right, and the confirmation shows above the page.
+  function savingButton(b, busy) { if (!b) return; b.disabled = true; b.setAttribute("data-label", b.textContent); b.textContent = busy || t("保存中…", "Saving…"); }
+  function restoreButton(b) { if (!b) return; b.disabled = false; if (b.getAttribute("data-label")) b.textContent = b.getAttribute("data-label"); }
+  function savedAndClose(b, html, which) {
+    if (b) { b.textContent = t("已保存 ✓", "Saved ✓"); b.classList.add("saved"); }
+    setTimeout(function () { if (which === "second") panel2Close(); else panelClose(); if (html) flashOk(html); }, 450);
+  }
   // 退出: /api/logout, then the platform's sign-out and home (assets/session-guard.js,
   // loaded before this file); the next 登录 shows Microsoft's account list.
   $("fOut").addEventListener("click", function () {
@@ -891,15 +903,14 @@
         : '<div class="kv"><span class="k">' + t("身份", "Identity") + "</span><span>" + esc(u.identity ? vl(u.identity) : "—") + '</span><span class="k">' + t("关联账号", "Linked") + "</span><span>" + esc(u.linked.join(", ") || "—") + "</span>" + (u.note ? '<span class="k">' + t("备注", "Note") + "</span><span>" + esc(u.note) + "</span>" : "") + '</div><div class="note">' + t("身份和关联由域蜂巢管理员或蜂巢员工维护。", "Identity and links are maintained by the domain Hive administrator or Hive staff.") + "</div>") +
       "</div>", where);
     if ($("pform")) $("pform").addEventListener("submit", function (ev) {
-      ev.preventDefault(); $("psave").disabled = true;
+      ev.preventDefault(); savingButton($("psave"));
       post("domain/person", "PATCH", { domain: currentDomain, user: u.upn, identity: $("pid").value, linked: $("plink").value, note: $("pnote").value }).then(function (r) {
-        $("psave").disabled = false;
-        if (!r.ok) { $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        if (!r.ok) { restoreButton($("psave")); $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         var rec = r.body.record || {};
         u.identity = rec.identity || (u.identitySource === "entra" ? u.identity : ""); u.identitySource = rec.identity ? "hive" : u.identitySource;
         u.linked = rec.linked || []; u.note = rec.note || "";
-        $("pmsg").innerHTML = '<div class="msg ok">' + t("已保存。", "Saved.") + "</div>";
         renderUsers();
+        savedAndClose($("psave"), t("已保存 ", "Saved ") + "<b>" + esc(u.displayName || u.upn) + "</b>" + t(" 的身份、关联账号和备注。", "'s identity, linked accounts and note."), opts && opts.beside ? "second" : "");
       });
     });
     // 重置密码: one confirm, then the temporary password is shown once, with a copy
@@ -1309,21 +1320,24 @@
       var drop = e.target.closest("button[data-drop]");
       if (drop) { var d = drop.getAttribute("data-drop"); st.schools = st.schools.filter(function (x) { return x !== d; }); delete st.it[d]; delete st.hive[d]; draw(); return; }
       if (e.target.closest("#rsave")) {
-        var rs = compose(), b = $("rsave"); b.disabled = true; b.textContent = t("保存中…", "Saving…");
+        var rs = compose(), b = $("rsave"); savingButton(b);
         post("roles", "POST", { user: person.upn, roles: rs }).then(function (r) {
-          b.disabled = false; b.textContent = t("保存", "Save");
-          if (!r.ok) { $("rpmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
-          $("rpmsg").innerHTML = '<div class="msg ok">' + (rs.length ? t("已保存。", "Saved.") : t("已设为普通用户。", "Now an ordinary user.")) + (rs.some(function (x) { return x === "staff:sysadmin"; }) && !(roles || []).some(function (x) { return x === "staff:sysadmin" || x === "admin"; }) ? " " + t("新的系统管理员需要重新登录一次，「系统」菜单才会出现。", "A new system administrator must sign in again before the System menu appears.") : "") + "</div>";
+          if (!r.ok) { restoreButton(b); $("rpmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          var newSys = rs.some(function (x) { return x === "staff:sysadmin"; }) && !(roles || []).some(function (x) { return x === "staff:sysadmin" || x === "admin"; });
           roles = rs; onSaved && onSaved(rs);
-          if (!rs.length) setTimeout(panelClose, 900);
+          savedAndClose(b, "<b>" + esc(person.displayName || person.upn) + "</b>" + t("：", ": ") + (rs.length ? roleChips(rs) : t("普通用户（已移除所有角色）", "ordinary user (all roles removed)")) +
+            (newSys ? " · " + t("新的系统管理员需要重新登录一次，「系统」菜单才会出现。", "A new system administrator must sign in again before the System menu appears.") : ""));
         });
         return;
       }
       if (e.target.closest("#rremove")) {
         if (!window.confirm(t("移除 " + (person.displayName || person.upn) + " 的所有角色（变为普通用户）？", "Remove all roles from " + (person.displayName || person.upn) + " (ordinary user)?"))) return;
+        var rb = $("rremove"); savingButton(rb, t("移除中…", "Removing…"));
         post("roles", "DELETE", { user: person.upn }).then(function (r) {
-          if (!r.ok) { $("rpmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
-          onSaved && onSaved([]); panelClose();
+          if (!r.ok) { restoreButton(rb); $("rpmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          onSaved && onSaved([]);
+          rb.textContent = t("已移除 ✓", "Removed ✓");
+          savedAndClose(null, "<b>" + esc(person.displayName || person.upn) + "</b>" + t(" 已设为普通用户。", " is now an ordinary user."));
         });
       }
     });
