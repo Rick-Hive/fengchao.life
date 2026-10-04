@@ -664,14 +664,14 @@
     var d = dinfo(domain); if (!d) return domain;
     return pickName(d.name, d.nameEn) || domain;
   }
-  function dlabel(domain) { // name, plus the domain for the administrator when they differ
-    var n = dname(domain);
-    return esc(n) + (domainsInfo && domainsInfo.showDomains && n !== domain ? ' <span class="muted">' + esc(domain) + "</span>" : "");
-  }
+  // A school is shown by its name in the page's language only (Rick, 2026-10-04:
+  // 「Only display Chinese or English name according to site language」); the raw
+  // domain appears only where no name has been set, and on 系统 › 机构名称.
+  function dlabel(domain) { return esc(dname(domain)); }
   function domainPicker(id) {
-    var ds = (domainsInfo && domainsInfo.domains) || [];
+    var ds = ((domainsInfo && domainsInfo.domains) || []).slice().sort(function (a, b) { return dname(a.domain).localeCompare(dname(b.domain), EN ? "en" : "zh-Hans-CN"); });
     if (ds.length <= 1) return ds.length ? '<span class="tag accent">' + esc(dname(ds[0].domain)) + "</span>" : "";
-    return '<select id="' + id + '">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === currentDomain ? " selected" : "") + ">" + esc(dname(d.domain)) + (domainsInfo.showDomains && d.name ? " · " + esc(d.domain) : "") + "</option>"; }).join("") + "</select>";
+    return '<select id="' + id + '">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === currentDomain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>";
   }
   function loadDomainData(kind, force) {
     var store = kind === "users" ? state.domainUsers : state.domainGroups;
