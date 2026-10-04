@@ -717,6 +717,7 @@
   }
   function viewUsers() {
     setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("用户", "Users"),
+      (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") +
       syncButtons("us") + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel") +
@@ -753,6 +754,7 @@
     }
     bindSync("usNew", "changes"); bindSync("usFull", "full");
     $("csv").addEventListener("click", exportUsersCsv);
+    var nu = $("newUser"); if (nu) nu.addEventListener("click", function () { openNewUserPanel(currentDomain); });
     $("utable").addEventListener("click", function (e) {
       var gb = e.target.closest("button[data-group]");
       if (gb) { e.stopPropagation(); openGroupPanel(gb.getAttribute("data-group"), currentDomain); return; }
@@ -920,6 +922,66 @@
         if (!r.ok) { b.disabled = false; $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         u.devices = u.devices.filter(function (x) { return x.id !== b.getAttribute("data-del"); }); u.verified = u.devices.length > 0;
         renderUsers(); openUserPanel(u.upn, currentDomain, opts);
+      });
+    });
+  }
+
+  // 新建账号 (Rick, 2026-10-04): a 域管理员（IT）creates an account in their own school.
+  // Form → POST /api/domain/user → the result card with the temporary password shown
+  // once; the new row appears in the table without a sync.
+  function openNewUserPanel(domain) {
+    var dom = domain || currentDomain;
+    panelOpen(
+      '<div class="ph"><span class="avatar">＋</span><h3>' + t("新建账号", "New account") + " · " + esc(dname(dom)) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+      '<div class="pb"><form id="nuf" autocomplete="off">' +
+        '<div class="grid2"><label class="f">' + t("姓", "Surname") + '<input type="text" id="nuSur" maxlength="40" /></label><label class="f">' + t("名", "Given name") + '<input type="text" id="nuGiv" maxlength="40" /></label></div>' +
+        '<label class="f">' + t("显示名", "Display name") + '<input type="text" id="nuDisp" maxlength="64" placeholder="' + t("留空则自动：李明 / Ann Lee", "Blank = automatic: 李明 / Ann Lee") + '" /></label>' +
+        '<label class="f">' + t("账号", "Account") + '<div class="upnrow"><input type="text" id="nuAcct" maxlength="63" placeholder="li.ming" required pattern="[A-Za-z0-9][A-Za-z0-9._\\-]*" /><span class="upnsuf">@' + esc(dom) + '</span></div><small>' + t("字母、数字和 . _ -；建议「名.姓」拼音，如 li.ming。", "Letters, digits and . _ -; pinyin given.surname is the usual form, e.g. li.ming.") + "</small></label>" +
+        '<div class="grid2"><label class="f">' + t("身份", "Identity") + '<select id="nuId"><option value="">' + t("— 未填 —", "— not set —") + "</option>" + IDENTITIES.map(function (i) { return '<option value="' + i + '">' + i + "</option>"; }).join("") + "</select></label>" +
+        '<label class="f">' + t("职务（可选）", "Job title (optional)") + '<input type="text" id="nuJob" maxlength="60" placeholder="' + t("如：数学老师", "e.g. Maths teacher") + '" /></label></div>' +
+        '<label class="f">' + t("许可证", "Licence") + '<select id="nuSku"><option value="">' + t("载入中…", "Loading…") + '</option></select><small>' + t("没有许可证的账号不能使用 Teams 和 Outlook。老师选 faculty，学生和家长选 students。", "Without a licence the account cannot use Teams or Outlook. Teachers: faculty; students and parents: students.") + "</small></label>" +
+        '<div class="actions"><button class="btn" type="submit" id="nuSave">' + t("创建账号", "Create account") + "</button></div><div id=\"nuMsg\"></div></form></div>");
+    var plans = [], usage = "CN";
+    api("domain/licenses?domain=" + encodeURIComponent(dom)).then(function (r) {
+      var sel = $("nuSku"); if (!sel) return;
+      if (!r.ok) { sel.innerHTML = '<option value="">' + t("无法读取许可证", "Could not read licences") + "</option>"; return; }
+      plans = r.body.plans || []; usage = r.body.usageLocation || "CN";
+      sel.innerHTML = '<option value="">' + t("不分配许可证", "No licence") + "</option>" + plans.map(function (pl) { return '<option value="' + esc(pl.skuId) + '" data-aud="' + esc(pl.audience) + '"' + (pl.free ? "" : " disabled") + ">" + esc(pl.name) + " — " + (pl.free ? t("剩余 ", "") + pl.free + t(" 个", " free") : t("已用完", "none free")) + "</option>"; }).join("");
+      pickSku();
+    });
+    // The identity suggests the licence: 老师/行政 → faculty, 学生/家长 → students.
+    function pickSku() {
+      var id = $("nuId").value, aud = id === "老师" || id === "行政" ? "faculty" : id === "学生" || id === "家长" ? "student" : "";
+      if (!aud) return;
+      var opt = Array.prototype.filter.call($("nuSku").options, function (o) { return o.getAttribute("data-aud") === aud && !o.disabled; })[0];
+      if (opt) $("nuSku").value = opt.value;
+    }
+    $("nuId").addEventListener("change", pickSku);
+    $("nuf").addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var body = { domain: dom, account: $("nuAcct").value.trim().toLowerCase(), givenName: $("nuGiv").value.trim(), surname: $("nuSur").value.trim(), displayName: $("nuDisp").value.trim(), identity: $("nuId").value, jobTitle: $("nuJob").value.trim(), skuId: $("nuSku").value, usageLocation: usage };
+      if (!body.account) { $("nuMsg").innerHTML = '<div class="msg err">' + t("请填写账号。", "Please fill in the account name.") + "</div>"; return; }
+      if (!body.displayName && !body.givenName && !body.surname) { $("nuMsg").innerHTML = '<div class="msg err">' + t("请填写姓名或显示名。", "Please fill in a name.") + "</div>"; return; }
+      var b = $("nuSave"); b.disabled = true; b.textContent = t("创建中…", "Creating…");
+      post("domain/user", "POST", body).then(function (r) {
+        if (!r.ok) { b.disabled = false; b.textContent = t("创建账号", "Create account"); $("nuMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? " — " + esc(r.body.problems.join("；")) : "") + "</div>"; return; }
+        delete state.domainUsers[dom];
+        var res = r.body, lic = plans.filter(function (pl) { return pl.skuId === body.skuId; })[0];
+        $("panel").querySelector(".pb").innerHTML =
+          '<div class="msg ok">' + t("账号已创建。", "Account created.") + "</div>" +
+          '<div class="kv"><span class="k">' + t("账号", "Account") + "</span><span><b>" + esc(res.user) + "</b></span>" +
+            '<span class="k">' + t("显示名", "Display name") + "</span><span>" + esc(res.displayName) + "</span>" +
+            (body.identity ? '<span class="k">' + t("身份", "Identity") + "</span><span>" + esc(body.identity) + "</span>" : "") +
+            '<span class="k">' + t("许可证", "Licence") + "</span><span>" + (res.licence ? (res.licence.ok ? esc(lic ? lic.name : "✓") : '<span class="tag bad">' + t("分配失败：", "failed: ") + esc(res.licence.error || "") + "</span>") : '<span class="muted">' + t("未分配", "none") + "</span>") + "</span></div>" +
+          '<div class="pwbox"><div class="lbl">' + t("临时密码（只显示这一次）", "Temporary password (shown only once)") + '</div><div class="val"><code id="pwVal">' + esc(res.password) + '</code><button class="btn secondary sm" type="button" id="pwCopy">' + t("复制", "Copy") + "</button></div>" +
+            "<small>" + t("请电话或当面告知对方账号和临时密码。首次登录微软会要求设置新密码，并引导注册验证器——可把设置向导一并发给对方。关闭面板后不再显示。", "Give the account and temporary password by phone or in person. At the first sign-in Microsoft asks for a new password and walks them through registering an authenticator — send them the setup wizard too. Not shown again after this panel closes.") + "</small></div>" +
+          '<div class="actions"><a class="btn secondary sm" href="/help/teams-setup.html" target="_blank" rel="noopener">' + t("设置向导 ↗", "Setup wizard ↗") + '</a><button class="btn secondary sm" type="button" id="nuAgain">' + t("再建一个", "Create another") + "</button></div>";
+        $("pwCopy").addEventListener("click", function () {
+          var v = $("pwVal").textContent, done = function () { $("pwCopy").textContent = t("已复制 ✓", "Copied ✓"); };
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, function () { window.prompt(t("复制临时密码：", "Copy the temporary password:"), v); }); else window.prompt(t("复制临时密码：", "Copy the temporary password:"), v);
+        });
+        $("nuAgain").addEventListener("click", function () { openNewUserPanel(dom); });
+        if (location.hash.indexOf("#/domain/users") === 0) loadDomainData("users").then(renderUsers).catch(showUsersError);
       });
     });
   }
@@ -1170,7 +1232,7 @@
     function schoolCard(d) {
       var known = doms.indexOf(d) >= 0;
       return '<div class="rschool" data-d="' + esc(d) + '"><div class="rsh"><b>' + esc(dname(d)) + "</b>" + (d !== own ? '<button type="button" class="lnk" data-drop="' + esc(d) + '">' + t("移除", "Remove") + "</button>" : '<span class="muted">' + t("所在学校", "Their school") + "</span>") + (known ? "" : ' <span class="tag warn">' + t("未知域", "Unknown domain") + "</span>") + "</div>" +
-        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("账号安全：查看本校账号，删除验证设备，重置密码，同步变动。", "Account security: see the school's accounts, remove authenticator devices, reset passwords, sync changes.") + "</small></span></label>" +
+        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("账号安全：查看本校账号，新建账号，删除验证设备，重置密码，同步变动。", "Account security: see the school's accounts, create accounts, remove authenticator devices, reset passwords, sync changes.") + "</small></span></label>" +
         '<label class="sw"><input type="checkbox" data-role="hive" data-d="' + esc(d) + '"' + (st.hive[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.hive[EN ? 1 : 0] + "</b><small>" + t("蜂巢信息：身份、关联账号、备注；不能动设备和密码。", "Hive information: identity, linked accounts, notes; no devices or passwords.") + "</small></span></label></div>";
     }
     function preview() {

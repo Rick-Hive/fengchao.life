@@ -190,6 +190,16 @@ async function touchUser(domain, upn, patch) {
   if (i >= 0) { doc.users[i] = Object.assign({}, doc.users[i], patch); await store.write(`${domain}.json`, doc); }
 }
 
+// A just-created account goes into the cache at once (rowOf of the Graph user,
+// no methods or groups yet), so the Users page shows it without a sync.
+async function addUser(domain, graphUser, extra) {
+  const doc = await readDomain(domain);
+  const row = Object.assign(rowOf(graphUser, { status: 200, body: { value: [] } }, { status: 200, body: { value: [] } }), { partial: false, readAt: new Date().toISOString() }, extra || {});
+  doc.users = doc.users.filter((r) => r.upn !== row.upn).concat([row]).sort((a, b) => a.upn.localeCompare(b.upn));
+  await store.write(`${domain}.json`, doc);
+  return row;
+}
+
 // ---- tenant-wide change tracking (/users/delta) -----------------------------------
 // A fresh token that describes "now", without enumerating anyone.
 async function initDelta() {
@@ -415,4 +425,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, verifiedDomains, listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, addUser, verifiedDomains, listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };

@@ -48,6 +48,7 @@ const groupsOf = {
   ],
 };
 const calls = [];
+const createdUsers = [], licenseCalls = [];
 global.fetch = async function (url, opts) {
   const u = new URL(String(url));
   const method = (opts && opts.method) || "GET";
@@ -92,6 +93,17 @@ global.fetch = async function (url, opts) {
   }
   if (method === "GET" && p === "/users/lei@" + DOMAIN + "/authentication/methods") return json(200, { value: leiMethods });
   if (method === "GET" && /^\/users\/lei@/.test(p) && p.endsWith("/authentication/methods")) return json(200, { value: leiMethods });
+  if (method === "GET" && p === "/subscribedSkus") return json(200, { value: [
+    { skuId: "94763226-9b3c-4e75-a931-5c89701abe66", skuPartNumber: "STANDARDWOFFPACK_FACULTY", capabilityStatus: "Enabled", prepaidUnits: { enabled: 500 }, consumedUnits: 12 },
+    { skuId: "314c4481-f395-4525-be8b-2ec4bb1e9d91", skuPartNumber: "STANDARDWOFFPACK_STUDENT", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1000 }, consumedUnits: 999 },
+    { skuId: "0000-dead", skuPartNumber: "OLD_PLAN", capabilityStatus: "Suspended", prepaidUnits: { enabled: 5 }, consumedUnits: 0 },
+  ] });
+  if (method === "POST" && p === "/users") {
+    const b = JSON.parse(opts.body); createdUsers.push(b);
+    const u = Object.assign({ id: "u-" + b.mailNickname, createdDateTime: "2026-10-04T00:00:00Z", userType: "Member" }, b); delete u.passwordProfile; users.push(u);
+    return json(201, u);
+  }
+  if (method === "POST" && /^\/users\/[^/]+\/assignLicense$/.test(p)) { licenseCalls.push({ id: p.split("/")[2], body: JSON.parse(opts.body) }); return json(200, { id: p.split("/")[2] }); }
   if (method === "GET" && /^\/users\/[^/]+$/.test(p)) {
     const upn = p.slice("/users/".length).toLowerCase();
     const hit = users.find((x) => x.userPrincipalName.toLowerCase() === upn);
@@ -114,6 +126,9 @@ const people = require(path.join(__dirname, "..", "api", "shared", "people.js"))
 let institutions = { institutions: {} };
 people.readInstitutions = async () => JSON.parse(JSON.stringify(institutions));
 people.writeInstitutions = async (doc) => { institutions = JSON.parse(JSON.stringify(doc)); };
+let peopleStore = { people: {} };
+people.readPeople = async () => JSON.parse(JSON.stringify(peopleStore));
+people.writePeople = async (doc) => { peopleStore = JSON.parse(JSON.stringify(doc)); };
 const rolesMod = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
 rolesMod.readRoles = async () => ({ entries: [{ user: `lei@${DOMAIN}`, roles: [`domain_it:${DOMAIN}`], by: "x", at: "2026-10-01T00:00:00Z" }] });
 const dir = require(path.join(__dirname, "..", "api", "shared", "directory.js"));
@@ -395,6 +410,41 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   const otherDoc = JSON.parse(blobs["other.example.edu.json"]);
   assert.strictEqual(otherDoc.users.length, 0);
   assert.ok(otherDoc.fullAt);
+
+  // 11b. 新建账号: licences with free seats; the account is created in this domain with a
+  // temporary password, the licence, Hive's 身份, and appears in the cache at once.
+  r = await call({ action: "licenses", query: { domain: DOMAIN }, user: DOMADMIN, roles: HIVE });
+  assert.strictEqual(r.status, 403, "域蜂巢管理员 does not create accounts");
+  r = await call({ action: "licenses", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual(r.body.plans.map((x) => [x.name, x.free, x.audience]), [["Office 365 A1 for faculty", 488, "faculty"], ["Office 365 A1 for students", 1, "student"]], "suspended plan left out, most free seats first");
+  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "Li.Ming", givenName: "明", surname: "李", identity: "老师", skuId: "94763226-9b3c-4e75-a931-5c89701abe66" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(r.body.user, `li.ming@${DOMAIN}`);
+  assert.strictEqual(r.body.displayName, "李明", "CJK display name = surname + given name, no space");
+  assert.ok(/^[A-Za-z0-9!#%&*+=?@]{14}$/.test(r.body.password), "temporary password");
+  assert.deepStrictEqual(r.body.licence, { skuId: "94763226-9b3c-4e75-a931-5c89701abe66", ok: true });
+  const cu = createdUsers[createdUsers.length - 1];
+  assert.strictEqual(cu.userPrincipalName, `li.ming@${DOMAIN}`);
+  assert.strictEqual(cu.mailNickname, "li.ming");
+  assert.strictEqual(cu.usageLocation, "CN");
+  assert.strictEqual(cu.passwordProfile.forceChangePasswordNextSignIn, true);
+  assert.strictEqual(cu.passwordProfile.password, r.body.password);
+  assert.strictEqual(licenseCalls[licenseCalls.length - 1].body.addLicenses[0].skuId, "94763226-9b3c-4e75-a931-5c89701abe66");
+  r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
+  const newRow = r.body.users.find((x) => x.upn === `li.ming@${DOMAIN}`);
+  assert.ok(newRow && newRow.displayName === "李明" && newRow.identity === "老师" && newRow.verified === false, "new account in the cache with 身份: " + JSON.stringify(newRow));
+  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "li.ming", displayName: "Again" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 409, "existing account refused");
+  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "bad name!", displayName: "X" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400);
+  r = await call({ action: "user", method: "POST", body: { domain: "other.example.edu", account: "x", displayName: "X" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403, "not another domain");
+  r = await call({ action: "user", method: "POST", body: { domain: DOMAIN, account: "ann.lee", givenName: "Ann", surname: "Lee" }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.body.displayName, "Ann Lee", "Latin display name = given name + surname");
+  assert.strictEqual(r.body.licence, null, "no licence chosen → none assigned");
+  users.splice(users.findIndex((x) => x.userPrincipalName === `li.ming@${DOMAIN}`), 1); users.splice(users.findIndex((x) => x.userPrincipalName === `ann.lee@${DOMAIN}`), 1);
 
   // 12. /api/roles: the 角色分配 page's search reads the directory caches (no Graph),
   // and the entries carry the person's name and school.

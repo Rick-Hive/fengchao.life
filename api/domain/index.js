@@ -15,6 +15,9 @@
 //   PUT    domain/institution             {domain, name, nameEn} → institutions.json (the school's display names) (sysadmin)
 //   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (域管理员 IT, sysadmin)
 //   POST   domain/password                {user} → temporary password, must change at next sign-in (域管理员 IT, sysadmin)
+//   GET    domain/licenses?domain=x       the tenant's licence plans with free seats                     (域管理员 IT, sysadmin)
+//   POST   domain/user                    {domain, account, givenName, surname, displayName, identity, jobTitle, skuId, usageLocation}
+//                                         → create the account (temporary password returned once)         (域管理员 IT, sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
 // domain; the target account's UPN must end in it, or the call is refused — a
@@ -30,6 +33,7 @@ const { userRoles, managedDomains, can, normUser } = require("../shared/roles");
 const { readPeople, writePeople, identityOf, IDENTITIES, readInstitutions, writeInstitutions } = require("../shared/people");
 const { readRoles, roleLabel } = require("../shared/roles");
 const { audit } = require("../shared/audit");
+const people = require("../shared/people");
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
 
@@ -41,6 +45,17 @@ function fail(context, status, error, extra) {
 }
 
 // The cached rows plus Hive's own facts about each person.
+// Friendly names for the licence plans schools usually have; anything else shows its part number.
+const LICENSE_NAMES = {
+  STANDARDWOFFPACK_FACULTY: "Office 365 A1 for faculty", STANDARDWOFFPACK_STUDENT: "Office 365 A1 for students",
+  STANDARDWOFFPACK_IW_FACULTY: "Office 365 A1 Plus for faculty", STANDARDWOFFPACK_IW_STUDENT: "Office 365 A1 Plus for students",
+  M365EDU_A3_FACULTY: "Microsoft 365 A3 for faculty", M365EDU_A3_STUDENT: "Microsoft 365 A3 for students",
+  M365EDU_A5_FACULTY: "Microsoft 365 A5 for faculty", M365EDU_A5_STUDENT: "Microsoft 365 A5 for students",
+  ENTERPRISEPACKPLUS_FACULTY: "Office 365 A3 for faculty", ENTERPRISEPACKPLUS_STUDENT: "Office 365 A3 for students",
+  O365_BUSINESS_ESSENTIALS: "Microsoft 365 Business Basic", O365_BUSINESS_PREMIUM: "Microsoft 365 Business Standard", SPB: "Microsoft 365 Business Premium",
+  STANDARDPACK: "Office 365 E1", ENTERPRISEPACK: "Office 365 E3", TEAMS_EXPLORATORY: "Teams Exploratory", FLOW_FREE: "Power Automate Free", POWER_BI_STANDARD: "Power BI (free)",
+};
+
 // A temporary password Microsoft accepts (3 of 4 character classes, 8–256 chars):
 // 14 characters from an alphabet without look-alikes, one of each class forced,
 // from the system's random source. Easy to read out over the phone.
@@ -221,6 +236,91 @@ async function handler(context, req) {
       try { await dir.touchUser(domain, user, { devices: left.map((x) => ({ id: x.id, kind: x.kind, name: x.name, version: x.version, created: x.created })), verified: left.length > 0 }); } catch { /* best effort */ }
       await audit(context, { actor, action: "method.delete", target: user, method: m.kind, device: m.name, result: "ok" });
       context.res = { status: 200, body: { ok: true, removed: { id, kind: m.kind, name: m.name }, remainingStrong: left.length } };
+      return;
+    }
+
+    // 新建账号 (Rick, 2026-10-04: 「Give domain admin the right to create accounts under
+    // the specific domain that domain admin belongs to」). GET domain/licenses lists the
+    // tenant's licence plans with free seats (Office 365 A1 for faculty / students and
+    // the like), so the form can offer one; POST domain/user creates the account in
+    // this domain with a temporary password (must change at first sign-in), the
+    // chosen licence (usageLocation is required for that) and Hive's 身份, puts it
+    // into the directory cache at once, and returns the temporary password once.
+    // Both need can(roles, "methods", domain): a 域管理员（IT）for their school, or the
+    // system administrator. Graph: User.ReadWrite.All (create, assignLicense),
+    // Directory.Read.All (subscribedSkus). No directory role is needed to create
+    // an ordinary account; Microsoft will not let this create an administrator.
+    if (method === "GET" && action === "licenses") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are created by the 域管理员（IT）", { code: "forbidden" });
+      const skus = await list("/subscribedSkus?$select=skuId,skuPartNumber,prepaidUnits,consumedUnits,capabilityStatus", 100);
+      const plans = skus.filter((k) => k.capabilityStatus === "Enabled").map((k) => {
+        const total = (k.prepaidUnits && k.prepaidUnits.enabled) || 0;
+        return { skuId: k.skuId, part: k.skuPartNumber, name: LICENSE_NAMES[k.skuPartNumber] || k.skuPartNumber, total, used: k.consumedUnits || 0, free: Math.max(0, total - (k.consumedUnits || 0)), audience: /STUDENT|STUUSE/i.test(k.skuPartNumber) ? "student" : /FACULTY|EDU/i.test(k.skuPartNumber) ? "faculty" : "" };
+      }).sort((a, b) => b.free - a.free || a.name.localeCompare(b.name));
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { plans, usageLocation: process.env.HIVE_USAGE_LOCATION || "CN" } };
+      return;
+    }
+    if (method === "POST" && action === "user") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are created by the 域管理员（IT）", { code: "forbidden" });
+      const b = req.body || {};
+      const nick = String(b.account || "").trim().toLowerCase();
+      const givenName = String(b.givenName || "").trim(), surname = String(b.surname || "").trim();
+      // Default display name: 姓名 for Chinese names (surname first, no space), "Given Surname" otherwise.
+      const cjk = /[\u4e00-\u9fff]/.test(surname + givenName);
+      const displayName = String(b.displayName || "").trim() || (cjk ? [surname, givenName] : [givenName, surname]).filter(Boolean).join(cjk ? "" : " ");
+      const identity = String(b.identity || "").trim();
+      const jobTitle = String(b.jobTitle || "").trim();
+      const skuId = String(b.skuId || "").trim();
+      const usageLocation = String(b.usageLocation || process.env.HIVE_USAGE_LOCATION || "CN").trim().toUpperCase();
+      const problems = [];
+      if (!/^[a-z0-9][a-z0-9._-]{0,62}$/.test(nick) || /\.\.|\.$/.test(nick)) problems.push("account name: letters, digits, . _ - only (2–63), e.g. li.ming");
+      if (!displayName || displayName.length > 64) problems.push("display name is missing or longer than 64");
+      if (givenName.length > 40 || surname.length > 40) problems.push("given name / surname longer than 40");
+      if (identity && !IDENTITIES.includes(identity)) problems.push("identity must be one of " + IDENTITIES.join(" / "));
+      if (jobTitle.length > 60) problems.push("job title longer than 60");
+      if (skuId && !/^[0-9a-f-]{36}$/i.test(skuId)) problems.push("licence id malformed");
+      if (!/^[A-Z]{2}$/.test(usageLocation)) problems.push("usage location must be a two-letter country code");
+      if (problems.length) return fail(context, 400, "please check the form", { problems });
+      const upn = `${nick}@${domain}`;
+      // Taken already? (Graph would answer 400 too, but this is a clearer message.)
+      try { await graph("GET", `/users/${encodeURIComponent(upn)}?$select=id`); return fail(context, 409, `${upn} already exists`, { code: "exists" }); } catch (err) { if (err.status !== 404) throw err; }
+      const password = temporaryPassword();
+      const body = {
+        accountEnabled: true, displayName, mailNickname: nick, userPrincipalName: upn, usageLocation,
+        passwordProfile: { password, forceChangePasswordNextSignIn: true },
+        passwordPolicies: "DisablePasswordExpiration",
+      };
+      if (givenName) body.givenName = givenName;
+      if (surname) body.surname = surname;
+      if (jobTitle) body.jobTitle = jobTitle;
+      const inst = await people.readInstitutions();
+      const instName = inst.institutions && inst.institutions[domain] && (inst.institutions[domain].name || inst.institutions[domain].nameEn);
+      if (instName) body.department = instName;
+      let created;
+      try {
+        created = await graph("POST", "/users", body);
+      } catch (err) {
+        await audit(context, { actor, action: "user.create", target: upn, result: "failed", error: err.code || err.status });
+        if (err.status === 400 || err.status === 403) return fail(context, err.status, "Microsoft refused to create the account: " + (err.message.split(": ").slice(1).join(": ") || err.code), { code: err.code });
+        throw err;
+      }
+      let licence = null;
+      if (skuId) {
+        try {
+          await graph("POST", `/users/${created.id}/assignLicense`, { addLicenses: [{ skuId, disabledPlans: [] }], removeLicenses: [] });
+          licence = { skuId, ok: true };
+        } catch (err) {
+          licence = { skuId, ok: false, error: err.code || String(err.status) };
+          await audit(context, { actor, action: "license.assign", target: upn, skuId, result: "failed", error: err.code || err.status });
+        }
+      }
+      // Hive's own record (身份) and the directory cache.
+      if (identity) {
+        try { const doc = await people.readPeople(); doc.people[upn] = Object.assign({}, doc.people[upn] || {}, { identity, updated: new Date().toISOString(), by: actor }); await people.writePeople(doc); } catch { /* best effort */ }
+      }
+      try { await dir.addUser(domain, Object.assign({ createdDateTime: new Date().toISOString(), accountEnabled: true, userType: "Member" }, created, body)); } catch { /* the next sync adds it */ }
+      await audit(context, { actor, action: "user.create", target: upn, displayName, identity, skuId: skuId || "", result: "ok" });
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: upn, id: created.id, displayName, password, mustChange: true, licence } };
       return;
     }
 

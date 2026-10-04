@@ -205,7 +205,7 @@
       <thead><tr><th data-en="Role">角色</th><th data-en="Who">是谁</th><th data-en="Can do">可以做</th></tr></thead>
       <tbody>
         <tr><td data-en="User">普通用户</td><td data-en="Every teacher, parent and student with a school account">每一位有学校账号的老师、家长、学生</td><td data-en="Their own profile, sign-in security, their own Teams">自己的资料、登录与安全、自己的 Teams</td></tr>
-        <tr><td data-en="Domain administrator (IT)">域管理员（IT）</td><td data-en="The school's IT contact, appointed by Hive's system administrator under Roles. No Microsoft 365 administrator role is needed — or wanted: the account stays an ordinary one there.">学校的 IT 负责人，由蜂巢的系统管理员在「角色分配」里指定。<strong>不需要</strong>（也不建议）在 Microsoft 365 里持有任何管理员角色：账号在那边仍是普通账号。</td><td data-en="Everything in this handbook: see the school's accounts, remove authenticator devices, reset passwords, sync changes">本手册里的一切：查看本校账号、删除验证设备、重置密码、同步变动</td></tr>
+        <tr><td data-en="Domain administrator (IT)">域管理员（IT）</td><td data-en="The school's IT contact, appointed by Hive's system administrator under Roles. No Microsoft 365 administrator role is needed — or wanted: the account stays an ordinary one there.">学校的 IT 负责人，由蜂巢的系统管理员在「角色分配」里指定。<strong>不需要</strong>（也不建议）在 Microsoft 365 里持有任何管理员角色：账号在那边仍是普通账号。</td><td data-en="Everything in this handbook: see the school's accounts, create accounts, remove authenticator devices, reset passwords, sync changes">本手册里的一切：查看本校账号、新建账号、删除验证设备、重置密码、同步变动</td></tr>
         <tr><td data-en="Domain Hive administrator">域蜂巢管理员</td><td data-en="The school's Hive contact (not IT)">学校里负责蜂巢事务的人（非 IT）</td><td data-en="See the school's accounts; set identity, linked accounts and notes; not devices or passwords">查看本校账号；填身份、关联账号、备注；不能动设备和密码</td></tr>
         <tr><td data-en="System administrator">系统管理员</td><td data-en="Hive staff">蜂巢的系统管理员</td><td data-en="Everything, for every school">所有学校的一切</td></tr>
       </tbody>
@@ -292,9 +292,14 @@
   </details>
 
   <details class="case" id="case-new-teacher">
-    <summary><span class="num">5.4</span><span class="ttl" data-en="A new teacher has joined; the account is not in the list.">新老师入职，列表里没有这个账号。</span></summary>
+    <summary><span class="num">5.4</span><span class="ttl" data-en="A new teacher or family has joined: create the account.">新老师或新家庭加入：创建账号。</span></summary>
     <div class="case-body">
-      <p data-en="Hive does not create accounts — the school creates them in Microsoft 365 as before. Once the account exists, press <strong>Sync changes</strong> on the Users page; the row appears within seconds, with Authentication No until the teacher registers an authenticator. Set the Identity (Teacher) in the person panel if you like.">蜂巢不创建账号——账号仍由学校在 Microsoft 365 里按原来的方式创建。账号建好后，在「用户」页点<strong>「同步变动」</strong>，几秒钟后这一行出现，在老师注册验证器之前「验证」为 No。可顺手在人员面板里把身份设为「老师」。</p>
+      <ol class="fix">
+        <li data-en="Users page → <strong>+ New account</strong> (top right). Fill in surname and given name (the display name is made for you: 李明, or Ann Lee), the account name (letters, digits, . _ - — pinyin <code>given.surname</code> is the usual form), Identity, an optional job title, and a licence.">「用户」页 → 右上角<strong>「＋ 新建账号」</strong>。填姓、名（显示名自动生成：李明，或 Ann Lee）、账号名（字母、数字和 . _ -，通常用拼音 <code>名.姓</code>）、身份、可选的职务，以及许可证。</li>
+        <li data-en="<strong>Licence</strong>: without one the account cannot use Teams or Outlook. Choosing Identity picks the usual plan — teachers and staff get the faculty plan, students and parents the students plan; the list shows how many seats are free."><strong>许可证</strong>：没有许可证的账号用不了 Teams 和 Outlook。选了身份会自动选常用方案——老师和行政用 faculty，学生和家长用 students；列表里显示每种还剩多少。</li>
+        <li data-en="<strong>Create account</strong> → the account and a temporary password are shown <strong>once</strong>. Pass them on by phone or in person, together with the <a href='/help/teams-setup.html'>setup wizard</a>: at the first sign-in Microsoft asks for a new password and then registers the authenticator.">「<strong>创建账号</strong>」→ 账号和临时密码<strong>只显示一次</strong>。电话或当面告知对方，并附上<a href="/help/teams-setup.html">设置向导</a>：首次登录微软会要求设新密码，然后引导注册验证器。</li>
+      </ol>
+      <p class="result" data-en="Result: the account exists in the school's Microsoft 365 with the school set as its department, appears in the Users table at once (Authentication: No until the authenticator is registered), and is ready for Teams as soon as the person signs in.">结果：账号已在学校的 Microsoft 365 里建好（部门字段填的是学校名），立刻出现在「用户」表里（注册验证器前「验证」为 No），对方一登录就能用 Teams。</p>
     </div>
   </details>
 
@@ -339,7 +344,7 @@
     </ul>
     <h2 data-en="What a domain administrator cannot do">域管理员做不了的事</h2>
     <ul>
-      <li data-en="Create, rename, disable or delete accounts — the school does that in Microsoft 365.">创建、改名、停用、删除账号——由学校在 Microsoft 365 里做。</li>
+      <li data-en="Rename, disable or delete accounts — the school does that in Microsoft 365 (creating them is done here, §5.4).">改名、停用、删除账号——由学校在 Microsoft 365 里做（创建账号在这里做，见 5.4）。</li>
       <li data-en="Change group or team membership (read-only here).">修改群组或团队成员（这里只读）。</li>
       <li data-en="Touch an account that is itself an administrator in Microsoft 365: Microsoft refuses device removal and password resets for those, whoever asks.">动一个本身是 Microsoft 365 管理员的账号：对这类账号，微软拒绝任何人通过蜂巢删设备或重置密码。</li>
       <li data-en="See or change another school.">查看或更改其他学校。</li>

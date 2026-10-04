@@ -382,3 +382,11 @@ table.roles2 { min-width: 720px; }
 .ph-txt small { display: block; color: var(--muted); font-size: 12px; margin-bottom: var(--s3); }
 .ph-txt .actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
 @media (max-width: 560px) { .ph-row { flex-direction: column; align-items: center; text-align: center; } .ph-txt .actions { justify-content: center; } }
+
+/* ---- 新建账号 (2026-10-04) ------------------------------------------------------------ */
+.upnrow { display: flex; align-items: center; gap: 0; }
+.upnrow input { flex: 1; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.upnrow .upnsuf { height: 36px; display: inline-flex; align-items: center; padding: 0 var(--s3); border: 1px solid var(--line-strong); border-left: 0; border-radius: 0 8px 8px 0; background: #f8fafc; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.panel .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.panel label.f { margin-bottom: var(--s3); display: block; }
+.panel label.f small { display: block; color: var(--faint); font-size: 12px; margin-top: 4px; }
