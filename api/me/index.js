@@ -15,7 +15,24 @@
 // to Microsoft's own change-password and self-service reset pages.
 const { graph, graphRaw, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
-const { rolesFor, userRoles, normUser, can } = require("../shared/roles");
+const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE } = require("../shared/roles");
+const dir = require("../shared/directory");
+
+// The administrators of the person's own school, for 登录与安全 (Rick, 2026-10-05:
+// 「将每个域名的管理员显示在用户的“登录与安全”页面……如果需要帮助，请联系自己的管理员」):
+// everyone in roles.json who holds a role on that domain, with the name from the
+// directory cache. Storage trouble → an empty list, never an error.
+async function domainAdmins(domain) {
+  try {
+    const [doc, cache] = await Promise.all([readRoles(), dir.readDomain(domain).catch(() => ({ users: [] }))]);
+    const names = new Map((cache.users || []).map((u) => [u.upn, u.displayName || ""]));
+    return doc.entries.map((e) => {
+      const it = e.roles.some((r) => { const m = DOMAIN_IT_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r); return m && m[1] === domain; });
+      const hive = e.roles.some((r) => { const m = DOMAIN_HIVE_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r); return m && m[1] === domain; });
+      return it || hive ? { upn: e.user, displayName: names.get(e.user) || "", it, hive } : null;
+    }).filter(Boolean).sort((a, b) => (b.it - a.it) || a.upn.localeCompare(b.upn));
+  } catch { return []; }
+}
 const { audit } = require("../shared/audit");
 const { guard, finish, describe } = require("../shared/session");
 const people = require("../shared/people");
@@ -217,10 +234,10 @@ async function handler(context, req) {
       return;
     }
     if (method === "GET" && action === "summary") {
-      const [ms, rolesAll, doc, inst] = await Promise.all([methods(user.id), userRoles(req), people.readPeople(), people.readInstitutions()]);
+      const myDomain = upn.split("@")[1] || "";
+      const [ms, rolesAll, doc, inst, admins] = await Promise.all([methods(user.id), userRoles(req), people.readPeople(), people.readInstitutions(), domainAdmins(myDomain)]);
       const roles = rolesAll.roles;
       const rec = doc.people[upn] || {};
-      const myDomain = upn.split("@")[1] || "";
       context.res = {
         status: 200,
         body: {
@@ -233,6 +250,7 @@ async function handler(context, req) {
             canEditName: can(roles, "methods", myDomain),
             institution: (inst.institutions[myDomain] && inst.institutions[myDomain].name) || "",
             institutionEn: (inst.institutions[myDomain] && inst.institutions[myDomain].nameEn) || "",
+            admins, // the school's 域管理员, for "need help? contact your administrator"
             vocab: { selfRoles: people.SELF_ROLES, topics: people.TOPICS, grades: people.GRADES, schooling: people.SCHOOLING, models: people.MODELS, higherEd: people.HIGHER_ED, maxChildren: people.MAX_CHILDREN, maxAccounts: people.MAX_ACCOUNTS },
           },
           // 基本资料: read from the Office 365 account; the fields in EDITABLE may be

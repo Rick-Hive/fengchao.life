@@ -406,3 +406,13 @@ table.roles2 { min-width: 720px; }
 .btn.saved { background: var(--ok); border-color: var(--ok); color: #fff; }
 .btn.secondary.saved { background: var(--ok-soft); color: var(--ok); border-color: #bcdcc8; }
 .panel { transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* ---- 需要帮助？ the school's administrators (2026-10-05) ----------------------------- */
+.admins { display: grid; gap: var(--s1); }
+.adminrow { display: flex; align-items: center; gap: 10px; padding: var(--s2) var(--s2); border-radius: 8px; text-decoration: none; color: var(--ink); font-size: 13px; }
+.adminrow:hover { background: #f8fafc; }
+.adminrow .m { flex: 1; min-width: 0; }
+.adminrow .m b { display: block; font-weight: 600; }
+.adminrow .m small { display: block; color: var(--faint); font-size: 12px; }
+.adminrow .tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 560px) { .adminrow .tags { display: none; } }

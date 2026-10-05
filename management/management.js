@@ -520,6 +520,7 @@
     setTitle(t("我的账号", "My account"), t("登录与安全", "Sign-in and security"), "", t("密码、登录记录和能批准您登录的设备。", "Password, sign-in records and the devices that approve your sign-ins."));
     var ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
+    var admins = (me.hive && me.hive.admins) || [];
     function dl(kind, zh, en, sub, tip) {
       return '<div class="row"><div class="rowmain"><b>' + t(zh, en) + (tip ? ' <span class="info" tabindex="0" data-tip="' + esc(tip) + '">i</span>' : "") + "</b><small>" + sub + '</small></div><div class="menu-wrap"><button class="btn secondary sm" type="button" data-menu="dl-' + kind + '">' + t("下载 ↓", "Download ↓") + '</button><div class="menu" id="dl-' + kind + '"><a href="/api/me/export?kind=' + kind + '&format=csv" download>CSV</a><a href="/api/me/export?kind=' + kind + '&format=json" download>JSON</a></div></div></div>';
     }
@@ -540,6 +541,17 @@
             '<div class="detail hidden" id="det-' + esc(m.id) + '"><div class="kv"><span class="k">' + t("类型", "Type") + "</span><span>" + esc(k[EN ? 1 : 0]) + '</span><span class="k">' + t("名称", "Name") + "</span><span>" + esc(m.name || "—") + "</span>" + (m.detail ? '<span class="k">' + t("版本", "Version") + "</span><span>" + esc(m.detail) + "</span>" : "") + (m.created ? '<span class="k">' + t("添加于", "Added") + "</span><span>" + esc(when(m.created)) + "</span>" : "") + '<span class="k">ID</span><span class="muted">' + esc(m.id) + "</span></div></div></div>";
         }).join("") : '<div class="empty">' + t("没有登记任何验证方式。", "No sign-in methods registered.") + "</div>") + "</div>" +
         '<div id="mMsg"></div>' +
+      "</section>" +
+      // 需要帮助？ the school's administrators (Rick, 2026-10-05): who to contact for a lost
+      // phone, a forgotten password or a locked account — the 域管理员（IT）first, then the
+      // 域蜂巢管理员. Without any, point at Hive's system administrator.
+      '<section class="card" id="helpCard"><header class="ch"><h2>' + t("需要帮助？", "Need help?") + '</h2><p>' +
+        t("手机丢了、忘记密码、登不进去——请联系你学校的管理员，他们可以在这里为你删除旧设备、重置密码。", "Lost phone, forgotten password, cannot sign in — contact your school's administrator; they can remove the old device or reset your password here.") + "</p></header>" +
+        (admins.length ? '<div class="admins">' + admins.map(function (a) {
+          return '<a class="adminrow" href="mailto:' + esc(a.upn) + '"><span class="avatar" style="background:' + hue(a.upn) + ';color:#fff">' + esc(initials(a.displayName || a.upn)) + '</span><div class="m"><b>' + esc(a.displayName || a.upn.split("@")[0]) + "</b><small>" + esc(a.upn) + "</small></div>" +
+            '<span class="tags">' + (a.it ? '<span class="tag role-it">' + t("域管理员（IT）", "Domain administrator (IT)") + "</span>" : "") + (a.hive ? '<span class="tag role-hive">' + t("域蜂巢管理员", "Domain Hive administrator") + "</span>" : "") + "</span></a>";
+        }).join("") + "</div>"
+        : '<div class="empty">' + t("本校还没有指定管理员。请通过学校联系蜂巢的系统管理员。", "Your school has no administrator yet. Please reach Hive's system administrator through your school.") + "</div>") +
       "</section>";
     // Menus. The handler sits on this render's card (not on the permanent
     // #content, where every visit stacked another copy and the ⋯ toggle cancelled
