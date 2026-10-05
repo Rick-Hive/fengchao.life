@@ -1224,8 +1224,16 @@
         box.hidden = false;
       });
     }
-    $("rq").addEventListener("input", function () { clearTimeout(timer); var q = $("rq").value.trim(); timer = setTimeout(function () { suggest(q); }, 180); });
+    // Chinese input: while an IME composition is under way the Enter that commits the
+    // characters must not pick the first suggestion (Rick, 2026-10-05: 「输入用户名定位一个
+    // 用户，但右侧会突然弹出上一个已经关闭的用户设置页面」 — the Enter that confirmed the
+    // pinyin opened the first match), and suggestions wait for the composition to end.
+    var composing = false;
+    $("rq").addEventListener("compositionstart", function () { composing = true; });
+    $("rq").addEventListener("compositionend", function () { composing = false; clearTimeout(timer); var q = $("rq").value.trim(); timer = setTimeout(function () { suggest(q); }, 120); });
+    $("rq").addEventListener("input", function () { if (composing) return; clearTimeout(timer); var q = $("rq").value.trim(); timer = setTimeout(function () { suggest(q); }, 180); });
     $("rq").addEventListener("keydown", function (e) {
+      if (e.isComposing || e.keyCode === 229 || composing) return;
       if (e.key === "Escape") { $("rsugg").hidden = true; return; }
       if (e.key === "Enter") { e.preventDefault(); var f = $("rsugg").querySelector(".sg[data-upn]"); if (f) f.click(); }
       if (e.key === "ArrowDown") { var f2 = $("rsugg").querySelector(".sg[data-upn]"); if (f2) { e.preventDefault(); f2.focus(); } }
