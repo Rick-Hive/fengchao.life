@@ -266,7 +266,12 @@
     $("topActions").innerHTML = actionsHtml || "";
     document.querySelector(".topbar").classList.toggle("bare", !title && !crumb && !actionsHtml);
   }
-  function panelOpen(html, which) { var p = $(which === "second" ? "panel2" : "panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false"); }
+  function panelOpen(html, which) {
+    var p = $(which === "second" ? "panel2" : "panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false");
+    // The second panel (a person opened from a group) gets a ← back to the group
+    // (Rick, 2026-10-05: 「进入右边的 teams 群组，点击用户，应该可以回去」).
+    if (which === "second") { var ph = p.querySelector(".ph"); if (ph && !ph.querySelector(".back")) { var b = document.createElement("button"); b.type = "button"; b.className = "back"; b.setAttribute("aria-label", t("返回群组", "Back to the group")); b.title = t("返回群组", "Back to the group"); b.innerHTML = "←"; ph.insertBefore(b, ph.firstChild); } }
+  }
   function panel2Close() { var p = $("panel2"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); }
   function panelClose() { var p = $("panel"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); panel2Close(); document.querySelectorAll("table.data tr.sel").forEach(function (tr) { tr.classList.remove("sel"); }); }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if ($("panel2").classList.contains("open")) panel2Close(); else { panelClose(); closeDrawer(); } } });
@@ -282,7 +287,7 @@
     var m = e.target.closest("button.mrow[data-upn]"); if (m) memberClick(m);
   });
   $("panel2").addEventListener("click", function (e) {
-    if (e.target.closest(".x")) { panel2Close(); return; }
+    if (e.target.closest(".x") || e.target.closest(".back")) { panel2Close(); return; }
     var g = e.target.closest("button[data-group]"); if (g) { openGroupPanel(g.getAttribute("data-group")); return; }
     var m = e.target.closest("button.mrow[data-upn]"); if (m) memberClick(m);
   });
