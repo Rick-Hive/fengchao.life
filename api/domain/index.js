@@ -18,6 +18,7 @@
 //   GET    domain/licenses?domain=x       {faculty, student, extras[]} — the A1 plans and the always-on extras, with free seats
 //   POST   domain/user                    {domain, account, givenName, surname, displayName?, identity, city, postalCode, jobTitle?, plan, usageLocation?}
 //                                         → create the account (temporary password returned once)         (域管理员 IT, sysadmin)
+//   DELETE domain/user                    {domain, user} → delete an ordinary account (soft delete, 30 days)   (域管理员 IT, sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
 // domain; the target account's UPN must end in it, or the call is refused — a
@@ -340,6 +341,36 @@ async function handler(context, req) {
       try { await dir.addUser(domain, Object.assign({ createdDateTime: new Date().toISOString(), accountEnabled: true, userType: "Member" }, created, body)); } catch { /* the next sync adds it */ }
       await audit(context, { actor, action: "user.create", target: upn, displayName, identity, plan, city, result: "ok" });
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: upn, id: created.id, displayName, password, mustChange: true, licence } };
+      return;
+    }
+
+    // 删除账号 (Rick, 2026-10-05: 「Give domain admin right to delete ordinary users」):
+    // a 域管理员（IT）or the system administrator deletes an ordinary account of this
+    // domain. Ordinary = holds no Hive role; not oneself; not a guest. Microsoft
+    // soft-deletes (30 days in the deleted-users list of the Microsoft 365 admin
+    // center, restorable there); Hive drops the cache row and its people.json record.
+    if (method === "DELETE" && action === "user") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are deleted by the 域管理员（IT）", { code: "forbidden" });
+      const b = req.body || {};
+      const user = normUser(b.user);
+      if (!EMAIL_RE.test(user) || domainOf(user) !== domain) return fail(context, 400, "user must be an account in this domain");
+      if (user === actor) return fail(context, 400, "you cannot delete your own account", { code: "self" });
+      const rolesDoc = await readRoles().catch(() => ({ entries: [] }));
+      if ((rolesDoc.entries || []).some((e) => e.user === user && (e.roles || []).length)) return fail(context, 403, "this account holds a Hive role; remove its roles first (系统 › 角色分配)", { code: "has_roles" });
+      const u = await graph("GET", `/users/${encodeURIComponent(user)}?$select=id,userPrincipalName,userType,displayName`);
+      if (!u || !u.id) return fail(context, 404, "no such account");
+      if (u.userType === "Guest") return fail(context, 400, "a guest account is not managed here");
+      try {
+        await graph("DELETE", `/users/${u.id}`);
+      } catch (err) {
+        await audit(context, { actor, action: "user.delete", target: user, result: "failed", error: err.code || err.status });
+        if (err.status === 403) return fail(context, 403, "Microsoft refused to delete this account (an administrator account, or the app lacks the permission).", { code: err.code || "forbidden" });
+        throw err;
+      }
+      try { await dir.removeUser(domain, user); } catch { /* the next sync drops it */ }
+      try { const doc = await readPeople(); if (doc.people[user]) { delete doc.people[user]; await writePeople(doc); } } catch { /* best effort */ }
+      await audit(context, { actor, action: "user.delete", target: user, displayName: u.displayName || "", result: "ok" });
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user, displayName: u.displayName || "", restorableDays: 30 } };
       return;
     }
 

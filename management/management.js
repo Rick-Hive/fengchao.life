@@ -916,7 +916,8 @@
             (canDo("methods") ? '<button class="btn danger sm" type="button" data-del="' + esc(x.id) + '" data-name="' + esc(x.name) + '">' + t("删除", "Delete") + "</button>" : "") + "</div>";
         }).join("") : '<div class="muted" style="font-size:.86rem">' + t("没有登记验证器。", "No authenticator registered.") + "</div>") + "</div>" +
         (canDo("methods") ? '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready.") + "</div>" +
-          (isSelf ? "" : "<h4>" + t("密码", "Password") + '</h4><div id="ppw"><div class="devrow"><div class="m"><b>' + t("重置密码", "Reset password") + "</b><small>" + t("生成一个临时密码，对方下次登录必须改掉。", "Makes a temporary password that must be changed at the next sign-in.") + '</small></div><button class="btn secondary sm" type="button" id="pwReset">' + t("重置", "Reset") + "</button></div></div>")
+          (isSelf ? "" : "<h4>" + t("密码", "Password") + '</h4><div id="ppw"><div class="devrow"><div class="m"><b>' + t("重置密码", "Reset password") + "</b><small>" + t("生成一个临时密码，对方下次登录必须改掉。", "Makes a temporary password that must be changed at the next sign-in.") + '</small></div><button class="btn secondary sm" type="button" id="pwReset">' + t("重置", "Reset") + "</button></div></div>") +
+          (isSelf || (u.roles || []).length ? "" : "<h4>" + t("删除账号", "Delete account") + '</h4><div class="devrow"><div class="m"><b>' + t("删除这个账号", "Delete this account") + "</b><small>" + t("账号、邮箱和 OneDrive 进入微软的回收站，30 天内可由系统管理员在 Microsoft 365 管理中心恢复。", "The account, mailbox and OneDrive go to Microsoft's recycle bin; restorable for 30 days in the Microsoft 365 admin center.") + '</small></div><button class="btn danger sm" type="button" id="uDel">' + t("删除", "Delete") + "</button></div>")
           : '<div class="note">' + t("登录设备由域管理员（IT）管理。", "Sign-in devices are managed by the domain administrator (IT).") + "</div>") +
         "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '">' + esc(g.name) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
@@ -968,6 +969,22 @@
           if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, function () { window.prompt(t("复制临时密码：", "Copy the temporary password:"), v); });
           else window.prompt(t("复制临时密码：", "Copy the temporary password:"), v);
         });
+      });
+    });
+    // 删除账号 (Rick, 2026-10-05): type the account name to confirm — a deletion is the one
+    // action here that takes a mailbox and files with it.
+    var delBtn = $("uDel");
+    if (delBtn) delBtn.addEventListener("click", function () {
+      var typed = window.prompt(t("删除 " + (u.displayName || u.upn) + " 的账号？\n账号、邮箱和 OneDrive 将进入微软回收站（30 天内可恢复）。\n请输入该账号以确认：", "Delete " + (u.displayName || u.upn) + "'s account?\nAccount, mailbox and OneDrive go to Microsoft's recycle bin (restorable for 30 days).\nType the account name to confirm:"), "");
+      if (typed === null) return;
+      if (typed.trim().toLowerCase() !== u.upn.toLowerCase()) { $("pmsg").innerHTML = '<div class="msg err">' + t("输入的账号不一致，未删除。", "The account name did not match; nothing was deleted.") + "</div>"; return; }
+      savingButton(delBtn, t("删除中…", "Deleting…"));
+      post("domain/user", "DELETE", { domain: currentDomain, user: u.upn }).then(function (r) {
+        if (!r.ok) { restoreButton(delBtn); $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        var d = state.domainUsers[currentDomain]; if (d) d.users = d.users.filter(function (x) { return x.upn !== u.upn; });
+        renderUsers();
+        delBtn.textContent = t("已删除 ✓", "Deleted ✓");
+        savedAndClose(null, t("已删除 ", "Deleted ") + "<b>" + esc(u.displayName || u.upn) + "</b>" + t(" 的账号；30 天内可在 Microsoft 365 管理中心恢复。", "'s account; restorable for 30 days in the Microsoft 365 admin center."), opts && opts.beside ? "second" : "");
       });
     });
     $("pdev").addEventListener("click", function (ev) {
@@ -1318,7 +1335,7 @@
     function schoolCard(d) {
       var known = doms.indexOf(d) >= 0;
       return '<div class="rschool" data-d="' + esc(d) + '"><div class="rsh"><b>' + esc(dname(d)) + "</b>" + (d !== own ? '<button type="button" class="lnk" data-drop="' + esc(d) + '">' + t("移除", "Remove") + "</button>" : '<span class="muted">' + t("所在学校", "Their school") + "</span>") + (known ? "" : ' <span class="tag warn">' + t("未知域", "Unknown domain") + "</span>") + "</div>" +
-        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("账号安全：查看本校账号，新建账号，删除验证设备，重置密码，同步变动。", "Account security: see the school's accounts, create accounts, remove authenticator devices, reset passwords, sync changes.") + "</small></span></label>" +
+        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("账号安全：查看本校账号，新建和删除账号，删除验证设备，重置密码，同步变动。", "Account security: see the school's accounts, create and delete accounts, remove authenticator devices, reset passwords, sync changes.") + "</small></span></label>" +
         '<label class="sw"><input type="checkbox" data-role="hive" data-d="' + esc(d) + '"' + (st.hive[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.hive[EN ? 1 : 0] + "</b><small>" + t("蜂巢信息：身份、关联账号、备注；不能动设备和密码。", "Hive information: identity, linked accounts, notes; no devices or passwords.") + "</small></span></label></div>";
     }
     function preview() {

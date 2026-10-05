@@ -205,7 +205,7 @@
       <thead><tr><th data-en="Role">角色</th><th data-en="Who">是谁</th><th data-en="Can do">可以做</th></tr></thead>
       <tbody>
         <tr><td data-en="User">普通用户</td><td data-en="Every teacher, parent and student with a school account">每一位有学校账号的老师、家长、学生</td><td data-en="Their own profile, sign-in security, their own Teams">自己的资料、登录与安全、自己的 Teams</td></tr>
-        <tr><td data-en="Domain administrator (IT)">域管理员（IT）</td><td data-en="The school's IT contact, appointed by Hive's system administrator under Roles. No Microsoft 365 administrator role is needed — or wanted: the account stays an ordinary one there.">学校的 IT 负责人，由蜂巢的系统管理员在「角色分配」里指定。<strong>不需要</strong>（也不建议）在 Microsoft 365 里持有任何管理员角色：账号在那边仍是普通账号。</td><td data-en="Everything in this handbook: see the school's accounts, create accounts, remove authenticator devices, reset passwords, sync changes">本手册里的一切：查看本校账号、新建账号、删除验证设备、重置密码、同步变动</td></tr>
+        <tr><td data-en="Domain administrator (IT)">域管理员（IT）</td><td data-en="The school's IT contact, appointed by Hive's system administrator under Roles. No Microsoft 365 administrator role is needed — or wanted: the account stays an ordinary one there.">学校的 IT 负责人，由蜂巢的系统管理员在「角色分配」里指定。<strong>不需要</strong>（也不建议）在 Microsoft 365 里持有任何管理员角色：账号在那边仍是普通账号。</td><td data-en="Everything in this handbook: see the school's accounts, create and delete accounts, remove authenticator devices, reset passwords, sync changes">本手册里的一切：查看本校账号、新建和删除账号、删除验证设备、重置密码、同步变动</td></tr>
         <tr><td data-en="Domain Hive administrator">域蜂巢管理员</td><td data-en="The school's Hive contact (not IT)">学校里负责蜂巢事务的人（非 IT）</td><td data-en="See the school's accounts; set identity, linked accounts and notes; not devices or passwords">查看本校账号；填身份、关联账号、备注；不能动设备和密码</td></tr>
         <tr><td data-en="System administrator">系统管理员</td><td data-en="Hive staff">蜂巢的系统管理员</td><td data-en="Everything, for every school">所有学校的一切</td></tr>
       </tbody>
@@ -246,6 +246,8 @@
     <p data-en="Each device that can approve this person's sign-ins, with its model, authenticator version and the date it was added. <strong>Delete</strong> removes one; at the next sign-in Microsoft asks the person to register a new device. Removing the <em>only</em> device is allowed (a lost phone), but do it when the person is ready with the new phone, otherwise they are locked out until then.">能批准这个人登录的每一台设备，含型号、验证器版本、添加日期。<strong>「删除」</strong>移除一台；对方下次登录时微软会要求重新注册设备。允许删除<em>唯一</em>的设备（手机丢了），但请在对方新手机已经准备好时再删，否则在此之前他登不进去。</p>
     <h3 data-en="Password — reset">密码——重置</h3>
     <p data-en="<strong>Reset</strong> → confirm → Hive sets a 14-character temporary password and shows it <strong>once</strong>, with a Copy button. The person's old password stops working at once; the temporary one stays valid until they sign in with it and set a new password, which Microsoft requires at that first sign-in. Pass it on by phone or in person — not in a group chat or an email to the very mailbox they cannot open. The box disappears when the panel closes and Hive keeps no copy.">点<strong>「重置」</strong>→ 确认 → 蜂巢为该账号设置一个 14 位临时密码，并<strong>只显示一次</strong>，带「复制」按钮。对方的旧密码立即失效；临时密码在对方用它登录并设置新密码之前一直有效（首次登录时微软会强制改密）。请通过电话或当面告知——不要发到群里，也不要发到他正好打不开的那个邮箱。关闭面板后不再显示，蜂巢不保存副本。</p>
+    <h3 data-en="Delete account">删除账号</h3>
+    <p data-en="For an ordinary account of your school (one without a Hive role): <strong>Delete</strong> → type the account name to confirm. Microsoft moves the account, its mailbox and OneDrive to the recycle bin, where Hive's system administrator can restore it for 30 days in the Microsoft 365 admin center; after that it is gone for good. Accounts with a Hive role must have their roles removed first (System › Roles).">对本校的普通账号（没有蜂巢角色的账号）：「<strong>删除</strong>」→ 输入该账号确认。微软把账号、邮箱和 OneDrive 移入回收站，30 天内蜂巢的系统管理员可在 Microsoft 365 管理中心恢复，之后永久删除。带蜂巢角色的账号要先在「角色分配」里移除角色才能删。</p>
     <h3 data-en="Identity / Linked accounts / Note">身份 / 关联账号 / 备注</h3>
     <p data-en="See section 7.">见第 7 节。</p>
     <h3 data-en="Teams groups">Teams 群组</h3>
@@ -344,7 +346,7 @@
     </ul>
     <h2 data-en="What a domain administrator cannot do">域管理员做不了的事</h2>
     <ul>
-      <li data-en="Rename, disable or delete accounts — the school does that in Microsoft 365 (creating them is done here, §5.4).">改名、停用、删除账号——由学校在 Microsoft 365 里做（创建账号在这里做，见 5.4）。</li>
+      <li data-en="Rename or disable accounts — the school does that in Microsoft 365 (creating and deleting them is done here, §4 and §5.4).">改名、停用账号——由学校在 Microsoft 365 里做（创建和删除账号在这里做，见第 4 节和 5.4）。</li>
       <li data-en="Change group or team membership (read-only here).">修改群组或团队成员（这里只读）。</li>
       <li data-en="Touch an account that is itself an administrator in Microsoft 365: Microsoft refuses device removal and password resets for those, whoever asks.">动一个本身是 Microsoft 365 管理员的账号：对这类账号，微软拒绝任何人通过蜂巢删设备或重置密码。</li>
       <li data-en="See or change another school.">查看或更改其他学校。</li>

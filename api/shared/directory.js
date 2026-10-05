@@ -200,6 +200,14 @@ async function addUser(domain, graphUser, extra) {
   return row;
 }
 
+// A deleted account leaves the cache at once.
+async function removeUser(domain, upn) {
+  const doc = await readDomain(domain);
+  const n = doc.users.length;
+  doc.users = doc.users.filter((r) => r.upn !== upn);
+  if (doc.users.length !== n) await store.write(`${domain}.json`, doc);
+}
+
 // ---- tenant-wide change tracking (/users/delta) -----------------------------------
 // A fresh token that describes "now", without enumerating anyone.
 async function initDelta() {
@@ -425,4 +433,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, addUser, verifiedDomains, listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };

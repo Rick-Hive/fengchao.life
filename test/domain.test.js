@@ -48,7 +48,7 @@ const groupsOf = {
   ],
 };
 const calls = [];
-const createdUsers = [], licenseCalls = [];
+const createdUsers = [], licenseCalls = [], deletedIds = [];
 global.fetch = async function (url, opts) {
   const u = new URL(String(url));
   const method = (opts && opts.method) || "GET";
@@ -106,6 +106,7 @@ global.fetch = async function (url, opts) {
     return json(201, u);
   }
   if (method === "POST" && /^\/users\/[^/]+\/assignLicense$/.test(p)) { licenseCalls.push({ id: p.split("/")[2], body: JSON.parse(opts.body) }); return json(200, { id: p.split("/")[2] }); }
+  if (method === "DELETE" && /^\/users\/[^/]+$/.test(p)) { const id = p.split("/")[2]; deletedIds.push(id); const i = users.findIndex((x) => x.id === id); if (i >= 0) users.splice(i, 1); return { ok: true, status: 204, headers: { get: () => null }, text: async () => "" }; }
   if (method === "GET" && /^\/users\/[^/]+$/.test(p)) {
     const upn = p.slice("/users/".length).toLowerCase();
     const hit = users.find((x) => x.userPrincipalName.toLowerCase() === upn);
@@ -459,6 +460,26 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(r.body.displayName, "Ann Lee", "Latin display name = given name + surname");
   assert.deepStrictEqual(licenseCalls[licenseCalls.length - 1].body.addLicenses.map((x) => x.skuId), ["314c4481-f395-4525-be8b-2ec4bb1e9d91", "f30db892-07e9-47e9-837c-80727f46fd3d"], "student plan for a 学生");
   users.splice(users.findIndex((x) => x.userPrincipalName === `li.ming@${DOMAIN}`), 1); users.splice(users.findIndex((x) => x.userPrincipalName === `ann.lee@${DOMAIN}`), 1);
+
+  // 11c. 删除账号: IT deletes an ordinary account of the domain; not oneself, not a role
+  // holder, not another domain; the cache row goes at once.
+  r = await call({ action: "user", method: "DELETE", body: { domain: DOMAIN, user: `elaine@${DOMAIN}` }, user: DOMADMIN, roles: HIVE });
+  assert.strictEqual(r.status, 403, "域蜂巢管理员 does not delete accounts");
+  r = await call({ action: "user", method: "DELETE", body: { domain: DOMAIN, user: DOMADMIN }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "not oneself");
+  r = await call({ action: "user", method: "DELETE", body: { domain: DOMAIN, user: `lei@${DOMAIN}` }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403, "a role holder is refused: " + JSON.stringify(r.body)); assert.strictEqual(r.body.code, "has_roles");
+  r = await call({ action: "user", method: "DELETE", body: { domain: "other.example.edu", user: "x@other.example.edu" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403, "not another domain");
+  r = await call({ action: "user", method: "DELETE", body: { domain: DOMAIN, user: `elaine@${DOMAIN}` }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(r.body.restorableDays, 30);
+  assert.deepStrictEqual(deletedIds, ["u-elaine"], "Graph DELETE issued on the account");
+  r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
+  assert.ok(!r.body.users.some((x) => x.upn === `elaine@${DOMAIN}`), "row gone from the cache");
+  // put Elaine back for the sections that follow
+  users.push({ id: "u-elaine", userPrincipalName: `elaine@${DOMAIN}`, displayName: "Elaine Chen-Wang", accountEnabled: true, userType: "Member", createdDateTime: "2026-01-01T00:00:00Z" });
+  await dir.syncSlice(DOMAIN, "full", { budgetMs: 20000 });
 
   // 12. /api/roles: the 角色分配 page's search reads the directory caches (no Graph),
   // and the entries carry the person's name and school.
