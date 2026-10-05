@@ -779,6 +779,12 @@
     }
     bindSync("usNew", "changes"); bindSync("usFull", "full");
     $("csv").addEventListener("click", exportUsersCsv);
+    $("ukpi").addEventListener("click", function (e) {
+      var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
+      var f = k.getAttribute("data-kf");
+      if (f === "groups") { location.hash = "#/domain/groups"; return; }
+      state.userFilter = f; renderUsers();
+    });
     var nu = $("newUser"); if (nu) nu.addEventListener("click", function () { openNewUserPanel(currentDomain); });
     $("utable").addEventListener("click", function (e) {
       var gb = e.target.closest("button[data-group]");
@@ -812,21 +818,36 @@
     // Entra's signInActivity; when the tenant does not expose it, nobody has one and the
     // tile says so instead of a number.
     var never = d.users.filter(function (u) { return !u.lastSignIn; }).length, anySignIn = d.users.some(function (u) { return u.lastSignIn; });
-    $("ukpi").innerHTML = '<div class="kpi"><div class="l">' + t("账号", "Accounts") + '</div><div class="v">' + n + "</div></div>" +
-      '<div class="kpi"><div class="l">' + t("从未登录", "Never signed in") + '</div><div class="v' + (never && anySignIn ? " warn" : "") + '">' + (anySignIn || !n ? never : "—") + "</div>" + (anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") + "</div>" +
-      '<div class="kpi"><div class="l">' + t("未登记验证器", "No authenticator") + '</div><div class="v' + (noauth ? " bad" : "") + '">' + noauth + "</div></div>" +
-      '<div class="kpi"><div class="l">' + t("身份未填", "No identity") + '</div><div class="v">' + noid + "</div></div>" +
-      '<div class="kpi"><div class="l">' + t("群组", "Groups") + '</div><div class="v">' + (state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)) + "</div></div>";
+    // The tiles are buttons (Rick, 2026-10-05: 「这些数字是否可以点击？显示相应的账户列表」):
+    // each applies its filter to the table below; 群组 goes to the Teams 群组 page.
+    function kpi(f, label, value, cls, sub) { return '<button type="button" class="kpi' + (f && state.userFilter === f ? " on" : "") + '" data-kf="' + f + '"><div class="l">' + label + '</div><div class="v' + (cls || "") + '">' + value + "</div>" + (sub || "") + "</button>"; }
+    $("ukpi").innerHTML = kpi("all", t("账号", "Accounts"), n) +
+      kpi("never", t("从未登录", "Never signed in"), anySignIn || !n ? never : "—", never && anySignIn ? " warn" : "", anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") +
+      kpi("noauth", t("未登记验证器", "No authenticator"), noauth, noauth ? " bad" : "") +
+      kpi("noid", t("身份未填", "No identity"), noid) +
+      kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users));
+    $("ubar").querySelectorAll(".chip[data-f]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-f") === state.userFilter ? "true" : "false"); });
     $("utable").tBodies[0].innerHTML = rows.length ? rows.map(function (u) {
       var auth = u.verified === null ? '<span class="tag">?</span>' : u.verified ? '<span class="tag ok">Yes</span>' : '<span class="tag bad">No</span>';
-      var dev = u.devices.length ? u.devices.map(function (x) { return esc(x.name) + (x.version ? ' <span class="muted">' + esc(x.version) + "</span>" : ""); }).join("<br/>") : (u.otherMethods.length ? '<span class="muted">' + esc(u.otherMethods.map(function (k) { return (KIND[k] || [k, k])[EN ? 1 : 0]; }).join(", ")) + "</span>" : '<span class="muted">—</span>');
+      // One line per account (Rick, 2026-10-05): details that used to take a second line
+      // sit behind an ⓘ (hover, or tap/click to focus) — last sign-in beside the name,
+      // version and date behind the device; a second device becomes "+1".
+      var dev;
+      if (u.devices.length) {
+        var d0 = u.devices[0];
+        var tip = u.devices.map(function (x) { return x.name + (x.version ? " · " + x.version : "") + (x.created ? " · " + t("添加于 ", "added ") + day(x.created) : ""); }).join("\n");
+        dev = '<span class="cell-ell" title="' + esc(d0.name) + '">' + esc(d0.name) + "</span>" + (u.devices.length > 1 ? ' <span class="tag muted">+' + (u.devices.length - 1) + "</span>" : "") + ' <span class="info" tabindex="0" data-tip="' + esc(tip) + '">i</span>';
+      } else {
+        dev = u.otherMethods.length ? '<span class="muted">' + esc(u.otherMethods.map(function (k) { return (KIND[k] || [k, k])[EN ? 1 : 0]; }).join(", ")) + "</span>" : '<span class="muted">—</span>';
+      }
       var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "class" || g.kind === "m365"; });
-      var gl = gs.slice(0, 3).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '">' + hl(g.name, state.userQ) + "</button>"; }).join("") + (gs.length > 3 ? '<span class="tag muted">+' + (gs.length - 3) + "</span>" : "");
+      var gl = gs.slice(0, 2).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + hl(g.name, state.userQ) + "</button>"; }).join("") + (gs.length > 2 ? '<span class="tag muted" title="' + esc(gs.slice(2).map(function (g) { return g.name; }).join(", ")) + '">+' + (gs.length - 2) + "</span>" : "");
+      var signTip = u.lastSignIn ? t("最近登录 ", "Last sign-in ") + when(u.lastSignIn) : t("从未登录", "Never signed in");
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
-        '<td><span class="dn">' + hl(u.displayName, state.userQ) + "</span>" + (u.lastSignIn ? '<span class="sub">' + t("最近登录 ", "Last sign-in ") + esc(day(u.lastSignIn)) + "</span>" : "") + "</td>" +
-        "<td>" + auth + "</td><td>" + dev + '</td><td><div class="tags">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
-        "<td>" + (u.identity ? '<span class="tag accent">' + esc(u.identity) + "</span>" : '<span class="muted">—</span>') + "</td>" +
-        "<td>" + (u.linked.length ? u.linked.map(function (l) { return hl(l, state.userQ); }).join("<br/>") : '<span class="muted">—</span>') + "</td></tr>";
+        '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (u.lastSignIn ? "" : " never") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
+        '<td class="nowrap">' + auth + '</td><td class="nowrap devcell">' + dev + '</td><td><div class="tags nowrap">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
+        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(u.identity) + "</span>" : '<span class="muted">—</span>') + "</td>" +
+        '<td class="nowrap">' + (u.linked.length ? '<span class="cell-ell" title="' + esc(u.linked.join(", ")) + '">' + u.linked.map(function (l) { return hl(l, state.userQ); }).join(", ") + "</span>" : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="empty">' + t("没有匹配的账号。", "No matching accounts.") + "</div></td></tr>";
     $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号 · ", rows.length + " of " + n + " accounts · ") + syncLine(d.sync) + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
   }
@@ -1451,6 +1472,42 @@
     }
     viewAccount();
   }
+  // Column widths can be dragged (Rick, 2026-10-05: 「这些栏，可否左右拖动？其它类似页面也是」):
+  // every table.data gets a handle at the right edge of each header cell; the widths
+  // are kept per table in localStorage; double-click a handle to reset that column.
+  function colResize(table) {
+    if (!table || table.getAttribute("data-rz")) return;
+    table.setAttribute("data-rz", "1");
+    var key = "fc-cols-" + (table.id || "t"), saved = {};
+    try { saved = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) { saved = {}; }
+    var ths = Array.prototype.slice.call(table.querySelectorAll("thead th"));
+    if (!ths.length) return;
+    // With automatic layout the browser shares the width out itself, so a dragged width
+    // would be ignored: the first drag freezes every column at its current width
+    // (table-layout: fixed), after which each one moves on its own.
+    function freeze() {
+      if (table.style.tableLayout === "fixed") return;
+      ths.forEach(function (th, i) { if (!saved[i]) saved[i] = Math.round(th.getBoundingClientRect().width); th.style.width = saved[i] + "px"; });
+      table.style.tableLayout = "fixed"; table.style.minWidth = "0"; fit();
+    }
+    function fit() { var sum = 0; ths.forEach(function (th, i) { sum += saved[i] || th.getBoundingClientRect().width; }); table.style.width = Math.max(sum, table.parentElement ? table.parentElement.clientWidth : 0) + "px"; }
+    function reset() { saved = {}; ths.forEach(function (th) { th.style.width = ""; }); table.style.tableLayout = ""; table.style.width = ""; table.style.minWidth = ""; try { localStorage.removeItem(key); } catch (err) {} }
+    if (Object.keys(saved).length === ths.length) { ths.forEach(function (th, i) { th.style.width = saved[i] + "px"; }); table.style.tableLayout = "fixed"; table.style.minWidth = "0"; fit(); }
+    ths.forEach(function (th, i) {
+      var h = document.createElement("span"); h.className = "rz"; h.setAttribute("aria-hidden", "true"); h.title = t("拖动调整列宽；双击恢复默认", "Drag to resize; double-click to reset"); th.appendChild(h);
+      h.addEventListener("pointerdown", function (e) {
+        e.preventDefault(); e.stopPropagation(); freeze();
+        var startX = e.clientX, startW = saved[i];
+        table.classList.add("resizing");
+        function move(ev) { var w = Math.max(60, Math.round(startW + ev.clientX - startX)); th.style.width = w + "px"; saved[i] = w; fit(); }
+        function up() { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); table.classList.remove("resizing"); try { localStorage.setItem(key, JSON.stringify(saved)); } catch (err) {} }
+        document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+      });
+      h.addEventListener("dblclick", function (e) { e.preventDefault(); e.stopPropagation(); reset(); });
+      h.addEventListener("click", function (e) { e.stopPropagation(); });
+    });
+  }
+  new MutationObserver(function () { document.querySelectorAll("table.data").forEach(colResize); }).observe($("content"), { childList: true, subtree: true });
   window.addEventListener("hashchange", route);
 
   // Roles granted while this page is open (Rick, 2026-10-03: a test account was made an
