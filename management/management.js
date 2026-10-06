@@ -101,7 +101,7 @@
       groups.push({ title: domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), items: [
         { hash: "#/domain/users", icon: "users", zh: "用户", en: "Users" },
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 群组", en: "Teams groups" },
-        { href: "/help/domain-admin.html", icon: "book", zh: "操作手册", en: "Handbook" },
+        { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },
       ] });
     }
     if (isAdmin()) {
@@ -1208,6 +1208,63 @@
       return '<span class="tag role-' + kind + '">' + esc(label) + "</span>";
     }).join("");
   }
+  // ---- 操作手册 ---------------------------------------------------------------------
+  // The domain administrator handbook used to open as its own page (/help/domain-admin.html)
+  // with the site header and a 「打开管理中心 →」 button at the end. Rick, 2026-10-06: 「don't
+  // need to go back… just display the content in the page like user and group management」.
+  // So the handbook is now a view: the page is fetched, its article is lifted out and shown
+  // inside the content pane with the sidebar in place. The article keeps its own stylesheet
+  // by living in a shadow root (the handbook's CSS was written for a standalone page and
+  // would collide with the dashboard's); its `:root` variables become `:host`. The
+  // standalone page still exists for anyone who has the address.
+  var handbookHtml = null;
+  function viewHandbook() {
+    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("操作手册", "Handbook"), "", t("域管理员在管理中心能做什么、怎么做、要注意什么。", "What a domain administrator can do in the Management Center, how, and what to watch."));
+    $("content").innerHTML = '<div class="handbook" id="handbook"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
+    var p = handbookHtml ? Promise.resolve(handbookHtml) : fetch("/help/domain-admin.html", { credentials: "same-origin" }).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }).then(function (h) { handbookHtml = h; return h; });
+    p.then(function (html) {
+      var host = $("handbook"); if (!host) return;
+      var doc = new DOMParser().parseFromString(html, "text/html");
+      var wrap = doc.querySelector(".wrap"); if (!wrap) throw new Error("no article");
+      // The parts that belong to the standalone page, not to a view: the masthead pill, the
+      // page title (the title row has it), the 「打开管理中心」 button.
+      ["mast-top", "cta"].forEach(function (c) { Array.prototype.forEach.call(wrap.querySelectorAll("." + c), function (el) { el.remove(); }); });
+      var h1 = wrap.querySelector("h1"); if (h1) h1.remove();
+      if (EN) {
+        Array.prototype.forEach.call(wrap.querySelectorAll("[data-en]"), function (el) { el.innerHTML = el.getAttribute("data-en"); });
+        Array.prototype.forEach.call(wrap.querySelectorAll("[data-en-label]"), function (el) { el.setAttribute("aria-label", el.getAttribute("data-en-label")); });
+      }
+      // Phone layout of the data tables labels each cell by its column (the page's own script did this).
+      Array.prototype.forEach.call(wrap.querySelectorAll("table.grid"), function (tb) {
+        var hs = Array.prototype.map.call(tb.querySelectorAll("thead th"), function (th) { return th.textContent; });
+        Array.prototype.forEach.call(tb.querySelectorAll("tbody tr"), function (tr) { Array.prototype.forEach.call(tr.children, function (c, i) { if (hs[i]) c.setAttribute("data-l", hs[i]); }); });
+      });
+      // Links to the other help pages leave the dashboard, so they open in a new tab.
+      Array.prototype.forEach.call(wrap.querySelectorAll("a[href]"), function (a) {
+        var href = a.getAttribute("href") || "";
+        if (/^\//.test(href) && !/^\/management\//.test(href)) { a.setAttribute("target", "_blank"); a.setAttribute("rel", "noopener"); }
+      });
+      var css = Array.prototype.map.call(doc.querySelectorAll("style"), function (s) { return s.textContent; }).join("\n")
+        .replace(/:root\b/g, ":host");
+      css += "\n:host{display:block;color:var(--ink)} .wrap{max-width:860px;margin:0;padding:0 0 24px} h1,h2,h3{font-family:inherit} h2.cat:first-of-type{margin-top:18px}";
+      var root = host.shadowRoot || host.attachShadow({ mode: "open" });
+      root.innerHTML = "";
+      var st = document.createElement("style"); st.textContent = css; root.appendChild(st);
+      root.appendChild(wrap);
+      // In-page links (the contents list, cross-references) scroll within the pane; the
+      // address stays on #/domain/handbook so the router is not involved. A folded section
+      // opens when it is the target.
+      root.addEventListener("click", function (e) {
+        var a = e.target.closest && e.target.closest('a[href^="#"]'); if (!a) return;
+        var id = a.getAttribute("href").slice(1), target = id && root.getElementById(id); if (!target) return;
+        e.preventDefault();
+        if (target.tagName === "DETAILS") target.open = true;
+        target.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
+    }).catch(function (err) {
+      var host = $("handbook"); if (host) host.innerHTML = '<div class="card"><h2>' + t("无法载入手册", "Could not load the handbook") + '</h2><p class="sub">' + esc(err.message) + '</p><div class="actions"><a class="btn secondary" href="/help/domain-admin.html" target="_blank" rel="noopener">' + t("在新窗口打开 ↗", "Open in a new window ↗") + "</a></div></div>";
+    });
+  }
   function viewRoles() {
     setTitle(t("系统", "System"), t("角色分配", "Roles"), "", t("搜索任何学校的任何账号，赋予或收回角色。普通用户无需分配；改动即时生效。", "Search any account of any school and grant or withdraw roles. Ordinary users need none; changes take effect at once."));
     var doms = (domainsInfo && domainsInfo.domains) || [];
@@ -1486,7 +1543,7 @@
     if (h.indexOf("#/domain") === 0) {
       if (!domainsInfo || !domainsInfo.domains.length) { location.hash = "#/account"; return; }
       if (!currentDomain) currentDomain = (domainsInfo.domains.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || domainsInfo.domains[0]).domain;
-      return h.indexOf("#/domain/groups") === 0 ? viewGroups() : viewUsers();
+      return h.indexOf("#/domain/groups") === 0 ? viewGroups() : h.indexOf("#/domain/handbook") === 0 ? viewHandbook() : viewUsers();
     }
     if (h.indexOf("#/system") === 0) {
       if (!isAdmin()) { location.hash = "#/account"; return; }
