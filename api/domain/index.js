@@ -162,6 +162,50 @@ async function handler(context, req) {
       return;
     }
 
+    // Fill the missing side of every group name of this domain by machine translation
+    // (sysadmin). A name typed by hand is never overwritten; a name already in both
+    // scripts ("Hive/蜂巢") needs nothing — the page splits it on the slash.
+    if (method === "POST" && action === "groupnames-fill") {
+      if (!can(roles, "admin")) return fail(context, 403, "group names are filled by the system administrator", { code: "forbidden" });
+      const translate = require("../shared/translate");
+      if (!translate.configured()) return fail(context, 503, "no_translator", { message: "AZURE_TRANSLATOR_KEY / AZURE_TRANSLATOR_REGION app settings are not configured" });
+      const [doc, names] = await Promise.all([dir.readDomain(domain), people.readGroupNames()]);
+      const groups = dir.groupsOf(doc.users);
+      const todo = [];
+      for (const g of groups) {
+        const cur = names.groups[g.id] || {};
+        if (cur.zh && cur.en) continue;
+        const parts = /^(.+?)\s*[\/／]\s*(.+)$/.exec(g.name || "");
+        if (parts && translate.sideOf(parts[1]) && translate.sideOf(parts[2]) && translate.sideOf(parts[1]) !== translate.sideOf(parts[2])) continue; // bilingual already
+        const side = translate.sideOf(g.name);
+        if (!side) continue;
+        if (side === "zh" && !cur.en) todo.push({ g, to: "en", from: "zh" });
+        else if (side === "en" && !cur.zh) todo.push({ g, to: "zh", from: "en" });
+      }
+      // Two directions, one call each.
+      const toEn = todo.filter((x) => x.to === "en"), toZh = todo.filter((x) => x.to === "zh");
+      const [enTexts, zhTexts] = await Promise.all([
+        toEn.length ? translate.translate(toEn.map((x) => x.g.name), "en", "zh") : [],
+        toZh.length ? translate.translate(toZh.map((x) => x.g.name), "zh", "en") : [],
+      ]);
+      const got = new Map();
+      toEn.forEach((x, i) => got.set(x.g.id, enTexts[i]));
+      toZh.forEach((x, i) => got.set(x.g.id, zhTexts[i]));
+      const texts = todo.map((x) => got.get(x.g.id) || "");
+      const filled = [];
+      todo.forEach((x, i) => {
+        const text = String(texts[i] || "").trim();
+        if (!text) return;
+        const cur = names.groups[x.g.id] || {};
+        names.groups[x.g.id] = { zh: x.to === "zh" ? text : cur.zh || x.g.name, en: x.to === "en" ? text : cur.en || x.g.name, by: actor, at: new Date().toISOString(), auto: true };
+        filled.push({ id: x.g.id, name: x.g.name, zh: names.groups[x.g.id].zh, en: names.groups[x.g.id].en });
+      });
+      if (filled.length) await people.writeGroupNames(names);
+      await audit(context, { actor, action: "group.names.fill", target: domain, filled: filled.length, result: "ok" });
+      context.res = { status: 200, body: { ok: true, domain, groups: groups.length, filled } };
+      return;
+    }
+
     // Both-language names for a Teams group, shown in the management centre only
     // (域蜂巢管理员 of the domain, Hive staff); the tenant's own name is not changed.
     if (method === "PUT" && action === "groupname") {

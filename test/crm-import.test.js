@@ -97,6 +97,25 @@ assert.strictEqual(oe.items[0].nameEn, "Old course");
 assert.strictEqual(oe.items[0].nameZh, "Old course", "no Chinese name known: the English one stands in rather than a blank");
 assert.strictEqual(oe.track.nameEn, "Domestic track");
 
+// The format the Power Automate flow actually posts today (Rick's screenshot of the
+// CEFF channel, 2026-10-07): labels differ from the templates, the time carries
+// "（北京时间）", Teams account is "（未填写）".
+const live = { id: "live1", createdDateTime: "2026-09-29T14:48:00Z", body: { contentType: "html", content:
+  "<p>您收到一份蜂巢🐝新订单 FC-20260929-CAP-001：<br>· 邮箱： info@sciencebug.net<br>· Teams账号：（未填写）<br>· 沟通语言：中文<br>· 订单提交时间：2026/09/29 22:25（北京时间）<br>· 教育路径：小学·初中课程<br>· 课程提供方：Classical Academy Press<br>· 课程明细：（共 2 门）<br>• TT-CLS-114 古典教学法教数学 — ¥648<br>• TT-CLS-111 在家自主学习 — ¥358<br>合计：¥1,006</p>" } };
+const pl = T.parseMessage(live);
+assert.strictEqual(pl.orderId, "FC-20260929-CAP-001");
+assert.strictEqual(pl.email, "info@sciencebug.net");
+assert.strictEqual(pl.teamsAccount, "", "（未填写）is no account");
+assert.strictEqual(pl.submittedAt, "2026-09-29T14:25:00.000Z", "22:25 Beijing → 14:25 UTC");
+assert.strictEqual(pl.track, "小学·初中课程");
+assert.strictEqual(pl.schools, "Classical Academy Press");
+assert.deepStrictEqual(pl.items.map((i) => [i.code, i.price]), [["TT-CLS-114", 648], ["TT-CLS-111", 358]]);
+assert.strictEqual(pl.total, 1006);
+const ol = T.parseExport([live], snapshot).orders[0];
+assert.strictEqual(ol.items[0].schoolName, "Classical Academy Press", "a course the snapshot lacks keeps the provider line as its hive");
+assert.strictEqual(ol.totalPrice, 1006);
+assert.deepStrictEqual(ol.track, { trackId: 7, nameZh: "小学·初中课程", nameEn: "K-G8 Courses" }, "the K–G8 catalogue is track 7, bilingual");
+
 // Date parsing: both of formatWhen's shapes, and the fallback.
 assert.strictEqual(T.parseWhen("2026/08/31 14:02"), "2026-08-31T06:02:00.000Z");
 assert.strictEqual(T.parseWhen("31/08/2026, 14:02"), "2026-08-31T06:02:00.000Z");

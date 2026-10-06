@@ -320,7 +320,16 @@
   function vl(v) { return EN ? (VOCAB_EN[v] || v) : v; }
   // A Teams group's name in the page language (groupnames.json, set in the management centre;
   // the tenant's own name is the fallback and is never changed — Rick, 2026-10-06).
-  function gname(g) { if (!g) return ""; return (EN ? (g.nameEn || g.nameZh) : (g.nameZh || g.nameEn)) || g.name || ""; }
+  function gname(g) {
+    if (!g) return "";
+    var stored = EN ? (g.nameEn || g.nameZh) : (g.nameZh || g.nameEn);
+    if (stored) return stored;
+    // "Hive/蜂巢", "Equip 教育社区 / Equip Community": a name that already carries both
+    // scripts around a slash shows the side of the page language.
+    var m = /^(.+?)\s*[\/／]\s*(.+)$/.exec(g.name || "");
+    if (m) { var a = /[\u3400-\u9fff]/.test(m[1]), b = /[\u3400-\u9fff]/.test(m[2]); if (a !== b) return EN ? (a ? m[2] : m[1]) : (a ? m[1] : m[2]); }
+    return g.name || "";
+  }
   var extraDraft = null; // the form's working copy, so adding a child does not lose typed values
   function readExtraForm() {
     var d = { roles: [], rolesOther: ($("xRolesOther") || {}).value || "", topics: [], topicsOther: ($("xTopicsOther") || {}).value || "", otherAccounts: [], children: [] };
@@ -1156,7 +1165,8 @@
   }
 
   function viewGroups() {
-    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("Teams 群组", "Teams groups"), syncButtons("gs"));
+    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("Teams 群组", "Teams groups"),
+      (isAdmin() ? '<button class="btn secondary sm" id="gFill">' + t("自动补全中/英名称", "Auto-fill zh/en names") + "</button> " : "") + syncButtons("gs"));
     var ds = domainsInfo.domains || [];
     $("content").innerHTML =
       '<div class="toolbar"><span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="gq" placeholder="' + t("搜索群组…", "Search groups…") + '" /></div></div>' +
@@ -1190,6 +1200,26 @@
       b.textContent = open ? t("查看成员", "View members") : t("收起", "Hide");
     });
     ds.forEach(function (d) { var det = $("gtree").querySelector('details[data-domain="' + d.domain + '"]'); if (det && det.open) ensureGroups(d.domain); });
+    var gf = $("gFill");
+    if (gf) gf.addEventListener("click", function () {
+      // Every expanded school in turn; names typed by hand are kept, bilingual names need nothing.
+      var open = ds.filter(function (d) { var det = $("gtree").querySelector('details[data-domain="' + d.domain + '"]'); return det && det.open; });
+      if (!open.length) { flash(t("先展开要补全的学校。", "Expand the schools to fill first.")); return; }
+      savingButton(gf, t("翻译中…", "Translating…"));
+      var total = 0, failed = "";
+      (function next(i) {
+        if (i >= open.length) {
+          restoreButton(gf);
+          if (failed) flash(failed, 12000); else flashOk(t("已补全 ", "Filled ") + total + t(" 个群组名称。", " group names."));
+          open.forEach(function (d) { ensureGroups(d.domain, true); });
+          return;
+        }
+        post("domain/groupnames-fill", "POST", { domain: open[i].domain }).then(function (r) {
+          if (!r.ok) { failed = r.body && r.body.error === "no_translator" ? t("还没有配置翻译服务：请在 Static Web App 的应用设置里加上 AZURE_TRANSLATOR_KEY 和 AZURE_TRANSLATOR_REGION（Azure AI Translator，免费层 F0 即可）。", "No translation service yet: add AZURE_TRANSLATOR_KEY and AZURE_TRANSLATOR_REGION (an Azure AI Translator resource; the free F0 tier is enough) to the Static Web App's settings.") : errText(r); next(open.length); return; }
+          total += (r.body.filled || []).length; next(i + 1);
+        });
+      })(0);
+    });
   }
   function ensureGroups(domain, force) {
     var saved = currentDomain; currentDomain = domain;
@@ -1590,6 +1620,20 @@
   function side(v) { var parts = String(v || "").split(" / "); return parts.length === 2 ? (EN ? parts[1] : parts[0]) : String(v || ""); }
   function orderHives(o) { return (o.hives || []).map(function (h) { return h.abbr || h.name || h.key; }).filter(Boolean).join(", ") || (o.items && o.items[0] && (o.items[0].schoolAbbr || o.items[0].schoolName)) || "—"; }
   function orderCourses(o) { return (o.items || []).map(function (it) { return EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn); }); }
+  // The app may not read the team's channels yet: what to do, once (resource-specific consent).
+  function teamsSetupPanel(b) {
+    panelOpen('<div class="ph"><h3>' + t("让管理中心读取 Teams 订单", "Let the management centre read Teams orders") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+      '<p class="msg">' + t("Hive 的应用身份还不能读取团队「" + (b.team || "Hive Orders") + "」的频道消息。微软把频道消息的应用权限列为受保护接口；绕开申请的办法是给这个团队装一个只申请「读取本团队频道消息」权限的 Teams 应用（资源级许可），只对这一个团队有效，对 Teams 不做任何写入。",
+        "Hive's app identity cannot read the channel messages of team \u201c" + (b.team || "Hive Orders") + "\u201d yet. Microsoft gates that application permission; the way round is a Teams app that asks only to read this team's channel messages (resource-specific consent), installed in this one team — it reads, never writes.") + "</p>" +
+      "<ol>" +
+        "<li>" + t("下载应用包：", "Download the app package: ") + '<a href="/api/crm/teams-app" download="hive-crm-teams-app.zip">hive-crm-teams-app.zip</a></li>' +
+        "<li>" + t("Teams 管理中心 › Teams 应用 › 设置策略：确认允许上传自定义应用（一次性）。", "Teams admin center › Teams apps › Setup policies: make sure custom app upload is allowed (once).") + "</li>" +
+        "<li>" + t("在 Teams 里：应用 › 管理你的应用 › 上传应用 › 上传自定义应用，选这个 zip。", "In Teams: Apps › Manage your apps › Upload an app › Upload a custom app, pick the zip.") + "</li>" +
+        "<li>" + t("把它添加到团队「" + (b.team || "Hive Orders") + "」（添加到团队，而不是个人）。团队所有者同意权限即可。", "Add it to the team \u201c" + (b.team || "Hive Orders") + "\u201d (to the team, not to yourself); the team owner's consent grants the permission.") + "</li>" +
+        "<li>" + t("回到这里再点「从 Teams 读取订单」。", "Come back and click \u201cRead orders from Teams\u201d again.") + "</li>" +
+      "</ol>" +
+      '<p class="hint">' + t("备选：用 Export-TeamsOrders.ps1 以自己的账号导出频道，再点「导入 Teams 导出…」。", "Alternative: export the channels with Export-TeamsOrders.ps1 under your own sign-in, then \u201cImport Teams export…\u201d.") + "</p></div>");
+  }
   // 订单 has two pages shown one at a time (Rick, 2026-10-06): 课程订单 — the website's
   // course orders — and 教材订单 — the Equip textbook orders read from Airtable.
   function viewOrders() {
@@ -1600,7 +1644,7 @@
     if (equipTab) viewEquipOrders(); else viewCourseOrders();
   }
   function viewCourseOrders() {
-    setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>" + (isAdmin() ? ' <button class="btn secondary sm" id="oImport">' + t("导入 Teams 导出…", "Import Teams export…") + '</button><input type="file" id="oImportFile" accept=".json,application/json" hidden />' : ""),
+    setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>" + (isAdmin() ? ' <button class="btn sm" id="oTeams">' + t("从 Teams 读取订单", "Read orders from Teams") + '</button> <button class="btn secondary sm" id="oImport">' + t("导入 Teams 导出…", "Import Teams export…") + '</button><input type="file" id="oImportFile" accept=".json,application/json" hidden />' : ""),
       t("网站下单的课程订单，下单即记录；状态由订单经理维护，每一步都留有记录。超期未推进的单会标出。", "Course orders from the website, recorded at checkout; the order manager maintains the status and every step is kept. Orders that stall are flagged."));
     $("opsBody").innerHTML =
       '<div class="toolbar" id="obar">' + ORDER_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (ordersState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
@@ -1618,6 +1662,29 @@
     $("oq").addEventListener("input", debounce(function () { ordersState.q = $("oq").value.trim(); renderOrders(); }, 120));
     $("oReload").addEventListener("click", function () { loadOrders(true).then(renderOrders); });
     $("oCsv").addEventListener("click", exportOrdersCsv);
+    var tb0 = $("oTeams");
+    if (tb0) tb0.addEventListener("click", function () {
+      savingButton(tb0, t("读取中…", "Reading…"));
+      post("crm/import-teams", "POST", { dryRun: true }).then(function (r) {
+        restoreButton(tb0);
+        if (!r.ok) {
+          if (r.body && r.body.error === "teams_forbidden") { teamsSetupPanel(r.body); return; }
+          if (r.body && r.body.error === "no_team") { flash(t("租户里没有叫 ", "No team named ") + esc(r.body.team) + t(" 的团队。", " in the tenant."), 8000); return; }
+          flash(esc(errText(r)), 8000); return;
+        }
+        var b = r.body;
+        var msg = t("团队 ", "Team ") + b.team + t("：读到 ", ": read ") + b.messages + t(" 条消息，解析出 ", " messages, parsed ") + b.parsed + t(" 单：新增 ", " orders: ") + b.created.length + t("，已存在 ", " new, ") + b.existing.length + t("，不是订单的消息 ", " already stored, ") + b.skipped.length + t(" 条。", " messages not orders.");
+        if (!b.created.length) { flash(msg, 9000); return; }
+        if (!window.confirm(msg + "\n\n" + t("写入这 " + b.created.length + " 单？", "Store these " + b.created.length + " orders?"))) return;
+        savingButton(tb0, t("写入中…", "Storing…"));
+        post("crm/import-teams", "POST", {}).then(function (r2) {
+          restoreButton(tb0);
+          if (!r2.ok) { flash(esc(errText(r2)), 8000); return; }
+          flashOk(t("已从 Teams 导入 ", "Imported from Teams: ") + r2.body.created.length + t(" 单。", " orders."));
+          loadOrders(true).then(renderOrders);
+        });
+      });
+    });
     var imp = $("oImport");
     if (imp) {
       imp.addEventListener("click", function () { $("oImportFile").click(); });

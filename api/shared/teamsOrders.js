@@ -57,12 +57,14 @@ function parseMessage(msg) {
   }
   return {
     orderId: idm[0],
-    email: (field(text, ["邮箱", "Email"]).match(/\S+@\S+/) || [""])[0].toLowerCase(),
-    teamsAccount: (field(text, ["Teams"]).match(/\S+@\S+/) || [""])[0].toLowerCase(),
+    // Labels as the flow posts them today ("Teams账号", "订单提交时间", "课程提供方" — Rick's
+    // screenshot, 2026-10-07) and as the templates in messages.js render them.
+    email: (field(text, ["邮箱", "E-?mail"]).match(/\S+@\S+/) || [""])[0].toLowerCase(),
+    teamsAccount: (field(text, ["Teams\\s*账号", "Teams\\s*account", "Teams"]).match(/\S+@\S+/) || [""])[0].toLowerCase(),
     lang,
-    submittedAt: parseWhen(field(text, ["提交时间", "Submitted"]), msg && msg.createdDateTime),
+    submittedAt: parseWhen(field(text, ["(?:订单)?提交时间", "Submitted"]), msg && msg.createdDateTime),
     track: field(text, ["教育路径", "Track"]),
-    schools: field(text, ["所属机构", "Institution"]),
+    schools: field(text, ["所属机构", "课程提供方", "Institution", "Provider", "Deliverer"]),
     items,
     total: money(field(text, ["合计", "Total"])),
     messageId: (msg && msg.id) || "",
@@ -125,7 +127,9 @@ function toRecords(parsed, snapshot) {
       h.itemCount++; h.subtotal += it.price || 0;
     }
     const total = items.reduce((a, it) => a + (it.price || 0), 0);
-    const tr = tracks.find((t) => t && (t.nameZh === first.track || t.nameEn === first.track || t.name === first.track)) || null;
+    // trackId 7 is the K–G8 catalogue, named in api/order rather than in the snapshot.
+    const K8 = { trackId: 7, nameZh: "小学·初中课程", nameEn: "K-G8 Courses" };
+    const tr = (first.track === K8.nameZh || first.track === K8.nameEn) ? K8 : tracks.find((t) => t && (t.nameZh === first.track || t.nameEn === first.track || t.name === first.track)) || null;
     const submittedAt = first.submittedAt || first.messageAt || new Date().toISOString();
     orders.push({
       orderId, source: "hive", submittedAt, email: first.email, teamsAccount: first.teamsAccount, lang: first.lang,

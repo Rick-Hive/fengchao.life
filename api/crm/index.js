@@ -16,6 +16,11 @@
 //   POST   crm/import {messages|value:[chatMessage…], dryRun?}
 //                                     recover course orders from a "Hive Orders" Teams channel export
 //                                     (sysadmin): parsed, enriched from the snapshot, stored unless they exist
+//   POST   crm/import-teams {team?, dryRun?}
+//                                     the same, but reading the team's channels with the app identity
+//                                     (needs the Hive CRM Teams app installed in that team — see teams-app);
+//                                     403 teams_forbidden until then
+//   GET    crm/teams-app              the Teams app package (zip) that grants that read, for upload in Teams
 //
 // Access is the matrix in ../shared/crm.js: orders need at least `masked`
 // to read and `rw` to change. Masking happens here, before the reply.
@@ -23,6 +28,7 @@ const { userRoles, normUser, isAdmin, staffFunctions } = require("../shared/role
 const crm = require("../shared/crm");
 const equip = require("../shared/equip");
 const teamsOrders = require("../shared/teamsOrders");
+const teamsFetch = require("../shared/teamsFetch");
 const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
@@ -105,12 +111,10 @@ async function handler(context, req) {
     return;
   }
 
-  if (method === "POST" && action === "import") {
-    if (!isAdmin(roles)) { fail(context, 403, "no_access"); return; }
-    const body = req.body && typeof req.body === "object" ? req.body : {};
+  // Parsed messages → stored orders (shared by the two import routes).
+  async function importMessages(input, dry, source) {
     const snapshot = await readSnapshot();
-    const { orders, skipped, messages } = teamsOrders.parseExport(body, snapshot);
-    const dry = body.dryRun === true;
+    const { orders, skipped, messages } = teamsOrders.parseExport(input, snapshot);
     const created = [], existing = [];
     for (const o of orders) {
       if (!crm.ID_RE.test(o.orderId)) { skipped.push({ id: o.orderId, preview: "order id of an unknown shape" }); continue; }
@@ -118,8 +122,38 @@ async function handler(context, req) {
       if (!dry) await crm.writeOrder(o);
       created.push(o.orderId);
     }
-    if (!dry) await audit(context, { action: "crm.orders.import", by: normUser(user), messages, created: created.length, existing: existing.length, skipped: skipped.length });
-    ok(context, { ok: true, dryRun: dry, messages, parsed: orders.length, created, existing, skipped, preview: dry ? orders.slice(0, 50) : undefined });
+    if (!dry) await audit(context, { action: "crm.orders.import", by: normUser(user), source, messages, created: created.length, existing: existing.length, skipped: skipped.length });
+    return { ok: true, dryRun: dry, messages, parsed: orders.length, created, existing, skipped, preview: dry ? orders.slice(0, 50) : undefined };
+  }
+
+  if (method === "POST" && action === "import") {
+    if (!isAdmin(roles)) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    ok(context, await importMessages(body, body.dryRun === true, "file"));
+    return;
+  }
+
+  if (method === "POST" && action === "import-teams") {
+    if (!isAdmin(roles)) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const teamName = String(body.team || process.env.HIVE_ORDERS_TEAM || "Hive Orders").slice(0, 80);
+    let fetched;
+    try {
+      fetched = await teamsFetch.fetchChannelMessages(teamName);
+    } catch (err) {
+      if (err.code === "teams_forbidden") { fail(context, 403, "teams_forbidden", { team: err.team, channel: err.channel, message: err.message }); return; }
+      if (err.code === "no_team") { fail(context, 404, "no_team", { team: teamName }); return; }
+      throw err;
+    }
+    const result = await importMessages(fetched.messages, body.dryRun === true, "teams:" + fetched.team.name);
+    ok(context, Object.assign(result, { team: fetched.team.name, channels: fetched.channels }));
+    return;
+  }
+
+  if (method === "GET" && action === "teams-app") {
+    if (!isAdmin(roles)) { fail(context, 403, "no_access"); return; }
+    const zipBuf = teamsFetch.teamsApp();
+    context.res = { status: 200, headers: { "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="hive-crm-teams-app.zip"', "Cache-Control": "no-store" }, body: zipBuf, isRaw: true };
     return;
   }
 
