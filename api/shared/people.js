@@ -119,6 +119,55 @@ function withGroupNames(rows, doc) {
   });
 }
 
+// The same, translating as it goes (Rick, 2026-10-07: 「adding active translation after
+// teams group name before rendering it」): a group whose name is in one script and has
+// no stored other side is translated once, here, and the result kept in
+// groupnames.json so the next read costs nothing. A name typed by hand wins; a name
+// already in both scripts around a slash needs nothing; without a translator key the
+// rows come back as withGroupNames() gives them. Translation trouble never fails
+// the read — the untranslated name is shown instead.
+const CJK_RE = /[\u3400-\u9fff]/;
+function sideOfName(t) { t = String(t || ""); return CJK_RE.test(t) ? "zh" : /[A-Za-z]/.test(t) ? "en" : ""; }
+function bilingualSlash(name) {
+  const m = /^(.+?)\s*[\/／]\s*(.+)$/.exec(String(name || ""));
+  if (!m) return null;
+  const a = sideOfName(m[1]), b = sideOfName(m[2]);
+  if (!a || !b || a === b) return null;
+  return a === "zh" ? { zh: m[1].trim(), en: m[2].trim() } : { zh: m[2].trim(), en: m[1].trim() };
+}
+async function translateGroupNames(rows, doc, actor) {
+  let translate;
+  try { translate = require("./translate"); } catch { return withGroupNames(rows, doc); }
+  if (!translate.configured()) return withGroupNames(rows, doc);
+  const g = (doc && doc.groups) || {};
+  const todo = new Map(); // id → {name, to, from}
+  for (const r of rows || []) {
+    if (!r || !r.id || !r.name) continue;
+    const cur = g[r.id] || {};
+    if (cur.zh && cur.en) continue;
+    if (bilingualSlash(r.name)) continue;
+    const side = sideOfName(r.name);
+    if (side === "zh" && !cur.en) todo.set(r.id, { name: r.name, to: "en", from: "zh" });
+    else if (side === "en" && !cur.zh) todo.set(r.id, { name: r.name, to: "zh", from: "en" });
+  }
+  if (todo.size) {
+    try {
+      const list = Array.from(todo.entries());
+      const toEn = list.filter(([, x]) => x.to === "en"), toZh = list.filter(([, x]) => x.to === "zh");
+      const [en, zh] = await Promise.all([
+        toEn.length ? translate.translate(toEn.map(([, x]) => x.name), "en", "zh") : [],
+        toZh.length ? translate.translate(toZh.map(([, x]) => x.name), "zh", "en") : [],
+      ]);
+      const at = new Date().toISOString();
+      toEn.forEach(([id, x], i) => { if (en[i]) g[id] = { zh: (g[id] && g[id].zh) || x.name, en: en[i], by: actor || "translator", at, auto: true }; });
+      toZh.forEach(([id, x], i) => { if (zh[i]) g[id] = { zh: zh[i], en: (g[id] && g[id].en) || x.name, by: actor || "translator", at, auto: true }; });
+      doc.groups = g;
+      await writeGroupNames(doc);
+    } catch { /* shown untranslated this time */ }
+  }
+  return withGroupNames(rows, doc);
+}
+
 // Identity for one account: Hive's record first, then Entra's department.
 function identityOf(record, entraUser) {
   if (record && IDENTITIES.includes(record.identity)) return record.identity;
@@ -213,4 +262,4 @@ function linkFamily(doc, parent, childAccounts, prev) {
   }
 }
 
-module.exports = { readGroupNames, writeGroupNames, withGroupNames, IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };
+module.exports = { readGroupNames, writeGroupNames, withGroupNames, translateGroupNames, bilingualSlash, sideOfName, IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };

@@ -321,9 +321,9 @@ async function handler(context, req) {
       ]);
       const ownerIds = new Set(owners.map((o) => o.id));
       const baseKind = groupKind(g);
-      const gn = ((await people.readGroupNames()).groups || {})[g.id] || {};
+      const gn = (await people.translateGroupNames([{ id: g.id, name: g.displayName || "" }], await people.readGroupNames(), "translator"))[0] || {};
       context.res = { status: 200, body: {
-        id: g.id, name: g.displayName || "", nameZh: gn.zh || "", nameEn: gn.en || "", description: g.description || "", mail: g.mail || "", visibility: g.visibility || "", created: g.createdDateTime || null,
+        id: g.id, name: g.displayName || "", nameZh: gn.nameZh || "", nameEn: gn.nameEn || "", description: g.description || "", mail: g.mail || "", visibility: g.visibility || "", created: g.createdDateTime || null,
         kind: baseKind === "team" && team && team.specialization === "educationClass" ? "class" : baseKind,
         members: members.map((m) => ({ upn: String(m.userPrincipalName || "").toLowerCase(), displayName: m.displayName || "", jobTitle: m.jobTitle || "", owner: ownerIds.has(m.id) })).sort((a, b) => (b.owner - a.owner) || a.displayName.localeCompare(b.displayName, "zh")),
       } };
@@ -361,7 +361,7 @@ async function handler(context, req) {
       });
       const order = { class: 0, team: 1, m365: 2, security: 3, distribution: 4, other: 5 };
       rows.sort((a, b) => order[a.kind] - order[b.kind] || a.name.localeCompare(b.name));
-      context.res = { status: 200, body: { groups: people.withGroupNames(rows, await people.readGroupNames()) } };
+      context.res = { status: 200, body: { groups: await people.translateGroupNames(rows, await people.readGroupNames(), "translator") } };
       return;
     }
 

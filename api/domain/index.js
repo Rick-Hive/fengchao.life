@@ -90,6 +90,10 @@ function temporaryPassword() {
 async function usersView(domain) {
   const [doc, peopleDoc, rolesDoc, gnames] = await Promise.all([dir.readDomain(domain), readPeople(), readRoles().catch(() => ({ entries: [] })), peopleMod.readGroupNames()]);
   const people = peopleDoc.people;
+  // Every distinct group these accounts belong to, translated once (cached in groupnames.json).
+  const distinct = new Map();
+  for (const r of doc.users) for (const g of r.groups || []) if (g && g.id && !distinct.has(g.id)) distinct.set(g.id, { id: g.id, name: g.name });
+  await peopleMod.translateGroupNames(Array.from(distinct.values()), gnames, "translator");
   const gn = gnames.groups || {};
   const rolesOf = {};
   for (const e of rolesDoc.entries || []) rolesOf[e.user] = (e.roles || []).map((x) => ({ role: x, zh: roleLabel(x, "zh"), en: roleLabel(x, "en") }));
@@ -158,7 +162,7 @@ async function handler(context, req) {
     }
     if (method === "GET" && action === "groups") {
       const [doc, names] = await Promise.all([dir.readDomain(domain), people.readGroupNames()]);
-      context.res = { status: 200, body: { domain, groups: people.withGroupNames(dir.groupsOf(doc.users), names), sync: dir.status(doc) } };
+      context.res = { status: 200, body: { domain, groups: await people.translateGroupNames(dir.groupsOf(doc.users), names, actor), sync: dir.status(doc) } };
       return;
     }
 

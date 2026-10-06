@@ -322,13 +322,14 @@
   // the tenant's own name is the fallback and is never changed — Rick, 2026-10-06).
   function gname(g) {
     if (!g) return "";
-    var stored = EN ? (g.nameEn || g.nameZh) : (g.nameZh || g.nameEn);
-    if (stored) return stored;
-    // "Hive/蜂巢", "Equip 教育社区 / Equip Community": a name that already carries both
-    // scripts around a slash shows the side of the page language.
-    var m = /^(.+?)\s*[\/／]\s*(.+)$/.exec(g.name || "");
-    if (m) { var a = /[\u3400-\u9fff]/.test(m[1]), b = /[\u3400-\u9fff]/.test(m[2]); if (a !== b) return EN ? (a ? m[2] : m[1]) : (a ? m[1] : m[2]); }
-    return g.name || "";
+    var name = g.name || "", zh = g.nameZh || "", en = g.nameEn || "";
+    // "Hive/蜂巢": a name already carrying both scripts around a slash is its own pair.
+    var m = /^(.+?)\s*[\/／]\s*(.+)$/.exec(name);
+    if (m && (!zh || !en)) { var a = /[\u3400-\u9fff]/.test(m[1]), b = /[\u3400-\u9fff]/.test(m[2]); if (a !== b) { zh = zh || (a ? m[1] : m[2]).trim(); en = en || (a ? m[2] : m[1]).trim(); } }
+    if (!zh || !en || zh === en) return (EN ? (en || zh) : (zh || en)) || name;
+    // Both known: the tenant's own name first, its translation after it (Rick, 2026-10-07).
+    var orig = m ? (EN ? "en" : "zh") : /[\u3400-\u9fff]/.test(name) ? "zh" : "en";
+    return orig === "zh" ? zh + " · " + en : en + " · " + zh;
   }
   var extraDraft = null; // the form's working copy, so adding a child does not lose typed values
   function readExtraForm() {
@@ -627,7 +628,7 @@
     var k = GKIND[g.kind] || GKIND.other;
     var vis = g.visibility ? (g.visibility === "Public" ? t("公开", "Public") : g.visibility === "Private" ? t("私密", "Private") : esc(g.visibility)) : k[EN ? 1 : 0];
     return '<div class="trow pick" data-id="' + esc(g.id) + '"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(gname(g))) + '</span>' +
-      '<div class="tmain"><div class="tname">' + hl(gname(g), q) + (gname(g) !== g.name ? ' <span class="muted gorig">' + esc(g.name) + "</span>" : "") + "</div><div class=\"tmeta\"><span>" + vis + "</span>" +
+      '<div class="tmain"><div class="tname">' + hl(gname(g), q) + "</div><div class=\"tmeta\"><span>" + vis + "</span>" +
       (g.members != null ? "<span>" + g.members + t(" 人", " people") + "</span>" : "") +
       (g.visibility ? "<span>" + esc(k[EN ? 1 : 0]) + "</span>" : "") +
       (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div></div>" +
@@ -1240,7 +1241,7 @@
         var u = people[upn];
         return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '" data-domain="' + esc(domain) + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
       }).join("");
-      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(gname(g))) + '</span><div class="tmain"><div class="tname">' + hl(gname(g), q) + (gname(g) !== g.name ? ' <span class="muted gorig">' + esc(g.name) + "</span>" : "") + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
+      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(gname(g))) + '</span><div class="tmain"><div class="tname">' + hl(gname(g), q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
         '<div class="members hidden">' + (members || '<div class="muted" style="font-size:.84rem">' + t("本域没有成员。", "No members from this domain.") + "</div>") + '<div class="muted" style="font-size:.78rem;margin-top:6px">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</div></div>" +
         '</div><div class="gact"><button class="btn secondary sm" type="button" data-members="1">' + t("查看成员", "View members") + "</button></div></div>";
     }).join("") : '<div class="empty">' + t("没有群组。", "No groups.") + "</div>";
@@ -1863,7 +1864,9 @@
       post("crm/sync", "POST", {}).then(function (r) {
         restoreButton(sb);
         if (!r.ok) { flash(r.body && r.body.error === "no_pat" ? t("还没有配置 Airtable 令牌（AIRTABLE_EQUIP_PAT）。", "The Airtable token (AIRTABLE_EQUIP_PAT) is not configured yet.") : esc(errText(r)), 8000); return; }
-        flashOk(t("同步完成。", "Sync complete."));
+        var st = (r.body && r.body.status) || {}, c = st.counts || {};
+        var summary = t("同步完成：", "Sync complete: ") + (c.orders || 0) + t(" 单订单、", " orders, ") + (c.items || 0) + t(" 条明细、", " line items, ") + (c.customers || 0) + t(" 位客户、", " customers, ") + (c.curriculums || 0) + t(" 条教材、", " textbooks, ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows");
+        if ((st.warnings || []).length) flash(esc(summary) + "<br>" + t("同步提示：", "Sync notes: ") + "<br>• " + st.warnings.map(esc).join("<br>• "), 20000); else flashOk(summary, 8000);
         loadEquip(true).then(renderEquip);
       });
     });
@@ -1922,7 +1925,8 @@
     }
     $("efoot").innerHTML = (list.length ? esc(t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 单", " orders")) + " · " : "") +
       (st.syncedAt ? esc(t("数据同步于 ", "Data synced ") + when(st.syncedAt)) : "") +
-      ((st.warnings || []).length ? ' · <span class="status warn" title="' + esc(st.warnings.join("\n")) + '">' + esc(t("同步提示 ", "Sync notes ") + st.warnings.length) + "</span>" : "");
+      ((st.warnings || []).length ? ' · <span class="status warn">' + esc(t("同步提示 ", "Sync notes ") + st.warnings.length) + "</span>" : "") +
+      ((st.warnings || []).length ? '<details style="margin-top:6px"><summary>' + esc(t("查看同步提示", "Show sync notes")) + "</summary><ul>" + st.warnings.map(function (w) { return "<li>" + esc(w) + "</li>"; }).join("") + "</ul></details>" : "");
   }
   function exportEquipCsv() {
     var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
