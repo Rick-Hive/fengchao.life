@@ -24,7 +24,9 @@ const { snapshotBlob } = require("./config");
 
 const BLOB_NAME = "people.json";
 const INST_BLOB = "institutions.json"; // { "institutions": { "<domain>": { "name": "…", "by", "at" } } }
-const IDENTITIES = ["家长", "学生", "老师", "行政"];
+// 身份 — what a person is to the school. 教育顾问 added 2026-10-06 (Rick): an education
+// consultant who advises families, distinct from the school's own staff (行政).
+const IDENTITIES = ["家长", "学生", "老师", "行政", "教育顾问"];
 // Vocabularies for 补充资料. Stored as the Chinese word; the Hub shows either language.
 // Vocabularies for 补充资料 (Rick, 2026-10-02 revision). Stored as the Chinese word; the page shows either language.
 const SELF_ROLES = ["家长", "老师", "学校行政", "机构负责人", "其它"];

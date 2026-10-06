@@ -310,7 +310,7 @@
   var KIND = { authenticator: ["验证器", "Authenticator"], fido2: ["安全密钥", "Security key"], phone: ["手机", "Phone"], email: ["邮箱", "Email"], softwareOath: ["验证码应用", "Code app"], tap: ["临时通行码", "Temporary Access Pass"], windowsHello: ["Windows Hello", "Windows Hello"] };
   // ---- 补充资料: city, needs, children and their Teams accounts (Rick, 2026-10-02) ----
   var VOCAB_EN = {
-    "家长": "Parent", "学生": "Student", "老师": "Teacher", "行政": "Staff", "学校行政": "School staff", "机构负责人": "Head of institution", "其它": "Other",
+    "家长": "Parent", "学生": "Student", "老师": "Teacher", "行政": "Staff", "教育顾问": "Education consultant", "学校行政": "School staff", "机构负责人": "Head of institution", "其它": "Other",
     "教材": "Curriculum materials", "课程": "Courses", "教师培训": "Teacher training", "家长-亲子培训": "Parent & parent–child training", "海外留学": "Study abroad", "大学路径": "University pathways", "双学分/AP课程": "Dual-credit / AP courses", "标化考试": "Standardised tests",
     "学前": "Pre-K",
     "公立学校": "Public school", "私立学校": "Private school", "国际学校": "International school", "基督教学校": "Christian school", "在家教育": "Homeschool",
@@ -887,7 +887,7 @@
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = currentDomain + "-users-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
-  var IDENTITIES = ["家长", "学生", "老师", "行政"];
+  var IDENTITIES = ["家长", "学生", "老师", "行政", "教育顾问"]; // = IDENTITIES in api/shared/people.js
   function openUserPanel(upn, domain, opts) {
     opts = opts || {};
     var where = opts.beside ? "second" : undefined;

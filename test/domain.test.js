@@ -220,6 +220,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(elaine.verified, false);
   assert.deepStrictEqual(elaine.devices, []);
   assert.strictEqual(elaine.identity, "家长", "identity falls back to Entra jobTitle");
+  assert.ok(require("../api/shared/people").IDENTITIES.includes("教育顾问"), "教育顾问 is a 身份 (Rick 2026-10-06)");
   assert.strictEqual(elaine.identitySource, "entra");
   assert.strictEqual(lei.verified, true);
   assert.strictEqual(lei.devices.length, 2);
