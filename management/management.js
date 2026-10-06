@@ -1167,7 +1167,7 @@
 
   function viewGroups() {
     setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("Teams 群组", "Teams groups"),
-      (isAdmin() ? '<button class="btn secondary sm" id="gFill">' + t("自动补全中/英名称", "Auto-fill zh/en names") + "</button> " : "") + syncButtons("gs"));
+      syncButtons("gs"));
     var ds = domainsInfo.domains || [];
     $("content").innerHTML =
       '<div class="toolbar"><span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="gq" placeholder="' + t("搜索群组…", "Search groups…") + '" /></div></div>' +
@@ -1201,26 +1201,6 @@
       b.textContent = open ? t("查看成员", "View members") : t("收起", "Hide");
     });
     ds.forEach(function (d) { var det = $("gtree").querySelector('details[data-domain="' + d.domain + '"]'); if (det && det.open) ensureGroups(d.domain); });
-    var gf = $("gFill");
-    if (gf) gf.addEventListener("click", function () {
-      // Every expanded school in turn; names typed by hand are kept, bilingual names need nothing.
-      var open = ds.filter(function (d) { var det = $("gtree").querySelector('details[data-domain="' + d.domain + '"]'); return det && det.open; });
-      if (!open.length) { flash(t("先展开要补全的学校。", "Expand the schools to fill first.")); return; }
-      savingButton(gf, t("翻译中…", "Translating…"));
-      var total = 0, failed = "";
-      (function next(i) {
-        if (i >= open.length) {
-          restoreButton(gf);
-          if (failed) flash(failed, 12000); else flashOk(t("已补全 ", "Filled ") + total + t(" 个群组名称。", " group names."));
-          open.forEach(function (d) { ensureGroups(d.domain, true); });
-          return;
-        }
-        post("domain/groupnames-fill", "POST", { domain: open[i].domain }).then(function (r) {
-          if (!r.ok) { failed = r.body && r.body.error === "no_translator" ? t("还没有配置翻译服务：请在 Static Web App 的应用设置里加上 AZURE_TRANSLATOR_KEY 和 AZURE_TRANSLATOR_REGION（Azure AI Translator，免费层 F0 即可）。", "No translation service yet: add AZURE_TRANSLATOR_KEY and AZURE_TRANSLATOR_REGION (an Azure AI Translator resource; the free F0 tier is enough) to the Static Web App's settings.") : errText(r); next(open.length); return; }
-          total += (r.body.filled || []).length; next(i + 1);
-        });
-      })(0);
-    });
   }
   function ensureGroups(domain, force) {
     var saved = currentDomain; currentDomain = domain;
@@ -1863,7 +1843,7 @@
       savingButton(sb, t("同步中…", "Syncing…"));
       post("crm/sync", "POST", {}).then(function (r) {
         restoreButton(sb);
-        if (!r.ok) { flash(r.body && r.body.error === "no_pat" ? t("还没有配置 Airtable 令牌（AIRTABLE_EQUIP_PAT）。", "The Airtable token (AIRTABLE_EQUIP_PAT) is not configured yet.") : esc(errText(r)), 8000); return; }
+        if (!r.ok) { flash(r.body && r.body.error === "no_pat" ? t("还没有配置 Airtable 令牌（AIRTABLE_EQUIP_PAT）。", "The Airtable token (AIRTABLE_EQUIP_PAT) is not configured yet.") : r.body && r.body.error === "bad_pat" ? esc(r.body.message) : esc(errText(r)), 20000); return; }
         var st = (r.body && r.body.status) || {}, c = st.counts || {};
         var summary = t("同步完成：", "Sync complete: ") + (c.orders || 0) + t(" 单订单、", " orders, ") + (c.items || 0) + t(" 条明细、", " line items, ") + (c.customers || 0) + t(" 位客户、", " customers, ") + (c.curriculums || 0) + t(" 条教材、", " textbooks, ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows");
         if ((st.warnings || []).length) flash(esc(summary) + "<br>" + t("同步提示：", "Sync notes: ") + "<br>• " + st.warnings.map(esc).join("<br>• "), 20000); else flashOk(summary, 8000);

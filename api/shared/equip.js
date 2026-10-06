@@ -21,6 +21,7 @@ const BASE_ID = process.env.AIRTABLE_EQUIP_BASE_ID || process.env.AIRTABLE_CRM_B
 const BLOB = "crm/equip/data.json";
 
 function pat() { return process.env.AIRTABLE_EQUIP_PAT || process.env.AIRTABLE_CRM_PAT || ""; }
+function patSetting() { return process.env.AIRTABLE_EQUIP_PAT ? "AIRTABLE_EQUIP_PAT" : process.env.AIRTABLE_CRM_PAT ? "AIRTABLE_CRM_PAT (the old setting; AIRTABLE_EQUIP_PAT is preferred)" : ""; }
 
 const TABLES = {
   customers: ["Customers", "Customer", "客户"],
@@ -60,6 +61,20 @@ async function syncEquip(opts) {
   const base = new AirtableBase(BASE_ID, token);
   const warnings = [];
   const started = new Date().toISOString();
+
+  // The schema is the first call. A token Airtable rejects (401/403) must stop the
+  // sync here — with a reason — rather than "complete" with five empty tables and
+  // overwrite the last good copy (Rick, 2026-10-07: five identical 401 notes and 0 of
+  // everything).
+  try {
+    await base.schema(true);
+  } catch (err) {
+    const status = err && err.status;
+    if (status === 401 || status === 403) {
+      throw Object.assign(new Error(`Airtable rejected the token in ${patSetting()} (HTTP ${status}: ${String(err.message || "").replace(/^.*HTTP \d+: /, "")}). Create a personal access token with scopes data.records:read and schema.bases:read, access limited to the Equip base, and save it as AIRTABLE_EQUIP_PAT.`), { code: "bad_pat", status });
+    }
+    throw err;
+  }
 
   async function read(key) {
     let table;
@@ -167,4 +182,4 @@ function status(data) {
   return data ? { syncedAt: data.syncedAt, counts: data.counts, warnings: data.warnings || [] } : { syncedAt: null, counts: null, warnings: [], configured: !!pat() };
 }
 
-module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, syncEquip, readEquip, writeEquip, status };
+module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, syncEquip, readEquip, writeEquip, status };

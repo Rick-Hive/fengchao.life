@@ -151,6 +151,12 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   const blobMod = require.cache["@azure/storage-blob"];
   blobMod.exports.BlobServiceClient.fromConnectionString = () => ({ getContainerClient: () => ({ createIfNotExists: async () => {}, getBlockBlobClient: () => ({ upload: async (body) => { written = JSON.parse(body); }, exists: async () => !!written, downloadToBuffer: async () => Buffer.from(JSON.stringify(written)) }) }) });
   process.env.STORAGE_CONNECTION_STRING = "UseDevelopmentStorage=true";
+  // A rejected token stops the sync before anything is written (Rick 2026-10-07).
+  const realSchema = AirtableBase.prototype.schema;
+  AirtableBase.prototype.schema = async function () { throw Object.assign(new Error("Airtable GET meta/bases/x/tables -> HTTP 401: Invalid authentication token"), { status: 401 }); };
+  await assert.rejects(() => equip.syncEquip({}), (e) => e.code === "bad_pat" && /AIRTABLE_EQUIP_PAT/.test(e.message) && /Invalid authentication token/.test(e.message));
+  assert.strictEqual(written, null, "nothing written on a bad token");
+  AirtableBase.prototype.schema = realSchema;
   const data = await equip.syncEquip({});
   assert.ok(written && written.syncedAt, "the sync wrote crm/equip/data.json");
   assert.deepStrictEqual(data.counts, { customers: 1, orders: 1, items: 2, curriculums: 1, seminar: 1 });

@@ -106,6 +106,7 @@ async function handler(context, req) {
       ok(context, { ok: true, status: equip.status(data) });
     } catch (err) {
       if (err.code === "no_pat") { fail(context, 503, "no_pat", { message: err.message }); return; }
+      if (err.code === "bad_pat") { fail(context, 503, "bad_pat", { message: err.message }); return; }
       throw err;
     }
     return;
