@@ -28,7 +28,18 @@ const R = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
   assert.ok(R.isAssignable("admin"));
   assert.ok(!R.isAssignable("crm_entry"), "the order-entry role is gone");
   assert.ok(!R.isAssignable("domain_it:bad"), "a domain needs a dot");
-  assert.ok(!R.isAssignable("staff:ceo"), "unknown staff function");
+  assert.ok(!R.isAssignable("staff:boss"), "unknown staff function");
+  // The six CRM functions (Rick 2026-10-06): CEO and 合作发展总监 are new; 募款 is the old name.
+  assert.ok(R.isAssignable("staff:ceo") && R.isAssignable("staff:partnership") && R.isAssignable("staff:fundraising") && R.isAssignable("staff:consultant"));
+  assert.strictEqual(R.roleLabel("staff:consultant", "en"), "Staff · Education consultant");
+  assert.deepStrictEqual(R.staffFunctions(["staff:fundraising", "coordinator", "admin"]).sort(), ["community", "partnership", "sysadmin"]);
+  assert.strictEqual(R.roleLabel("staff:sales", "en"), "Staff · Order manager");
+  assert.strictEqual(R.roleLabel("staff:partnership"), "Staff · 合作发展总监");
+  // Decision 4: the CEO assigns staff functions, never domain roles or the system administrator.
+  assert.ok(R.canAssign(["staff:ceo"], "staff:sales") && R.canAssign(["staff:ceo"], "staff:partnership"));
+  assert.ok(!R.canAssign(["staff:ceo"], "staff:sysadmin") && !R.canAssign(["staff:ceo"], "domain_it:a.edu") && !R.canAssign(["staff:ceo"], "admin"));
+  assert.ok(!R.canAssign(["staff:finance"], "staff:sales"), "other functions assign nothing");
+  assert.ok(R.canAssign(["admin"], "domain_it:a.edu") && R.canAssign(["staff:sysadmin"], "staff:sysadmin"));
   assert.ok(!R.isAssignable("coordinator"), "old name is honoured but no longer handed out");
 
   // Who sees which domains.

@@ -7,14 +7,19 @@
 //                       resets), its Teams groups.
 //   域蜂巢管理员         `domain_hive:<domain>` — the school's Hive coordinator: the same
 //                       accounts, plus 身份 / 关联账号 / 备注 and what people filled in.
-//   Staff（蜂巢员工）    `staff:<function>`     — Hive's own people, across every school:
-//                       课程开发 curriculum · 募款 fundraising · contractor · 教育社区经理
-//                       community · 财务 finance · 销售 sales · 系统管理员 sysadmin.
+//   Staff（蜂巢员工）    `staff:<function>`     — Hive's own people, across every school.
+//                       The six CRM functions (design doc, Rick 2026-10-06): CEO `ceo` ·
+//                       课程总监 `curriculum` · 教育社区经理 `community` · 财务总监 `finance` ·
+//                       订单经理 `sales` (the old name of the role is kept as its key) ·
+//                       合作发展总监 `partnership`; 教育顾问 `consultant` (Rick 2026-10-06); plus
+//                       `contractor` and 系统管理员 `sysadmin`.
 //                       `staff:sysadmin` is the site administrator (角色分配, 数据同步,
 //                       everything); `admin` is kept as its alias for the bootstrap
-//                       account and old roles.json entries.
+//                       account and old roles.json entries. What each function may see in
+//                       the CRM is the matrix in ./crm.js.
 // Old names still honoured: `domain_admin:<d>` = both domain roles; `coordinator` =
-// `staff:community`.
+// `staff:community`; `staff:fundraising` = `staff:partnership` (shown as the old name
+// until the entry is re-saved).
 //
 // Roles live here keyed by the signed-in account (the `userDetails` of the
 // client principal, which the auth config sets to the UPN). They reach the
@@ -33,16 +38,21 @@ const DOMAIN = "[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}";
 const DOMAIN_IT_RE = new RegExp(`^domain_it:(${DOMAIN})$`);
 const DOMAIN_HIVE_RE = new RegExp(`^domain_hive:(${DOMAIN})$`);
 const DOMAIN_ADMIN_RE = new RegExp(`^domain_admin:(${DOMAIN})$`); // legacy: both
-const STAFF_RE = /^staff:(curriculum|fundraising|contractor|community|finance|sales|sysadmin)$/;
+const STAFF_RE = /^staff:(ceo|curriculum|fundraising|partnership|consultant|contractor|community|finance|sales|sysadmin)$/;
 
 const STAFF = {
-  curriculum: { zh: "课程开发", en: "Curriculum development" },
-  fundraising: { zh: "募款", en: "Fundraising" },
-  contractor: { zh: "Contractor", en: "Contractor" },
+  ceo: { zh: "CEO", en: "CEO" },
+  curriculum: { zh: "课程总监", en: "Curriculum director" },
   community: { zh: "教育社区经理", en: "Education community manager" },
-  finance: { zh: "财务", en: "Finance" },
-  sales: { zh: "销售", en: "Sales" },
+  finance: { zh: "财务总监", en: "Finance director" },
+  sales: { zh: "订单经理", en: "Order manager" },
+  partnership: { zh: "合作发展总监", en: "Partnership director" },
+  consultant: { zh: "教育顾问", en: "Education consultant" }, // Rick 2026-10-06
+  contractor: { zh: "Contractor", en: "Contractor" },
   sysadmin: { zh: "系统管理员", en: "System administrator" },
+  // Old name of `partnership`; still assignable so nothing breaks, but the picker
+  // offers the new one (listed last so pickers that iterate STAFF show it last).
+  fundraising: { zh: "募款（旧名，= 合作发展总监）", en: "Fundraising (old name = Partnership director)", legacy: true },
 };
 // Role kinds for pickers and labels.
 const KINDS = {
@@ -72,6 +82,25 @@ function roleLabel(role, lang) {
 }
 
 function isAdmin(roles) { return (roles || []).some((r) => r === "admin" || r === "staff:sysadmin"); }
+// The functions an account holds, with old names mapped to the current ones.
+function staffFunctions(roles) {
+  const out = new Set();
+  for (const r of roles || []) {
+    if (r === "admin") out.add("sysadmin");
+    else if (r === "coordinator") out.add("community");
+    else { const m = STAFF_RE.exec(r); if (m) out.add(m[1] === "fundraising" ? "partnership" : m[1]); }
+  }
+  return Array.from(out);
+}
+// 角色分配 (decision 4, Rick 2026-10-06): the CEO may grant and withdraw the staff
+// functions; domain roles and the system administrator stay with the system
+// administrator alone. `roles` = the caller's roles, `role` = the one being changed.
+function canAssign(roles, role) {
+  if (isAdmin(roles)) return true;
+  if (!staffFunctions(roles).includes("ceo")) return false;
+  const m = STAFF_RE.exec(String(role || ""));
+  return !!m && m[1] !== "sysadmin";
+}
 function isStaff(roles) { return (roles || []).some((r) => r === "admin" || r === "coordinator" || STAFF_RE.test(r)); }
 
 // Which domains an account may see: every domain for staff (`"*"`), the named
@@ -197,4 +226,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };

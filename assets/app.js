@@ -1581,7 +1581,7 @@
     return (
       '<div class="done-card">' +
       '<svg class="mark" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-      "<h2>" + esc(t().doneTitle) + "</h2><p>" + esc(t().doneDesc) + "</p>" +
+      "<h2>" + esc(t().doneTitle) + "</h2><p>" + esc(state.done.notified === false ? t().doneNoEmail : t().doneDesc) + "</p>" +
       '<div class="order-id">' + esc(state.done.orderId) + "</div><br/>" +
       '<button class="btn btn-primary" id="againBtn">' + esc(t().doneAgain) + "</button></div>"
     );
@@ -2309,7 +2309,9 @@
       .then(function (r) {
         state.submitting = false;
         if (r.ok && r.body && r.body.ok) {
-          state.done = { orderId: r.body.orderId };
+          // The order is stored before it is announced (api/order): `notified` is
+          // false when the confirmation email could not be sent, and the card says so.
+          state.done = { orderId: r.body.orderId, notified: r.body.notified !== false };
           state.cart = {};
         } else if (r.status === 429) {
           state.formErr = t().errRate;

@@ -7,11 +7,14 @@
 //   POST  {user, roles: ["domain_it:school.edu"]}  → upsert that account's roles
 //   DELETE {user}  → remove the account
 //
-// Admin only: the route rule in staticwebapp.config.json is the gate, the
-// hasRole check below is the belt. Accounts are stored lowercase; roles are
-// limited to the ASSIGNABLE set in api/shared/roles.js.
-const { hasRole, getPrincipal } = require("../shared/auth");
-const { STAFF, KINDS, isAssignable, roleLabel, readRoles, writeRoles, normUser } = require("../shared/roles");
+// Who may: the system administrator, everything; the CEO (decision 4, Rick
+// 2026-10-06), the staff functions only — a CEO's POST may carry staff roles
+// other than sysadmin, and the account's domain roles are kept as they were;
+// a CEO's DELETE takes the staff roles off the entry and leaves the rest.
+// Accounts are stored lowercase; roles are limited to the ASSIGNABLE set in
+// api/shared/roles.js.
+const { getPrincipal } = require("../shared/auth");
+const { STAFF, KINDS, isAssignable, roleLabel, readRoles, writeRoles, normUser, userRoles, isAdmin, canAssign } = require("../shared/roles");
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
 
@@ -34,7 +37,10 @@ async function directoryIndex() {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 async function handler(context, req) {
-  if (!hasRole(req, "admin")) {
+  const who = await userRoles(req);
+  const full = isAdmin(who.roles);
+  const ceo = !full && canAssign(who.roles, "staff:sales");
+  if (!full && !ceo) {
     context.res = { status: 403, body: { error: "admin role required" } };
     return;
   }
@@ -63,7 +69,8 @@ async function handler(context, req) {
           displayName: u.displayName || "", domain: u.domain || (e.user.split("@")[1] || ""), lastSignIn: u.lastSignIn || "", inDirectory: !!u.domain,
         });
       });
-      context.res = { status: 200, body: { entries, kinds: KINDS, staff: STAFF } };
+      // `scope` tells the page what this caller may hand out: "all", or "staff" for the CEO.
+      context.res = { status: 200, body: { entries, kinds: KINDS, staff: STAFF, scope: full ? "all" : "staff" } };
       return;
     }
 
@@ -75,19 +82,29 @@ async function handler(context, req) {
     }
     const doc = await readRoles();
     const others = doc.entries.filter((e) => e.user !== user);
+    const existing = doc.entries.find((e) => e.user === user);
+    // What a CEO cannot touch on this account (its domain roles, sysadmin) is carried over untouched.
+    const kept = ceo && existing ? existing.roles.filter((r) => !canAssign(who.roles, r)) : [];
 
     if (method === "DELETE") {
-      await writeRoles({ entries: others });
-      context.res = { status: 200, body: { ok: true, entries: others } };
+      const entries = kept.length ? others.concat([Object.assign({}, existing, { roles: kept })]).sort((a, b) => a.user.localeCompare(b.user)) : others;
+      await writeRoles({ entries });
+      context.res = { status: 200, body: { ok: true, entries } };
       return;
     }
 
-    const roles = Array.isArray(body.roles) ? body.roles.map((r) => String(r).trim().toLowerCase()) : [];
+    let roles = Array.isArray(body.roles) ? body.roles.map((r) => String(r).trim().toLowerCase()) : [];
     const bad = roles.filter((r) => !isAssignable(r));
     if (bad.length) {
       context.res = { status: 400, body: { error: "unknown role: " + bad.join(", ") } };
       return;
     }
+    const beyond = roles.filter((r) => !canAssign(who.roles, r));
+    if (beyond.length) {
+      context.res = { status: 403, body: { error: "only the system administrator can assign: " + beyond.join(", ") } };
+      return;
+    }
+    roles = roles.concat(kept);
     if (!roles.length) {
       await writeRoles({ entries: others });
       context.res = { status: 200, body: { ok: true, entries: others } };

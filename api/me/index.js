@@ -17,6 +17,7 @@ const { graph, graphRaw, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
 const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE } = require("../shared/roles");
 const dir = require("../shared/directory");
+const crm = require("../shared/crm");
 
 // The administrators of the person's own school, for 登录与安全 (Rick, 2026-10-05:
 // 「将每个域名的管理员显示在用户的“登录与安全”页面……如果需要帮助，请联系自己的管理员」):
@@ -279,6 +280,9 @@ async function handler(context, req) {
           },
           methods: ms.map(({ _type, ...m }) => m),
           roles,
+          // The CRM's data domains and this person's level on each (api/shared/crm.js):
+          // the management centre shows the 经营 pages a level above `none` allows.
+          crm: crm.accessMap(roles),
           days: DAYS,
         },
       };

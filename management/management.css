@@ -208,9 +208,18 @@ div.msg.ok { background: var(--ok-soft); color: var(--ok); } div.msg.err { backg
 mark { background: #fff1c9; color: inherit; border-radius: 3px; padding: 0 1px; }
 
 /* ---- data table ---------------------------------------------------------------------- */
-.tbl-wrap { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: auto; }
+/* Column headings stay in view while the list scrolls (Rick, 2026-10-06: 「When we scroll
+   down, don't hide the headings」). The headings were sticky already, but .tbl-wrap was a
+   scroll box of its own (overflow: auto), so they stuck to a box that never scrolls
+   vertically and went up with the page. On wide screens the wrap no longer scrolls — the
+   content pane does (both ways, for a table wider than the window) and the headings stick
+   to its top; on narrow screens the wrap keeps its own horizontal scroll, as before. */
+.tbl-wrap { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: visible; }
+@media (max-width: 860px) { .tbl-wrap { overflow: auto; } }
+.content { overflow: auto; }
 table.data { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
-table.data th { text-align: left; font-weight: 600; color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px var(--s3); border-bottom: 1px solid var(--line); background: #f8fafc; position: sticky; top: 0; white-space: nowrap; }
+table.data th { text-align: left; font-weight: 600; color: var(--faint); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 10px var(--s3); background: #f8fafc; position: sticky; top: 0; z-index: 3; white-space: nowrap; box-shadow: inset 0 -1px 0 var(--line); }
+table.data thead th:first-child { border-top-left-radius: var(--r-lg); } table.data thead th:last-child { border-top-right-radius: var(--r-lg); }
 table.data td { padding: 10px var(--s3); border-bottom: 1px solid var(--line); vertical-align: top; }
 table.data tr:last-child td { border-bottom: 0; }
 table.data tr:hover td { background: #f8fafc; }
@@ -440,3 +449,20 @@ table.data.resizing { user-select: none; cursor: col-resize; }
 /* no overflow:hidden on cells — it clipped the ⓘ tooltips to a black sliver (Rick, 2026-10-05) */
 .panel .ph .back { background: none; border: 1px solid var(--line-strong); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; line-height: 1; color: var(--muted); flex: none; }
 .panel .ph .back:hover { color: var(--accent-dark); border-color: var(--accent); }
+
+/* 经营 › 订单 */
+.chip .cnt { font-weight: 400; opacity: .75; }
+.panel .ph .tag { flex: none; }
+.olist { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.orow { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); border-top: 1px solid var(--line); font-size: 13px; }
+.orow:first-child { border-top: 0; }
+.orow .omain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.orow .omain .sub { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orow .oprice { white-space: nowrap; }
+.ototal { text-align: right; font-weight: 600; margin-top: var(--s2); font-size: 13px; }
+.hist { display: flex; flex-direction: column; gap: var(--s2); font-size: 13px; }
+.hrow { display: grid; grid-template-columns: 120px 1fr; gap: 2px var(--s3); padding: var(--s2) 0; border-top: 1px solid var(--line); }
+.hrow .hat { color: var(--faint); font-size: 12px; }
+.hrow .hwho { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hrow .hnote { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+@media (max-width: 640px) { .hrow { grid-template-columns: 1fr; } }

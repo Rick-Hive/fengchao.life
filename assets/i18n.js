@@ -147,6 +147,7 @@ window.I18N = {
     // real outage indistinguishable from a typo, so each server-side error
     // now says what actually happened and what the parent can do about it.
     errNotify: "订单未能送达，我们的通知系统暂时不可用。请稍后重试，或直接与我们联系。",
+    doneNoEmail: "订单已记录。确认邮件暂时未能发出，我们的工作人员会尽快与您联系。",
     errSnapshot: "课程数据暂时不可用，请稍后重试。",
     errCourseGone: "订单中有课程已下架，请返回课程列表重新选择。",
     errGeneric: "提交失败，请稍后重试。",
@@ -367,6 +368,7 @@ window.I18N = {
     errEmpty: "Please select at least one course.",
     errRate: "Too many submissions; please try again later.",
     errNotify: "Your order could not be delivered — our notification system is temporarily unavailable. Please try again shortly, or contact us directly.",
+    doneNoEmail: "Your order has been recorded. The confirmation email could not be sent just now; our staff will contact you shortly.",
     errSnapshot: "Course data is temporarily unavailable. Please try again shortly.",
     errCourseGone: "A course in your order is no longer available. Please go back to the course list and reselect.",
     errGeneric: "Submission failed. Please try again later.",

@@ -1,8 +1,16 @@
 // POST /api/order — validates the submission, re-prices it from the trusted
-// snapshot, and forwards the order JSON server-side to the Power Automate
-// "When an HTTP request is received" flow (URL is a server-side secret).
+// snapshot, STORES it (crm/orders/<orderId>.json — the CRM's order record,
+// design §6, Rick 2026-10-06), and then forwards the order JSON server-side
+// to the Power Automate "When an HTTP request is received" flow (URL is a
+// server-side secret).
+//
+// Store first, notify second: a notification that fails no longer loses the
+// order. The family still gets its order number, the record carries
+// notify.ok = false, and the management centre's 订单 page lists it under
+// 通知失败 for the order manager to chase by hand.
 const cfg = require("../shared/config");
 const { readSnapshot, nextSequence } = require("../shared/blob");
+const crm = require("../shared/crm");
 const { buildMessages, escapeHtml } = require("../shared/messages");
 const { groupByHive } = require("../shared/hive");
 
@@ -349,20 +357,46 @@ module.exports = async function (context, req) {
     });
     order.routeCount = order.routes.length;
 
+    // 1. The record. If even this fails the order is refused — nothing would
+    //    remember it — and the family is asked to try again.
+    const record = crm.orderRecord(order, { ok: false, at: order.submittedAt, pending: true });
+    try {
+      await crm.writeOrder(record);
+    } catch (err) {
+      context.log.error(`order ${order.orderId} could not be stored: ${String(err && err.message || err)}`);
+      context.res = { status: 503, body: { error: "store_failed", message: "Order could not be recorded; please try again." } };
+      return;
+    }
+
+    // 2. The notifications (Teams per hive + the family's email), via the flow.
     const headers = { "Content-Type": "application/json" };
     if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;
-
-    const res = await fetch(flowUrl, { method: "POST", headers, body: JSON.stringify(order) });
-    if (!res.ok && res.status !== 202) {
-      const text = await res.text();
-      context.log.error(`Power Automate -> HTTP ${res.status}: ${text.slice(0, 300)}`);
-      context.res = { status: 502, body: { error: "notify_failed", message: "Order could not be delivered; please try again." } };
-      return;
+    let notify;
+    try {
+      const res = await fetch(flowUrl, { method: "POST", headers, body: JSON.stringify(order) });
+      if (!res.ok && res.status !== 202) {
+        const text = await res.text();
+        context.log.error(`Power Automate -> HTTP ${res.status}: ${text.slice(0, 300)}`);
+        notify = { ok: false, at: new Date().toISOString(), error: `HTTP ${res.status}` };
+      } else {
+        notify = { ok: true, at: new Date().toISOString() };
+      }
+    } catch (err) {
+      context.log.error(`Power Automate unreachable: ${String(err && err.message || err)}`);
+      notify = { ok: false, at: new Date().toISOString(), error: String(err && err.message || err).slice(0, 200) };
+    }
+    // Best effort: the outcome of the notification is written back onto the
+    // record. A failure here is logged; the order itself is already safe.
+    try {
+      const cur = await crm.readOrder(order.orderId);
+      if (cur) await crm.writeOrder(Object.assign({}, cur.order, { notify }), cur.etag);
+    } catch (err) {
+      context.log.warn(`order ${order.orderId}: notify status not recorded: ${String(err && err.message || err)}`);
     }
 
     context.res = {
       status: 200,
-      body: { ok: true, orderId: order.orderId, itemCount: order.itemCount, totalPrice: order.totalPrice },
+      body: { ok: true, orderId: order.orderId, itemCount: order.itemCount, totalPrice: order.totalPrice, notified: notify.ok },
     };
   } catch (err) {
     context.log.error("order failed", err);

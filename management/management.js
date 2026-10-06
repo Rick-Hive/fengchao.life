@@ -19,6 +19,10 @@
   document.title = t("蜂巢 · 管理中心", "Hive · Management Center");
   document.getElementById("brandTag").textContent = t("管理中心", "Management Center");
   document.getElementById("fOut").textContent = t("退出", "Sign out");
+  document.getElementById("fWho").title = t("账号", "Account");
+  document.getElementById("menuToggle").setAttribute("aria-label", t("菜单", "Menu"));
+  document.getElementById("content").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
+  document.getElementById("fName").textContent = t("载入中…", "Loading…");
   // The language button is the site header's (#langBtn, drawn by site-header.js).
   var langBtn = document.getElementById("langBtn");
   if (langBtn) langBtn.addEventListener("click", function () {
@@ -70,6 +74,7 @@
   }
   var ICON = {
     camera: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    cart: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>',
     book: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5V5.5M8 7h8M8 10.5h8"/></svg>',
     user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.3-3.9 4.2-5.9 7.5-5.9s6.2 2 7.5 5.9"/></svg>',
     teams: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 19c.9-3.3 3.2-5 6-5s5.1 1.7 6 5M15.5 14.5c2.6 0 4.5 1.3 5.5 4"/></svg>',
@@ -104,12 +109,19 @@
         { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },
       ] });
     }
+    if (canSeeOrders()) {
+      groups.push({ title: t("经营", "Operations"), items: [
+        { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
+      ] });
+    }
     if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [
         { hash: "#/system/roles", icon: "key", zh: "角色分配", en: "Roles" },
         { hash: "#/system/institutions", icon: "tree", zh: "机构名称", en: "Institutions" },
         { hash: "#/system/sync", icon: "sync", zh: "数据同步", en: "Data sync" },
       ] });
+    } else if (canAssignRoles()) {
+      groups.push({ title: t("系统", "System"), items: [{ hash: "#/system/roles", icon: "key", zh: "角色分配", en: "Roles" }] });
     }
     var cur = location.hash || "#/account";
     $("nav").innerHTML = groups.map(function (g) {
@@ -499,7 +511,14 @@
     });
   }
 
-  var STAFF_FN = { curriculum: ["课程开发", "Curriculum development"], fundraising: ["募款", "Fundraising"], contractor: ["Contractor", "Contractor"], community: ["教育社区经理", "Education community manager"], finance: ["财务", "Finance"], sales: ["销售", "Sales"], sysadmin: ["系统管理员", "System administrator"] };
+  // The staff functions (api/shared/roles.js STAFF): the six CRM functions of the design
+  // doc (Rick 2026-10-06) plus contractor and the system administrator. `fundraising` is
+  // the old name of `partnership`: still shown on an account that holds it, never offered.
+  var STAFF_FN = { ceo: ["CEO", "CEO"], curriculum: ["课程总监", "Curriculum director"], community: ["教育社区经理", "Education community manager"], finance: ["财务总监", "Finance director"], sales: ["订单经理", "Order manager"], partnership: ["合作发展总监", "Partnership director"], consultant: ["教育顾问", "Education consultant"], contractor: ["Contractor", "Contractor"], sysadmin: ["系统管理员", "System administrator"], fundraising: ["募款（旧名）", "Fundraising (old name)"] };
+  var STAFF_LEGACY = { fundraising: 1 };
+  function hasFn(fn) { var r = (me && me.roles) || []; return r.indexOf("staff:" + fn) >= 0; }
+  // 角色分配 is the system administrator's page; the CEO may use it for the staff functions (decision 4).
+  function canAssignRoles() { return isAdmin() || hasFn("ceo"); }
   function roleName(r) {
     var m;
     if ((m = /^domain_it:(.+)$/.exec(r))) return t("域管理员（IT） · ", "Domain administrator (IT) · ") + dname(m[1]);
@@ -851,7 +870,7 @@
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
         '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (u.lastSignIn ? "" : " never") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
         '<td class="nowrap">' + auth + '</td><td class="nowrap devcell">' + dev + '</td><td><div class="tags nowrap">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
-        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(u.identity) + "</span>" : '<span class="muted">—</span>') + "</td>" +
+        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + "</td>" +
         '<td class="nowrap">' + (u.linked.length ? '<span class="cell-ell" title="' + esc(u.linked.join(", ")) + '">' + u.linked.map(function (l) { return hl(l, state.userQ); }).join(", ") + "</span>" : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="empty">' + t("没有匹配的账号。", "No matching accounts.") + "</div></td></tr>";
     $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号 · ", rows.length + " of " + n + " accounts · ") + syncLine(d.sync) + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
@@ -896,7 +915,7 @@
     }
     var kids = (u.extra && u.extra.children) || [];
     var isSelf = !!(me && me.profile && me.profile.upn && me.profile.upn.toLowerCase() === String(u.upn).toLowerCase());
-    var idOpts = ['<option value="">' + t("— 未填 —", "— not set —") + "</option>"].concat(IDENTITIES.map(function (i) { return '<option value="' + i + '"' + (u.identity === i ? " selected" : "") + ">" + i + "</option>"; })).join("");
+    var idOpts = ['<option value="">' + t("— 未填 —", "— not set —") + "</option>"].concat(IDENTITIES.map(function (i) { return '<option value="' + i + '"' + (u.identity === i ? " selected" : "") + ">" + esc(vl(i)) + "</option>"; })).join("");
     panelOpen(
       '<div class="ph"><span class="avatar">' + esc(initials(u.displayName || u.upn)) + "</span><h3>" + esc(u.displayName || u.upn) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
       '<div class="pb">' +
@@ -922,7 +941,7 @@
         "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '">' + esc(g.name) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
           ((u.extra.roles || []).length ? '<span class="k">' + t("身份/角色", "Roles") + "</span><span>" + esc(u.extra.roles.map(vl).join("、") + (u.extra.rolesOther ? "（" + u.extra.rolesOther + "）" : "")) + "</span>" : "") +
-          ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Topics") + "</span><span>" + esc(u.extra.topics.map(function (x) { return x === "其它" && u.extra.topicsOther ? u.extra.topicsOther : vl(x); }).join("、")) + "</span>" : "") +
+          ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Topics") + "</span><span>" + esc(u.extra.topics.map(function (x) { return x === "其它" && u.extra.topicsOther ? u.extra.topicsOther : vl(x); }).join(EN ? ", " : "、")) + "</span>" : "") +
           ((u.extra.otherAccounts || []).length ? '<span class="k">' + t("其它账号", "Other accounts") + "</span><span>" + esc(u.extra.otherAccounts.join(", ")) + "</span>" : "") +
           (u.extra.children || []).map(function (c, i) {
             var bits = [];
@@ -1011,7 +1030,7 @@
         '<div class="grid2"><label class="f">' + t("姓", "Surname") + '<input type="text" id="nuSur" maxlength="40" /></label><label class="f">' + t("名", "Given name") + '<input type="text" id="nuGiv" maxlength="40" /></label></div>' +
         '<label class="f">' + t("显示名", "Display name") + '<input type="text" id="nuDisp" maxlength="64" placeholder="' + t("留空则自动：李明 / Ann Lee", "Blank = automatic: 李明 / Ann Lee") + '" /></label>' +
         '<label class="f">' + t("账号", "Account") + '<div class="upnrow"><input type="text" id="nuAcct" maxlength="63" placeholder="li.ming" /><span class="upnsuf">@' + esc(dom) + '</span></div><small>' + t("字母、数字和 . _ -；建议「名.姓」拼音，如 li.ming。", "Letters, digits and . _ -; pinyin given.surname is the usual form, e.g. li.ming.") + "</small></label>" +
-        '<div class="grid2"><label class="f">' + t("身份", "Role") + ' <span class="req">*</span><select id="nuId"><option value="">' + t("请选择…", "Choose…") + "</option>" + IDENTITIES.map(function (i) { return '<option value="' + i + '">' + i + "</option>"; }).join("") + "</select></label>" +
+        '<div class="grid2"><label class="f">' + t("身份", "Role") + ' <span class="req">*</span><select id="nuId"><option value="">' + t("请选择…", "Choose…") + "</option>" + IDENTITIES.map(function (i) { return '<option value="' + i + '">' + esc(vl(i)) + "</option>"; }).join("") + "</select></label>" +
         '<label class="f">' + t("职务（可选）", "Job title (optional)") + '<input type="text" id="nuJob" maxlength="60" placeholder="' + t("如：数学老师", "e.g. Maths teacher") + '" /></label></div>' +
         '<div class="grid2"><label class="f">' + t("所在城市", "City") + ' <span class="req">*</span><input type="text" id="nuCity" maxlength="40" /></label>' +
         '<label class="f">' + t("邮编", "Postcode") + ' <span class="req">*</span><input type="text" id="nuZip" maxlength="12" inputmode="numeric" /></label></div>' +
@@ -1040,7 +1059,7 @@
     $("nuId").addEventListener("change", function () { $("nuMsg").innerHTML = ""; pickPlan(); });
     $("nuPlans").addEventListener("change", function (e) {
       var id = $("nuId").value, v = e.target.value;
-      if (v === "student" && id && id !== "学生") { $("nuMsg").innerHTML = '<div class="msg err">' + t("Office 365 A1 for students 仅限学生；", "Office 365 A1 for students is for students only; ") + esc(id) + t(" 请选 faculty。", " takes the faculty plan.") + "</div>"; pickPlan(); }
+      if (v === "student" && id && id !== "学生") { $("nuMsg").innerHTML = '<div class="msg err">' + t("Office 365 A1 for students 仅限学生；", "Office 365 A1 for students is for students only; ") + esc(vl(id)) + t(" 请选 faculty。", " takes the faculty plan.") + "</div>"; pickPlan(); }
       else if (v === "faculty" && id === "学生") { $("nuMsg").innerHTML = '<div class="msg err">' + t("学生请选 Office 365 A1 for students。", "A student takes Office 365 A1 for students.") + "</div>"; pickPlan(); }
       else $("nuMsg").innerHTML = "";
     });
@@ -1065,7 +1084,7 @@
           '<div class="msg ok">' + t("账号已创建。", "Account created.") + "</div>" +
           '<div class="kv"><span class="k">' + t("账号", "Account") + "</span><span><b>" + esc(res.user) + "</b></span>" +
             '<span class="k">' + t("显示名", "Display name") + "</span><span>" + esc(res.displayName) + "</span>" +
-            '<span class="k">' + t("身份", "Role") + "</span><span>" + esc(body.identity) + "</span>" +
+            '<span class="k">' + t("身份", "Role") + "</span><span>" + esc(vl(body.identity)) + "</span>" +
             '<span class="k">' + t("城市 / 邮编", "City / postcode") + "</span><span>" + esc(body.city) + " · " + esc(body.postalCode) + "</span>" +
             '<span class="k">' + t("许可证", "Licences") + "</span><span>" + (res.licence && res.licence.ok ? esc((res.licence.plans || []).join(" + ")) : '<span class="tag bad">' + t("分配失败：", "failed: ") + esc((res.licence && res.licence.error) || "") + "</span>") + "</span></div>" +
           '<div class="pwbox"><div class="lbl">' + t("临时密码（只显示这一次）", "Temporary password (shown only once)") + '</div><div class="val"><code id="pwVal">' + esc(res.password) + '</code><button class="btn secondary sm" type="button" id="pwCopy">' + t("复制", "Copy") + "</button></div>" +
@@ -1371,24 +1390,32 @@
     var doms = ((domainsInfo && domainsInfo.domains) || []).map(function (d) { return d.domain; });
     var own = (person.domain || person.upn.split("@")[1] || "").toLowerCase();
     // Current state, from the roles given.
-    var st = { it: {}, hive: {}, staff: "", sys: false, schools: [] };
+    // A person may hold several functions at once (the order manager who is also the
+    // community manager); `staff` is the list of them.
+    var st = { it: {}, hive: {}, staff: [], sys: false, schools: [] };
+    var staffOnly = !isAdmin(); // the CEO: staff functions only, school roles and sysadmin untouched
+    function addFn(fn) { if (st.staff.indexOf(fn) < 0) st.staff.push(fn); }
     (roles || []).forEach(function (r) {
       var m;
       if ((m = /^domain_(it|hive|admin):(.+)$/.exec(r))) { if (m[1] !== "hive") st.it[m[2]] = true; if (m[1] !== "it") st.hive[m[2]] = true; if (st.schools.indexOf(m[2]) < 0) st.schools.push(m[2]); }
-      else if ((m = /^staff:(.+)$/.exec(r))) { if (m[1] === "sysadmin") st.sys = true; else st.staff = m[1]; }
+      else if ((m = /^staff:(.+)$/.exec(r))) { if (m[1] === "sysadmin") st.sys = true; else addFn(m[1]); }
       else if (r === "admin") st.sys = true;
-      else if (r === "coordinator") st.staff = "community";
+      else if (r === "coordinator") addFn("community");
     });
     if (own && st.schools.indexOf(own) < 0) st.schools.unshift(own);
     var isMe = !!(me && me.profile && me.profile.upn && me.profile.upn.toLowerCase() === person.upn.toLowerCase());
 
+    // What is sent: every role for the system administrator; for the CEO only the staff
+    // functions (the server keeps the account's school roles and sysadmin as they were).
     function compose() {
       var out = [];
-      st.schools.forEach(function (d) { if (st.it[d]) out.push("domain_it:" + d); if (st.hive[d]) out.push("domain_hive:" + d); });
-      if (st.staff) out.push("staff:" + st.staff);
-      if (st.sys) out.push("staff:sysadmin");
+      if (!staffOnly) st.schools.forEach(function (d) { if (st.it[d]) out.push("domain_it:" + d); if (st.hive[d]) out.push("domain_hive:" + d); });
+      st.staff.forEach(function (fn) { out.push("staff:" + fn); });
+      if (!staffOnly && st.sys) out.push("staff:sysadmin");
       return out;
     }
+    // What the account will hold after saving (the preview), kept roles included.
+    function after() { return staffOnly ? compose().concat((roles || []).filter(function (r) { return !/^staff:(?!sysadmin)/.test(r) && r !== "coordinator"; })) : compose(); }
     function schoolCard(d) {
       var known = doms.indexOf(d) >= 0;
       return '<div class="rschool" data-d="' + esc(d) + '"><div class="rsh"><b>' + esc(dname(d)) + "</b>" + (d !== own ? '<button type="button" class="lnk" data-drop="' + esc(d) + '">' + t("移除", "Remove") + "</button>" : '<span class="muted">' + t("所在学校", "Their school") + "</span>") + (known ? "" : ' <span class="tag warn">' + t("未知域", "Unknown domain") + "</span>") + "</div>" +
@@ -1396,14 +1423,16 @@
         '<label class="sw"><input type="checkbox" data-role="hive" data-d="' + esc(d) + '"' + (st.hive[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.hive[EN ? 1 : 0] + "</b><small>" + t("蜂巢信息：身份、关联账号、备注；不能动设备和密码。", "Hive information: identity, linked accounts, notes; no devices or passwords.") + "</small></span></label></div>";
     }
     function preview() {
-      var rs = compose();
+      var rs = after();
       $("rprev").innerHTML = rs.length ? '<span class="k">' + t("保存后：", "After saving: ") + "</span>" + roleChips(rs) : '<span class="k">' + t("保存后：", "After saving: ") + "</span>" + t("普通用户（无角色）", "ordinary user (no roles)");
     }
     function addable() { return doms.filter(function (d) { return st.schools.indexOf(d) < 0; }); }
     function draw() {
-      $("rschools").innerHTML = st.schools.map(schoolCard).join("");
-      var more = addable();
-      $("raddwrap").innerHTML = more.length ? '<select id="radd"><option value="">' + t("＋ 添加其他学校…", "+ Add another school…") + "</option>" + more.map(function (d) { return '<option value="' + esc(d) + '">' + esc(dname(d)) + "</option>"; }).join("") + "</select>" : "";
+      if (!staffOnly) {
+        $("rschools").innerHTML = st.schools.map(schoolCard).join("");
+        var more = addable();
+        $("raddwrap").innerHTML = more.length ? '<select id="radd"><option value="">' + t("＋ 添加其他学校…", "+ Add another school…") + "</option>" + more.map(function (d) { return '<option value="' + esc(d) + '">' + esc(dname(d)) + "</option>"; }).join("") + "</select>" : "";
+      }
       preview();
     }
     panelOpen(
@@ -1413,15 +1442,15 @@
           '<span class="k">' + t("学校", "School") + "</span><span>" + esc(dname(own)) + "</span>" +
           (person.lastSignIn ? '<span class="k">' + t("最近登录", "Last sign-in") + "</span><span>" + esc(when(person.lastSignIn)) + "</span>" : "") +
           '<span class="k">' + t("当前角色", "Current roles") + "</span><span>" + ((roles || []).length ? roleChips(roles) : '<span class="muted">' + t("普通用户", "User") + "</span>") + "</span></div>" +
-        "<h4>" + t("学校角色", "School roles") + '</h4><div id="rschools"></div><div id="raddwrap" class="raddwrap"></div>' +
+        (staffOnly ? "" : "<h4>" + t("学校角色", "School roles") + '</h4><div id="rschools"></div><div id="raddwrap" class="raddwrap"></div>') +
         "<h4>" + t("蜂巢工作人员", "Hive staff") + '</h4><div class="rstaff" id="rstaff">' +
-          '<button type="button" class="chip" data-staff="" aria-pressed="' + (!st.staff) + '">' + t("不是员工", "Not staff") + "</button>" +
-          Object.keys(STAFF_FN).filter(function (k) { return k !== "sysadmin"; }).map(function (k) { return '<button type="button" class="chip" data-staff="' + k + '" aria-pressed="' + (st.staff === k) + '">' + esc(STAFF_FN[k][EN ? 1 : 0]) + "</button>"; }).join("") +
-        '</div><p class="muted" style="font-size:12px;margin:6px 0 0">' + t("蜂巢员工按职能分，可以查看所有学校的账号与资料。", "Hive staff, by function, see every school's accounts and details.") + "</p>" +
-        "<h4>" + t("系统管理员", "System administrator") + "</h4>" +
-        '<label class="sw danger"><input type="checkbox" id="rsys"' + (st.sys ? " checked" : "") + (isMe ? " disabled" : "") + ' /><span class="track"></span><span class="swt"><b>' + t("系统管理员", "System administrator") + "</b><small>" + t("所有学校的一切，包括角色分配本身。请只给蜂巢的运维人员。", "Everything, for every school — including this page. Hive operations people only.") + (isMe ? " " + t("（不能改自己的）", "(not for your own account)") : "") + "</small></span></label>" +
+          '<button type="button" class="chip" data-staff="" aria-pressed="' + (!st.staff.length) + '">' + t("不是员工", "Not staff") + "</button>" +
+          Object.keys(STAFF_FN).filter(function (k) { return k !== "sysadmin" && (!STAFF_LEGACY[k] || st.staff.indexOf(k) >= 0); }).map(function (k) { return '<button type="button" class="chip" data-staff="' + k + '" aria-pressed="' + (st.staff.indexOf(k) >= 0) + '">' + esc(STAFF_FN[k][EN ? 1 : 0]) + "</button>"; }).join("") +
+        '</div><p class="muted" style="font-size:12px;margin:6px 0 0">' + t("蜂巢员工按职能分，可兼任几个职能；每个职能在 CRM 里看到的数据按权限矩阵裁剪。", "Hive staff by function; a person may hold several. What each function sees in the CRM follows the permission matrix.") + "</p>" +
+        (staffOnly ? "" : "<h4>" + t("系统管理员", "System administrator") + "</h4>" +
+        '<label class="sw danger"><input type="checkbox" id="rsys"' + (st.sys ? " checked" : "") + (isMe ? " disabled" : "") + ' /><span class="track"></span><span class="swt"><b>' + t("系统管理员", "System administrator") + "</b><small>" + t("所有学校的一切，包括角色分配本身。请只给蜂巢的运维人员。", "Everything, for every school — including this page. Hive operations people only.") + (isMe ? " " + t("（不能改自己的）", "(not for your own account)") : "") + "</small></span></label>") +
         '<div class="rprev" id="rprev"></div>' +
-        '<div class="actions"><button class="btn" type="button" id="rsave">' + t("保存", "Save") + "</button>" + ((roles || []).length && !isMe ? '<button class="btn secondary" type="button" id="rremove">' + t("移除全部角色", "Remove all roles") + "</button>" : "") + '</div><div id="rpmsg"></div>' +
+        '<div class="actions"><button class="btn" type="button" id="rsave">' + t("保存", "Save") + "</button>" + ((roles || []).length && !isMe ? '<button class="btn secondary" type="button" id="rremove">' + (staffOnly ? t("移除员工职能", "Remove staff functions") : t("移除全部角色", "Remove all roles")) + "</button>" : "") + '</div><div id="rpmsg"></div>' +
       "</div>");
     draw();
     var pb = $("panel").querySelector(".pb");
@@ -1436,7 +1465,12 @@
     });
     pb.addEventListener("click", function (e) {
       var sc = e.target.closest(".chip[data-staff]");
-      if (sc) { st.staff = sc.getAttribute("data-staff"); pb.querySelectorAll(".chip[data-staff]").forEach(function (x) { x.setAttribute("aria-pressed", x === sc ? "true" : "false"); }); preview(); return; }
+      if (sc) {
+        var fn = sc.getAttribute("data-staff");
+        if (!fn) st.staff = []; else if (st.staff.indexOf(fn) >= 0) st.staff.splice(st.staff.indexOf(fn), 1); else st.staff.push(fn);
+        pb.querySelectorAll(".chip[data-staff]").forEach(function (x) { var k = x.getAttribute("data-staff"); x.setAttribute("aria-pressed", k ? String(st.staff.indexOf(k) >= 0) : String(!st.staff.length)); });
+        preview(); return;
+      }
       var drop = e.target.closest("button[data-drop]");
       if (drop) { var d = drop.getAttribute("data-drop"); st.schools = st.schools.filter(function (x) { return x !== d; }); delete st.it[d]; delete st.hive[d]; draw(); return; }
       if (e.target.closest("#rsave")) {
@@ -1513,6 +1547,176 @@
   }
 
   // ================================================================================
+  // 经营 › 订单 (CRM design §6, Rick 2026-10-06): the website's course orders, stored by
+  // api/order at checkout, with their status and fulfilment record. Who sees what is the
+  // server's business (api/crm masks by role); the page only hides the buttons a reader
+  // cannot use. Overdue rules (decision 18): submitted > 7 d, confirmed > 14 d, paid > 30 d.
+  // ================================================================================
+  var ORDER_TABS = [["all", "全部", "All"], ["submitted", "已提交", "Submitted"], ["confirmed", "已确认", "Confirmed"], ["paid", "已付款", "Paid"], ["started", "已开课", "Started"], ["cancelled", "已取消", "Cancelled"], ["overdue", "超期", "Overdue"], ["notifyFailed", "通知失败", "Notification failed"]];
+  var ORDER_ST = { submitted: ["已提交", "Submitted", "accent"], confirmed: ["已确认", "Confirmed", "accent"], paid: ["已付款", "Paid", "ok"], started: ["已开课", "Started", "ok"], cancelled: ["已取消", "Cancelled", "muted"] };
+  var ORDER_VERB = { confirmed: ["确认接单", "Confirm"], paid: ["标记已付款", "Mark paid"], started: ["标记已开课", "Mark started"], cancelled: ["取消订单", "Cancel order"], submitted: ["重新打开", "Reopen"] };
+  var ordersState = { list: null, counts: {}, tab: "all", q: "", access: {} };
+  function crmLevel(domain) { return (me && me.crm && me.crm[domain]) || "none"; }
+  function canSeeOrders() { return crmLevel("orders") !== "none"; }
+  function stTag(status) { var d = ORDER_ST[status] || [status, status, ""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
+  function money(v, cur) { if (v === null || v === undefined) return '<span class="muted">' + t("不可见", "hidden") + "</span>"; return esc((cur === "CNY" || !cur ? "¥" : cur + " ") + Number(v).toLocaleString(EN ? "en-US" : "zh-CN")); }
+  function overdueTag(o) {
+    if (!o.overdue) return "";
+    var r = o.overdue;
+    return '<span class="tag warn" title="' + esc(t("在「" + t(ORDER_ST[r.rule][0], ORDER_ST[r.rule][1]) + "」已停留 " + r.days + " 天（上限 " + r.limit + " 天）", "In “" + t(ORDER_ST[r.rule][0], ORDER_ST[r.rule][1]) + "” for " + r.days + " days (limit " + r.limit + ")")) + '">' + esc(t("超期 " + r.days + " 天", r.days + " d overdue")) + "</span>";
+  }
+  // Order payloads carry "中文 / English" pairs for class type and teaching language; show one side.
+  function side(v) { var parts = String(v || "").split(" / "); return parts.length === 2 ? (EN ? parts[1] : parts[0]) : String(v || ""); }
+  function orderHives(o) { return (o.hives || []).map(function (h) { return h.abbr || h.name || h.key; }).filter(Boolean).join(", ") || (o.items && o.items[0] && (o.items[0].schoolAbbr || o.items[0].schoolName)) || "—"; }
+  function orderCourses(o) { return (o.items || []).map(function (it) { return EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn); }); }
+  function viewOrders() {
+    setTitle(t("经营", "Operations"), t("订单", "Orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>",
+      t("网站下单的课程订单，下单即记录；状态由订单经理维护，每一步都留有记录。超期未推进的单会标出。", "Course orders from the website, recorded at checkout; the order manager maintains the status and every step is kept. Orders that stall are flagged."));
+    $("content").innerHTML =
+      '<div class="toolbar" id="obar">' + ORDER_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (ordersState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
+        '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="oq" value="' + esc(ordersState.q) + '" placeholder="' + t("搜索订单号、邮箱、蜂巢、课程…", "Search order no., email, hive, course…") + '" /></div></div>' +
+      '<div class="kpis" id="okpi"></div>' +
+      '<div class="tbl-wrap"><table class="data" id="otable"><thead><tr><th>' + t("订单号", "Order no.") + "</th><th>" + t("日期", "Date") + "</th><th>" + t("下单人", "Ordered by") + "</th><th>" + t("蜂巢", "Hive") + "</th><th>" + t("课程", "Courses") + "</th><th>" + t("金额", "Amount") + "</th><th>" + t("状态", "Status") + "</th><th>" + t("提醒", "Flags") + "</th></tr></thead>" +
+        '<tbody><tr><td colspan="8" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
+      '<p class="muted" id="ofoot" style="font-size:.8rem"></p>';
+    $("obar").addEventListener("click", function (e) {
+      var c = e.target.closest(".chip[data-f]"); if (!c) return;
+      ordersState.tab = c.getAttribute("data-f");
+      $("obar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x === c ? "true" : "false"); });
+      renderOrders();
+    });
+    $("oq").addEventListener("input", debounce(function () { ordersState.q = $("oq").value.trim(); renderOrders(); }, 120));
+    $("oReload").addEventListener("click", function () { loadOrders(true).then(renderOrders); });
+    $("oCsv").addEventListener("click", exportOrdersCsv);
+    $("okpi").addEventListener("click", function (e) {
+      var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
+      ordersState.tab = k.getAttribute("data-kf");
+      $("obar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-f") === ordersState.tab ? "true" : "false"); });
+      renderOrders();
+    });
+    $("otable").addEventListener("click", function (e) {
+      var tr = e.target.closest("tr[data-id]"); if (!tr) return;
+      document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); });
+      tr.classList.add("sel");
+      openOrderPanel(tr.getAttribute("data-id"));
+    });
+    loadOrders(false).then(renderOrders).catch(function (r) { $("otable").tBodies[0].innerHTML = '<tr><td colspan="8" class="loading">' + esc(errText(r)) + "</td></tr>"; });
+  }
+  function loadOrders(force) {
+    if (ordersState.list && !force) return Promise.resolve(ordersState.list);
+    return api("crm/orders").then(function (r) {
+      if (!r.ok) throw r;
+      ordersState.list = r.body.orders || []; ordersState.counts = r.body.counts || {}; ordersState.access = r.body.access || {};
+      return ordersState.list;
+    });
+  }
+  function orderTabs(o) { var tabs = [o.status]; if (o.overdue) tabs.push("overdue"); if (o.notify && o.notify.ok === false && !o.notify.pending) tabs.push("notifyFailed"); return tabs; }
+  function ordersNow() {
+    var q = ordersState.q.toLowerCase();
+    return (ordersState.list || []).filter(function (o) {
+      if (ordersState.tab !== "all" && orderTabs(o).indexOf(ordersState.tab) < 0) return false;
+      if (!q) return true;
+      var hay = [o.orderId, o.email, o.teamsAccount, orderHives(o), orderCourses(o).join(" "), (o.items || []).map(function (it) { return it.code; }).join(" ")].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+  function renderOrders() {
+    var list = ordersState.list || [], c = ordersState.counts || {};
+    ORDER_TABS.forEach(function (tb) { var el = $("obar").querySelector('[data-cnt="' + tb[0] + '"]'); if (el) el.textContent = c[tb[0]] ? "(" + c[tb[0]] + ")" : ""; });
+    var now = new Date(), ym = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    var month = list.filter(function (o) { return String(o.submittedAt || "").slice(0, 7) === ym && o.status !== "cancelled"; });
+    var seeMoney = crmLevel("money") !== "none";
+    var sum = month.reduce(function (s, o) { return s + (typeof o.totalPrice === "number" ? o.totalPrice : 0); }, 0);
+    $("okpi").innerHTML =
+      '<button class="kpi" data-kf="all"><div class="l">' + t("本月订单", "Orders this month") + '</div><div class="v">' + month.length + "</div></button>" +
+      (seeMoney ? '<div class="kpi"><div class="l">' + t("本月成交额（Hive 课程）", "Transaction value this month (Hive courses)") + '</div><div class="v">' + money(sum, "CNY") + '</div><div class="s">' + t("只在仪表盘显示，不与教材销售合计", "Dashboard only; never summed with textbook sales") + "</div></div>" : "") +
+      '<button class="kpi" data-kf="submitted"><div class="l">' + t("待确认", "Awaiting confirmation") + '</div><div class="v' + (c.submitted ? " warn" : "") + '">' + (c.submitted || 0) + "</div></button>" +
+      '<button class="kpi" data-kf="confirmed"><div class="l">' + t("待付款", "Awaiting payment") + '</div><div class="v">' + (c.confirmed || 0) + "</div></button>" +
+      '<button class="kpi" data-kf="overdue"><div class="l">' + t("超期", "Overdue") + '</div><div class="v' + (c.overdue ? " bad" : "") + '">' + (c.overdue || 0) + "</div></button>" +
+      '<button class="kpi" data-kf="notifyFailed"><div class="l">' + t("通知失败", "Notification failed") + '</div><div class="v' + (c.notifyFailed ? " bad" : "") + '">' + (c.notifyFailed || 0) + "</div></button>";
+    var rows = ordersNow();
+    var tb = $("otable").tBodies[0];
+    tb.innerHTML = rows.length ? rows.map(function (o) {
+      var courses = orderCourses(o);
+      return '<tr class="pick" data-id="' + esc(o.orderId) + '"><td class="nowrap"><b>' + esc(o.orderId) + "</b></td>" +
+        '<td class="nowrap">' + esc(day(o.submittedAt)) + "</td>" +
+        '<td class="cell-ell" title="' + esc(o.email) + '">' + esc(o.email || "—") + "</td>" +
+        '<td class="nowrap">' + esc(orderHives(o)) + "</td>" +
+        '<td class="cell-ell" title="' + esc(courses.join(" · ")) + '">' + esc(courses.slice(0, 2).join(" · ")) + (courses.length > 2 ? ' <span class="muted">+' + (courses.length - 2) + "</span>" : "") + "</td>" +
+        '<td class="nowrap">' + money(o.totalPrice, o.currency) + "</td>" +
+        '<td class="nowrap">' + stTag(o.status) + "</td>" +
+        '<td class="nowrap"><span class="tags">' + overdueTag(o) + (o.notify && o.notify.ok === false && !o.notify.pending ? '<span class="tag bad">' + t("通知失败", "Not notified") + "</span>" : "") + "</span></td></tr>";
+    }).join("") : '<tr><td colspan="8" class="empty">' + t("没有符合条件的订单。", "No orders match.") + "</td></tr>";
+    $("ofoot").textContent = t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 单", " orders") + (list.length ? "" : t("。网站还没有新订单落库。", ". No orders have been recorded from the website yet."));
+  }
+  function exportOrdersCsv() {
+    var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var head = [t("订单号", "Order no."), t("提交时间", "Submitted"), t("下单人", "Email"), "Teams", t("蜂巢", "Hive"), t("课程", "Courses"), t("件数", "Items"), t("金额", "Amount"), t("币种", "Currency"), t("状态", "Status"), t("最后变更", "Last change"), t("超期", "Overdue")].join(",");
+    var lines = ordersNow().map(function (o) {
+      var last = (o.history || [])[o.history.length - 1] || {};
+      return [o.orderId, o.submittedAt, o.email, o.teamsAccount, orderHives(o), orderCourses(o).join("; "), o.itemCount, o.totalPrice == null ? "" : o.totalPrice, o.currency, t(ORDER_ST[o.status][0], ORDER_ST[o.status][1]), last.at || "", o.overdue ? o.overdue.days : ""].map(cell).join(",");
+    });
+    var blob = new Blob(["﻿" + [head].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "hive-orders-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function openOrderPanel(id) {
+    var o = (ordersState.list || []).filter(function (x) { return x.orderId === id; })[0];
+    if (!o) return;
+    var rw = crmLevel("orders") === "rw";
+    panelOpen('<div class="ph"><h3>' + esc(o.orderId) + "</h3>" + stTag(o.status) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>");
+    api("crm/order?id=" + encodeURIComponent(id)).then(function (r) {
+      if (!r.ok) { $("panel").querySelector(".pb").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+      drawOrderPanel(r.body.order, rw ? r.body.next || [] : []);
+    });
+  }
+  function drawOrderPanel(o, next) {
+    var pb = $("panel").querySelector(".pb");
+    $("panel").querySelector(".ph h3").textContent = o.orderId;
+    var hdrTag = $("panel").querySelector(".ph .tag"); if (hdrTag) hdrTag.outerHTML = stTag(o.status);
+    var items = (o.items || []).map(function (it) {
+      return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, side(it.classType), side(it.language), (it.grades || []).join("/")].filter(Boolean).join(" · ")) + "</span></div><div class=\"oprice\">" + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : money(it.price, o.currency)) + "</div></div>";
+    }).join("");
+    var hist = (o.history || []).slice().reverse().map(function (h) {
+      return '<div class="hrow"><span class="hat">' + esc(when(h.at)) + '<span class="hwho">' + esc(h.by === "system" ? t("系统", "system") : h.by) + "</span></span><span>" + (h.from ? stTag(h.from) + " → " : "") + stTag(h.to) + (h.note ? '<span class="hnote">' + esc(h.note) + "</span>" : "") + "</span></div>";
+    }).join("");
+    var notify = o.notify || {};
+    var notifyLine = notify.pending ? '<span class="tag">' + t("通知发送中", "Notifying…") + "</span>" : notify.ok ? '<span class="tag ok">' + t("已通知", "Notified") + "</span> " + esc(when(notify.at)) : '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span> " + esc(notify.error || "") + " · " + t("请手动联系家长和蜂巢。", "Contact the family and the hive by hand.");
+    pb.innerHTML =
+      '<div class="kv"><span class="k">' + t("提交时间", "Submitted") + "</span><span>" + esc(when(o.submittedAt)) + "</span>" +
+        '<span class="k">' + t("下单人", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" +
+        (o.teamsAccount ? '<span class="k">Teams</span><span>' + esc(o.teamsAccount) + "</span>" : "") +
+        '<span class="k">' + t("蜂巢", "Hive") + "</span><span>" + ((o.hives || []).length ? (o.hives || []).map(function (h) { return esc(h.name || h.abbr || h.key) + (h.subtotal != null ? " · " + money(h.subtotal, o.currency) : ""); }).join("; ") : esc(orderHives(o))) + "</span>" +
+        (o.track && (o.track.nameZh || o.track.nameEn) ? '<span class="k">' + t("毕业路径", "Track") + "</span><span>" + esc(EN ? (o.track.nameEn || o.track.nameZh) : (o.track.nameZh || o.track.nameEn)) + "</span>" : "") +
+        '<span class="k">' + t("语言", "Language") + "</span><span>" + (o.lang === "en" ? "English" : "中文") + "</span>" +
+        '<span class="k">' + t("通知", "Notification") + "</span><span>" + notifyLine + "</span>" +
+        (o.overdue ? '<span class="k">' + t("提醒", "Flag") + "</span><span>" + overdueTag(o) + "</span>" : "") + "</div>" +
+      "<h4>" + t("课程", "Courses") + " · " + (o.itemCount || (o.items || []).length) + '</h4><div class="olist">' + items + '</div><div class="ototal">' + t("合计", "Total") + " " + money(o.totalPrice, o.currency) + "</div>" +
+      (next.length ? "<h4>" + t("推进状态", "Move on") + '</h4><label class="f">' + t("备注（可选）", "Note (optional)") + '<input type="text" id="oNote" maxlength="500" placeholder="' + t("例如：提供方已接单；家长已转账", "e.g. provider accepted; parent has paid") + '" /></label>' +
+        '<div class="actions">' + next.map(function (s) { return '<button class="btn' + (s === "cancelled" ? " danger" : s === "submitted" ? " secondary" : "") + '" type="button" data-to="' + s + '">' + esc(t(ORDER_VERB[s][0], ORDER_VERB[s][1])) + "</button>"; }).join("") + '</div><div id="oMsg"></div>' : "") +
+      "<h4>" + t("执行记录", "Fulfilment record") + '</h4><div class="hist">' + hist + "</div>";
+    pb.querySelectorAll("button[data-to]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var to = b.getAttribute("data-to");
+        if (to === "cancelled" && !window.confirm(t("取消订单 " + o.orderId + "？", "Cancel order " + o.orderId + "?"))) return;
+        savingButton(b);
+        post("crm/order", "PATCH", { orderId: o.orderId, status: to, note: $("oNote").value.trim() }).then(function (r) {
+          if (!r.ok) {
+            restoreButton(b);
+            $("oMsg").innerHTML = '<div class="msg err">' + esc(r.body && r.body.error === "changed_meanwhile" ? t("别人刚改过这单，已重新载入。", "Someone else just changed this order; reloaded.") : errText(r)) + "</div>";
+            if (r.body && r.body.error === "changed_meanwhile") loadOrders(true).then(function () { renderOrders(); openOrderPanel(o.orderId); });
+            return;
+          }
+          var upd = r.body.order;
+          ordersState.list = (ordersState.list || []).map(function (x) { return x.orderId === upd.orderId ? upd : x; });
+          loadOrders(true).then(renderOrders);
+          drawOrderPanel(upd, r.body.next || []);
+          flashOk("<b>" + esc(upd.orderId) + "</b> → " + stTag(upd.status));
+        });
+      });
+    });
+  }
+
+  // ================================================================================
   // boot + router
   // ================================================================================
   function loadMe() {
@@ -1545,8 +1749,12 @@
       if (!currentDomain) currentDomain = (domainsInfo.domains.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || domainsInfo.domains[0]).domain;
       return h.indexOf("#/domain/groups") === 0 ? viewGroups() : h.indexOf("#/domain/handbook") === 0 ? viewHandbook() : viewUsers();
     }
+    if (h.indexOf("#/ops") === 0) {
+      if (!canSeeOrders()) { location.hash = "#/account"; return; }
+      return viewOrders();
+    }
     if (h.indexOf("#/system") === 0) {
-      if (!isAdmin()) { location.hash = "#/account"; return; }
+      if (!isAdmin()) { if (canAssignRoles() && h.indexOf("#/system/roles") === 0) return viewRoles(); location.hash = "#/account"; return; }
       return h.indexOf("#/system/sync") === 0 ? viewSync() : h.indexOf("#/system/institutions") === 0 ? viewInstitutions() : viewRoles();
     }
     viewAccount();

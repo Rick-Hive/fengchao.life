@@ -43,7 +43,7 @@
     {
       "route": "/api/roles",
       "allowedRoles": [
-        "admin"
+        "authenticated"
       ],
       "headers": {
         "Cache-Control": "no-store"
@@ -79,6 +79,15 @@
     },
     {
       "route": "/management*",
+      "allowedRoles": [
+        "authenticated"
+      ],
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    },
+    {
+      "route": "/api/crm/*",
       "allowedRoles": [
         "authenticated"
       ],
