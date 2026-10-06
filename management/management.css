@@ -172,6 +172,17 @@ div.msg.ok { background: var(--ok-soft); color: var(--ok); } div.msg.err { backg
 
 /* KPIs (users page only) */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s3); margin-bottom: var(--s4); }
+/* The KPI tiles stay in view while the list scrolls (Rick, 2026-10-06: 「this part keep
+   display when scrolling down」): sticky at the top of the content pane, with the table's
+   column headings sticking just below them (--kpi-h, measured by stickyOffsets() in
+   management.js). On narrow screens the tiles stack and would eat the screen, so there
+   they scroll away as before. */
+@media (min-width: 861px) {
+  .kpis { position: sticky; top: 0; z-index: 4; background: var(--bg); margin-bottom: 0; padding-bottom: var(--s4); }
+  /* cover the pane's side gutters too, so nothing scrolls past beside the tiles */
+  .kpis::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--s6)); right: -100vw; background: var(--bg); z-index: -1; }
+  .content table.data th { top: var(--kpi-h, 0px); }
+}
 .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: var(--s3) var(--s4); }
 .kpi .l { font-size: 12px; color: var(--faint); }
 .kpi .v { font-size: 22px; font-weight: 600; margin-top: 2px; letter-spacing: -0.01em; }

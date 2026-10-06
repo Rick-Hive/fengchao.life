@@ -1794,7 +1794,14 @@
       h.addEventListener("click", function (e) { e.stopPropagation(); });
     });
   }
-  new MutationObserver(function () { document.querySelectorAll("table.data").forEach(colResize); }).observe($("content"), { childList: true, subtree: true });
+  // The height of the sticky KPI row, so the table headings can stick just below it.
+  function stickyOffsets() {
+    var k = $("content").querySelector(".kpis");
+    var h = k && getComputedStyle(k).position === "sticky" ? k.offsetHeight : 0;
+    $("content").style.setProperty("--kpi-h", h + "px");
+  }
+  new MutationObserver(function () { document.querySelectorAll("table.data").forEach(colResize); stickyOffsets(); }).observe($("content"), { childList: true, subtree: true });
+  window.addEventListener("resize", debounce(stickyOffsets, 100));
   window.addEventListener("hashchange", route);
 
   // Roles granted while this page is open (Rick, 2026-10-03: a test account was made an
