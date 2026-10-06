@@ -318,6 +318,9 @@
     "欧美大学": "University in Europe / North America", "东南亚大学": "University in Southeast Asia", "英国/澳洲大学": "University in the UK / Australia", "国内大学": "University in China", "2+2混合制大学": "2+2 programme", "未定": "Undecided",
   };
   function vl(v) { return EN ? (VOCAB_EN[v] || v) : v; }
+  // A Teams group's name in the page language (groupnames.json, set in the management centre;
+  // the tenant's own name is the fallback and is never changed — Rick, 2026-10-06).
+  function gname(g) { if (!g) return ""; return (EN ? (g.nameEn || g.nameZh) : (g.nameZh || g.nameEn)) || g.name || ""; }
   var extraDraft = null; // the form's working copy, so adding a child does not lose typed values
   function readExtraForm() {
     var d = { roles: [], rolesOther: ($("xRolesOther") || {}).value || "", topics: [], topicsOther: ($("xTopicsOther") || {}).value || "", otherAccounts: [], children: [] };
@@ -614,8 +617,8 @@
   function teamRow(g, q) {
     var k = GKIND[g.kind] || GKIND.other;
     var vis = g.visibility ? (g.visibility === "Public" ? t("公开", "Public") : g.visibility === "Private" ? t("私密", "Private") : esc(g.visibility)) : k[EN ? 1 : 0];
-    return '<div class="trow pick" data-id="' + esc(g.id) + '"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(g.name)) + '</span>' +
-      '<div class="tmain"><div class="tname">' + hl(g.name, q) + "</div><div class=\"tmeta\"><span>" + vis + "</span>" +
+    return '<div class="trow pick" data-id="' + esc(g.id) + '"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(gname(g))) + '</span>' +
+      '<div class="tmain"><div class="tname">' + hl(gname(g), q) + (gname(g) !== g.name ? ' <span class="muted gorig">' + esc(g.name) + "</span>" : "") + "</div><div class=\"tmeta\"><span>" + vis + "</span>" +
       (g.members != null ? "<span>" + g.members + t(" 人", " people") + "</span>" : "") +
       (g.visibility ? "<span>" + esc(k[EN ? 1 : 0]) + "</span>" : "") +
       (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div></div>" +
@@ -657,7 +660,7 @@
   // One of my groups: description and members, read-only (Rick, 2026-10-02).
   function openMyGroupPanel(id) {
     var g0 = (state.teams || []).filter(function (x) { return x.id === id; })[0] || {};
-    panelOpen('<div class="ph"><span class="tav" style="width:32px;height:32px;font-size:11px;background:' + hue(id) + '">' + esc(initials(g0.name || "?")) + "</span><h3>" + esc(g0.name || "") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>");
+    panelOpen('<div class="ph"><span class="tav" style="width:32px;height:32px;font-size:11px;background:' + hue(id) + '">' + esc(initials(gname(g0) || "?")) + "</span><h3>" + esc(gname(g0) || "") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>");
     api("me/group/" + encodeURIComponent(id)).then(function (r) {
       var pb = $("panel").querySelector(".pb"); if (!pb) return;
       if (!r.ok) { pb.innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
@@ -684,7 +687,7 @@
       if (g.kind !== "class" && g.kind !== "team") return false;
       if (f === "owner" && !g.owner) return false;
       if ((f === "class" || f === "team") && g.kind !== f) return false;
-      if (q) { var hay = (g.name + " " + (g.description || "") + " " + (g.mail || "")).toLowerCase(); if (hay.indexOf(q.toLowerCase()) < 0) return false; }
+      if (q) { var hay = (g.name + " " + (g.nameZh || "") + " " + (g.nameEn || "") + " " + (g.description || "") + " " + (g.mail || "")).toLowerCase(); if (hay.indexOf(q.toLowerCase()) < 0) return false; }
       return true;
     });
     var order = { class: 0, team: 1, m365: 2, security: 3, distribution: 4, other: 5 };
@@ -865,7 +868,7 @@
         dev = u.otherMethods.length ? '<span class="muted">' + esc(u.otherMethods.map(function (k) { return (KIND[k] || [k, k])[EN ? 1 : 0]; }).join(", ")) + "</span>" : '<span class="muted">—</span>';
       }
       var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "class" || g.kind === "m365"; });
-      var gl = gs.slice(0, 2).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + hl(g.name, state.userQ) + "</button>"; }).join("") + (gs.length > 2 ? '<span class="tag muted" title="' + esc(gs.slice(2).map(function (g) { return g.name; }).join(", ")) + '">+' + (gs.length - 2) + "</span>" : "");
+      var gl = gs.slice(0, 2).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + hl(gname(g), state.userQ) + "</button>"; }).join("") + (gs.length > 2 ? '<span class="tag muted" title="' + esc(gs.slice(2).map(function (g) { return gname(g); }).join(", ")) + '">+' + (gs.length - 2) + "</span>" : "");
       var signTip = u.lastSignIn ? t("最近登录 ", "Last sign-in ") + when(u.lastSignIn) : t("从未登录", "Never signed in");
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
         '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (u.lastSignIn ? "" : " never") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
@@ -938,7 +941,7 @@
           (isSelf ? "" : "<h4>" + t("密码", "Password") + '</h4><div id="ppw"><div class="devrow"><div class="m"><b>' + t("重置密码", "Reset password") + "</b><small>" + t("生成一个临时密码，对方下次登录必须改掉。", "Makes a temporary password that must be changed at the next sign-in.") + '</small></div><button class="btn secondary sm" type="button" id="pwReset">' + t("重置", "Reset") + "</button></div></div>") +
           (isSelf || (u.roles || []).length ? "" : "<h4>" + t("删除账号", "Delete account") + '</h4><div class="devrow"><div class="m"><b>' + t("删除这个账号", "Delete this account") + "</b><small>" + t("账号、邮箱和 OneDrive 进入微软的回收站，30 天内可由系统管理员在 Microsoft 365 管理中心恢复。", "The account, mailbox and OneDrive go to Microsoft's recycle bin; restorable for 30 days in the Microsoft 365 admin center.") + '</small></div><button class="btn danger sm" type="button" id="uDel">' + t("删除", "Delete") + "</button></div>")
           : '<div class="note">' + t("登录设备由域管理员（IT）管理。", "Sign-in devices are managed by the domain administrator (IT).") + "</div>") +
-        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '">' + esc(g.name) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
+        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + esc(gname(g)) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
           ((u.extra.roles || []).length ? '<span class="k">' + t("身份/角色", "Roles") + "</span><span>" + esc(u.extra.roles.map(vl).join("、") + (u.extra.rolesOther ? "（" + u.extra.rolesOther + "）" : "")) + "</span>" : "") +
           ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Topics") + "</span><span>" + esc(u.extra.topics.map(function (x) { return x === "其它" && u.extra.topicsOther ? u.extra.topicsOther : vl(x); }).join(EN ? ", " : "、")) + "</span>" : "") +
@@ -1116,9 +1119,10 @@
       var people = {}; ((state.domainUsers[dom] || {}).users || []).forEach(function (u) { people[u.upn] = u; });
       var k = GKIND[g.kind] || GKIND.other;
       panelOpen(
-        '<div class="ph"><span class="tav" style="width:32px;height:32px;font-size:11px;background:' + hue(g.id) + '">' + esc(initials(g.name)) + "</span><h3>" + esc(g.name) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+        '<div class="ph"><span class="tav" style="width:32px;height:32px;font-size:11px;background:' + hue(g.id) + '">' + esc(initials(gname(g))) + "</span><h3>" + esc(gname(g)) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
         '<div class="pb">' +
-          '<div class="kv"><span class="k">' + t("类型", "Type") + "</span><span>" + esc(k[EN ? 1 : 0]) + "</span>" +
+          '<div class="kv"><span class="k">' + t("Teams 名称", "Name in Teams") + "</span><span>" + esc(g.name) + "</span>" +
+            '<span class="k">' + t("类型", "Type") + "</span><span>" + esc(k[EN ? 1 : 0]) + "</span>" +
             (g.visibility ? '<span class="k">' + t("可见性", "Visibility") + "</span><span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") +
             (g.mail ? '<span class="k">' + t("邮箱", "Mail") + "</span><span>" + esc(g.mail) + "</span>" : "") +
             '<span class="k">' + t("学校", "School") + "</span><span>" + dlabel(dom) + "</span>" +
@@ -1130,7 +1134,24 @@
             return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '" data-domain="' + esc(dom) + '" data-name="' + esc((u && u.displayName) || "") + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
           }).join("") : '<div class="muted">' + t("本校没有成员。", "No members from this school.") + "</div>") +
           '<p class="hint">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</p>" +
+          (canDo("people") ? "<h4>" + t("显示名称（中 / 英）", "Display names (zh / en)") + '</h4><form id="gnf" class="grid2"><label class="f">' + t("中文名", "Chinese name") + '<input type="text" id="gnZh" maxlength="80" value="' + esc(g.nameZh || "") + '" placeholder="' + esc(g.name) + '" /></label><label class="f">' + t("英文名", "English name") + '<input type="text" id="gnEn" maxlength="100" value="' + esc(g.nameEn || "") + '" placeholder="' + esc(g.name) + '" /></label>' +
+            '<div class="actions" style="grid-column:1/-1"><button class="btn sm" type="submit" id="gnSave">' + t("保存", "Save") + '</button><span class="muted" style="font-size:12px">' + t("只改管理中心里的显示，不改 Teams 里的名称。", "Changes how the management centre shows the group; the name in Teams stays.") + '</span></div><div id="gnMsg"></div></form>' : "") +
         "</div>");
+      var gnf = $("gnf");
+      if (gnf) gnf.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var b = $("gnSave"); savingButton(b);
+        var zh = $("gnZh").value.trim(), en = $("gnEn").value.trim();
+        post("domain/groupname", "PUT", { domain: dom, id: g.id, zh: zh, en: en }).then(function (r) {
+          restoreButton(b);
+          if (!r.ok) { $("gnMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          g.nameZh = zh; g.nameEn = en;
+          ((state.domainUsers[dom] || {}).users || []).forEach(function (u) { (u.groups || []).forEach(function (x) { if (x.id === g.id) { x.nameZh = zh; x.nameEn = en; } }); });
+          $("panel").querySelector(".ph h3").textContent = gname(g);
+          flashOk("<b>" + esc(gname(g)) + "</b>" + t("：显示名称已保存。", ": display names saved."));
+          if (location.hash.indexOf("#/domain/groups") === 0 && $("gtree")) renderGroupLeaf(dom); else if (location.hash.indexOf("#/domain/users") === 0 && $("utable")) renderUsers();
+        });
+      });
     });
   }
 
@@ -1180,7 +1201,7 @@
     var det = $("gtree") && $("gtree").querySelector('details[data-domain="' + domain + '"]'); if (!det) return;
     var d = state.domainGroups[domain]; if (!d) return;
     var q = ($("gq") && $("gq").value.trim()) || "";
-    var rows = d.groups.filter(function (g) { return !q || (g.name + " " + g.description).toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+    var rows = d.groups.filter(function (g) { return !q || (g.name + " " + (g.nameZh || "") + " " + (g.nameEn || "") + " " + g.description).toLowerCase().indexOf(q.toLowerCase()) >= 0; });
     var n = $("gn-" + domain.replace(/\W/g, "_")); if (n) n.textContent = d.groups.length + t(" 个群组", " groups") + (q ? " · " + rows.length + t(" 个匹配", " match") : "") + " · " + syncLine(d.sync);
     var people = {}; ((state.domainUsers[domain] || {}).users || []).forEach(function (u) { people[u.upn] = u; });
     det.querySelector(".leaf").innerHTML = rows.length ? rows.map(function (g) {
@@ -1189,7 +1210,7 @@
         var u = people[upn];
         return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '" data-domain="' + esc(domain) + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
       }).join("");
-      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(g.name)) + '</span><div class="tmain"><div class="tname">' + hl(g.name, q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
+      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(gname(g))) + '</span><div class="tmain"><div class="tname">' + hl(gname(g), q) + (gname(g) !== g.name ? ' <span class="muted gorig">' + esc(g.name) + "</span>" : "") + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
         '<div class="members hidden">' + (members || '<div class="muted" style="font-size:.84rem">' + t("本域没有成员。", "No members from this domain.") + "</div>") + '<div class="muted" style="font-size:.78rem;margin-top:6px">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</div></div>" +
         '</div><div class="gact"><button class="btn secondary sm" type="button" data-members="1">' + t("查看成员", "View members") + "</button></div></div>";
     }).join("") : '<div class="empty">' + t("没有群组。", "No groups.") + "</div>";
@@ -1569,10 +1590,19 @@
   function side(v) { var parts = String(v || "").split(" / "); return parts.length === 2 ? (EN ? parts[1] : parts[0]) : String(v || ""); }
   function orderHives(o) { return (o.hives || []).map(function (h) { return h.abbr || h.name || h.key; }).filter(Boolean).join(", ") || (o.items && o.items[0] && (o.items[0].schoolAbbr || o.items[0].schoolName)) || "—"; }
   function orderCourses(o) { return (o.items || []).map(function (it) { return EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn); }); }
+  // 订单 has two pages shown one at a time (Rick, 2026-10-06): 课程订单 — the website's
+  // course orders — and 教材订单 — the Equip textbook orders read from Airtable.
   function viewOrders() {
-    setTitle(t("经营", "Operations"), t("订单", "Orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>",
+    var equipTab = location.hash.indexOf("#/ops/orders/equip") === 0;
+    $("content").innerHTML = '<div class="pagetabs" role="tablist">' +
+      '<a class="ptab' + (equipTab ? "" : " on") + '" role="tab" aria-selected="' + !equipTab + '" href="#/ops/orders">' + t("蜂巢课程订单", "Hive course orders") + '<small>' + t("蜂巢网站", "fengchao.life") + "</small></a>" +
+      '<a class="ptab' + (equipTab ? " on" : "") + '" role="tab" aria-selected="' + equipTab + '" href="#/ops/orders/equip">' + t("Equip教材订单", "Equip textbook orders") + '<small>EquipMe · Airtable</small></a></div><div id="opsBody"></div>';
+    if (equipTab) viewEquipOrders(); else viewCourseOrders();
+  }
+  function viewCourseOrders() {
+    setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>" + (isAdmin() ? ' <button class="btn secondary sm" id="oImport">' + t("导入 Teams 导出…", "Import Teams export…") + '</button><input type="file" id="oImportFile" accept=".json,application/json" hidden />' : ""),
       t("网站下单的课程订单，下单即记录；状态由订单经理维护，每一步都留有记录。超期未推进的单会标出。", "Course orders from the website, recorded at checkout; the order manager maintains the status and every step is kept. Orders that stall are flagged."));
-    $("content").innerHTML =
+    $("opsBody").innerHTML =
       '<div class="toolbar" id="obar">' + ORDER_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (ordersState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
         '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="oq" value="' + esc(ordersState.q) + '" placeholder="' + t("搜索订单号、邮箱、蜂巢、课程…", "Search order no., email, hive, course…") + '" /></div></div>' +
       '<div class="kpis" id="okpi"></div>' +
@@ -1588,6 +1618,33 @@
     $("oq").addEventListener("input", debounce(function () { ordersState.q = $("oq").value.trim(); renderOrders(); }, 120));
     $("oReload").addEventListener("click", function () { loadOrders(true).then(renderOrders); });
     $("oCsv").addEventListener("click", exportOrdersCsv);
+    var imp = $("oImport");
+    if (imp) {
+      imp.addEventListener("click", function () { $("oImportFile").click(); });
+      $("oImportFile").addEventListener("change", function () {
+        var f = this.files && this.files[0]; this.value = ""; if (!f) return;
+        var rd = new FileReader();
+        rd.onload = function () {
+          var data; try { data = JSON.parse(rd.result); } catch (e) { flash(t("不是 JSON 文件。", "Not a JSON file.")); return; }
+          var msgs = Array.isArray(data) ? data : data.value || data.messages || [];
+          if (!msgs.length) { flash(t("文件里没有消息。", "No messages in the file.")); return; }
+          $("ofoot").textContent = t("正在解析 ", "Parsing ") + msgs.length + t(" 条消息…", " messages…");
+          post("crm/import", "POST", { messages: msgs, dryRun: true }).then(function (r) {
+            if (!r.ok) { flash(esc(errText(r))); return; }
+            var b = r.body;
+            var msg = t("解析出 ", "Parsed ") + b.parsed + t(" 单：新增 ", " orders: ") + b.created.length + t("，已存在 ", " new, ") + b.existing.length + t("，无法识别的消息 ", " already stored, ") + b.skipped.length + t(" 条。", " messages not orders.");
+            if (!b.created.length) { flash(msg, 8000); return; }
+            if (!window.confirm(msg + "\n\n" + t("写入这 " + b.created.length + " 单？", "Store these " + b.created.length + " orders?"))) { $("ofoot").textContent = ""; return; }
+            post("crm/import", "POST", { messages: msgs }).then(function (r2) {
+              if (!r2.ok) { flash(esc(errText(r2))); return; }
+              flashOk(t("已导入 ", "Imported ") + r2.body.created.length + t(" 单。", " orders."));
+              loadOrders(true).then(renderOrders);
+            });
+          });
+        };
+        rd.readAsText(f);
+      });
+    }
     $("okpi").addEventListener("click", function (e) {
       var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
       ordersState.tab = k.getAttribute("data-kf");
@@ -1714,6 +1771,114 @@
         });
       });
     });
+  }
+
+  // 教材订单: the Equip (EquipMe) textbook orders, read from Airtable by the nightly sync
+  // (api/shared/equip.js). Airtable stays the place they are entered; this is a view.
+  var equipState = { list: null, status: null, q: "", pub: "" };
+  function viewEquipOrders() {
+    var canSync = isAdmin() || crmLevel("orders") === "rw";
+    setTitle(t("经营 › 订单", "Operations › Orders"), t("Equip教材订单", "Equip textbook orders"),
+      (canSync ? '<button class="btn secondary sm" id="eSync">' + t("从 Airtable 同步", "Sync from Airtable") + "</button> " : "") + '<button class="btn secondary sm" id="eCsv">' + t("导出 CSV", "Export CSV") + "</button>",
+      t("EquipMe 的教材订单，来自 Equip 工作区的 Airtable（Orders / Order Items / Customers），每夜同步，只读；录入仍在 Airtable。", "EquipMe textbook orders from the Equip Airtable workspace (Orders / Order Items / Customers), synced nightly, read-only; entry stays in Airtable."));
+    $("opsBody").innerHTML =
+      '<div class="toolbar" id="ebar"><div class="search">' + ICON.search + '<input type="search" id="eq" value="' + esc(equipState.q) + '" placeholder="' + t("搜索订单号、客户、邮箱、教材、SKU…", "Search order no., customer, email, textbook, SKU…") + '" /></div><select id="epub"><option value="">' + t("所有出版社", "All publishers") + "</option></select></div>" +
+      '<div class="kpis" id="ekpi"></div>' +
+      '<div class="tbl-wrap"><table class="data" id="etable"><thead><tr><th>' + t("订单号", "Order no.") + "</th><th>" + t("日期", "Date") + "</th><th>" + t("客户", "Customer") + "</th><th>" + t("邮箱", "Email") + "</th><th>" + t("教材", "Textbooks") + "</th><th>" + t("件数", "Units") + "</th><th>" + t("金额", "Amount") + "</th><th>" + t("实收", "Received") + "</th><th>" + t("出版社", "Publisher") + "</th></tr></thead>" +
+        '<tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
+      '<p class="muted" id="efoot" style="font-size:.8rem"></p>';
+    $("eq").addEventListener("input", debounce(function () { equipState.q = $("eq").value.trim(); renderEquip(); }, 120));
+    $("epub").addEventListener("change", function () { equipState.pub = this.value; renderEquip(); });
+    $("eCsv").addEventListener("click", exportEquipCsv);
+    var sb = $("eSync");
+    if (sb) sb.addEventListener("click", function () {
+      savingButton(sb, t("同步中…", "Syncing…"));
+      post("crm/sync", "POST", {}).then(function (r) {
+        restoreButton(sb);
+        if (!r.ok) { flash(r.body && r.body.error === "no_pat" ? t("还没有配置 Airtable 令牌（AIRTABLE_EQUIP_PAT）。", "The Airtable token (AIRTABLE_EQUIP_PAT) is not configured yet.") : esc(errText(r)), 8000); return; }
+        flashOk(t("同步完成。", "Sync complete."));
+        loadEquip(true).then(renderEquip);
+      });
+    });
+    $("etable").addEventListener("click", function (e) {
+      var tr = e.target.closest("tr[data-id]"); if (!tr) return;
+      document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); });
+      tr.classList.add("sel");
+      openEquipPanel(tr.getAttribute("data-id"));
+    });
+    loadEquip(false).then(renderEquip).catch(function (r) { $("etable").tBodies[0].innerHTML = '<tr><td colspan="9" class="loading">' + esc(errText(r)) + "</td></tr>"; });
+  }
+  function loadEquip(force) {
+    if (equipState.list && !force) return Promise.resolve(equipState.list);
+    return api("crm/equip-orders").then(function (r) {
+      if (!r.ok) throw r;
+      equipState.list = r.body.orders || []; equipState.status = r.body.status || {};
+      return equipState.list;
+    });
+  }
+  function equipName(it) { return (EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) || it.sku || ""; }
+  function equipNow() {
+    var q = equipState.q.toLowerCase();
+    return (equipState.list || []).filter(function (o) {
+      if (equipState.pub && (o.publishers || []).indexOf(equipState.pub) < 0) return false;
+      if (!q) return true;
+      var hay = [o.orderId, o.name, o.email, (o.items || []).map(function (it) { return it.sku + " " + it.nameZh + " " + it.nameEn; }).join(" "), (o.publishers || []).join(" ")].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+  function renderEquip() {
+    var list = equipState.list || [], st = equipState.status || {};
+    var pubs = {}; list.forEach(function (o) { (o.publishers || []).forEach(function (p) { pubs[p] = (pubs[p] || 0) + 1; }); });
+    var sel = $("epub"); if (sel && sel.options.length === 1) Object.keys(pubs).sort().forEach(function (p) { var op = document.createElement("option"); op.value = p; op.textContent = p + " (" + pubs[p] + ")"; sel.appendChild(op); });
+    var now = new Date(), ym = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    var month = list.filter(function (o) { return String(o.date || "").slice(0, 7) === ym; });
+    var seeMoney = crmLevel("money") !== "none";
+    var sum = function (arr, k) { return arr.reduce(function (a, o) { return a + (typeof o[k] === "number" ? o[k] : 0); }, 0); };
+    $("ekpi").innerHTML =
+      '<div class="kpi"><div class="l">' + t("本月订单", "Orders this month") + '</div><div class="v">' + month.length + '</div><div class="s">' + t("按下单日", "by order date") + "</div></div>" +
+      (seeMoney ? '<div class="kpi"><div class="l">' + t("本月销售额", "Sales this month") + '</div><div class="v">' + money(sum(month, "amount"), "CNY") + '</div><div class="s">' + t("按下单日", "by order date") + "</div></div>" +
+        '<div class="kpi"><div class="l">' + t("本月实收", "Received this month") + '</div><div class="v">' + money(sum(month, "received"), "CNY") + '</div><div class="s">' + t("按订单", "by order") + "</div></div>" : "") +
+      '<div class="kpi"><div class="l">' + t("全部订单", "All orders") + '</div><div class="v">' + list.length + '</div><div class="s">' + (st.syncedAt ? t("同步于 ", "synced ") + when(st.syncedAt) : t("尚未同步", "not synced yet")) + "</div></div>";
+    var rows = equipNow();
+    var tb = $("etable").tBodies[0];
+    if (!list.length) {
+      tb.innerHTML = '<tr><td colspan="9" class="empty">' + (st.syncedAt ? t("Airtable 里还没有订单。", "No orders in Airtable yet.") : (st.configured === false ? t("还没有同步：系统管理员需要在 Static Web App 的应用设置里加上 AIRTABLE_EQUIP_PAT（只读、仅限 Equip 工作区的令牌），之后每夜自动同步，也可以点「从 Airtable 同步」。", "Not synced yet: the system administrator needs to add AIRTABLE_EQUIP_PAT (a read-only token limited to the Equip workspace) to the Static Web App's settings; after that it syncs nightly, or on “Sync from Airtable”.") : t("还没有同步。点「从 Airtable 同步」。", "Not synced yet. Click “Sync from Airtable”."))) + "</td></tr>";
+    } else {
+      tb.innerHTML = rows.length ? rows.map(function (o) {
+        var names = (o.items || []).map(equipName);
+        return '<tr class="pick" data-id="' + esc(o.recId) + '"><td class="nowrap"><b>' + esc(o.orderId) + "</b></td><td class=\"nowrap\">" + esc(o.date || "") + "</td>" +
+          '<td class="cell-ell" title="' + esc(o.name) + '">' + esc(o.name || "—") + '</td><td class="cell-ell" title="' + esc(o.email) + '">' + esc(o.email || "—") + "</td>" +
+          '<td class="cell-ell" title="' + esc(names.join(" · ")) + '">' + esc(names.slice(0, 2).join(" · ")) + (names.length > 2 ? ' <span class="muted">+' + (names.length - 2) + "</span>" : "") + "</td>" +
+          '<td class="nowrap">' + (o.qty || 0) + "</td><td class=\"nowrap\">" + money(o.amount, "CNY") + "</td><td class=\"nowrap\">" + money(o.received, "CNY") + "</td>" +
+          '<td class="nowrap">' + esc((o.publishers || []).join(", ")) + "</td></tr>";
+      }).join("") : '<tr><td colspan="9" class="empty">' + t("没有符合条件的订单。", "No orders match.") + "</td></tr>";
+    }
+    $("efoot").innerHTML = (list.length ? esc(t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 单", " orders")) + " · " : "") +
+      (st.syncedAt ? esc(t("数据同步于 ", "Data synced ") + when(st.syncedAt)) : "") +
+      ((st.warnings || []).length ? ' · <span class="status warn" title="' + esc(st.warnings.join("\n")) + '">' + esc(t("同步提示 ", "Sync notes ") + st.warnings.length) + "</span>" : "");
+  }
+  function exportEquipCsv() {
+    var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var head = [t("订单号", "Order no."), t("日期", "Date"), t("客户", "Customer"), t("邮箱", "Email"), "SKU", t("教材", "Textbooks"), t("件数", "Units"), t("金额", "Amount"), t("实收", "Received"), t("出版社", "Publishers"), t("备注", "Comments")].join(",");
+    var lines = equipNow().map(function (o) { return [o.orderId, o.date, o.name, o.email, (o.items || []).map(function (it) { return it.sku; }).join("; "), (o.items || []).map(equipName).join("; "), o.qty, o.amount == null ? "" : o.amount, o.received == null ? "" : o.received, (o.publishers || []).join("; "), o.comments].map(cell).join(","); });
+    var blob = new Blob(["﻿" + [head].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "equip-orders-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function openEquipPanel(recId) {
+    var o = (equipState.list || []).filter(function (x) { return x.recId === recId; })[0];
+    if (!o) return;
+    var items = (o.items || []).map(function (it) {
+      var roy = it.royalty && Object.keys(it.royalty).length ? '<span class="sub">' + esc(Object.keys(it.royalty).map(function (k) { var v = it.royalty[k]; return k + " " + (typeof v === "number" && v <= 1 && /rate/i.test(k) ? Math.round(v * 100) + "%" : v); }).join(" · ")) + "</span>" : "";
+      return '<div class="orow"><div class="omain"><b>' + esc(equipName(it)) + '</b><span class="sub">' + esc([it.sku, it.publisher, it.category, it.subject, it.grade].filter(Boolean).join(" · ")) + "</span>" + roy + '</div><div class="oprice">' + (it.qty || 0) + " × " + money(it.unitPrice, "CNY") + "<br><b>" + money(it.total, "CNY") + "</b></div></div>";
+    }).join("");
+    panelOpen('<div class="ph"><h3>' + esc(o.orderId) + '</h3><span class="tag">EquipMe</span><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+      '<div class="kv"><span class="k">' + t("日期", "Date") + "</span><span>" + esc(o.date || "") + "</span>" +
+        '<span class="k">' + t("客户", "Customer") + "</span><span>" + esc(o.name || "—") + (o.customerCrmId ? ' <span class="tag muted">CRM ' + esc(o.customerCrmId) + "</span>" : "") + "</span>" +
+        '<span class="k">' + t("邮箱", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" +
+        '<span class="k">' + t("金额 / 实收", "Amount / received") + "</span><span>" + money(o.amount, "CNY") + " / " + money(o.received, "CNY") + "</span>" +
+        (o.comments ? '<span class="k">' + t("备注", "Comments") + "</span><span>" + esc(o.comments) + "</span>" : "") + "</div>" +
+      "<h4>" + t("教材", "Textbooks") + " · " + (o.items || []).length + '</h4><div class="olist">' + (items || '<div class="orow muted">' + t("没有订单明细。", "No line items.") + "</div>") + "</div>" +
+      '<p class="hint">' + t("只读：修改请在 Airtable 里进行，下一次同步后生效。", "Read-only: change it in Airtable; the next sync picks it up.") + "</p></div>");
   }
 
   // ================================================================================

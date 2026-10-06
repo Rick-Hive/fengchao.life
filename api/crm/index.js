@@ -9,13 +9,41 @@
 //   PATCH  crm/order {orderId, status, note?}
 //                                     move an order on (order manager / sysadmin); appends to `history`,
 //                                     audit-logged; 409 when someone else changed it first — re-read and retry
+//   GET    crm/equip-orders           the Equip (textbook) orders from the last Airtable sync, masked; royalty
+//                                     columns only for finance (money rw) and the CEO (decision 6)
+//   GET    crm/equip-status           when the Equip base was last synced, counts, warnings
+//   POST   crm/sync                   read the Equip base now (sysadmin, or anyone with orders rw)
+//   POST   crm/import {messages|value:[chatMessage…], dryRun?}
+//                                     recover course orders from a "Hive Orders" Teams channel export
+//                                     (sysadmin): parsed, enriched from the snapshot, stored unless they exist
 //
 // Access is the matrix in ../shared/crm.js: orders need at least `masked`
 // to read and `rw` to change. Masking happens here, before the reply.
-const { userRoles, normUser } = require("../shared/roles");
+const { userRoles, normUser, isAdmin, staffFunctions } = require("../shared/roles");
 const crm = require("../shared/crm");
+const equip = require("../shared/equip");
+const teamsOrders = require("../shared/teamsOrders");
+const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
+
+// What a reader gets of an Equip order: contact details by `identity`, amounts by `money`,
+// the royalty bag only for finance (money rw) or the CEO.
+function maskEquip(o, acc, roles) {
+  const seeWho = ["read", "rw"].includes(acc.identity);
+  const seeMoney = ["read", "rw"].includes(acc.money);
+  const seeRoyalty = acc.money === "rw" || staffFunctions(roles).includes("ceo");
+  const out = Object.assign({}, o);
+  if (!seeWho) { out.email = o.email ? "…@" + String(o.email).split("@")[1] : ""; out.name = o.name ? o.name.slice(0, 1) + "…" : ""; out.comments = ""; }
+  if (!seeMoney) { out.amount = null; out.received = null; }
+  out.items = (o.items || []).map((it) => {
+    const r = Object.assign({}, it);
+    if (!seeMoney) { r.unitPrice = null; r.total = null; r.received = null; }
+    if (!seeRoyalty) delete r.royalty;
+    return r;
+  });
+  return out;
+}
 
 function fail(context, status, error, extra) {
   context.res = { status, headers: { "Cache-Control": "no-store" }, body: Object.assign({ error }, extra || {}) };
@@ -52,6 +80,46 @@ async function handler(context, req) {
       return Object.assign(crm.mask(o, acc), { overdue: od });
     });
     ok(context, { orders, counts, access: acc, statuses: crm.STATUS_LABELS, overdueDays: crm.OVERDUE_DAYS });
+    return;
+  }
+
+  if (method === "GET" && action === "equip-status") { ok(context, equip.status(await equip.readEquip())); return; }
+
+  if (method === "GET" && action === "equip-orders") {
+    const data = await equip.readEquip();
+    if (!data) { ok(context, { orders: [], status: equip.status(null), access: acc }); return; }
+    ok(context, { orders: data.orders.map((o) => maskEquip(o, acc, roles)), status: equip.status(data), access: acc });
+    return;
+  }
+
+  if (method === "POST" && action === "sync") {
+    if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    try {
+      const data = await equip.syncEquip({ log: (m) => context.log(m) });
+      await audit(context, { action: "crm.equip.sync", by: normUser(user), counts: data.counts, warnings: data.warnings.length });
+      ok(context, { ok: true, status: equip.status(data) });
+    } catch (err) {
+      if (err.code === "no_pat") { fail(context, 503, "no_pat", { message: err.message }); return; }
+      throw err;
+    }
+    return;
+  }
+
+  if (method === "POST" && action === "import") {
+    if (!isAdmin(roles)) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const snapshot = await readSnapshot();
+    const { orders, skipped, messages } = teamsOrders.parseExport(body, snapshot);
+    const dry = body.dryRun === true;
+    const created = [], existing = [];
+    for (const o of orders) {
+      if (!crm.ID_RE.test(o.orderId)) { skipped.push({ id: o.orderId, preview: "order id of an unknown shape" }); continue; }
+      if (await crm.readOrder(o.orderId)) { existing.push(o.orderId); continue; }
+      if (!dry) await crm.writeOrder(o);
+      created.push(o.orderId);
+    }
+    if (!dry) await audit(context, { action: "crm.orders.import", by: normUser(user), messages, created: created.length, existing: existing.length, skipped: skipped.length });
+    ok(context, { ok: true, dryRun: dry, messages, parsed: orders.length, created, existing, skipped, preview: dry ? orders.slice(0, 50) : undefined });
     return;
   }
 

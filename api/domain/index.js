@@ -35,6 +35,7 @@ const { readPeople, writePeople, identityOf, IDENTITIES, readInstitutions, write
 const { readRoles, roleLabel } = require("../shared/roles");
 const { audit } = require("../shared/audit");
 const people = require("../shared/people");
+const peopleMod = people;
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
 
@@ -87,8 +88,9 @@ function temporaryPassword() {
 }
 
 async function usersView(domain) {
-  const [doc, peopleDoc, rolesDoc] = await Promise.all([dir.readDomain(domain), readPeople(), readRoles().catch(() => ({ entries: [] }))]);
+  const [doc, peopleDoc, rolesDoc, gnames] = await Promise.all([dir.readDomain(domain), readPeople(), readRoles().catch(() => ({ entries: [] })), peopleMod.readGroupNames()]);
   const people = peopleDoc.people;
+  const gn = gnames.groups || {};
   const rolesOf = {};
   for (const e of rolesDoc.entries || []) rolesOf[e.user] = (e.roles || []).map((x) => ({ role: x, zh: roleLabel(x, "zh"), en: roleLabel(x, "en") }));
   const users = doc.users.map((r) => {
@@ -96,7 +98,7 @@ async function usersView(domain) {
     const entra = { department: r.department, jobTitle: r.jobTitle };
     return Object.assign({}, r, {
       roles: rolesOf[r.upn] || [],
-      groups: (r.groups || []).map((g) => ({ id: g.id, name: g.name, kind: g.kind })),
+      groups: (r.groups || []).map((g) => ({ id: g.id, name: g.name, kind: g.kind, nameZh: (gn[g.id] && gn[g.id].zh) || "", nameEn: (gn[g.id] && gn[g.id].en) || "" })),
       identity: identityOf(rec, entra),
       identitySource: rec && IDENTITIES.includes(rec.identity) ? "hive" : (identityOf(null, entra) ? "entra" : ""),
       linked: rec && Array.isArray(rec.linked) ? rec.linked : [],
@@ -155,8 +157,26 @@ async function handler(context, req) {
       return;
     }
     if (method === "GET" && action === "groups") {
-      const doc = await dir.readDomain(domain);
-      context.res = { status: 200, body: { domain, groups: dir.groupsOf(doc.users), sync: dir.status(doc) } };
+      const [doc, names] = await Promise.all([dir.readDomain(domain), people.readGroupNames()]);
+      context.res = { status: 200, body: { domain, groups: people.withGroupNames(dir.groupsOf(doc.users), names), sync: dir.status(doc) } };
+      return;
+    }
+
+    // Both-language names for a Teams group, shown in the management centre only
+    // (域蜂巢管理员 of the domain, Hive staff); the tenant's own name is not changed.
+    if (method === "PUT" && action === "groupname") {
+      if (!can(roles, "people", domain)) return fail(context, 403, "group names are set by the 域蜂巢管理员 or Hive staff", { code: "forbidden" });
+      const id = String((req.body && req.body.id) || "").trim();
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(context, 400, "group id missing");
+      const zh = String((req.body && req.body.zh) || "").trim().slice(0, 80);
+      const en = String((req.body && req.body.en) || "").trim().slice(0, 100);
+      if (/[<>]/.test(zh + en)) return fail(context, 400, "name: no < or >");
+      const doc = await people.readGroupNames();
+      if (zh || en) doc.groups[id] = { zh, en, by: actor, at: new Date().toISOString() };
+      else delete doc.groups[id];
+      await people.writeGroupNames(doc);
+      await audit(context, { actor, action: "group.names", target: id, domain, zh, en, result: "ok" });
+      context.res = { status: 200, body: { ok: true, id, zh, en } };
       return;
     }
 

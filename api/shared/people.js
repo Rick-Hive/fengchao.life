@@ -88,6 +88,37 @@ async function writeInstitutions(doc) {
   await container.getBlockBlobClient(INST_BLOB).upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" } });
 }
 
+// Teams group names in both languages (Rick, 2026-10-06: 「Make all teams groups name
+// bilingual in Hive management center, but don't modify them in MS tenant」). Keyed by
+// group id; the tenant's displayName is never touched. groupnames.json:
+// { "groups": { "<id>": { "zh": "…", "en": "…", "by": "…", "at": "…" } } }
+const GROUPNAMES_BLOB = "groupnames.json";
+async function readGroupNames() {
+  try {
+    const { container } = blobClient();
+    const blob = container.getBlockBlobClient(GROUPNAMES_BLOB);
+    if (!(await blob.exists())) return { groups: {} };
+    const parsed = JSON.parse((await blob.downloadToBuffer()).toString("utf8"));
+    return { groups: parsed && typeof parsed.groups === "object" && parsed.groups ? parsed.groups : {} };
+  } catch {
+    return { groups: {} };
+  }
+}
+async function writeGroupNames(doc) {
+  const { container } = blobClient();
+  await container.createIfNotExists();
+  const body = JSON.stringify({ groups: doc.groups || {} }, null, 2);
+  await container.getBlockBlobClient(GROUPNAMES_BLOB).upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" } });
+}
+// Add nameZh / nameEn to group rows ({id, name, …}); a name not set falls back to the tenant's.
+function withGroupNames(rows, doc) {
+  const g = (doc && doc.groups) || {};
+  return (rows || []).map((r) => {
+    const n = r && r.id && g[r.id];
+    return Object.assign({}, r, { nameZh: (n && n.zh) || "", nameEn: (n && n.en) || "" });
+  });
+}
+
 // Identity for one account: Hive's record first, then Entra's department.
 function identityOf(record, entraUser) {
   if (record && IDENTITIES.includes(record.identity)) return record.identity;
@@ -182,4 +213,4 @@ function linkFamily(doc, parent, childAccounts, prev) {
   }
 }
 
-module.exports = { IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };
+module.exports = { readGroupNames, writeGroupNames, withGroupNames, IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };

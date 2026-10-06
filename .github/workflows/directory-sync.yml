@@ -75,3 +75,15 @@ jobs:
             sleep 2
           done
           echo "sync did not finish within the loop limit — run again, it resumes where it stopped"; exit 1
+
+      # The Equip (textbook) base → crm/equip/data.json, one call (CRM design §8).
+      # Needs AIRTABLE_EQUIP_PAT on the Static Web App; until it is set the call
+      # answers 503 and this step only reports it.
+      - name: Sync the Equip base into the CRM
+        if: always()
+        env:
+          KEY: ${{ secrets.HIVE_SYNC_KEY }}
+        run: |
+          out=$(curl -sS --max-time 90 -X POST "https://fengchao.life/api/equip-sync" \
+            -H "content-type: application/json" -H "x-hive-sync-key: $KEY" -d '{}' 2>&1) || true
+          echo "$out" | head -c 600; echo

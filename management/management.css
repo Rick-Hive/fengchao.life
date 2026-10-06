@@ -477,3 +477,11 @@ table.data.resizing { user-select: none; cursor: col-resize; }
 .hrow .hwho { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hrow .hnote { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 @media (max-width: 640px) { .hrow { grid-template-columns: 1fr; } }
+.tname .gorig { font-weight: 400; font-size: 12px; margin-left: 6px; }
+
+/* 订单: two pages shown one at a time */
+.pagetabs { display: flex; gap: var(--s2); margin: 0 0 var(--s4); border-bottom: 1px solid var(--line); }
+.pagetabs .ptab { display: flex; flex-direction: column; gap: 1px; padding: 8px 14px 10px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; }
+.pagetabs .ptab small { font-size: 11px; font-weight: 400; color: var(--faint); }
+.pagetabs .ptab:hover { color: var(--accent-dark); }
+.pagetabs .ptab.on { color: var(--accent-dark); border-bottom-color: var(--accent); }
