@@ -151,6 +151,18 @@ async function syncEquip(opts) {
       const m = names.get(f.options.linkedTableId);
       return ids(raw).map((id) => (m && m.get(id)) || id).join(", ");
     }
+    // A lookup carries the looked-up field's VALUES, not record ids — when that
+    // field is the target's autonumber primary, the values are "13", "1", "10"
+    // (Rick, 2026-10-08: the publisher charts showed numbers). Go through the link
+    // field the lookup rides on and name the linked records instead.
+    if (f && f.type === "multipleLookupValues" && f.options && f.options.recordLinkFieldId) {
+      const link = t.table.fields.find((x) => x.id === f.options.recordLinkFieldId);
+      if (link && link.type === "multipleRecordLinks" && link.options) {
+        const m = names.get(link.options.linkedTableId);
+        const linked = ids(rec.fields[link.name]).map((id) => (m && m.get(id)) || "").filter(Boolean);
+        if (linked.length) return linked.join(", ");
+      }
+    }
     if (Array.isArray(raw)) return raw.map((v) => (typeof v === "string" && /^rec[A-Za-z0-9]+$/.test(v) ? lookupName(v) : s(v))).filter(Boolean).join(", ");
     if (typeof raw === "string" && /^rec[A-Za-z0-9]+$/.test(raw)) return lookupName(raw);
     return s(raw);
