@@ -32,6 +32,7 @@ const teamsFetch = require("../shared/teamsFetch");
 const hub = require("../shared/hub");
 const digest = require("../shared/digest");
 const royalty = require("../shared/royalty");
+const licenses = require("../shared/licenses");
 const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
@@ -205,7 +206,9 @@ async function handler(context, req) {
       const body = req.body && typeof req.body === "object" ? req.body : {};
       const domain = String(body.domain || "").trim().toLowerCase(), stage = String(body.stage || "");
       if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain) || (stage && !hub.PARTNER_STAGES.includes(stage))) { fail(context, 400, "bad_request"); return; }
-      if (stage || body.note || body.owner) partners.partners[domain] = { stage, note: String(body.note || "").slice(0, 500), owner: String(body.owner || "").slice(0, 120), by: normUser(user), at: new Date().toISOString() };
+      const type = String(body.type || ""), region = String(body.region || "");
+      if ((type && !licenses.INST_TYPES.includes(type)) || (region && !licenses.REGIONS.includes(region))) { fail(context, 400, "bad_request"); return; }
+      if (stage || body.note || body.owner || type || region) partners.partners[domain] = { stage, note: String(body.note || "").slice(0, 500), owner: String(body.owner || "").slice(0, 120), type, region, by: normUser(user), at: new Date().toISOString() };
       else delete partners.partners[domain];
       await hub.writePartners(partners);
       await audit(context, { action: "crm.partner.update", by: normUser(user), domain, stage });
@@ -392,6 +395,41 @@ async function handler(context, req) {
     const seeWho = ["read", "rw"].includes(acc.identity);
     const out = lines.slice(0, limit).map((e) => { const o = Object.assign({}, e); if (!seeWho) { for (const k of ["target", "email"]) if (o[k]) o[k] = "…"; } return o; });
     ok(context, { feed: out, access: acc });
+    return;
+  }
+
+  // ---- 许可 (phase 5 first cut): pools and allocations. drm ≥ read to see; drm rw to change.
+  if (action === "licenses") {
+    if (!crm.atLeast(roles, "drm", "read")) { fail(context, 403, "no_access"); return; }
+    const canEdit = isAdmin(roles) || crm.atLeast(roles, "drm", "rw");
+    const partners = await hub.readPartners().catch(() => ({ partners: {} }));
+    const regionOf = (domain) => (domain && partners.partners[domain] && partners.partners[domain].region) || "other";
+    const doc = await licenses.readDoc();
+    if (method === "GET") {
+      const v = licenses.view(doc, { regionOf });
+      const person = String((req.query && req.query.person) || "");
+      if (person) { ok(context, { allocations: doc.allocations.filter((a) => a.to.type === "person" && a.to.crmId === person).map((a) => Object.assign({}, a, { pool: v.pools.find((p) => p.id === a.poolId) || doc.pools.find((p) => p.id === a.poolId) })) }); return; }
+      const seeWho = ["read", "rw"].includes(acc.identity);
+      if (!seeWho) v.allocations = v.allocations.map((a) => a.to.type === "person" ? Object.assign({}, a, { to: Object.assign({}, a.to, { name: a.to.name ? a.to.name.slice(0, 1) + "…" : "" }) }) : a);
+      ok(context, Object.assign(v, { canEdit, regions: licenses.REGIONS, instTypes: licenses.INST_TYPES, access: acc }));
+      return;
+    }
+    if (!canEdit) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const by = normUser(user);
+    try {
+      let result;
+      if (body.op === "pool") result = licenses.createPool(doc, body, by);
+      else if (body.op === "allocate") result = licenses.allocate(doc, body, by);
+      else if (body.op === "revoke") result = licenses.revoke(doc, String(body.id || ""), by, undefined, body.note);
+      else { fail(context, 400, "bad_request"); return; }
+      await licenses.writeDoc(doc);
+      await audit(context, { action: "crm.license." + body.op, by, id: result.id, poolId: result.poolId || result.id, qty: result.qty, to: result.to, sku: result.sku });
+      ok(context, { ok: true, result, view: licenses.view(doc, { regionOf }) });
+    } catch (err) {
+      if (["bad_request", "not_found", "expired", "insufficient", "has_children"].includes(err.code)) { fail(context, err.code === "not_found" ? 404 : 400, err.code, { message: err.message, balance: err.balance }); return; }
+      throw err;
+    }
     return;
   }
 

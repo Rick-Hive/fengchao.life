@@ -37,7 +37,9 @@ h1, h2, h3, p, dl, dd { margin: 0; }
 /* ---- layout ------------------------------------------------------------------ */
 body.hub-body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
 body.hub-body .site-header { position: static; flex: none; }
-.hub { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); height: calc(100vh - var(--header-h, 96px)); height: calc(100dvh - var(--header-h, 96px)); }
+.hub { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100vh - var(--header-h, 96px)); height: calc(100dvh - var(--header-h, 96px)); }
+/* a long menu scrolls inside the sidebar instead of stretching the page (the row is capped) */
+.side, .main { min-height: 0; }
 .side { display: flex; flex-direction: column; height: 100%; background: var(--card); border-right: 1px solid var(--line); }
 .side-brand { display: none; }
 .side-nav { padding-top: var(--s4) !important; }
@@ -651,3 +653,12 @@ body.has-full::after { content: ""; position: fixed; inset: 0; background: rgba(
 #enf .olist { max-height: 220px; overflow: auto; margin-bottom: 6px; }
 .card.feed { grid-column: 1 / -1; }
 .card.feed .olist { max-height: 360px; overflow: auto; }
+/* 许可 */
+#ltable td.num, #ltable th.num { text-align: right; font-variant-numeric: tabular-nums; }
+#ltable tr.dim td, .orow.dim { opacity: 0.55; }
+#lpf .grid2, #laf.grid3 { display: grid; gap: var(--s2) var(--s3); }
+#lpf .grid2 { grid-template-columns: 1fr 1fr; }
+#laf.grid3 { grid-template-columns: 1fr 80px auto; align-items: end; }
+#lpf label.f, #laf label.f { display: block; font-size: 12px; color: var(--muted); }
+#lpf label.f input, #lpf label.f select, #laf label.f input { display: block; width: 100%; margin-top: 3px; }
+.panel .olist button.link { background: none; border: 0; color: var(--accent-dark); cursor: pointer; font: inherit; font-size: 11px; text-decoration: underline; padding: 0; }
