@@ -2531,7 +2531,9 @@
         [t("待替换邮箱（其中有订单 " + replaceWithOrders + "）", "Emails to replace (" + replaceWithOrders + " with orders)"), replaceAll, "#/ops/people", "replace"],
         [t("待回写 CRM ID", "CRM IDs to write back"), stats.writeBack || 0, "#/ops/people", "all"],
       ] : []).filter(function (r) { return r[1] !== null; });
-      cards.push('<div class="card todo" id="dTodo"><div class="ch"><h2>' + t("待处理与异常", "To do and exceptions") + ' <span class="n">' + t("今天该有人去做的事", "what someone should do today") + '</span></h2></div><div class="olist">' + rows.map(function (r) { return '<a class="orow link" href="' + r[2] + '" data-tab="' + r[3] + '"><div class="omain"><b>' + esc(r[0]) + '</b></div><div class="oprice"><span class="tag ' + (r[1] ? "warn" : "ok") + '">' + fmtNum(r[1]) + "</span></div></a>"; }).join("") + "</div></div>");
+      var canDigest = isAdmin() || crmLevel("orders") === "rw";
+      cards.push('<div class="card todo" id="dTodo"><div class="ch"><h2>' + t("待处理与异常", "To do and exceptions") + ' <span class="n">' + t("今天该有人去做的事", "what someone should do today") + '</span></h2></div><div class="olist">' + rows.map(function (r) { return '<a class="orow link" href="' + r[2] + '" data-tab="' + r[3] + '"><div class="omain"><b>' + esc(r[0]) + '</b></div><div class="oprice"><span class="tag ' + (r[1] ? "warn" : "ok") + '">' + fmtNum(r[1]) + "</span></div></a>"; }).join("") + "</div>" +
+        (canDigest ? '<div class="digest" id="dDigest"><span class="muted">' + t("每日摘要：载入中…", "Daily digest: loading…") + "</span></div>" : "") + "</div>");
     }
     // 8 合作伙伴 · 9 许可: later phases, said plainly
     cards.push('<div class="card soon"><div class="ch"><h2>' + t("合作伙伴", "Partners") + ' <span class="n">' + t("第 3 阶段", "phase 3") + '</span></h2></div><p class="muted">' + esc(t("机构看板：合作进展、各机构的客户与账号。等机构与家庭模型建好后在这里显示。", "The institutions board — partnership progress, customers and accounts per institution — appears here once the organisations and families model is built.")) + "</p></div>" +
@@ -2540,6 +2542,24 @@
     // 图形切换 for the trend card: 累计 / 按月
     var tc = $("dTrend"); if (tc) { var tg = tc.querySelector(".vtoggle"); tg.insertAdjacentHTML("afterbegin", '<button type="button" data-t="cum"' + (dashState.trend === "cum" ? ' class="on2"' : "") + ">" + t("累计", "Cumulative") + '</button><button type="button" data-t="monthly"' + (dashState.trend === "monthly" ? ' class="on2"' : "") + ">" + t("按月", "Monthly") + "</button>"); tg.addEventListener("click", function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; dashState.trend = b.getAttribute("data-t"); renderDashboard(); }); }
     drawCharts();
+    // The daily digest to the order manager (decision 18): who gets it, when it last went, send now.
+    if ($("dDigest")) api("crm/digest").then(function (r) {
+      var el = $("dDigest"); if (!el) return;
+      if (!r.ok) { el.innerHTML = '<span class="muted">' + esc(errText(r)) + "</span>"; return; }
+      var b = r.body, last = b.last;
+      el.innerHTML = '<span class="muted">' + esc(t("每日摘要发给 ", "Daily digest to ") + (b.to.length ? b.to.join(", ") : t("（没有订单经理账号，请在角色分配里指定）", "(nobody holds the order-manager role yet)")) + (last ? t(" · 上次 ", " · last ") + day(last.at) + (last.ok ? "" : t("（失败）", " (failed)")) : t(" · 尚未发送过", " · not sent yet")) + (b.configured ? "" : t(" · 未配置通知流程", " · notification flow not configured"))) + "</span>" +
+        '<button type="button" class="btn secondary sm" id="dSend">' + t("现在发送", "Send now") + "</button>";
+      $("dSend").addEventListener("click", function () {
+        var btn = $("dSend"); if (!window.confirm(t("把当前的待处理与异常发给订单经理（Teams + 邮件）？", "Send the current to-do and exceptions to the order manager (Teams + email)?"))) return;
+        savingButton(btn, t("发送中…", "Sending…"));
+        post("crm/digest", "POST", {}).then(function (r2) {
+          restoreButton(btn);
+          if (!r2.ok) { flash(esc((r2.body && r2.body.message) || errText(r2)), 10000); return; }
+          if (r2.body.sent) flashOk(esc(t("已发送给 ", "Sent to ") + r2.body.to.join(", ") + t("，共 " + r2.body.total + " 项。", ", " + r2.body.total + " items.")), 6000);
+          else flash(esc(t("通知流程返回 HTTP " + r2.body.status + "，未能发送。", "The notification flow answered HTTP " + r2.body.status + "; not sent.")), 10000);
+        });
+      });
+    });
     var asOf = [(equipState.status || {}).syncedAt, hub && hub.generatedAt].filter(Boolean).sort()[0];
     $("dfoot").innerHTML = esc((asOf ? t("数据截至 ", "Data as of ") + when(asOf) + " · " : "") + (seeMoney ? "" : t("金额按角色隐藏，图表以件数计 · ", "Amounts hidden for this role; charts count units · ")) + t("学年从 8 月起算", "School year from August"));
   }

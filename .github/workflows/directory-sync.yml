@@ -87,3 +87,14 @@ jobs:
           out=$(curl -sS --max-time 90 -X POST "https://fengchao.life/api/equip-sync" \
             -H "content-type: application/json" -H "x-hive-sync-key: $KEY" -d '{}' 2>&1) || true
           echo "$out" | head -c 600; echo
+
+      # 待处理与异常 → the order manager, once a day when there is something to act on
+      # (decision 18). Goes through the order-notification flow; nothing to send → "nothing_to_do".
+      - name: Send the CRM exceptions digest
+        if: always()
+        env:
+          KEY: ${{ secrets.HIVE_SYNC_KEY }}
+        run: |
+          out=$(curl -sS --max-time 90 -X POST "https://fengchao.life/api/crm-digest" \
+            -H "content-type: application/json" -H "x-hive-sync-key: $KEY" -d '{}' 2>&1) || true
+          echo "$out" | head -c 600; echo

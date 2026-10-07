@@ -602,3 +602,4 @@ button.orow.link:hover { background: #f8fafc; }
 /* a tile too narrow for number + sparkline drops the sparkline */
 .kpi.stat { container-type: inline-size; }
 @container (max-width: 175px) { .kpi.stat .spark { display: none; } }
+.card.todo .digest { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-top: var(--s3); font-size: 12px; flex-wrap: wrap; }

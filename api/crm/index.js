@@ -30,6 +30,7 @@ const equip = require("../shared/equip");
 const teamsOrders = require("../shared/teamsOrders");
 const teamsFetch = require("../shared/teamsFetch");
 const hub = require("../shared/hub");
+const digest = require("../shared/digest");
 const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
@@ -219,6 +220,28 @@ async function handler(context, req) {
     let stats = null;
     try { stats = (await hub.rebuild({ log: (m) => context.log(m) })).stats; } catch (err) { context.log.error("crm: hub rebuild after write-back failed: " + ((err && err.stack) || err)); }
     ok(context, { ok: true, written: result.written.length, already: result.already.length, conflicts: result.conflicts, missing: result.missing.length, stats });
+    return;
+  }
+
+  // 待处理与异常 digest to the order manager: GET previews (what would be sent, to whom,
+  // when it last went), POST sends now (force).
+  if (action === "digest") {
+    if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    if (method === "GET") {
+      const d = await digest.collect();
+      const to = await digest.recipients().catch(() => []);
+      const m = digest.compose(d, new Date().toISOString().slice(0, 10));
+      ok(context, { summary: { total: d.total, overdue: d.overdue.length, notifyFailed: d.notifyFailed.length, queue: d.queue, replace: d.replace, replaceWithOrders: d.replaceWithOrders, writeBack: d.writeBack }, to, text: m.text, subject: m.subject, last: await digest.readLast().catch(() => null), configured: !!process.env.POWER_AUTOMATE_URL, channel: !!(process.env.CRM_DIGEST_CHANNEL_ID || process.env.DEFAULT_TEAMS_CHANNEL_ID) });
+      return;
+    }
+    try {
+      const r = await digest.run({ force: true, log: (m) => context.log(m) });
+      await audit(context, { action: "crm.digest", by: normUser(user), to: r.to, total: r.summary.total, status: r.status });
+      ok(context, { ok: r.ok !== false, sent: !!r.sent, to: r.to, status: r.status, total: r.summary.total });
+    } catch (err) {
+      if (err.code === "no_flow" || err.code === "no_recipient") { fail(context, 503, err.code, { message: err.message }); return; }
+      throw err;
+    }
     return;
   }
 
