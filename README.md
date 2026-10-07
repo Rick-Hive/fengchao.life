@@ -1,4 +1,4 @@
-# fengchao.life — 蜂巢 Hive · 以线上资源推动C教育生态重建
+# fengchao.life — 蜂巢 Hive · 重建中国C教育生态
 
 The website of CEFF's Hive (蜂巢) platform: rebuilding the offline C-education
 ecosystem through online resources. It is bilingual (中文/EN) and serves families,

@@ -105,7 +105,7 @@ The same template text serves every hive; there is no per-hive wording.
 如超过 {{replyDays}} 个工作日仍未收到联系，请直接回复本邮件并注明订单编号，我们会为您跟进。
 
 蜂巢
-以线上资源推动C教育生态重建
+重建中国C教育生态
 https://www.fengchao.life
 ```
 
@@ -139,7 +139,7 @@ The institution offering these courses ({{schoolNames}}) will contact you direct
 If you have not heard from anyone within {{replyDays}} working days, reply to this email with your order number and we will follow up for you.
 
 Hive
-Rebuilding the C education ecosystem
+Restore Chinese C Education Ecosystem
 https://www.fengchao.life
 ```
 

@@ -1,7 +1,7 @@
 // UI strings. Data values from Airtable are already bilingual and shown as-is.
 window.I18N = {
   zh: {
-    brandTag: "以线上资源推动C教育生态重建",
+    brandTag: "重建中国C教育生态",
     brandValues: ["开放", "自治", "协作"],
     menuLabel: "菜单",
     comingSoon: "即将上线",
@@ -242,7 +242,7 @@ window.I18N = {
     },
   },
   en: {
-    brandTag: "Rebuilding the C education ecosystem",
+    brandTag: "Restore Chinese C Education Ecosystem",
     brandValues: ["Open", "Autonomous", "Collaborative"],
     menuLabel: "Menu",
     comingSoon: "Coming soon",
