@@ -1902,7 +1902,7 @@
   var PEOPLE_TABS = [["all", "全部", "All"], ["replace", "待替换邮箱", "Email to replace"], ["missing", "无邮箱", "No email"], ["viaTeams", "Teams 代用", "Via Teams"], ["queue", "待合并", "To merge"]];
   var STAGES = { lead: ["潜在", "Lead", ""], registered: ["已注册", "Registered", "accent"], active: ["活跃", "Active", "ok"], dormant: ["沉寂", "Dormant", "muted"] };
   var TIERS = { safe: ["可用", "OK", "ok"], replace: ["待替换", "Replace", "warn"], missing: ["无邮箱", "No email", "bad"] };
-  var peopleState = { hub: null, tab: "all", q: "", stage: "" };
+  var peopleState = { hub: null, tab: "all", q: "", stage: "", sort: { key: "", dir: 1 } };
   function stageTag(s) { var d = STAGES[s] || [s, s, ""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
   function tierTag(tier) { var d = TIERS[tier]; return d ? '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>" : ""; }
   function sourceTags(p) {
@@ -1982,6 +1982,31 @@
       return hay.indexOf(q) >= 0;
     });
   }
+  var STAGE_ORDER = { lead: 0, registered: 1, active: 2, dormant: 3 };
+  function sortPeople(list) {
+    var k = peopleState.sort.key, dir = peopleState.sort.dir;
+    if (!k) return list;
+    var val = function (p) {
+      switch (k) {
+        case "crmId": return p.crmId || "";
+        case "name": return (p.name || "").toLowerCase();
+        case "email": return (p.primaryEmail || "").toLowerCase();
+        case "sources": var s = p.sources || {}; return [s.customer, s.account, s.lead, s.hive].filter(Boolean).length;
+        case "accounts": return (((p.facets || {}).accounts || [])[0] || {}).upn || (((p.facets || {}).accounts || [])[0] || {}).domain || "";
+        case "orders": return (typeof p.spend === "number" ? p.spend : 0) * 1e6 + (p.orders || 0) + (p.hiveOrders || 0);
+        case "active": return [p.lastOrder, p.lastSignIn].filter(Boolean).sort().pop() || "";
+        case "stage": return STAGE_ORDER[p.stage] == null ? 9 : STAGE_ORDER[p.stage];
+      }
+      return "";
+    };
+    return list.slice().sort(function (a, b) {
+      var x = val(a), y = val(b);
+      // empty values last whichever direction
+      if (x === "" && y !== "") return 1; if (y === "" && x !== "") return -1;
+      var c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "zh");
+      return c * dir || String(a.crmId).localeCompare(String(b.crmId));
+    });
+  }
   function lastActive(p) { var d = [p.lastOrder, p.lastSignIn].filter(Boolean).sort().pop(); return d ? day(d) : "—"; }
   function renderPeople() {
     var h = peopleState.hub || {}, s = h.stats || {}, list = h.people || [];
@@ -1995,8 +2020,9 @@
       (h.canMerge ? '<button class="kpi" data-kf="queue"><div class="l">' + t("待合并", "To merge") + '</div><div class="v' + (counts.queue ? " warn" : "") + '">' + counts.queue + '</div><div class="s">' + t("同名同校，需要人判断", "same name and school; a person decides") + "</div></button>" : "") +
       '<div class="kpi"><div class="l">' + t("待回写 CRM ID", "CRM IDs to write back") + '</div><div class="v">' + (s.writeBack || 0) + '</div><div class="s">' + t("Airtable 客户表还没有的", "customers not yet tagged in Airtable") + "</div></div>";
     if (peopleState.tab === "queue") { renderQueue(); return; }
-    var rows = peopleNow();
-    var html = '<div class="tbl-wrap"><table class="data" id="ptable"><thead><tr><th>CRM ID</th><th>' + t("姓名", "Name") + "</th><th>" + t("主邮箱", "Primary email") + "</th><th>" + t("来源", "Sources") + "</th><th>" + t("账号", "Accounts") + "</th><th>" + t("订单 / 消费", "Orders / spend") + "</th><th>" + t("最近活动", "Last active") + "</th><th>" + t("阶段", "Stage") + "</th></tr></thead><tbody>";
+    var rows = sortPeople(peopleNow());
+    var th = function (key, label) { var on = peopleState.sort.key === key; return '<th class="sortable' + (on ? " on" : "") + '" data-sort="' + key + '" aria-sort="' + (on ? (peopleState.sort.dir > 0 ? "ascending" : "descending") : "none") + '">' + label + '<span class="sortind">' + (on ? (peopleState.sort.dir > 0 ? "▲" : "▼") : "") + "</span></th>"; };
+    var html = '<div class="tbl-wrap"><table class="data" id="ptable"><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("email", t("主邮箱", "Primary email")) + th("sources", t("来源", "Sources")) + th("accounts", t("账号", "Accounts")) + th("orders", t("订单 / 消费", "Orders / spend")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
     if (!list.length) html += '<tr><td colspan="8" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
     else if (!rows.length) html += '<tr><td colspan="8" class="empty">' + t("没有符合条件的人。", "Nobody matches.") + "</td></tr>";
     else html += rows.map(function (p) {
@@ -2014,8 +2040,30 @@
     html += "</tbody></table></div>";
     $("pbody").innerHTML = html;
     colResize($("ptable"));
-    $("pfoot").innerHTML = (list.length ? esc(t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 人", " people")) + " · " : "") + (h.generatedAt ? esc(t("匹配于 ", "Matched ") + when(h.generatedAt)) : "") +
+    // Click a heading to sort by it; again to reverse (Rick, 2026-10-08: 「CRM ID field, when clicking, should be 排序」).
+    $("ptable").tHead.addEventListener("click", function (e) {
+      if (e.target.closest(".rz")) return;
+      var h = e.target.closest("th[data-sort]"); if (!h) return;
+      var k = h.getAttribute("data-sort");
+      peopleState.sort = { key: k, dir: peopleState.sort.key === k ? -peopleState.sort.dir : 1 };
+      renderPeople();
+    });
+    // The footer says why fewer people show than exist (Rick, 2026-10-08: 「Why only shows
+    // 6 / 1980 people?」 — a search was still in the box) and offers to clear it.
+    var filters = [];
+    if (peopleState.tab !== "all") { var tb = PEOPLE_TABS.filter(function (x) { return x[0] === peopleState.tab; })[0]; if (tb) filters.push(t(tb[1], tb[2])); }
+    if (peopleState.stage) filters.push(t("阶段 ", "stage ") + t(STAGES[peopleState.stage][0], STAGES[peopleState.stage][1]));
+    if (peopleState.q) filters.push(t("搜索 ", "search ") + "“" + peopleState.q + "”");
+    $("pfoot").innerHTML = (list.length ? esc(t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 人", " people")) + (filters.length ? ' <span class="status warn">' + esc(t("筛选：", "filter: ") + filters.join(" · ")) + '</span> <a href="#" id="pClear">' + t("显示全部", "Show all") + "</a>" : "") + " · " : "") + (h.generatedAt ? esc(t("匹配于 ", "Matched ") + when(h.generatedAt)) : "") +
       (h.sources && h.sources.equipSyncedAt ? " · " + esc(t("Equip 数据同步于 ", "Equip data synced ") + when(h.sources.equipSyncedAt)) : "");
+    var clr = $("pClear");
+    if (clr) clr.addEventListener("click", function (e) {
+      e.preventDefault();
+      peopleState.tab = "all"; peopleState.stage = ""; peopleState.q = "";
+      if ($("pq")) $("pq").value = ""; if ($("pstage")) $("pstage").value = "";
+      $("pbar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-f") === "all" ? "true" : "false"); });
+      renderPeople();
+    });
   }
   function renderQueue() {
     var h = peopleState.hub || {}, q = h.queue || [], qq = peopleState.q.toLowerCase();
