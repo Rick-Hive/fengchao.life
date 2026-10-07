@@ -159,7 +159,7 @@
       var pts = vals.map(function (v, i) { return [(i / (vals.length - 1)) * (w - 4) + 2, h - 3 - ((v || 0) / max) * (h - 8)]; });
       spark = '<svg class="spark" viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMaxYMax meet"><path d="' + pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ") + '" fill="none" stroke="' + VIZ.gray + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + pts[pts.length - 1][0] + '" cy="' + pts[pts.length - 1][1] + '" r="3.5" fill="' + VIZ.seq + '" stroke="#fff" stroke-width="2"/></svg>';
     }
-    return '<div class="kpi stat' + (opts.cls ? " " + opts.cls : "") + '"' + (opts.attr || "") + '><div class="l">' + esc(label) + '</div><div class="vrow"><div class="v' + (opts.warn ? " warn" : "") + '">' + value + "</div>" + spark + "</div>" + (delta || opts.sub ? '<div class="s">' + delta + (opts.sub ? '<span>' + esc(opts.sub) + "</span>" : "") + "</div>" : "") + "</div>";
+    return '<div class="kpi stat' + (opts.cls ? " " + opts.cls : "") + '"' + (opts.attr || "") + '><div class="head"><div class="l">' + esc(label) + '</div><div class="vrow"><div class="v' + (opts.warn ? " warn" : "") + '">' + value + "</div>" + spark + "</div></div>" + (delta || opts.sub ? '<div class="s">' + delta + (opts.sub ? '<span>' + esc(opts.sub) + "</span>" : "") + "</div>" : "") + "</div>";
   }
   // A one-row stacked bar of shares with direct labels under it (part-to-whole).
   function shareBar(parts, total) {

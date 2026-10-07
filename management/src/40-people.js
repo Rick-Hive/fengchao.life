@@ -43,7 +43,7 @@
       (canMerge ? ' <button class="btn secondary sm" id="pRebuild">' + t("重新匹配", "Rebuild") + '</button> <button class="btn sm" id="pWriteback">' + t("回写 CRM ID", "Write CRM IDs back") + "</button>" : ""),
       { info: t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；同名同校、或账号备用邮箱等于客户邮箱的，放到「待合并」由人来判断（账号的备用邮箱多半是家长的，不会据此合并）。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school, or an account whose recovery email is a customer's email, only go to “To merge” for a person to decide (a recovery email is usually the parent's, so it never merges by itself). No WeChat or phone numbers are recorded.") });
     $("content").innerHTML =
-      '<div class="kpis" id="pkpi"></div>' +
+      '<div class="kpis compact" id="pkpi"></div>' +
       '<div class="toolbar sticky" id="pbar">' + PEOPLE_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (peopleState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
         '<span class="spacer"></span><select id="pstage"><option value="">' + t("所有阶段", "All stages") + "</option>" + Object.keys(STAGES).map(function (s) { return '<option value="' + s + '"' + (peopleState.stage === s ? " selected" : "") + ">" + esc(t(STAGES[s][0], STAGES[s][1])) + "</option>"; }).join("") + "</select>" +
         '<div class="search">' + ICON.search + '<input type="search" id="pq" value="' + esc(peopleState.q) + '" placeholder="' + t("搜索姓名、邮箱、Teams 账号、CRM ID…", "Search name, email, Teams account, CRM ID…") + '" /></div></div>' +

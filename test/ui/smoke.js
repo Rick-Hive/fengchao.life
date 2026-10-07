@@ -47,7 +47,7 @@ function mkUser(i) {
   return { id: "u" + i, upn, displayName: n, enabled: i !== 7, created: "2026-08-0" + ((i % 9) + 1) + "T00:00:00Z", lastSignIn: i % 4 ? "2026-09-2" + (i % 9) + "T08:00:00Z" : null,
     verified, devices: verified ? [{ id: "d" + i, kind: "authenticator", name: i % 2 ? "iPhone 13" : "Xiaomi 14", version: "6.8.1", created: "2026-09-01T00:00:00Z" }] : [], otherMethods: ["password"],
     groups: i % 2 ? [{ id: "g1", name: "English Grade 5", kind: "team", nameZh: "五年级英语", nameEn: "English Grade 5" }] : [{ id: "g2", name: "Math Grade 5", kind: "team" }, { id: "g3", name: "BES Staff", kind: "m365" }],
-    roles: i === 1 ? [{ role: "domain_it:bes.qiaoliang.online", zh: "域管理员（IT） · bes.qiaoliang.online", en: "Domain administrator (IT) · bes.qiaoliang.online" }] : [], hiveTeacher: i % 5 === 2 ? { name: n, teacherId: "T-00" + i, organization: ["BES"] } : null, safeEmail: i % 2 ? "" : "parent" + i + "@gmail.com", city: ["南京", "苏州", ""][i % 3],
+    roles: i === 1 ? [{ role: "domain_it:bes.qiaoliang.online", zh: "域管理员（IT） · bes.qiaoliang.online", en: "Domain administrator (IT) · bes.qiaoliang.online" }] : [], hiveTeacher: i % 5 === 2 ? { name: n, teacherId: "T-00" + i, organization: ["BES"] } : null, plan: i % 5 === 1 ? "student" : "faculty", anomaly: i === 6 ? "student_without_student_plan" : i === 1 ? "" : "", safeEmail: i % 2 ? "" : "parent" + i + "@gmail.com", city: ["南京", "苏州", ""][i % 3],
     identity: ["家长", "学生", "老师", "行政", ""][i % 5], identitySource: i % 5 === 4 ? "" : (i % 2 ? "hive" : "entra"), linked: i % 5 === 0 ? ["kid.chen@bes.qiaoliang.online"] : [], note: i === 1 ? "SSPR 未生效，待复核" : "", extra: i === 1 ? { city: "南京", needs: ["教材"], children: [{ name: "大宝", age: 12, grade: "6", schooling: "在家教育", model: "古典教育", higherEd: "海外上大学", account: "kid.chen@bes.qiaoliang.online" }] } : null };
 }
 const SYNC = { domain: "bes.qiaoliang.online", done: true, mode: "full", total: 12, remaining: 0, users: 12, syncedAt: "2026-10-01T17:00:00Z", fullAt: "2026-10-01T17:00:00Z", lastRun: null, error: null, added: 0 };
@@ -281,7 +281,7 @@ const EQUIP = [
     if (!/mama@equipme\.cloud/.test(r0) || !/Teams/.test(r0) || !/活跃/.test(r0) || !/¥1,296/.test(r0) || !(await p.$('#ptable tbody tr[data-id="' + mei.crmId + '"] .dot.warn'))) throw new Error("Mei row: " + r0);
     const tw = await p.evaluate(() => [document.getElementById("ptable").offsetWidth, document.getElementById("content").clientWidth]); if (tw[0] > tw[1]) throw new Error("people table wider than the pane: " + tw);
     const chips = await p.$eval("#pbar", e => e.innerText); if (!/待替换邮箱/.test(chips) || !/待合并 \(1\)/.test(chips)) throw new Error("chips: " + chips);
-    const kp = await p.$eval("#pkpi", e => e.innerText); if (!/活跃/.test(kp) || !/Equip/.test(kp) || !/待合并\n1/.test(kp)) throw new Error("people tiles: " + kp);
+    const kp = await p.$eval("#pkpi", e => e.innerText); if (!/活跃/.test(kp) || !/Equip/.test(kp) || !/待合并\s*1/.test(kp)) throw new Error("people tiles: " + kp);
     if ((await p.$$("#pkpi .sharebar")).length !== 3) throw new Error("share bars");
     await p.click('#ptable tbody tr[data-id="' + mei.crmId + '"]'); await p.waitForTimeout(300);
     const pb = await p.$eval("#panel .pb", e => e.innerText);
@@ -322,13 +322,13 @@ const EQUIP = [
     const zr = await p.$eval('#ptable tbody tr[data-id="' + z.crmId + '"]', e => e.innerText); if (!/zhang\.san@kxc\.edu/.test(zr)) throw new Error("merged account not on the row: " + zr);
     await p.click("#pRebuild"); await p.waitForTimeout(500); if (rebuilds !== 1) throw new Error("rebuild not called");
     // 回写 CRM ID: dry run, confirmation with the count, then the write; the pending tile drops to 0.
-    const wbBefore = await p.$eval("#pkpi", e => e.innerText); if (!/待回写 CRM ID\n4/.test(wbBefore)) throw new Error("pending tile before: " + wbBefore);
+    const wbBefore = await p.$eval("#pkpi", e => e.innerText); if (!/待回写 CRM ID\s*4/.test(wbBefore)) throw new Error("pending tile before: " + wbBefore);
     let confirmText = ""; p.removeAllListeners("dialog"); p.on("dialog", d => { confirmText = d.message(); d.accept(); });
     await p.click("#pWriteback"); await p.waitForTimeout(800);
     if (writebacks.length !== 2 || writebacks[0].dryRun !== true || writebacks[1].dryRun) throw new Error("writeback calls: " + JSON.stringify(writebacks));
     if (!/把 4 个 CRM ID 写入/.test(confirmText) || !/只写空的/.test(confirmText)) throw new Error("confirmation: " + confirmText);
     const fl = await p.$eval("#flash", e => e.innerText); if (!/已回写 4 个 CRM ID/.test(fl)) throw new Error("writeback notice: " + fl);
-    const wbAfter = await p.$eval("#pkpi", e => e.innerText); if (!/待回写 CRM ID\n0/.test(wbAfter)) throw new Error("pending tile after: " + wbAfter);
+    const wbAfter = await p.$eval("#pkpi", e => e.innerText); if (!/待回写 CRM ID\s*0/.test(wbAfter)) throw new Error("pending tile after: " + wbAfter);
     // Sorting by heading (Rick 2026-10-08): CRM ID ascending, again descending, 阶段 by stage order; the resize handle does not sort.
     const ids = async () => p.$$eval("#ptable tbody tr[data-id]", es => es.map(e => e.getAttribute("data-id")));
     await p.click('#ptable th[data-sort="crmId"]'); await p.waitForTimeout(200);
@@ -418,7 +418,7 @@ const EQUIP = [
     await p.waitForTimeout(700);
     if (!(await p.$('#gtree .mrow[data-upn="tom.li@bes.qiaoliang.online"]'))) throw new Error("fixture: Tom should be a member before");
     await p.click('#nav a[href="#/domain/users"]'); await p.waitForTimeout(600);
-    const before = await p.$eval("#ukpi", e => e.innerText); if (!/账号\n12/.test(before)) throw new Error("tiles before: " + before);
+    const before = await p.$eval("#ukpi", e => e.innerText); if (!/账号\s*12/.test(before)) throw new Error("tiles before: " + before);
     await p.click('#utable tbody tr[data-upn="tom.li@bes.qiaoliang.online"]'); await p.waitForTimeout(400);
     if (!(await p.$("#uDel"))) throw new Error("no delete button for an ordinary account");
     let answer = "tom";
@@ -430,7 +430,7 @@ const EQUIP = [
     await p.click("#uDel"); await p.waitForTimeout(700);
     if (deleted.length !== 1 || deleted[0].user !== "tom.li@bes.qiaoliang.online" || deleted[0].domain !== "bes.qiaoliang.online") throw new Error("DELETE call: " + JSON.stringify(deleted));
     if (await p.$('#utable tbody tr[data-upn="tom.li@bes.qiaoliang.online"]')) throw new Error("row still listed");
-    const after = await p.$eval("#ukpi", e => e.innerText); if (!/账号\n11/.test(after)) throw new Error("tiles after: " + after);
+    const after = await p.$eval("#ukpi", e => e.innerText); if (!/账号\s*11/.test(after)) throw new Error("tiles after: " + after);
     const foot = await p.$eval("#ufoot", e => e.innerText); if (!/11 \/ 11/.test(foot)) throw new Error("footer: " + foot);
     const fl = await p.$eval("#flash", e => e.hidden ? "" : e.innerText); if (!/已删除/.test(fl) || !/Tom Li/.test(fl) || !/30 天/.test(fl)) throw new Error("notice: " + fl);
     await p.waitForTimeout(900);
@@ -443,7 +443,7 @@ const EQUIP = [
     await p.click('#nav a[href="#/domain/groups"]'); await p.waitForTimeout(700);
     if (await p.$('#gtree .mrow[data-upn="tom.li@bes.qiaoliang.online"]')) throw new Error("deleted account still a group member on the 群组 page");
     await p.click('#nav a[href="#/domain/users"]'); await p.waitForTimeout(600);
-    const back = await p.$eval("#ukpi", e => e.innerText); if (!/账号\n11/.test(back)) throw new Error("tiles on return: " + back);
+    const back = await p.$eval("#ukpi", e => e.innerText); if (!/账号\s*11/.test(back)) throw new Error("tiles on return: " + back);
     const gk = await p.$eval('#ukpi .kpi[data-kf="groups"]', e => e.innerText); if (!/\d/.test(gk)) throw new Error("groups tile: " + gk);
     await p.click('#utable tbody tr[data-upn="rick.zhang@bes.qiaoliang.online"]'); await p.waitForTimeout(400);
     if (await p.$("#uDel")) throw new Error("own account offers delete");
@@ -627,6 +627,10 @@ const EQUIP = [
     assert.ok(await p.$("#ukpi .kpi[data-kf=teacher]"), "teacher tile");
     await p.selectOption("#urole", "role:it"); await p.waitForTimeout(200);
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 1, "one domain IT: " + rows);
+    await p.selectOption("#urole", ""); await p.click("#ukpi .kpi[data-kf=anomaly]"); await p.waitForTimeout(200);
+    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 1, "one licence anomaly: " + rows);
+    assert.ok(await p.$("#utable .tag.bad[title*='许可证']"), "the anomaly tag explains itself");
+    await p.click("#ukpi .kpi[data-kf=all]"); await p.waitForTimeout(200);
     await p.selectOption("#urole", "id:家长"); await p.waitForTimeout(200);
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 3, "parents: " + rows);
     await p.selectOption("#urole", ""); await p.selectOption("#dsel", "*"); await p.waitForTimeout(900);
@@ -651,6 +655,22 @@ const EQUIP = [
     await p.waitForSelector("#ptable tr[data-id]");
     const over = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert.ok(over <= 0, "no sideways scroll on the people page at 1000px: " + over);
+  });
+  // Panels close on a click outside; page descriptions sit behind ⓘ, never under the title (Rick, 2026-10-08).
+  await shot("panel-outside-click", 1280, 800, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#utable tr[data-upn]");
+    assert.ok(!(await p.$("#title .desc")), "no description line under the title");
+    assert.ok(await p.$("#title .info"), "the description is behind an ⓘ");
+    await p.click("#utable tr[data-upn]"); await p.waitForTimeout(300);
+    assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "panel opened");
+    await p.click("#ukpi"); await p.waitForTimeout(200);
+    assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "a click outside closed it");
+    await p.click("#utable tr[data-upn]"); await p.waitForTimeout(300);
+    assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "opens again from a row");
+    const second = await p.$eval("#utable tr[data-upn]:nth-of-type(2) .dn", e => e.textContent.trim());
+    const rows = await p.$$("#utable tr[data-upn]"); await rows[1].click({ position: { x: 40, y: 10 } }); await p.waitForTimeout(300);
+    assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "clicking another row keeps a panel open (the next person)");
+    const h3 = await p.$eval("#panel .ph h3", e => e.textContent); assert.ok(h3.indexOf(second) >= 0, "and it is the second row's person: " + h3 + " vs " + second);
   });
   console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "all orders/roles checks passed");
   await browser.close(); srv.close();
