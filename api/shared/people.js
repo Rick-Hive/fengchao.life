@@ -187,8 +187,21 @@ function identityOf(record, entraUser) {
   const dep = String((entraUser && (entraUser.department || entraUser.jobTitle)) || "").trim();
   const hit = IDENTITIES.find((i) => dep === i || dep.includes(i));
   if (hit) return hit;
-  // Every account on the Office 365 A1 for students plan is a student (Rick, 2026-10-08).
+  // By licence (Rick, 2026-10-08): every account on the A1 for students plan is a
+  // student; every other Teams account is a parent unless it says otherwise.
   if (entraUser && entraUser.plan === "student") return "学生";
+  if (entraUser && entraUser.plan) return "家长";
+  return "";
+}
+// 异常 Teams 数据 (Rick, 2026-10-08): an identity that contradicts the licence — a
+// self-declared or department-set student without the student plan, or a
+// teacher / parent / staff on the student plan — most likely a licence assigned
+// wrongly. Returns "" or a code the UI explains.
+function licenceAnomaly(identity, entraUser) {
+  const plan = entraUser && entraUser.plan;
+  if (!plan || !identity) return "";
+  if (identity === "学生" && plan !== "student") return "student_without_student_plan";
+  if (identity !== "学生" && plan === "student") return "student_plan_not_student";
   return "";
 }
 
@@ -278,4 +291,4 @@ function linkFamily(doc, parent, childAccounts, prev) {
   }
 }
 
-module.exports = { readGroupNames, writeGroupNames, updateGroupNames, updatePeople, updateInstitutions, withGroupNames, translateGroupNames, bilingualSlash, sideOfName, IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };
+module.exports = { readGroupNames, writeGroupNames, updateGroupNames, updatePeople, updateInstitutions, withGroupNames, translateGroupNames, bilingualSlash, sideOfName, IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, licenceAnomaly, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };

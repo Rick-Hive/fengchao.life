@@ -420,6 +420,7 @@ table.roles2 { min-width: 720px; }
 .panel .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .panel label.f { margin-bottom: var(--s3); display: block; }
 .panel label.f small { display: block; color: var(--faint); font-size: 12px; margin-top: 4px; }
+.panel label.f small.bad { color: var(--bad); }
 .req { color: var(--bad); font-weight: 600; }
 .plans { display: grid; gap: var(--s2); }
 .plan { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: var(--r); padding: var(--s2) var(--s3); cursor: pointer; font-size: 13px; background: #fbfcfe; }
@@ -594,6 +595,25 @@ button.orow.link:hover { background: #f8fafc; }
 .seg button { border: 0; background: var(--card); color: var(--muted); font: inherit; font-size: 13px; height: 32px; padding: 0 12px; cursor: pointer; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+/* Compact KPI band for record pages (Rick, 2026-10-08: "This part takes too much
+   space. Should give more space to display data records"): label and value on one
+   line, a 4px share bar, small keys — about a third of the height; the dashboard
+   keeps the full tiles. */
+.kpis.compact { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.kpis.compact .kpi { flex: 1 1 120px; min-width: 0; padding: 6px 10px 7px; display: block; }
+.kpis.compact .kpi.wide { flex: 2 1 200px; }
+.kpis.compact .kpi .l { font-size: 11px; line-height: 1.2; display: inline; }
+.kpis.compact .kpi .v, .kpis.compact .kpi.stat .v { display: inline; font-size: 17px; line-height: 1.2; margin: 0 0 0 6px; }
+.kpis.compact .kpi .vrow { display: inline; }
+.kpis.compact .kpi .head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.kpis.compact .kpi .s { margin-top: 1px; font-size: 10.5px; line-height: 1.3; }
+.kpis.compact .kpi .s { display: block; } .kpis.compact .kpi .vs { display: inline; }
+.kpis.compact .kpi.stat .v .unit { font-size: 11px; }
+.kpis.compact .sharebar { height: 4px; margin-top: 4px; border-radius: 2px; }
+.kpis.compact .sharekeys { margin-top: 3px; font-size: 10.5px; gap: 2px 8px; line-height: 1.3; }
+.kpis.compact .sharekeys i { width: 7px; height: 7px; }
+.kpis.compact .spark, .kpis.compact .delta { display: none; }
+@media (min-width: 861px) { .kpis.compact { padding-bottom: var(--s3); } }
 .kpi.go { cursor: pointer; }
 .kpi.go:hover { border-color: var(--accent-soft-line); }
 .vtoggle button.on2 { color: var(--accent-dark); font-weight: 600; }

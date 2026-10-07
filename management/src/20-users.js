@@ -179,7 +179,8 @@
     if (!canAll) state.allDomains = false;
     var all = state.allDomains;
     setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("用户", "Users"),
-      (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
+      (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>",
+      t("本校的每一个账号：验证器与设备、Teams 群组、身份、关联账号。数据来自每夜刷新的目录缓存；点一行打开人员面板。身份未填时按许可证推断：学生版 A1 为学生，其余为家长；身份与许可证对不上的账号标为异常。", "Every account of the school: authenticator and devices, Teams groups, identity, linked accounts. From the directory cache refreshed nightly; click a row for the person's panel. An unset identity is inferred from the licence: A1 for students → student, otherwise parent; an identity that contradicts the licence is flagged."));
     // Role filter (Rick, 2026-10-08): identity (家长/学生/老师/行政/教育顾问), Hive roles
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
     // school, or across all schools with 所有学校 in the picker.
@@ -194,7 +195,7 @@
         '<button class="chip" data-f="never" aria-pressed="' + (state.userFilter === "never") + '">' + t("从未登录", "Never signed in") + "</button>" +
         '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="uq" value="' + esc(state.userQ) + '" placeholder="' + t("搜索账号、姓名、群组…", "Search account, name, group…") + '" /></div>' +
       "</div>" +
-      '<div class="kpis" id="ukpi"></div>' +
+      '<div class="kpis compact" id="ukpi"></div>' +
       '<div class="tbl-wrap"><table class="data" id="utable"><thead><tr>' +
         "<th>" + t("账号", "Account name") + "</th><th>" + t("显示名", "Display name") + "</th><th>" + t("验证", "Authentication") + "</th><th>" + t("验证设备", "Authentication device") + "</th><th>" + t("Teams 群组", "Teams groups") + "</th><th>" + t("身份", "Identity") + "</th><th>" + t("关联账号", "Linked account") + "</th>" +
         '</tr></thead><tbody><tr><td colspan="7" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
@@ -263,6 +264,7 @@
       if (f === "noauth" && u.verified !== false) return false;
       if (f === "noid" && u.identity) return false;
       if (f === "never" && u.lastSignIn) return false;
+      if (f === "anomaly" && !u.anomaly) return false;
       if (role.indexOf("id:") === 0 && u.identity !== role.slice(3)) return false;
       if (role.indexOf("role:") === 0 && !hasRole(u, role.slice(5))) return false;
       if (q) {
@@ -272,6 +274,7 @@
       return true;
     });
     var teachers = d.users.filter(function (u) { return u.hiveTeacher || u.identity === "老师"; }).length;
+    var anomalies = d.users.filter(function (u) { return u.anomaly; }).length;
     var n = d.users.length, noauth = d.users.filter(function (u) { return u.verified === false; }).length, noid = d.users.filter(function (u) { return !u.identity; }).length;
     // Never signed in to Microsoft 365 (no successful sign-in on record — Rick, 2026-10-04:
     // 「Display how many users haven't login office 365 successfully」). The date comes from
@@ -285,6 +288,7 @@
       kpi("never", t("从未登录", "Never signed in"), anySignIn || !n ? never : "—", never && anySignIn ? " warn" : "", anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") +
       kpi("noauth", t("未登记验证器", "No authenticator"), noauth, noauth ? " bad" : "") +
       kpi("noid", t("身份未填", "No identity"), noid) +
+      (anomalies ? kpi("anomaly", t("异常 Teams 数据", "Teams data anomalies"), anomalies, " bad", '<div class="s">' + t("身份与许可证不符", "identity contradicts the licence") + "</div>") : "") +
       (teachers ? '<button type="button" class="kpi' + (state.userRole === "role:teacher" ? " on" : "") + '" data-kf="teacher"><div class="l">' + t("蜂巢课程教师", "Hive course teachers") + '</div><div class="v">' + teachers + "</div></button>" : "") +
       (d.all ? kpi("", t("学校", "Schools"), allDomainList().length) : kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)));
     $("ubar").querySelectorAll(".chip[data-f]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-f") === state.userFilter ? "true" : "false"); });
@@ -308,7 +312,7 @@
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"' + (u.domain ? ' data-dom="' + esc(u.domain) + '"' : "") + '><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
         '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (u.lastSignIn ? "" : " never") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
         '<td class="nowrap">' + auth + '</td><td class="nowrap devcell">' + dev + '</td><td><div class="tags nowrap">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
-        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + (u.hiveTeacher ? ' <span class="tag ok" title="' + esc(t("蜂巢课程教师", "Hive course teacher") + (u.hiveTeacher.teacherId ? " · " + u.hiveTeacher.teacherId : "")) + '">' + t("课程教师", "Course teacher") + "</span>" : "") + ((u.roles || []).length ? ' <span class="tag">' + t("角色", "Role") + "</span>" + roleTags : "") + "</td>" +
+        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + (u.anomaly ? ' <span class="tag bad" title="' + esc(anomalyText(u)) + '">' + t("异常", "Anomaly") + "</span>" : "") + (u.hiveTeacher ? ' <span class="tag ok" title="' + esc(t("蜂巢课程教师", "Hive course teacher") + (u.hiveTeacher.teacherId ? " · " + u.hiveTeacher.teacherId : "")) + '">' + t("课程教师", "Course teacher") + "</span>" : "") + ((u.roles || []).length ? ' <span class="tag">' + t("角色", "Role") + "</span>" + roleTags : "") + "</td>" +
         '<td class="nowrap">' + (u.linked.length ? '<span class="cell-ell" title="' + esc(u.linked.join(", ")) + '">' + u.linked.map(function (l) { return hl(l, state.userQ); }).join(", ") + "</span>" : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="empty">' + t("没有匹配的账号。", "No matching accounts.") + "</div></td></tr>";
     $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号" + (d.all ? "（" + allDomainList().length + " 所学校）" : "") + " · ", rows.length + " of " + n + " accounts" + (d.all ? " (" + allDomainList().length + " schools)" : "") + " · ") + (d.sync ? syncLine(d.sync) : "") + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
@@ -326,6 +330,12 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   var IDENTITIES = ["家长", "学生", "老师", "行政", "教育顾问"]; // = IDENTITIES in api/shared/people.js
+  // 异常 Teams 数据 (Rick, 2026-10-08): the identity contradicts the licence — most likely a licence assigned wrongly.
+  function anomalyText(u) {
+    if (u.anomaly === "student_without_student_plan") return t("异常：身份是学生，但账号没有学生版 A1 许可证——许可证可能分配错了", "Anomaly: identity is Student but the account has no A1 for students licence — the licence may be assigned wrongly");
+    if (u.anomaly === "student_plan_not_student") return t("异常：账号持学生版 A1 许可证，身份却是 " + (u.identity || "") + "——许可证可能分配错了", "Anomaly: the account holds A1 for students but its identity is " + (u.identity || "") + " — the licence may be assigned wrongly");
+    return "";
+  }
   function openUserPanel(upn, domain, opts) {
     opts = opts || {};
     var where = opts.beside ? "second" : undefined;
@@ -392,7 +402,7 @@
             return '<span class="k">' + t("孩子 ", "Child ") + (i + 1) + (c.name ? " · " + esc(c.name) : "") + "</span><span>" + esc(bits.join(" · ") || "—") + "</span>";
           }).join("") + "</div>" : "") +
         "<h4>" + t("身份和关联账号", "Identity and linked accounts") + "</h4>" +
-        (canDo("people") ? '<form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : "") + "</label>" +
+        (canDo("people") ? '<form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : u.identitySource === "licence" ? "<small>" + t("按许可证推断（学生版 A1 → 学生，其余 → 家长）；填写后以填写为准", "Inferred from the licence (A1 for students → student, otherwise parent); what you set here wins") + "</small>" : "") + (u.anomaly ? '<small class="bad">' + esc(anomalyText(u)) + "</small>" : "") + "</label>" +
           '<label class="f" style="margin-top:8px">' + t("关联账号（孩子 / 家长的 Teams 账号，多个用逗号分开）", "Linked accounts (child / parent Teams accounts, comma-separated)") + '<input type="text" id="plink" value="' + esc(u.linked.join(", ")) + '" placeholder="student@' + esc(currentDomain) + '" /></label>' +
           '<label class="f" style="margin-top:8px">' + t("备注", "Note") + '<input type="text" id="pnote" maxlength="200" value="' + esc(u.note) + '" /></label>' +
           '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>'
@@ -403,7 +413,7 @@
       post("domain/person", "PATCH", { domain: currentDomain, user: u.upn, identity: $("pid").value, linked: $("plink").value, note: $("pnote").value }).then(function (r) {
         if (!r.ok) { restoreButton($("psave")); $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         var rec = r.body.record || {};
-        u.identity = rec.identity || (u.identitySource === "entra" ? u.identity : ""); u.identitySource = rec.identity ? "hive" : u.identitySource;
+        u.identity = rec.identity || (u.identitySource === "entra" || u.identitySource === "licence" ? u.identity : ""); u.identitySource = rec.identity ? "hive" : u.identitySource;
         u.linked = rec.linked || []; u.note = rec.note || "";
         renderUsers();
         savedAndClose($("psave"), t("已保存 ", "Saved ") + "<b>" + esc(u.displayName || u.upn) + "</b>" + t(" 的身份、关联账号和备注。", "'s identity, linked accounts and note."), opts && opts.beside ? "second" : "");

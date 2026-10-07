@@ -127,6 +127,8 @@ async function usersView(domain) {
       groups: (r.groups || []).map((g) => ({ id: g.id, name: g.name, kind: g.kind, nameZh: (gn[g.id] && gn[g.id].zh) || "", nameEn: (gn[g.id] && gn[g.id].en) || "" })),
       identity: identityOf(rec, entra),
       identitySource: rec && IDENTITIES.includes(rec.identity) ? "hive" : (identityOf(null, { department: r.department, jobTitle: r.jobTitle }) ? "entra" : identityOf(null, entra) ? "licence" : ""),
+      plan: r.plan || "",
+      anomaly: peopleMod.licenceAnomaly(rec && IDENTITIES.includes(rec.identity) ? rec.identity : identityOf(null, { department: r.department, jobTitle: r.jobTitle }), entra),
       linked: rec && Array.isArray(rec.linked) ? rec.linked : [],
       note: (rec && rec.note) || "",
       extra: (rec && rec.extra) || null,
