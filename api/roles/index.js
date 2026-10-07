@@ -14,7 +14,7 @@
 // Accounts are stored lowercase; roles are limited to the ASSIGNABLE set in
 // api/shared/roles.js.
 const { getPrincipal } = require("../shared/auth");
-const { STAFF, KINDS, isAssignable, roleLabel, readRoles, writeRoles, normUser, userRoles, isAdmin, canAssign } = require("../shared/roles");
+const { STAFF, KINDS, isAssignable, roleLabel, readRoles, writeRoles, updateRoles, normUser, userRoles, isAdmin, canAssign } = require("../shared/roles");
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
 
@@ -80,41 +80,32 @@ async function handler(context, req) {
       context.res = { status: 400, body: { error: "user must be an account like name@domain" } };
       return;
     }
-    const doc = await readRoles();
-    const others = doc.entries.filter((e) => e.user !== user);
-    const existing = doc.entries.find((e) => e.user === user);
-    // What a CEO cannot touch on this account (its domain roles, sysadmin) is carried over untouched.
-    const kept = ceo && existing ? existing.roles.filter((r) => !canAssign(who.roles, r)) : [];
-
-    if (method === "DELETE") {
-      const entries = kept.length ? others.concat([Object.assign({}, existing, { roles: kept })]).sort((a, b) => a.user.localeCompare(b.user)) : others;
-      await writeRoles({ entries });
-      context.res = { status: 200, body: { ok: true, entries } };
-      return;
-    }
-
-    let roles = Array.isArray(body.roles) ? body.roles.map((r) => String(r).trim().toLowerCase()) : [];
-    const bad = roles.filter((r) => !isAssignable(r));
-    if (bad.length) {
-      context.res = { status: 400, body: { error: "unknown role: " + bad.join(", ") } };
-      return;
-    }
-    const beyond = roles.filter((r) => !canAssign(who.roles, r));
-    if (beyond.length) {
-      context.res = { status: 403, body: { error: "only the system administrator can assign: " + beyond.join(", ") } };
-      return;
-    }
-    roles = roles.concat(kept);
-    if (!roles.length) {
-      await writeRoles({ entries: others });
-      context.res = { status: 200, body: { ok: true, entries: others } };
-      return;
+    let wanted = null; // null = DELETE
+    if (method !== "DELETE") {
+      wanted = Array.isArray(body.roles) ? body.roles.map((r) => String(r).trim().toLowerCase()) : [];
+      const bad = wanted.filter((r) => !isAssignable(r));
+      if (bad.length) {
+        context.res = { status: 400, body: { error: "unknown role: " + bad.join(", ") } };
+        return;
+      }
+      const beyond = wanted.filter((r) => !canAssign(who.roles, r));
+      if (beyond.length) {
+        context.res = { status: 403, body: { error: "only the system administrator can assign: " + beyond.join(", ") } };
+        return;
+      }
     }
     const p = getPrincipal(req);
-    const entry = { user, roles: Array.from(new Set(roles)), by: normUser(p && p.userDetails), at: new Date().toISOString() };
-    const entries = others.concat([entry]).sort((a, b) => a.user.localeCompare(b.user));
-    await writeRoles({ entries });
-    context.res = { status: 200, body: { ok: true, entries } };
+    const by = normUser(p && p.userDetails), at = new Date().toISOString();
+    // Read → change → write under the ETag, so a concurrent assignment is not lost.
+    const { doc } = await updateRoles((d) => {
+      const others = d.entries.filter((e) => e.user !== user);
+      const existing = d.entries.find((e) => e.user === user);
+      // What a CEO cannot touch on this account (its domain roles, sysadmin) is carried over untouched.
+      const kept = ceo && existing ? existing.roles.filter((r) => !canAssign(who.roles, r)) : [];
+      const roles = (wanted || []).concat(kept);
+      d.entries = roles.length ? others.concat([{ user, roles: Array.from(new Set(roles)), by: wanted ? by : (existing && existing.by) || by, at: wanted ? at : (existing && existing.at) || at }]).sort((a, b) => a.user.localeCompare(b.user)) : others;
+    });
+    context.res = { status: 200, body: { ok: true, entries: doc.entries } };
   } catch (err) {
     context.log.error("roles: " + (err && err.stack || err));
     context.res = { status: 500, body: { error: String(err && err.message || err) } };

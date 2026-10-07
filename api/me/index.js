@@ -443,15 +443,15 @@ async function handler(context, req) {
       };
       await Promise.all(accounts.map((a) => check(a, "children")).concat(extra.otherAccounts.map((a) => check(a, "otherAccounts"))));
       if (problems.length) return fail(context, 400, "please fix the form", { problems });
-      const doc = await people.readPeople();
-      const cur = doc.people[upn] || {};
-      const prev = ((cur.extra && cur.extra.children) || []).map((c) => c.account).filter(Boolean);
-      const prevOwn = (cur.extra && cur.extra.otherAccounts) || [];
       extra.at = new Date().toISOString();
-      doc.people[upn] = Object.assign({}, cur, { extra, at: extra.at });
-      people.linkFamily(doc, upn, accounts, prev);
-      people.linkAccounts(doc, upn, extra.otherAccounts, prevOwn);
-      await people.writePeople(doc);
+      const { doc } = await people.updatePeople((d) => {
+        const cur = d.people[upn] || {};
+        const prev = ((cur.extra && cur.extra.children) || []).map((c) => c.account).filter(Boolean);
+        const prevOwn = (cur.extra && cur.extra.otherAccounts) || [];
+        d.people[upn] = Object.assign({}, cur, { extra, at: extra.at });
+        people.linkFamily(d, upn, accounts, prev);
+        people.linkAccounts(d, upn, extra.otherAccounts, prevOwn);
+      });
       await audit(context, { actor: upn, action: "extra.update", target: upn, children: extra.children.length, linked: accounts, result: "ok" });
       context.res = { status: 200, body: { ok: true, extra, linked: doc.people[upn].linked || [], identity: doc.people[upn].identity || "", childNames: found } };
       return;

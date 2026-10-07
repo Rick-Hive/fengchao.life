@@ -214,11 +214,12 @@ async function handler(context, req) {
       if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain) || (stage && !hub.PARTNER_STAGES.includes(stage))) { fail(context, 400, "bad_request"); return; }
       const type = String(body.type || ""), region = String(body.region || "");
       if ((type && !licenses.INST_TYPES.includes(type)) || (region && !licenses.REGIONS.includes(region))) { fail(context, 400, "bad_request"); return; }
-      if (stage || body.note || body.owner || type || region) partners.partners[domain] = { stage, note: String(body.note || "").slice(0, 500), owner: String(body.owner || "").slice(0, 120), type, region, by: normUser(user), at: new Date().toISOString() };
-      else delete partners.partners[domain];
-      await hub.writePartners(partners);
+      const saved = await hub.updatePartners((d) => {
+        if (stage || body.note || body.owner || type || region) d.partners[domain] = { stage, note: String(body.note || "").slice(0, 500), owner: String(body.owner || "").slice(0, 120), type, region, by: normUser(user), at: new Date().toISOString() };
+        else delete d.partners[domain];
+      });
       await audit(context, { action: "crm.partner.update", by: normUser(user), domain, stage });
-      ok(context, { ok: true, partner: partners.partners[domain] || null });
+      ok(context, { ok: true, partner: saved.doc.partners[domain] || null });
       return;
     }
     // this school year's Equip sales per institution: the customers' orders in the FY
@@ -245,9 +246,9 @@ async function handler(context, req) {
     if (!p) { fail(context, 404, "not_found"); return; }
     const email = hub.replaceEmailOf(p);
     if (!email) { fail(context, 409, "no_replace_email"); return; }
-    const doc = await hub.readMarks();
-    if (!status) delete doc.marks[email]; else doc.marks[email] = { status, by: normUser(user), at: new Date().toISOString(), note: String(body.note || "").slice(0, 200) };
-    await hub.writeMarks(doc);
+    const { doc } = await hub.updateMarks((d) => {
+      if (!status) delete d.marks[email]; else d.marks[email] = { status, by: normUser(user), at: new Date().toISOString(), note: String(body.note || "").slice(0, 200) };
+    });
     await audit(context, { action: "crm.email.replace", by: normUser(user), crmId: id, status: status || "cleared" });
     ok(context, { ok: true, mark: status ? Object.assign({ email }, doc.marks[email]) : null, stats: hub.markStats(h.people, doc) });
     return;
@@ -268,9 +269,7 @@ async function handler(context, req) {
     const key = String(body.key || "");
     const verdict = String(body.verdict || "");
     if (!/^(account|customer):[^|]+\|(account|customer):[^|]+$/.test(key) || !["same", "different"].includes(verdict)) { fail(context, 400, "bad_verdict"); return; }
-    const d = await hub.readDecisions();
-    d.pairs[key] = { verdict, by: normUser(user), at: new Date().toISOString() };
-    await hub.writeDecisions(d);
+    await hub.updateDecisions((d) => { d.pairs[key] = { verdict, by: normUser(user), at: new Date().toISOString() }; });
     await audit(context, { action: "crm.people.merge", by: normUser(user), key, verdict });
     const h = await hub.rebuild({ log: (m) => context.log(m) });
     ok(context, { ok: true, stats: h.stats, queue: h.queue });
@@ -338,11 +337,11 @@ async function handler(context, req) {
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const pub = String(body.publisher || "").slice(0, 80), q = String(body.quarter || "");
     if (!pub || !/^\d{4} Q[1-4]$/.test(q)) { fail(context, 400, "bad_request"); return; }
-    const doc = await royalty.readPaid();
     const key = pub + "|" + q;
-    if (body.paid) doc.paid[key] = { by: normUser(user), at: new Date().toISOString(), note: String(body.note || "").slice(0, 200), amount: typeof body.amount === "number" ? body.amount : null };
-    else delete doc.paid[key];
-    await royalty.writePaid(doc);
+    const { doc } = await royalty.updatePaid((d) => {
+      if (body.paid) d.paid[key] = { by: normUser(user), at: new Date().toISOString(), note: String(body.note || "").slice(0, 200), amount: typeof body.amount === "number" ? body.amount : null };
+      else delete d.paid[key];
+    });
     await audit(context, { action: "crm.royalty.paid", by: normUser(user), publisher: pub, quarter: q, paid: !!body.paid, amount: body.amount });
     ok(context, { ok: true, key, mark: doc.paid[key] || null });
     return;
@@ -424,15 +423,18 @@ async function handler(context, req) {
     if (!canEdit) { fail(context, 403, "no_access"); return; }
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const by = normUser(user);
+    if (!["pool", "allocate", "revoke"].includes(body.op)) { fail(context, 400, "bad_request"); return; }
     try {
-      let result;
-      if (body.op === "pool") result = licenses.createPool(doc, body, by);
-      else if (body.op === "allocate") result = licenses.allocate(doc, body, by);
-      else if (body.op === "revoke") result = licenses.revoke(doc, String(body.id || ""), by, undefined, body.note);
-      else { fail(context, 400, "bad_request"); return; }
-      await licenses.writeDoc(doc);
+      // The balance check and the write happen on the same copy, under the ETag: two
+      // allocations racing for the last seats cannot both succeed.
+      const saved = await licenses.updateDoc((d) => {
+        if (body.op === "pool") return licenses.createPool(d, body, by);
+        if (body.op === "allocate") return licenses.allocate(d, body, by);
+        return licenses.revoke(d, String(body.id || ""), by, undefined, body.note);
+      });
+      const result = saved.result;
       await audit(context, { action: "crm.license." + body.op, by, id: result.id, poolId: result.poolId || result.id, qty: result.qty, to: result.to, sku: result.sku });
-      ok(context, { ok: true, result, view: licenses.view(doc, { regionOf }) });
+      ok(context, { ok: true, result, view: licenses.view(saved.doc, { regionOf }) });
     } catch (err) {
       if (["bad_request", "not_found", "expired", "insufficient", "has_children"].includes(err.code)) { fail(context, err.code === "not_found" ? 404 : 400, err.code, { message: err.message, balance: err.balance }); return; }
       throw err;

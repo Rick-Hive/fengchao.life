@@ -156,26 +156,40 @@ function normUser(u) {
   return String(u || "").trim().toLowerCase();
 }
 
+function normalizeRoles(parsed) {
+  const entries = Array.isArray(parsed && parsed.entries) ? parsed.entries : [];
+  return {
+    entries: entries
+      .map((e) => ({
+        user: normUser(e.user),
+        roles: Array.isArray(e.roles) ? e.roles.filter(isAssignable) : [],
+        by: e.by || "",
+        at: e.at || "",
+      }))
+      .filter((e) => e.user && e.roles.length),
+  };
+}
 async function readRoles() {
   const { blob } = blobClient();
   if (!(await blob.exists())) return { entries: [] };
   try {
     const buf = await blob.downloadToBuffer();
-    const parsed = JSON.parse(buf.toString("utf8"));
-    const entries = Array.isArray(parsed && parsed.entries) ? parsed.entries : [];
-    return {
-      entries: entries
-        .map((e) => ({
-          user: normUser(e.user),
-          roles: Array.isArray(e.roles) ? e.roles.filter(isAssignable) : [],
-          by: e.by || "",
-          at: e.at || "",
-        }))
-        .filter((e) => e.user && e.roles.length),
-    };
+    return normalizeRoles(JSON.parse(buf.toString("utf8")));
   } catch {
     return { entries: [] };
   }
+}
+// Change roles.json under its ETag (jsonstore.js): mutate(doc) sees the normalized
+// document and edits doc.entries in place; the write is retried when another
+// assignment landed meanwhile — two administrators saving at once keep both changes.
+async function updateRoles(mutate) {
+  const store = require("./jsonstore");
+  return store.update(BLOB_NAME, { entries: [] }, (raw) => {
+    const doc = normalizeRoles(raw);
+    const r = mutate(doc);
+    raw.entries = doc.entries;
+    return r;
+  });
 }
 
 async function writeRoles(doc) {
@@ -226,4 +240,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser };

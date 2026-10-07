@@ -69,6 +69,18 @@ async function writePeople(doc) {
   });
 }
 
+// Change people.json under its ETag (jsonstore.js): mutate(doc) edits doc.people in
+// place; a concurrent save by another administrator is not overwritten.
+async function updatePeople(mutate) {
+  const store = require("./jsonstore");
+  return store.update(BLOB_NAME, { people: {} }, (raw) => {
+    if (!raw.people || typeof raw.people !== "object") raw.people = {};
+    return mutate(raw);
+  });
+}
+const updateInstitutions = (mutate) => require("./jsonstore").update(INST_BLOB, { institutions: {} }, (raw) => { if (!raw.institutions || typeof raw.institutions !== "object") raw.institutions = {}; return mutate(raw); });
+const updateGroupNames = (mutate) => require("./jsonstore").update(GROUPNAMES_BLOB, { groups: {} }, (raw) => { if (!raw.groups || typeof raw.groups !== "object") raw.groups = {}; return mutate(raw); });
+
 // Institution names (Rick, 2026-10-02: 「对每个域名和机构做个对应……所有用户仅能看到名称而非 domain」).
 async function readInstitutions() {
   try {
@@ -162,7 +174,8 @@ async function translateGroupNames(rows, doc, actor) {
       toEn.forEach(([id, x], i) => { if (en[i]) g[id] = { zh: (g[id] && g[id].zh) || x.name, en: en[i], by: actor || "translator", at, auto: true }; });
       toZh.forEach(([id, x], i) => { if (zh[i]) g[id] = { zh: zh[i], en: (g[id] && g[id].en) || x.name, by: actor || "translator", at, auto: true }; });
       doc.groups = g;
-      await writeGroupNames(doc);
+      const fresh = {}; toEn.concat(toZh).forEach(([id]) => { if (g[id]) fresh[id] = g[id]; });
+      await updateGroupNames((d) => { for (const [id, v] of Object.entries(fresh)) if (!d.groups[id] || d.groups[id].auto) d.groups[id] = v; });
     } catch { /* shown untranslated this time */ }
   }
   return withGroupNames(rows, doc);
@@ -262,4 +275,4 @@ function linkFamily(doc, parent, childAccounts, prev) {
   }
 }
 
-module.exports = { readGroupNames, writeGroupNames, withGroupNames, translateGroupNames, bilingualSlash, sideOfName, IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };
+module.exports = { readGroupNames, writeGroupNames, updateGroupNames, updatePeople, updateInstitutions, withGroupNames, translateGroupNames, bilingualSlash, sideOfName, IDENTITIES, SELF_ROLES, TOPICS, GRADES, SCHOOLING, MODELS, HIGHER_ED, NEEDS, MAX_CHILDREN, MAX_ACCOUNTS, readPeople, writePeople, identityOf, validateExtra, linkFamily, linkAccounts, readInstitutions, writeInstitutions };

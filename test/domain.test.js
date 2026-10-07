@@ -132,6 +132,18 @@ people.writeInstitutions = async (doc) => { institutions = JSON.parse(JSON.strin
 let peopleStore = { people: {} };
 people.readPeople = async () => JSON.parse(JSON.stringify(peopleStore));
 people.writePeople = async (doc) => { peopleStore = JSON.parse(JSON.stringify(doc)); };
+// Writes go through jsonstore.update (read → change → write under the ETag); here it is the same in-memory pair.
+let gnamesStore = { groups: {} };
+const jsonstore = require(path.join(__dirname, "..", "api", "shared", "jsonstore.js"));
+jsonstore.update = async (name, fallback, mutate) => {
+  const box = { "people.json": [() => peopleStore, (d) => { peopleStore = d; }], "institutions.json": [() => institutions, (d) => { institutions = d; }], "groupnames.json": [() => gnamesStore, (d) => { gnamesStore = d; }] }[name];
+  if (!box) throw new Error("unexpected blob " + name);
+  const doc = JSON.parse(JSON.stringify(box[0]()));
+  const result = await mutate(doc);
+  if (result !== false) box[1](JSON.parse(JSON.stringify(doc)));
+  return { doc, result, written: result !== false };
+};
+people.readGroupNames = async () => JSON.parse(JSON.stringify(gnamesStore));
 const rolesMod = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
 rolesMod.readRoles = async () => ({ entries: [{ user: `lei@${DOMAIN}`, roles: [`domain_it:${DOMAIN}`], by: "x", at: "2026-10-01T00:00:00Z" }] });
 const dir = require(path.join(__dirname, "..", "api", "shared", "directory.js"));
@@ -487,6 +499,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   let stored = { entries: [{ user: `lei@${DOMAIN}`, roles: [`domain_it:${DOMAIN}`], by: ADMIN, at: "2026-10-01T00:00:00Z" }] };
   rolesMod.readRoles = async () => JSON.parse(JSON.stringify(stored));
   rolesMod.writeRoles = async (doc) => { stored = JSON.parse(JSON.stringify(doc)); };
+  rolesMod.updateRoles = async (mutate) => { const doc = JSON.parse(JSON.stringify(stored)); const result = await mutate(doc); stored = JSON.parse(JSON.stringify(doc)); return { doc, result, written: true }; };
   const rolesApi = require(path.join(__dirname, "..", "api", "roles", "index.js")); // after the stubs: it destructures them at load
   async function rcall(opts) {
     const context = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };

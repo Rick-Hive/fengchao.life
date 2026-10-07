@@ -46,9 +46,13 @@ async function writeJson(name, obj) {
   const body = JSON.stringify(obj);
   await c.getBlockBlobClient(name).upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" } });
 }
+const store = require("./jsonstore");
 const readHub = () => readJson(PEOPLE_BLOB, null);
 const readDecisions = () => readJson(DECISIONS_BLOB, { pairs: {} });
 const writeDecisions = (d) => writeJson(DECISIONS_BLOB, d);
+// Hand-maintained records change through update*(mutate): read with ETag, change, write
+// with If-Match, retry on a concurrent write (jsonstore.js).
+const updateDecisions = (mutate) => store.update(DECISIONS_BLOB, { pairs: {} }, mutate);
 // 待替换邮箱 progress (decision 14: prompt, never force): a mark per mainland address —
 // notified / replaced — kept by the address so it survives rebuilds. crm/email-replace.json.
 const MARKS_BLOB = "crm/email-replace.json";
@@ -58,8 +62,10 @@ const PARTNERS_BLOB = "crm/partners.json";
 const PARTNER_STAGES = ["contact", "trial", "partner", "paused"];
 const readPartners = () => readJson(PARTNERS_BLOB, { partners: {} });
 const writePartners = (d) => writeJson(PARTNERS_BLOB, d);
+const updatePartners = (mutate) => store.update(PARTNERS_BLOB, { partners: {} }, mutate);
 const readMarks = () => readJson(MARKS_BLOB, { marks: {} });
 const writeMarks = (d) => writeJson(MARKS_BLOB, d);
+const updateMarks = (mutate) => store.update(MARKS_BLOB, { marks: {} }, mutate);
 // The mainland address a person is still on (the one the mark is kept by).
 function replaceEmailOf(p) { const e = (p.emails || []).find((x) => x.tier === "replace"); return e ? e.email : ""; }
 // People with their mark attached, plus the month's counts for the dashboard.
@@ -320,4 +326,4 @@ function maskPerson(p, acc) {
   return o;
 }
 
-module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, MARKS_BLOB, PARTNERS_BLOB, PARTNER_STAGES, readPartners, writePartners, build, rebuild, readHub, readDecisions, writeDecisions, readMarks, writeMarks, withMarks, markStats, replaceEmailOf, maskPerson, normName, pairKey };
+module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, MARKS_BLOB, PARTNERS_BLOB, PARTNER_STAGES, readPartners, writePartners, build, rebuild, readHub, readDecisions, writeDecisions, readMarks, writeMarks, withMarks, markStats, replaceEmailOf, maskPerson, normName, pairKey, updateDecisions, updatePartners, updateMarks };

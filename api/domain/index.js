@@ -197,10 +197,10 @@ async function handler(context, req) {
       const zh = String((req.body && req.body.zh) || "").trim().slice(0, 80);
       const en = String((req.body && req.body.en) || "").trim().slice(0, 100);
       if (/[<>]/.test(zh + en)) return fail(context, 400, "name: no < or >");
-      const doc = await people.readGroupNames();
-      if (zh || en) doc.groups[id] = { zh, en, by: actor, at: new Date().toISOString() };
-      else delete doc.groups[id];
-      await people.writeGroupNames(doc);
+      await people.updateGroupNames((doc) => {
+        if (zh || en) doc.groups[id] = { zh, en, by: actor, at: new Date().toISOString() };
+        else delete doc.groups[id];
+      });
       await audit(context, { actor, action: "group.names", target: id, domain, zh, en, result: "ok" });
       context.res = { status: 200, body: { ok: true, id, zh, en } };
       return;
@@ -233,10 +233,10 @@ async function handler(context, req) {
       const name = String((req.body && req.body.name) || "").trim().slice(0, 60);
       const nameEn = String((req.body && req.body.nameEn) || "").trim().slice(0, 80);
       if (/[<>]/.test(name + nameEn)) return fail(context, 400, "name: no < or >");
-      const doc = await readInstitutions();
-      if (name || nameEn) doc.institutions[domain] = { name, nameEn, by: actor, at: new Date().toISOString() };
-      else delete doc.institutions[domain];
-      await writeInstitutions(doc);
+      await people.updateInstitutions((doc) => {
+        if (name || nameEn) doc.institutions[domain] = { name, nameEn, by: actor, at: new Date().toISOString() };
+        else delete doc.institutions[domain];
+      });
       await audit(context, { actor, action: "institution.update", target: domain, name, nameEn, result: "ok" });
       context.res = { status: 200, body: { ok: true, domain, name, nameEn } };
       return;
@@ -263,11 +263,11 @@ async function handler(context, req) {
       if (b.note !== undefined) patch.note = String(b.note || "").trim().slice(0, 200);
       if (problems.length) return fail(context, 400, "please fix the form", { problems });
       if (!Object.keys(patch).length) return fail(context, 400, "nothing to change");
-      const doc = await readPeople();
-      const cur = doc.people[user] || {};
-      doc.people[user] = Object.assign({}, cur, patch, { by: actor, at: new Date().toISOString() });
-      if (!doc.people[user].identity && !(doc.people[user].linked || []).length && !doc.people[user].note && !doc.people[user].extra) delete doc.people[user];
-      await writePeople(doc);
+      const { doc } = await people.updatePeople((d) => {
+        const cur = d.people[user] || {};
+        d.people[user] = Object.assign({}, cur, patch, { by: actor, at: new Date().toISOString() });
+        if (!d.people[user].identity && !(d.people[user].linked || []).length && !d.people[user].note && !d.people[user].extra) delete d.people[user];
+      });
       await audit(context, { actor, action: "person.update", target: user, fields: Object.keys(patch), result: "ok" });
       context.res = { status: 200, body: { ok: true, user, record: doc.people[user] || null } };
       return;
@@ -383,7 +383,7 @@ async function handler(context, req) {
         await audit(context, { actor, action: "license.assign", target: upn, skuIds, result: "failed", error: err.code || err.status });
       }
       // Hive's own record (身份) and the directory cache.
-      try { const doc = await people.readPeople(); doc.people[upn] = Object.assign({}, doc.people[upn] || {}, { identity, updated: new Date().toISOString(), by: actor }); await people.writePeople(doc); } catch { /* best effort */ }
+      try { await people.updatePeople((d) => { d.people[upn] = Object.assign({}, d.people[upn] || {}, { identity, updated: new Date().toISOString(), by: actor }); }); } catch { /* best effort */ }
       try { await dir.addUser(domain, Object.assign({ createdDateTime: new Date().toISOString(), accountEnabled: true, userType: "Member" }, created, body)); } catch { /* the next sync adds it */ }
       await audit(context, { actor, action: "user.create", target: upn, displayName, identity, plan, city, result: "ok" });
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: upn, id: created.id, displayName, password, mustChange: true, licence } };
@@ -414,7 +414,7 @@ async function handler(context, req) {
         throw err;
       }
       try { await dir.removeUser(domain, user); } catch { /* the next sync drops it */ }
-      try { const doc = await readPeople(); if (doc.people[user]) { delete doc.people[user]; await writePeople(doc); } } catch { /* best effort */ }
+      try { await people.updatePeople((d) => { if (!d.people[user]) return false; delete d.people[user]; }); } catch { /* best effort */ }
       await audit(context, { actor, action: "user.delete", target: user, displayName: u.displayName || "", result: "ok" });
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user, displayName: u.displayName || "", restorableDays: 30 } };
       return;

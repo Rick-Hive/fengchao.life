@@ -29,6 +29,8 @@ const people = require(path.join(__dirname, "..", "api", "shared", "people.js"))
 let store = { people: { "kid.one@example.edu": { identity: "学生", linked: ["admin.linked@example.edu"], by: "admin", at: "2026-09-01T00:00:00Z" } } };
 people.readPeople = async () => JSON.parse(JSON.stringify(store));
 people.writePeople = async (doc) => { store = JSON.parse(JSON.stringify(doc)); };
+const jsonstore = require(path.join(__dirname, "..", "api", "shared", "jsonstore.js"));
+jsonstore.update = async (name, fallback, mutate) => { const doc = JSON.parse(JSON.stringify(store)); const result = await mutate(doc); if (result !== false) store = JSON.parse(JSON.stringify(doc)); return { doc, result, written: result !== false }; };
 
 const PARENT = "parent.one@example.edu", PID = "p-0001";
 const users = {

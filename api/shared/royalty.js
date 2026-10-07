@@ -72,4 +72,5 @@ function build(equip, opts) {
   return { quarters, publishers, totals, syncedAt: (equip && equip.syncedAt) || null };
 }
 
-module.exports = { BLOB, readPaid, writePaid, build, quarterOf, lastQuarters };
+const updatePaid = (mutate) => require("./jsonstore").update(BLOB, { paid: {} }, mutate);
+module.exports = { BLOB, readPaid, writePaid, updatePaid, build, quarterOf, lastQuarters };

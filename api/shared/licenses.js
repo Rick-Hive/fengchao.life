@@ -107,4 +107,6 @@ function view(doc, opts) {
   };
 }
 
-module.exports = { BLOB, HOLDER_TYPES, REGIONS, INST_TYPES, readDoc, writeDoc, createPool, allocate, revoke, view, balance, allocated };
+const EMPTY = () => ({ pools: [], allocations: [], nextPool: 1, nextAlloc: 1 });
+const updateDoc = (mutate) => require("./jsonstore").update(BLOB, EMPTY, (d) => mutate(Object.assign(EMPTY(), d)));
+module.exports = { BLOB, HOLDER_TYPES, REGIONS, INST_TYPES, readDoc, writeDoc, updateDoc, createPool, allocate, revoke, view, balance, allocated };
