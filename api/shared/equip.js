@@ -168,6 +168,19 @@ async function syncEquip(opts) {
     return s(raw);
   }
   function lookupName(id) { for (const m of names.values()) if (m.has(id)) return m.get(id); return id; }
+  // The linked record ids behind a field: a link field's own ids, or the ids of the
+  // link a lookup rides on. A stable key where the display name may change (a
+  // publisher renamed, or shown by number before 2026-10-08).
+  function recIds(t, rec, key) {
+    const fname = t.map[key]; if (!fname) return [];
+    const f = t.table.fields.find((x) => x.name === fname);
+    if (f && f.type === "multipleRecordLinks") return ids(rec.fields[fname]);
+    if (f && f.type === "multipleLookupValues" && f.options && f.options.recordLinkFieldId) {
+      const link = t.table.fields.find((x) => x.id === f.options.recordLinkFieldId);
+      if (link && link.type === "multipleRecordLinks") return ids(rec.fields[link.name]);
+    }
+    return ids(rec.fields[fname]).filter((v) => /^rec[A-Za-z0-9]+$/.test(v));
+  }
 
   // Curriculums: SKU = the primary field.
   const skuField = cr.table ? (cr.table.fields.find((f) => f.id === cr.table.primaryFieldId) || {}).name : null;
@@ -176,7 +189,7 @@ async function syncEquip(opts) {
     return {
       recId: r.id, sku: s(skuField ? r.fields[skuField] : ""), nameEn: s(get(r, cr.map, "nameEn")), nameZh: s(get(r, cr.map, "nameZh")),
       price: n(get(r, cr.map, "price")), category: text(cr, r, "category"), subject: text(cr, r, "subject"), grade: text(cr, r, "grade"),
-      language: text(cr, r, "language"), publisher: text(cr, r, "publisher"), royaltyRecipient: text(cr, r, "royaltyRecipient"),
+      language: text(cr, r, "language"), publisher: text(cr, r, "publisher"), publisherRec: recIds(cr, r, "publisher")[0] || "", royaltyRecipient: text(cr, r, "royaltyRecipient"),
       royaltyRate: rate == null ? null : rate > 1 ? rate / 100 : rate, available: !!get(r, cr.map, "available"), onEquipme: !!get(r, cr.map, "onEquipme"),
     };
   });
@@ -189,7 +202,7 @@ async function syncEquip(opts) {
     const sku = bySku.get(skuRec) || null;
     const row = {
       recId: r.id, orderRec: ids(get(r, it.map, "order"))[0] || "", skuRec, sku: sku ? sku.sku : text(it, r, "sku"),
-      nameEn: sku ? sku.nameEn : "", nameZh: sku ? sku.nameZh : "", publisher: sku ? sku.publisher : "", category: sku ? sku.category : "", subject: sku ? sku.subject : "", grade: sku ? sku.grade : "", language: sku ? sku.language : "",
+      nameEn: sku ? sku.nameEn : "", nameZh: sku ? sku.nameZh : "", publisher: sku ? sku.publisher : "", publisherRec: sku ? sku.publisherRec || "" : "", category: sku ? sku.category : "", subject: sku ? sku.subject : "", grade: sku ? sku.grade : "", language: sku ? sku.language : "",
       qty: n(get(r, it.map, "qty")) || 0, unitPrice: n(get(r, it.map, "unit")), total: n(get(r, it.map, "total")), received: n(get(r, it.map, "received")), notes: text(it, r, "notes"),
       royalty: {},
     };

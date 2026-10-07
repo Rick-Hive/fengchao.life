@@ -13,7 +13,7 @@ const equip = {
   curriculums: [{ sku: "IEW-1", publisher: "IEW", royaltyRate: 0.15, royaltyRecipient: "IEW Inc." }, { sku: "CEFF-1", publisher: "CEFF", royaltyRate: 0 }, { sku: "OAK-1", publisher: "Oak Tree", royaltyRate: 0.75 }],
   orders: [
     { date: "2026-09-20", items: [{ sku: "IEW-1", publisher: "IEW", qty: 2, total: 1296, royalty: { "Royalty Rate": 0.15, "Royalty Amount": 194.4 } }, { sku: "CEFF-1", publisher: "CEFF", qty: 1, total: 58, royalty: { "Royalty Rate": 0 } }] },
-    { date: "2026-07-02", items: [{ sku: "IEW-1", publisher: "IEW", qty: 1, total: 648, royalty: {} }] },          // no bag → SKU rate 0.15 → 97.2
+    { date: "2026-07-02", items: [{ sku: "IEW-1", publisher: "IEW", publisherRec: "recPubIEW", qty: 1, total: 648, royalty: {} }] },          // no bag → SKU rate 0.15 → 97.2
     { date: "2026-04-10", items: [{ sku: "OAK-1", publisher: "Oak Tree", qty: 3, total: 300, royalty: {} }] },
     { date: "2026-04-11", items: [{ sku: "NEW-1", publisher: "Mystery", qty: 1, total: 100, royalty: {} }] },      // no rate anywhere → unknown
     { date: "2023-01-01", items: [{ sku: "IEW-1", publisher: "IEW", qty: 9, total: 9999, royalty: {} }] },        // outside the window
@@ -36,4 +36,7 @@ assert.strictEqual(t.totals["2026 Q2"].unknown, 1);
 assert.strictEqual(t.totals["2026 Q3"].sales, 1944 + 58);
 assert.strictEqual(t.publishers[0].publisher, "IEW", "largest first");
 assert.strictEqual(R.quarterOf("2026-12-31"), "2026 Q4");
+// The publisher key is the Publishers record id when any row carries it (marks and the UI use it; the name stays for display).
+assert.strictEqual(t.publishers.find((p) => p.publisher === "IEW").key, "recPubIEW", "all IEW rows group under the record id, including the rows without it");
+assert.strictEqual(t.publishers.find((p) => p.publisher === "CEFF").key, "CEFF", "no record id anywhere → the name");
 console.log("royalty: all assertions passed");

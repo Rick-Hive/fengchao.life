@@ -335,7 +335,7 @@ async function handler(context, req) {
     }
     if (!canPay) { fail(context, 403, "no_access"); return; }
     const body = req.body && typeof req.body === "object" ? req.body : {};
-    const pub = String(body.publisher || "").slice(0, 80), q = String(body.quarter || "");
+    const pub = String(body.key || body.publisher || "").slice(0, 80), q = String(body.quarter || "");
     if (!pub || !/^\d{4} Q[1-4]$/.test(q)) { fail(context, 400, "bad_request"); return; }
     const key = pub + "|" + q;
     const { doc } = await royalty.updatePaid((d) => {

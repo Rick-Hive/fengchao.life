@@ -4,7 +4,10 @@
 // (Curriculums' royalty rate, 0.15 for IEW, 0 for CEFF's own titles …). Quarters
 // are calendar quarters (2026 Q3 = Jul–Sep) — the school year is for sales
 // comparisons; settlements with publishers go by calendar quarter.
-// Paid marks: crm/royalty-paid.json { paid: { "<publisher>|<quarter>": { by, at, note, amount } } }.
+// Paid marks: crm/royalty-paid.json { paid: { "<publisher key>|<quarter>": { by, at, note, amount } } }.
+// The publisher key is the Publishers record id when the catalogue carries one (a
+// renamed publisher keeps its marks — self-review 2026-10-08: marks made while
+// publishers showed as numbers were keyed "13"), else the display name.
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
 
@@ -48,14 +51,15 @@ function amountOf(item, skuRates) {
 function build(equip, opts) {
   const n = (opts && opts.quarters) || 8;
   const quarters = lastQuarters(n, opts && opts.now);
-  const skuRates = {}, recipients = {};
-  for (const c of (equip && equip.curriculums) || []) { if (c.sku) { if (typeof c.royaltyRate === "number") skuRates[c.sku] = c.royaltyRate; if (c.royaltyRecipient) recipients[c.publisher || ""] = c.royaltyRecipient; } }
+  const skuRates = {}, recipients = {}, recOf = {};
+  for (const c of (equip && equip.curriculums) || []) { if (c.sku) { if (typeof c.royaltyRate === "number") skuRates[c.sku] = c.royaltyRate; if (c.royaltyRecipient) recipients[c.publisher || ""] = c.royaltyRecipient; if (c.publisher && c.publisherRec && !recOf[c.publisher]) recOf[c.publisher] = c.publisherRec; } }
+  for (const o of (equip && equip.orders) || []) for (const it of o.items || []) if (it.publisher && it.publisherRec && !recOf[it.publisher]) recOf[it.publisher] = it.publisherRec;
   const pubs = new Map();
   for (const o of (equip && equip.orders) || []) {
     const q = quarterOf(o.date); if (!quarters.includes(q)) continue;
     for (const it of o.items || []) {
-      const key = it.publisher || "?";
-      if (!pubs.has(key)) pubs.set(key, { publisher: key, recipient: recipients[key] || "", rates: new Set(), cells: {} });
+      const name = it.publisher || "?", key = it.publisherRec || recOf[name] || name;
+      if (!pubs.has(key)) pubs.set(key, { key, publisher: name, recipient: recipients[name] || "", rates: new Set(), cells: {} });
       const p = pubs.get(key);
       if (!p.cells[q]) p.cells[q] = { sales: 0, royalty: 0, units: 0, items: 0, unknown: 0 };
       const c = p.cells[q];
@@ -65,7 +69,7 @@ function build(equip, opts) {
       const r = rateOf(it, skuRates); if (r != null) p.rates.add(r);
     }
   }
-  const publishers = Array.from(pubs.values()).map((p) => ({ publisher: p.publisher, recipient: p.recipient, rates: Array.from(p.rates).sort(), cells: p.cells, total: Object.values(p.cells).reduce((a, c) => a + c.sales, 0), royaltyTotal: Object.values(p.cells).reduce((a, c) => a + c.royalty, 0) }))
+  const publishers = Array.from(pubs.values()).map((p) => ({ key: p.key, publisher: p.publisher, recipient: p.recipient, rates: Array.from(p.rates).sort(), cells: p.cells, total: Object.values(p.cells).reduce((a, c) => a + c.sales, 0), royaltyTotal: Object.values(p.cells).reduce((a, c) => a + c.royalty, 0) }))
     .sort((a, b) => b.total - a.total);
   const totals = {};
   for (const q of quarters) totals[q] = publishers.reduce((acc, p) => { const c = p.cells[q]; if (c) { acc.sales += c.sales; acc.royalty += c.royalty; acc.unknown += c.unknown; } return acc; }, { sales: 0, royalty: 0, unknown: 0 });
