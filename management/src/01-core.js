@@ -285,16 +285,19 @@
   function panel2Close() { var p = $("panel2"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); }
   function panelClose() { var p = $("panel"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); panel2Close(); document.querySelectorAll("table.data tr.sel").forEach(function (tr) { tr.classList.remove("sel"); }); }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if ($("panel2").classList.contains("open")) panel2Close(); else { panelClose(); closeDrawer(); } } });
-  // A click anywhere outside the open panel closes it (Rick, 2026-10-08: 「no need to
-  // click x on top right corner. Apply this with all UIs」). Capture phase, so a click
-  // on another row closes this panel first and the row's own handler opens the next.
-  // The second panel goes first, as with Escape. The flash bar and chart tooltips are
-  // not "outside".
+  // A click anywhere outside the open panel closes it, and does nothing else (Rick,
+  // 2026-10-08: 「no need to click x on top right corner. Apply this with all UIs」;
+  // then: that click must not also open the next row — 「我没让你这样做」). Capture
+  // phase, so the click is swallowed before any row or button handler sees it; the
+  // next click acts normally. The second panel goes first, as with Escape. The flash
+  // bar and chart tooltips are not "outside"; a sidebar link closes and still navigates.
   document.addEventListener("click", function (e) {
     var p = $("panel"), p2 = $("panel2");
     if (!p.classList.contains("open") && !p2.classList.contains("open")) return;
     if (!(e.target instanceof Element) || e.target.closest("#panel, #panel2, #flash, .viztip, .vfull")) return;
     if (p2.classList.contains("open")) panel2Close(); else panelClose();
+    if (e.target.closest("#nav a")) return;
+    e.stopPropagation(); e.preventDefault();
   }, true);
   // A member clicked in a group's panel opens beside it, in the second panel, so the
   // group stays in view (Rick, 2026-10-03: 「点击用户，应该在左侧显示用户详细信息」).

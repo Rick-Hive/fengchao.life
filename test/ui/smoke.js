@@ -667,10 +667,10 @@ const EQUIP = [
     assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "a click outside closed it");
     await p.click("#utable tr[data-upn]"); await p.waitForTimeout(300);
     assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "opens again from a row");
-    const second = await p.$eval("#utable tr[data-upn]:nth-of-type(2) .dn", e => e.textContent.trim());
     const rows = await p.$$("#utable tr[data-upn]"); await rows[1].click({ position: { x: 40, y: 10 } }); await p.waitForTimeout(300);
-    assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "clicking another row keeps a panel open (the next person)");
-    const h3 = await p.$eval("#panel .ph h3", e => e.textContent); assert.ok(h3.indexOf(second) >= 0, "and it is the second row's person: " + h3 + " vs " + second);
+    assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "a click on another row only closes the panel — it does not open the next person (Rick)");
+    await rows[1].click({ position: { x: 40, y: 10 } }); await p.waitForTimeout(300);
+    assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "the next click opens that row");
   });
   console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "all orders/roles checks passed");
   await browser.close(); srv.close();
