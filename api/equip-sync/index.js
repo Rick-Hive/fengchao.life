@@ -7,6 +7,7 @@
 // the body, exactly as api/directory-sync. Wrong or missing → 403.
 const crypto = require("crypto");
 const equip = require("../shared/equip");
+const hub = require("../shared/hub");
 const { audit } = require("../shared/audit");
 
 function keyOk(req) {
@@ -24,7 +25,10 @@ module.exports = async function (context, req) {
   try {
     const data = await equip.syncEquip({ log: (m) => context.log(m) });
     await audit(context, { actor: "scheduler", action: "crm.equip.sync", counts: data.counts, warnings: data.warnings.length });
-    context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { done: true, status: equip.status(data) } };
+    // The people hub follows every sync; a hub failure is logged, not a failed sync.
+    let people = null;
+    try { people = (await hub.rebuild({ log: (m) => context.log(m) })).stats; } catch (err) { context.log.error(`equip-sync: hub rebuild failed: ${(err && err.stack) || err}`); }
+    context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { done: true, status: equip.status(data), people } };
   } catch (err) {
     context.log.error(`equip-sync: ${(err && err.stack) || err}`);
     context.res = { status: err.code === "no_pat" ? 503 : 502, headers: { "Cache-Control": "no-store" }, body: { error: String((err && err.message) || err), done: false } };

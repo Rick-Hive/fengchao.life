@@ -56,6 +56,29 @@ function resolve(table, specs, warnings, label) {
 }
 const get = (rec, map, key) => (map[key] ? rec.fields[map[key]] : undefined);
 
+// What a linked record is called. The primary field, unless it is a number (an
+// autonumber "ID" on Publishers, say — Rick, 2026-10-07: the publisher filter showed
+// "1 (207)", "10 (88)"): then the first text field that looks like a name, then the
+// first text field at all, with the primary field as the fallback for empty rows.
+const NUMERIC_TYPES = ["number", "autoNumber", "count", "rating", "currency", "percent", "duration"];
+const TEXT_TYPES = ["singleLineText", "multilineText", "richText", "email", "url", "singleSelect"];
+function isNumeric(f) {
+  if (!f) return false;
+  if (NUMERIC_TYPES.includes(f.type)) return true;
+  if (f.type === "formula" || f.type === "rollup" || f.type === "multipleLookupValues") { const r = f.options && f.options.result; return !!(r && NUMERIC_TYPES.includes(r.type)); }
+  return false;
+}
+function displayFields(table) {
+  const fields = table.fields || [];
+  const prim = fields.find((f) => f.id === table.primaryFieldId);
+  if (!prim) return [];
+  if (!isNumeric(prim)) return [prim.name];
+  const texts = fields.filter((f) => TEXT_TYPES.includes(f.type));
+  const named = texts.find((f) => /name|名称|名字|title|标题|publisher|出版社|supplier|供应商/i.test(f.name)) || texts[0];
+  return named ? [named.name, prim.name] : [prim.name];
+}
+function displayOf(rec, disp) { for (const n of disp) { const v = s(rec.fields[n]); if (v) return v; } return ""; }
+
 async function syncEquip(opts) {
   const log = (opts && opts.log) || (() => {});
   const token = pat();
@@ -97,9 +120,9 @@ async function syncEquip(opts) {
   const names = new Map(); // tableId → Map(recId → display)
   for (const t of Object.values(main)) {
     if (!t.table) continue;
-    const prim = (t.table.fields.find((f) => f.id === t.table.primaryFieldId) || {}).name;
+    const disp = displayFields(t.table);
     const m = new Map();
-    for (const r of t.records) m.set(r.id, s(prim ? r.fields[prim] : ""));
+    for (const r of t.records) m.set(r.id, displayOf(r, disp));
     names.set(t.table.id, m);
   }
   if (cu.table && cu.map.email) { const m = new Map(); for (const r of cu.records) m.set(r.id, normalizeEmail(r.fields[cu.map.email]) || names.get(cu.table.id).get(r.id)); names.set(cu.table.id, m); }
@@ -110,12 +133,12 @@ async function syncEquip(opts) {
   const schema = await base.schema();
   for (const tbl of schema) {
     if (names.has(tbl.id)) continue;
-    const prim = (tbl.fields.find((f) => f.id === tbl.primaryFieldId) || {}).name;
-    if (!prim) continue;
+    const disp = displayFields(tbl);
+    if (!disp.length) continue;
     try {
-      const recs = await base.list(tbl.id, { fields: [prim] });
-      names.set(tbl.id, new Map(recs.map((r) => [r.id, s(r.fields[prim])])));
-      log(`equip: ${tbl.name}: ${recs.length} records (names only)`);
+      const recs = await base.list(tbl.id, { fields: disp });
+      names.set(tbl.id, new Map(recs.map((r) => [r.id, displayOf(r, disp)])));
+      log(`equip: ${tbl.name}: ${recs.length} records (names only: ${disp.join(", ")})`);
     } catch (err) { warnings.push(`${tbl.name}: linked names not read (${String(err.message || err)})`); }
   }
   // A field's value as a person reads it: link ids → the linked records' names.

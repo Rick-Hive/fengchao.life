@@ -112,6 +112,7 @@
     if (canSeeOrders()) {
       groups.push({ title: t("经营", "Operations"), items: [
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
+        { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People" },
       ] });
     }
     if (isAdmin()) {
@@ -1823,41 +1824,34 @@
 
   // 教材订单: the Equip (EquipMe) textbook orders, read from Airtable by the nightly sync
   // (api/shared/equip.js). Airtable stays the place they are entered; this is a view.
-  var equipState = { list: null, status: null, q: "", pub: "" };
+  var equipState = { list: null, status: null };
+  var AIRTABLE_EQUIP_URL = "https://airtable.com/appae5kpY1qXn6XLq";
+  // Equip教材订单: Airtable already shows the orders well, so this tab is only what
+  // Airtable cannot do (Rick, 2026-10-07: 「保留同步，但tab页面的显示按照你说的来」):
+  // the month's figures for the dashboard, the sync state, and the way to the base.
   function viewEquipOrders() {
     var canSync = isAdmin() || crmLevel("orders") === "rw";
     setTitle(t("经营 › 订单", "Operations › Orders"), t("Equip教材订单", "Equip textbook orders"),
-      (canSync ? '<button class="btn secondary sm" id="eSync">' + t("从 Airtable 同步", "Sync from Airtable") + "</button> " : "") + '<button class="btn secondary sm" id="eCsv">' + t("导出 CSV", "Export CSV") + "</button>",
-      t("EquipMe 的教材订单，来自 Equip 工作区的 Airtable（Orders / Order Items / Customers），每夜同步，只读；录入仍在 Airtable。", "EquipMe textbook orders from the Equip Airtable workspace (Orders / Order Items / Customers), synced nightly, read-only; entry stays in Airtable."));
-    $("opsBody").innerHTML =
-      '<div class="toolbar" id="ebar"><div class="search">' + ICON.search + '<input type="search" id="eq" value="' + esc(equipState.q) + '" placeholder="' + t("搜索订单号、客户、邮箱、教材、SKU…", "Search order no., customer, email, textbook, SKU…") + '" /></div><select id="epub"><option value="">' + t("所有出版社", "All publishers") + "</option></select></div>" +
-      '<div class="kpis" id="ekpi"></div>' +
-      '<div class="tbl-wrap"><table class="data" id="etable"><thead><tr><th>' + t("订单号", "Order no.") + "</th><th>" + t("日期", "Date") + "</th><th>" + t("客户", "Customer") + "</th><th>" + t("邮箱", "Email") + "</th><th>" + t("教材", "Textbooks") + "</th><th>" + t("件数", "Units") + "</th><th>" + t("金额", "Amount") + "</th><th>" + t("实收", "Received") + "</th><th>" + t("出版社", "Publisher") + "</th></tr></thead>" +
-        '<tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
-      '<p class="muted" id="efoot" style="font-size:.8rem"></p>';
-    $("eq").addEventListener("input", debounce(function () { equipState.q = $("eq").value.trim(); renderEquip(); }, 120));
-    $("epub").addEventListener("change", function () { equipState.pub = this.value; renderEquip(); });
-    $("eCsv").addEventListener("click", exportEquipCsv);
+      (canSync ? '<button class="btn secondary sm" id="eSync">' + t("从 Airtable 同步", "Sync from Airtable") + "</button> " : "") +
+      '<a class="btn sm" id="eOpen" href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "Open in Airtable") + ' ↗</a>',
+      t("EquipMe 的教材订单由 Airtable 管理：查看、录入、筛选都在那里。管理中心只同步一份只读副本，用来把客户连进人员库、按角色遮蔽、进仪表盘。", "EquipMe textbook orders live in Airtable: view, enter and filter them there. The management centre keeps a read-only copy only to link customers into the people hub, mask by role and feed the dashboard."));
+    $("opsBody").innerHTML = '<div class="kpis" id="ekpi"></div><div class="card" id="ecard"><p class="loading">' + t("载入中…", "Loading…") + "</p></div>";
     var sb = $("eSync");
     if (sb) sb.addEventListener("click", function () {
       savingButton(sb, t("同步中…", "Syncing…"));
       post("crm/sync", "POST", {}).then(function (r) {
         restoreButton(sb);
         if (!r.ok) { flash(r.body && r.body.error === "no_pat" ? t("还没有配置 Airtable 令牌（AIRTABLE_EQUIP_PAT）。", "The Airtable token (AIRTABLE_EQUIP_PAT) is not configured yet.") : r.body && r.body.error === "bad_pat" ? esc(r.body.message) : esc(errText(r)), 20000); return; }
-        var st = (r.body && r.body.status) || {}, c = st.counts || {};
-        var summary = t("同步完成：", "Sync complete: ") + (c.orders || 0) + t(" 单订单、", " orders, ") + (c.items || 0) + t(" 条明细、", " line items, ") + (c.customers || 0) + t(" 位客户、", " customers, ") + (c.curriculums || 0) + t(" 条教材、", " textbooks, ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows");
-        // The notes themselves live in the page footer (查看同步提示); the notice only counts them.
-        flashOk(esc(summary) + ((st.warnings || []).length ? " · " + esc(t("提示 " + st.warnings.length + " 条，见页脚", st.warnings.length + " notes, see the page footer")) : ""), 8000);
+        var st = (r.body && r.body.status) || {}, c = st.counts || {}, ppl = r.body && r.body.people;
+        var summary = t("同步完成：", "Sync complete: ") + (c.orders || 0) + t(" 单订单、", " orders, ") + (c.items || 0) + t(" 条明细、", " line items, ") + (c.customers || 0) + t(" 位客户、", " customers, ") + (c.curriculums || 0) + t(" 条教材、", " textbooks, ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows") +
+          (ppl ? t("；人员库 ", "; people hub ") + ppl.people + t(" 人", " people") : "");
+        // The notes themselves live on the card (查看同步提示); the notice only counts them.
+        flashOk(esc(summary) + ((st.warnings || []).length ? " · " + esc(t("提示 " + st.warnings.length + " 条，见下方", st.warnings.length + " notes, see below")) : ""), 8000);
+        peopleState.hub = null;
         loadEquip(true).then(renderEquip);
       });
     });
-    $("etable").addEventListener("click", function (e) {
-      var tr = e.target.closest("tr[data-id]"); if (!tr) return;
-      document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); });
-      tr.classList.add("sel");
-      openEquipPanel(tr.getAttribute("data-id"));
-    });
-    loadEquip(false).then(renderEquip).catch(function (r) { $("etable").tBodies[0].innerHTML = '<tr><td colspan="9" class="loading">' + esc(errText(r)) + "</td></tr>"; });
+    loadEquip(false).then(renderEquip).catch(function (r) { $("ecard").innerHTML = '<p class="msg err">' + esc(errText(r)) + "</p>"; });
   }
   function loadEquip(force) {
     if (equipState.list && !force) return Promise.resolve(equipState.list);
@@ -1867,70 +1861,223 @@
       return equipState.list;
     });
   }
-  function equipName(it) { return (EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) || it.sku || ""; }
-  function equipNow() {
-    var q = equipState.q.toLowerCase();
-    return (equipState.list || []).filter(function (o) {
-      if (equipState.pub && (o.publishers || []).indexOf(equipState.pub) < 0) return false;
-      if (!q) return true;
-      var hay = [o.orderId, o.name, o.email, (o.items || []).map(function (it) { return it.sku + " " + it.nameZh + " " + it.nameEn; }).join(" "), (o.publishers || []).join(" ")].join(" ").toLowerCase();
-      return hay.indexOf(q) >= 0;
-    });
-  }
   function renderEquip() {
-    var list = equipState.list || [], st = equipState.status || {};
-    var pubs = {}; list.forEach(function (o) { (o.publishers || []).forEach(function (p) { pubs[p] = (pubs[p] || 0) + 1; }); });
-    var sel = $("epub"); if (sel && sel.options.length === 1) Object.keys(pubs).sort().forEach(function (p) { var op = document.createElement("option"); op.value = p; op.textContent = p + " (" + pubs[p] + ")"; sel.appendChild(op); });
+    var list = equipState.list || [], st = equipState.status || {}, c = st.counts || {};
     var now = new Date(), ym = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     var month = list.filter(function (o) { return String(o.date || "").slice(0, 7) === ym; });
     var seeMoney = crmLevel("money") !== "none";
     var sum = function (arr, k) { return arr.reduce(function (a, o) { return a + (typeof o[k] === "number" ? o[k] : 0); }, 0); };
+    var pubs = {}; list.forEach(function (o) { (o.publishers || []).forEach(function (p) { pubs[p] = (pubs[p] || 0) + 1; }); });
     $("ekpi").innerHTML =
       '<div class="kpi"><div class="l">' + t("本月订单", "Orders this month") + '</div><div class="v">' + month.length + '</div><div class="s">' + t("按下单日", "by order date") + "</div></div>" +
-      (seeMoney ? '<div class="kpi"><div class="l">' + t("本月销售额", "Sales this month") + '</div><div class="v">' + money(sum(month, "amount"), "CNY") + '</div><div class="s">' + t("按下单日", "by order date") + "</div></div>" +
+      (seeMoney ? '<div class="kpi"><div class="l">' + t("本月销售额", "Sales this month") + '</div><div class="v">' + money(sum(month, "amount"), "CNY") + '</div><div class="s">' + t("不与课程订单合计", "never summed with course orders") + "</div></div>" +
         '<div class="kpi"><div class="l">' + t("本月实收", "Received this month") + '</div><div class="v">' + money(sum(month, "received"), "CNY") + '</div><div class="s">' + t("按订单", "by order") + "</div></div>" : "") +
-      '<div class="kpi"><div class="l">' + t("全部订单", "All orders") + '</div><div class="v">' + list.length + '</div><div class="s">' + (st.syncedAt ? t("同步于 ", "synced ") + when(st.syncedAt) : t("尚未同步", "not synced yet")) + "</div></div>";
-    var rows = equipNow();
-    var tb = $("etable").tBodies[0];
-    if (!list.length) {
-      tb.innerHTML = '<tr><td colspan="9" class="empty">' + (st.syncedAt ? t("Airtable 里还没有订单。", "No orders in Airtable yet.") : (st.configured === false ? t("还没有同步：系统管理员需要在 Static Web App 的应用设置里加上 AIRTABLE_EQUIP_PAT（只读、仅限 Equip 工作区的令牌），之后每夜自动同步，也可以点「从 Airtable 同步」。", "Not synced yet: the system administrator needs to add AIRTABLE_EQUIP_PAT (a read-only token limited to the Equip workspace) to the Static Web App's settings; after that it syncs nightly, or on “Sync from Airtable”.") : t("还没有同步。点「从 Airtable 同步」。", "Not synced yet. Click “Sync from Airtable”."))) + "</td></tr>";
-    } else {
-      tb.innerHTML = rows.length ? rows.map(function (o) {
-        var names = (o.items || []).map(equipName);
-        return '<tr class="pick" data-id="' + esc(o.recId) + '"><td class="nowrap"><b>' + esc(o.orderId) + "</b></td><td class=\"nowrap\">" + esc(o.date || "") + "</td>" +
-          '<td class="cell-ell" title="' + esc(o.name) + '">' + esc(o.name || "—") + '</td><td class="cell-ell" title="' + esc(o.email) + '">' + esc(o.email || "—") + "</td>" +
-          '<td class="cell-ell" title="' + esc(names.join(" · ")) + '">' + esc(names.slice(0, 2).join(" · ")) + (names.length > 2 ? ' <span class="muted">+' + (names.length - 2) + "</span>" : "") + "</td>" +
-          '<td class="nowrap">' + (o.qty || 0) + "</td><td class=\"nowrap\">" + money(o.amount, "CNY") + "</td><td class=\"nowrap\">" + money(o.received, "CNY") + "</td>" +
-          '<td class="nowrap">' + esc((o.publishers || []).join(", ")) + "</td></tr>";
-      }).join("") : '<tr><td colspan="9" class="empty">' + t("没有符合条件的订单。", "No orders match.") + "</td></tr>";
-    }
-    $("efoot").innerHTML = (list.length ? esc(t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 单", " orders")) + " · " : "") +
-      (st.syncedAt ? esc(t("数据同步于 ", "Data synced ") + when(st.syncedAt)) : "") +
-      ((st.warnings || []).length ? ' · <span class="status warn">' + esc(t("同步提示 ", "Sync notes ") + st.warnings.length) + "</span>" : "") +
-      ((st.warnings || []).length ? '<details style="margin-top:6px"><summary>' + esc(t("查看同步提示", "Show sync notes")) + "</summary><ul>" + st.warnings.map(function (w) { return "<li>" + esc(w) + "</li>"; }).join("") + "</ul></details>" : "");
+      '<div class="kpi"><div class="l">' + t("全部订单", "All orders") + '</div><div class="v">' + list.length + '</div><div class="s">' + (c.customers || 0) + t(" 位客户 · ", " customers · ") + Object.keys(pubs).length + t(" 家出版社", " publishers") + "</div></div>";
+    var sync = st.syncedAt ? '<span class="status ok">' + esc(t("同步于 ", "Synced ") + when(st.syncedAt)) + "</span>" :
+      st.configured === false ? '<span class="status warn">' + esc(t("还没有同步：系统管理员需要在 Static Web App 的应用设置里加上 AIRTABLE_EQUIP_PAT（只读、仅限 Equip 工作区的令牌）。", "Not synced yet: the system administrator needs to add AIRTABLE_EQUIP_PAT (a read-only token limited to the Equip workspace) to the Static Web App's settings.")) + "</span>" :
+      '<span class="status warn">' + esc(t("还没有同步。", "Not synced yet.")) + "</span>";
+    $("ecard").innerHTML =
+      '<div class="ch"><h2>' + t("数据同步", "Data sync") + "</h2><p>" + t("每夜自动从 Airtable 读一次，也可以随时点「从 Airtable 同步」；只读，Airtable 里的记录不会被改动。", "Read from Airtable nightly, or whenever “Sync from Airtable” is clicked; read-only, nothing in Airtable is changed.") + "</p></div>" +
+      '<div class="kv"><span class="k">' + t("状态", "Status") + "</span><span>" + sync + "</span>" +
+        (st.syncedAt ? '<span class="k">' + t("已同步", "Synced") + "</span><span>" + esc((c.orders || 0) + t(" 单订单 · ", " orders · ") + (c.items || 0) + t(" 条明细 · ", " line items · ") + (c.customers || 0) + t(" 位客户 · ", " customers · ") + (c.curriculums || 0) + t(" 条教材 · ", " textbooks · ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows")) + "</span>" : "") +
+        ((st.warnings || []).length ? '<span class="k">' + t("同步提示", "Sync notes") + '</span><span><details><summary>' + esc(t("查看 " + st.warnings.length + " 条", "Show " + st.warnings.length)) + "</summary><ul>" + st.warnings.map(function (w) { return "<li>" + esc(w) + "</li>"; }).join("") + "</ul></details></span>" : "") + "</div>" +
+      "<h2>" + t("管理中心用这份数据做什么", "What the management centre does with it") + "</h2>" +
+      '<ul class="plain">' +
+        "<li>" + t("把 Equip 客户和 Teams 账号、讲座名单、蜂巢课程订单连成一个人 → ", "Link Equip customers with Teams accounts, the seminar list and Hive course orders into one person → ") + '<a href="#/ops/people">' + t("人员库", "People hub") + "</a></li>" +
+        "<li>" + t("按角色遮蔽：财务看金额不看人，课程总监看人不看金额；版税只给财务。", "Mask by role: finance sees amounts, not people; the curriculum director sees people, not amounts; royalties only to finance.") + "</li>" +
+        "<li>" + t("上面的本月数字进经营仪表盘，不与课程订单合计。", "The month's figures above feed the operations dashboard, never summed with course orders.") + "</li></ul>" +
+      '<p class="hint">' + t("查看每一单、录入、筛选、导出：", "To see each order, enter, filter or export: ") + '<a href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "open in Airtable") + " ↗</a></p>";
   }
-  function exportEquipCsv() {
-    var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    var head = [t("订单号", "Order no."), t("日期", "Date"), t("客户", "Customer"), t("邮箱", "Email"), "SKU", t("教材", "Textbooks"), t("件数", "Units"), t("金额", "Amount"), t("实收", "Received"), t("出版社", "Publishers"), t("备注", "Comments")].join(",");
-    var lines = equipNow().map(function (o) { return [o.orderId, o.date, o.name, o.email, (o.items || []).map(function (it) { return it.sku; }).join("; "), (o.items || []).map(equipName).join("; "), o.qty, o.amount == null ? "" : o.amount, o.received == null ? "" : o.received, (o.publishers || []).join("; "), o.comments].map(cell).join(","); });
-    var blob = new Blob(["﻿" + [head].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
-    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "equip-orders-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+
+  // ================================================================================
+  // 经营 › 人员库 — one record per person across Equip, the tenant, the seminar list
+  // and the Hive orders (api/shared/hub.js). Matching is done on the server; here a
+  // person reads it, searches it, and answers the level-3 suggestions (same name +
+  // school domain) with 是同一个人 / 不是.
+  // ================================================================================
+  var PEOPLE_TABS = [["all", "全部", "All"], ["replace", "待替换邮箱", "Email to replace"], ["missing", "无邮箱", "No email"], ["viaTeams", "Teams 代用", "Via Teams"], ["queue", "待合并", "To merge"]];
+  var STAGES = { lead: ["潜在", "Lead", ""], registered: ["已注册", "Registered", "accent"], active: ["活跃", "Active", "ok"], dormant: ["沉寂", "Dormant", "muted"] };
+  var TIERS = { safe: ["可用", "OK", "ok"], replace: ["待替换", "Replace", "warn"], missing: ["无邮箱", "No email", "bad"] };
+  var peopleState = { hub: null, tab: "all", q: "", stage: "" };
+  function stageTag(s) { var d = STAGES[s] || [s, s, ""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
+  function tierTag(tier) { var d = TIERS[tier]; return d ? '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>" : ""; }
+  function sourceTags(p) {
+    var s = p.sources || {}, out = [];
+    if (s.customer) out.push('<span class="tag">Equip</span>');
+    if (s.account) out.push('<span class="tag accent">Teams</span>');
+    if (s.lead) out.push('<span class="tag">' + t("讲座", "Seminar") + "</span>");
+    if (s.hive) out.push('<span class="tag ok">' + t("蜂巢", "Hive") + "</span>");
+    return out.join(" ");
   }
-  function openEquipPanel(recId) {
-    var o = (equipState.list || []).filter(function (x) { return x.recId === recId; })[0];
-    if (!o) return;
-    var items = (o.items || []).map(function (it) {
-      var roy = it.royalty && Object.keys(it.royalty).length ? '<span class="sub">' + esc(Object.keys(it.royalty).map(function (k) { var v = it.royalty[k]; return k + " " + (typeof v === "number" && v <= 1 && /rate/i.test(k) ? Math.round(v * 100) + "%" : v); }).join(" · ")) + "</span>" : "";
-      return '<div class="orow"><div class="omain"><b>' + esc(equipName(it)) + '</b><span class="sub">' + esc([it.sku, it.publisher, it.category, it.subject, it.grade].filter(Boolean).join(" · ")) + "</span>" + roy + '</div><div class="oprice">' + (it.qty || 0) + " × " + money(it.unitPrice, "CNY") + "<br><b>" + money(it.total, "CNY") + "</b></div></div>";
+  function personTabs(p) { var tb = ["all"]; if (p.primaryTier === "replace") tb.push("replace"); if (p.primaryTier === "missing") tb.push("missing"); if (p.viaTeams) tb.push("viaTeams"); return tb; }
+  function viewPeople() {
+    var canMerge = isAdmin() || crmLevel("orders") === "rw";
+    setTitle(t("经营 › 人员库", "Operations › People"), t("人员库", "People hub"),
+      '<button class="btn secondary sm" id="pReload">' + t("刷新", "Refresh") + "</button> " + '<button class="btn secondary sm" id="pCsv">' + t("导出 CSV", "Export CSV") + "</button>" +
+      (canMerge ? ' <button class="btn sm" id="pRebuild">' + t("重新匹配", "Rebuild") + "</button>" : ""),
+      t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；只是同名同校的放到「待合并」，由人来判断。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school only go to “To merge” for a person to decide. No WeChat or phone numbers are recorded."));
+    $("content").innerHTML =
+      '<div class="toolbar" id="pbar">' + PEOPLE_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (peopleState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
+        '<span class="spacer"></span><select id="pstage"><option value="">' + t("所有阶段", "All stages") + "</option>" + Object.keys(STAGES).map(function (s) { return '<option value="' + s + '"' + (peopleState.stage === s ? " selected" : "") + ">" + esc(t(STAGES[s][0], STAGES[s][1])) + "</option>"; }).join("") + "</select>" +
+        '<div class="search">' + ICON.search + '<input type="search" id="pq" value="' + esc(peopleState.q) + '" placeholder="' + t("搜索姓名、邮箱、Teams 账号、CRM ID…", "Search name, email, Teams account, CRM ID…") + '" /></div></div>' +
+      '<div class="kpis" id="pkpi"></div>' +
+      '<div id="pbody"></div>' +
+      '<p class="muted" id="pfoot" style="font-size:.8rem"></p>';
+    $("pbar").addEventListener("click", function (e) {
+      var c = e.target.closest(".chip[data-f]"); if (!c) return;
+      peopleState.tab = c.getAttribute("data-f");
+      $("pbar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x === c ? "true" : "false"); });
+      renderPeople();
+    });
+    $("pq").addEventListener("input", debounce(function () { peopleState.q = $("pq").value.trim(); renderPeople(); }, 120));
+    $("pstage").addEventListener("change", function () { peopleState.stage = this.value; renderPeople(); });
+    $("pReload").addEventListener("click", function () { loadPeople(true).then(renderPeople); });
+    $("pCsv").addEventListener("click", exportPeopleCsv);
+    var rb = $("pRebuild");
+    if (rb) rb.addEventListener("click", function () {
+      savingButton(rb, t("匹配中…", "Rebuilding…"));
+      post("crm/people-rebuild", "POST", {}).then(function (r) {
+        restoreButton(rb);
+        if (!r.ok) { flash(esc(errText(r)), 8000); return; }
+        var s = r.body.stats || {};
+        flashOk(esc(t("已重新匹配：", "Rebuilt: ") + s.people + t(" 人，待合并 ", " people, to merge ") + s.queue + t("，待回写 CRM ID ", ", CRM IDs to write back ") + s.writeBack), 8000);
+        loadPeople(true).then(renderPeople);
+      });
+    });
+    $("pkpi").addEventListener("click", function (e) {
+      var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
+      peopleState.tab = k.getAttribute("data-kf");
+      $("pbar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-f") === peopleState.tab ? "true" : "false"); });
+      renderPeople();
+    });
+    $("pbody").addEventListener("click", function (e) {
+      var v = e.target.closest("button[data-verdict]");
+      if (v) { verdict(v.getAttribute("data-key"), v.getAttribute("data-verdict"), v); return; }
+      var tr = e.target.closest("tr[data-id]"); if (!tr) return;
+      document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); });
+      tr.classList.add("sel");
+      openPersonPanel(tr.getAttribute("data-id"));
+    });
+    loadPeople(false).then(renderPeople).catch(function (r) { $("pbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; });
+  }
+  function loadPeople(force) {
+    if (peopleState.hub && !force) return Promise.resolve(peopleState.hub);
+    return api("crm/people").then(function (r) {
+      if (!r.ok) throw r;
+      peopleState.hub = r.body;
+      return peopleState.hub;
+    });
+  }
+  function peopleNow() {
+    var h = peopleState.hub || {}, q = peopleState.q.toLowerCase();
+    return (h.people || []).filter(function (p) {
+      if (peopleState.tab !== "all" && personTabs(p).indexOf(peopleState.tab) < 0) return false;
+      if (peopleState.stage && p.stage !== peopleState.stage) return false;
+      if (!q) return true;
+      var hay = [p.crmId, p.name, (p.emails || []).map(function (e) { return e.email; }).join(" "), ((p.facets || {}).accounts || []).map(function (a) { return a.upn || a.domain; }).join(" "), ((p.facets || {}).customers || []).map(function (c) { return c.teams + " " + c.city; }).join(" ")].join(" ").toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+  function lastActive(p) { var d = [p.lastOrder, p.lastSignIn].filter(Boolean).sort().pop(); return d ? day(d) : "—"; }
+  function renderPeople() {
+    var h = peopleState.hub || {}, s = h.stats || {}, list = h.people || [];
+    var counts = { all: list.length, replace: s.replace || 0, missing: s.missing || 0, viaTeams: s.viaTeams || 0, queue: (h.queue || []).length };
+    PEOPLE_TABS.forEach(function (tb) { var el = $("pbar").querySelector('[data-cnt="' + tb[0] + '"]'); if (el) el.textContent = counts[tb[0]] ? "(" + counts[tb[0]] + ")" : ""; });
+    var st = s.stages || {};
+    $("pkpi").innerHTML =
+      '<button class="kpi" data-kf="all"><div class="l">' + t("人员", "People") + '</div><div class="v">' + list.length + '</div><div class="s">' + t("活跃 ", "active ") + (st.active || 0) + t(" · 已注册 ", " · registered ") + (st.registered || 0) + t(" · 潜在 ", " · leads ") + (st.lead || 0) + t(" · 沉寂 ", " · dormant ") + (st.dormant || 0) + "</div></button>" +
+      '<div class="kpi"><div class="l">' + t("来源", "Sources") + '</div><div class="v">' + (s.customers || 0) + ' <span class="muted" style="font-size:13px">Equip</span> · ' + (s.accounts || 0) + ' <span class="muted" style="font-size:13px">Teams</span></div><div class="s">' + t("讲座名单 ", "seminar ") + (s.leads || 0) + t(" · 蜂巢订单 ", " · Hive orders ") + (s.hive || 0) + "</div></div>" +
+      '<button class="kpi" data-kf="replace"><div class="l">' + t("待替换邮箱", "Emails to replace") + '</div><div class="v' + (counts.replace ? " warn" : "") + '">' + counts.replace + '</div><div class="s">' + t("境内邮箱，建议换 Teams 账号", "mainland mailboxes; use the Teams account") + "</div></button>" +
+      (h.canMerge ? '<button class="kpi" data-kf="queue"><div class="l">' + t("待合并", "To merge") + '</div><div class="v' + (counts.queue ? " warn" : "") + '">' + counts.queue + '</div><div class="s">' + t("同名同校，需要人判断", "same name and school; a person decides") + "</div></button>" : "") +
+      '<div class="kpi"><div class="l">' + t("待回写 CRM ID", "CRM IDs to write back") + '</div><div class="v">' + (s.writeBack || 0) + '</div><div class="s">' + t("Airtable 客户表还没有的", "customers not yet tagged in Airtable") + "</div></div>";
+    if (peopleState.tab === "queue") { renderQueue(); return; }
+    var rows = peopleNow();
+    var html = '<div class="tbl-wrap"><table class="data" id="ptable"><thead><tr><th>CRM ID</th><th>' + t("姓名", "Name") + "</th><th>" + t("主邮箱", "Primary email") + "</th><th>" + t("来源", "Sources") + "</th><th>" + t("账号", "Accounts") + "</th><th>" + t("订单 / 消费", "Orders / spend") + "</th><th>" + t("最近活动", "Last active") + "</th><th>" + t("阶段", "Stage") + "</th></tr></thead><tbody>";
+    if (!list.length) html += '<tr><td colspan="8" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
+    else if (!rows.length) html += '<tr><td colspan="8" class="empty">' + t("没有符合条件的人。", "Nobody matches.") + "</td></tr>";
+    else html += rows.map(function (p) {
+      var acc = (p.facets && p.facets.accounts) || [];
+      var accTxt = acc.map(function (a) { return a.upn || a.domain; }).join(", ");
+      var spend = crmLevel("money") === "none" ? "" : (typeof p.spend === "number" && p.spend ? " / " + money(p.spend, "CNY") : "");
+      return '<tr class="pick" data-id="' + esc(p.crmId) + '"><td class="nowrap"><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="tag muted" title="' + esc(t("Airtable 客户表还没有这个 CRM ID", "Not yet written to the Airtable customer")) + '">' + t("待回写", "to write") + "</span>" : "") + "</td>" +
+        '<td class="cell-ell" title="' + esc(p.name) + '">' + hl(p.name || "—", peopleState.q) + "</td>" +
+        '<td class="nowrap"><span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span> " + tierTag(p.primaryTier) + (p.viaTeams ? ' <span class="tag accent">Teams</span>' : "") + "</td>" +
+        '<td class="nowrap">' + sourceTags(p) + "</td>" +
+        '<td class="cell-ell" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</td>" +
+        '<td class="nowrap">' + ((p.orders || 0) + (p.hiveOrders || 0)) + spend + "</td>" +
+        '<td class="nowrap">' + esc(lastActive(p)) + "</td><td>" + stageTag(p.stage) + "</td></tr>";
     }).join("");
-    panelOpen('<div class="ph"><h3>' + esc(o.orderId) + '</h3><span class="tag">EquipMe</span><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
-      '<div class="kv"><span class="k">' + t("日期", "Date") + "</span><span>" + esc(o.date || "") + "</span>" +
-        '<span class="k">' + t("客户", "Customer") + "</span><span>" + esc(o.name || "—") + (o.customerCrmId ? ' <span class="tag muted">CRM ' + esc(o.customerCrmId) + "</span>" : "") + "</span>" +
-        '<span class="k">' + t("邮箱", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" +
-        '<span class="k">' + t("金额 / 实收", "Amount / received") + "</span><span>" + money(o.amount, "CNY") + " / " + money(o.received, "CNY") + "</span>" +
-        (o.comments ? '<span class="k">' + t("备注", "Comments") + "</span><span>" + esc(o.comments) + "</span>" : "") + "</div>" +
-      "<h4>" + t("教材", "Textbooks") + " · " + (o.items || []).length + '</h4><div class="olist">' + (items || '<div class="orow muted">' + t("没有订单明细。", "No line items.") + "</div>") + "</div>" +
-      '<p class="hint">' + t("只读：修改请在 Airtable 里进行，下一次同步后生效。", "Read-only: change it in Airtable; the next sync picks it up.") + "</p></div>");
+    html += "</tbody></table></div>";
+    $("pbody").innerHTML = html;
+    colResize($("ptable"));
+    $("pfoot").innerHTML = (list.length ? esc(t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 人", " people")) + " · " : "") + (h.generatedAt ? esc(t("匹配于 ", "Matched ") + when(h.generatedAt)) : "") +
+      (h.sources && h.sources.equipSyncedAt ? " · " + esc(t("Equip 数据同步于 ", "Equip data synced ") + when(h.sources.equipSyncedAt)) : "");
+  }
+  function renderQueue() {
+    var h = peopleState.hub || {}, q = h.queue || [], qq = peopleState.q.toLowerCase();
+    var rows = q.filter(function (x) { return !qq || [x.customer.name, x.customer.email, x.account.upn, x.account.name].join(" ").toLowerCase().indexOf(qq) >= 0; });
+    $("pbody").innerHTML = !q.length ? '<div class="card"><p class="muted">' + t("没有待合并的建议。同名同校的 Equip 客户和 Teams 账号会出现在这里。", "Nothing to merge. An Equip customer and a Teams account with the same name and school would appear here.") + "</p></div>" :
+      !rows.length ? '<div class="card"><p class="muted">' + t("没有符合条件的建议。", "No suggestion matches.") + "</p></div>" :
+      rows.map(function (x) {
+        var c = x.customer, a = x.account;
+        return '<div class="card merge" data-key="' + esc(x.key) + '"><div class="ch"><h2>' + esc(c.name) + ' <span class="n">' + t("同名 · 同校", "same name · same school") + "</span></h2></div>" +
+          '<div class="pair"><div class="kv"><span class="k">Equip</span><span><b>' + esc(c.name) + "</b> · " + esc(c.email || t("无邮箱", "no email")) + "</span>" +
+            '<span class="k">' + t("订单", "Orders") + "</span><span>" + (c.orders || 0) + "</span>" +
+            '<span class="k">CRM ID</span><span>' + esc(c.crmId || "—") + "</span></div>" +
+          '<div class="kv"><span class="k">Teams</span><span><b>' + esc(a.name) + "</b> · " + esc(a.upn) + "</span>" +
+            '<span class="k">' + t("身份", "Identity") + "</span><span>" + esc(vl(a.identity || "")) + (a.lastSignIn ? ' · <span class="muted">' + esc(t("最近登录 ", "last sign-in ") + day(a.lastSignIn)) + "</span>" : "") + "</span>" +
+            '<span class="k">CRM ID</span><span>' + esc(a.crmId || "—") + "</span></div></div>" +
+          '<div class="actions"><button class="btn sm" data-verdict="same" data-key="' + esc(x.key) + '">' + t("是同一个人", "Same person") + '</button> <button class="btn secondary sm" data-verdict="different" data-key="' + esc(x.key) + '">' + t("不是", "Different people") + "</button></div></div>";
+      }).join("");
+    $("pfoot").innerHTML = esc(t("合并后两条记录共用一个 CRM ID；「不是」只是不再提示。两种回答都会记录是谁、何时。", "Merged records share one CRM ID; “Different people” only silences the suggestion. Both answers record who and when."));
+  }
+  function verdict(key, v, btn) {
+    var card = btn.closest(".card"); card.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+    savingButton(btn, t("记录中…", "Saving…"));
+    post("crm/queue", "POST", { key: key, verdict: v }).then(function (r) {
+      if (!r.ok) { restoreButton(btn); card.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); flash(esc(errText(r)), 8000); return; }
+      flashOk(v === "same" ? t("已合并为同一个人。", "Merged into one person.") : t("已记录：不是同一个人。", "Recorded: different people."), 4000);
+      peopleState.hub = null;
+      loadPeople(true).then(renderPeople);
+    });
+  }
+  function exportPeopleCsv() {
+    var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var head = ["CRM ID", t("姓名", "Name"), t("主邮箱", "Primary email"), t("邮箱状态", "Email status"), t("来源", "Sources"), t("账号", "Accounts"), t("订单", "Orders"), t("消费", "Spend"), t("最近活动", "Last active"), t("阶段", "Stage")].join(",");
+    var lines = peopleNow().map(function (p) {
+      var s = p.sources || {};
+      return [p.crmId, p.name, p.primaryEmail, p.primaryTier, [s.customer && "Equip", s.account && "Teams", s.lead && t("讲座", "Seminar"), s.hive && t("蜂巢", "Hive")].filter(Boolean).join("; "), ((p.facets || {}).accounts || []).map(function (a) { return a.upn || a.domain; }).join("; "), (p.orders || 0) + (p.hiveOrders || 0), p.spend == null ? "" : p.spend, lastActive(p), t(STAGES[p.stage] ? STAGES[p.stage][0] : p.stage, STAGES[p.stage] ? STAGES[p.stage][1] : p.stage)].map(cell).join(",");
+    });
+    var blob = new Blob(["﻿" + [head].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "people-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+  function openPersonPanel(id) {
+    var p = ((peopleState.hub || {}).people || []).filter(function (x) { return x.crmId === id; })[0];
+    if (!p) return;
+    var f = p.facets || {};
+    var emails = (p.emails || []).length ? (p.emails || []).map(function (e) { return '<div class="orow"><div class="omain"><b>' + esc(e.email) + "</b>" + (e.upn ? '<span class="sub">' + t("Teams 账号", "Teams account") + "</span>" : "") + "</div><div>" + tierTag(e.tier) + (e.email === p.primaryEmail ? ' <span class="tag accent">' + t("主邮箱", "primary") + "</span>" : "") + "</div></div>"; }).join("") : '<div class="orow muted">' + t("没有邮箱。", "No email.") + "</div>";
+    var accounts = (f.accounts || []).map(function (a) {
+      return '<div class="orow"><div class="omain"><b>' + esc(a.upn || ("…@" + a.domain)) + '</b><span class="sub">' + esc([vl(a.identity || ""), a.jobTitle, a.lastSignIn ? t("最近登录 ", "last sign-in ") + day(a.lastSignIn) : ""].filter(Boolean).join(" · ")) + "</span></div>" + (a.enabled === false ? '<span class="tag bad">' + t("已停用", "disabled") + "</span>" : "") + "</div>";
+    }).join("");
+    var customers = (f.customers || []).map(function (c) {
+      return '<div class="orow"><div class="omain"><b>' + esc(c.name || "") + '</b><span class="sub">' + esc([c.teams ? "Teams " + c.teams : "", c.city, c.firstOrder ? t("首单 ", "first ") + c.firstOrder : "", c.lastOrder ? t("最近 ", "last ") + c.lastOrder : ""].filter(Boolean).join(" · ")) + "</span>" + (c.crmId ? "" : '<span class="sub">' + esc(t("Airtable 客户表还没有 CRM ID", "No CRM ID in the Airtable customer yet")) + "</span>") + '</div><div class="oprice">' + (c.orders || 0) + t(" 单", " orders") + (crmLevel("money") === "none" ? "" : "<br><b>" + money(c.spend, "CNY") + "</b>") + "</div></div>";
+    }).join("");
+    var hive = (f.hive || []).map(function (o) {
+      return '<div class="orow"><div class="omain"><b>' + esc(o.orderId) + '</b><span class="sub">' + esc([day(o.at), (o.hives || []).map(function (hv) { return hv.abbr || hv.name; }).join(", ")].filter(Boolean).join(" · ")) + '</span></div><div class="oprice">' + stTag(o.status) + (crmLevel("money") === "none" ? "" : "<br><b>" + money(o.total, "CNY") + "</b>") + "</div></div>";
+    }).join("");
+    var leads = (f.leads || []).map(function (l) { return '<div class="orow"><div class="omain"><b>' + esc(l.session || t("讲座", "Seminar")) + '</b><span class="sub">' + esc([l.name, day(l.at)].filter(Boolean).join(" · ")) + "</span></div></div>"; }).join("");
+    panelOpen('<div class="ph"><h3>' + esc(p.name || p.crmId) + "</h3>" + stageTag(p.stage) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+      '<div class="kv"><span class="k">CRM ID</span><span><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="tag muted">' + t("待回写 Airtable", "to write back to Airtable") + "</span>" : "") + "</span>" +
+        '<span class="k">' + t("首次出现", "First seen") + "</span><span>" + esc(day(p.firstSeen) || "—") + "</span>" +
+        '<span class="k">' + t("最近活动", "Last active") + "</span><span>" + esc(lastActive(p)) + "</span>" +
+        (crmLevel("money") === "none" ? "" : '<span class="k">' + t("消费", "Spend") + "</span><span>" + money(p.spend, "CNY") + (p.hiveTotal ? " + " + money(p.hiveTotal, "CNY") + ' <span class="muted">' + t("蜂巢", "Hive") + "</span>" : "") + "</span>") + "</div>" +
+      "<h4>" + t("邮箱", "Emails") + '</h4><div class="olist">' + emails + "</div>" +
+      (p.viaTeams ? '<p class="hint">' + t("主邮箱用的是 Teams 账号：原邮箱是境内邮箱，不用它联系。", "The Teams account serves as the primary email: the original is a mainland mailbox and is not used for contact.") + "</p>" : "") +
+      "<h4>" + t("Teams 账号", "Teams accounts") + " · " + (f.accounts || []).length + '</h4><div class="olist">' + (accounts || '<div class="orow muted">' + t("没有匹配到账号。", "No account matched.") + "</div>") + "</div>" +
+      "<h4>" + t("Equip 客户", "Equip customer") + " · " + (f.customers || []).length + '</h4><div class="olist">' + (customers || '<div class="orow muted">' + t("不是 Equip 客户。", "Not an Equip customer.") + "</div>") + "</div>" +
+      (crmLevel("orders") === "none" ? "" : "<h4>" + t("蜂巢课程订单", "Hive course orders") + " · " + (f.hive || []).length + '</h4><div class="olist">' + (hive || '<div class="orow muted">' + t("没有课程订单。", "No course orders.") + "</div>") + "</div>") +
+      (crmLevel("leads") === "none" ? "" : "<h4>" + t("讲座名单", "Seminar list") + " · " + (f.leads || []).length + '</h4><div class="olist">' + (leads || '<div class="orow muted">' + t("没有讲座报名。", "No seminar sign-up.") + "</div>") + "</div>") +
+      '<p class="hint">' + t("这条记录由匹配生成，不能在这里编辑：改邮箱、姓名请在来源（Airtable 或各校账号）里改，下次同步后更新。", "This record is generated by matching and cannot be edited here: change emails or names at the source (Airtable or the school's accounts); the next sync picks it up.") + "</p></div>");
   }
 
   // ================================================================================
@@ -1971,7 +2118,7 @@
     }
     if (h.indexOf("#/ops") === 0) {
       if (!canSeeOrders()) { location.hash = "#/account"; return; }
-      return viewOrders();
+      return h.indexOf("#/ops/people") === 0 ? viewPeople() : viewOrders();
     }
     if (h.indexOf("#/system") === 0) {
       if (!isAdmin()) { if (canAssignRoles() && h.indexOf("#/system/roles") === 0) return viewRoles(); location.hash = "#/account"; return; }

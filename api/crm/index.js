@@ -29,6 +29,7 @@ const crm = require("../shared/crm");
 const equip = require("../shared/equip");
 const teamsOrders = require("../shared/teamsOrders");
 const teamsFetch = require("../shared/teamsFetch");
+const hub = require("../shared/hub");
 const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
@@ -103,7 +104,9 @@ async function handler(context, req) {
     try {
       const data = await equip.syncEquip({ log: (m) => context.log(m) });
       await audit(context, { action: "crm.equip.sync", by: normUser(user), counts: data.counts, warnings: data.warnings.length });
-      ok(context, { ok: true, status: equip.status(data) });
+      let people = null;
+      try { people = (await hub.rebuild({ log: (m) => context.log(m) })).stats; } catch (err) { context.log.error("crm: hub rebuild after sync failed: " + ((err && err.stack) || err)); }
+      ok(context, { ok: true, status: equip.status(data), people });
     } catch (err) {
       if (err.code === "no_pat") { fail(context, 503, "no_pat", { message: err.message }); return; }
       if (err.code === "bad_pat") { fail(context, 503, "bad_pat", { message: err.message }); return; }
@@ -155,6 +158,51 @@ async function handler(context, req) {
     if (!isAdmin(roles)) { fail(context, 403, "no_access"); return; }
     const zipBuf = teamsFetch.teamsApp();
     context.res = { status: 200, headers: { "Content-Type": "application/zip", "Content-Disposition": 'attachment; filename="hive-crm-teams-app.zip"', "Cache-Control": "no-store" }, body: zipBuf, isRaw: true };
+    return;
+  }
+
+  // ---- 人员库 (api/shared/hub.js) ----------------------------------------
+  // GET people          the hub, every person masked by the reader's access map
+  // GET person?id=      one person (same masking)
+  // GET queue           the merge suggestions (level 3) still waiting for a verdict
+  // POST queue          { key, verdict: "same" | "different" } → stored, hub rebuilt
+  // POST people-rebuild rebuild from the current sources (orders rw or sysadmin)
+  if (method === "GET" && action === "people") {
+    const h = await hub.readHub();
+    if (!h) { ok(context, { people: [], queue: [], stats: null, generatedAt: null, access: acc }); return; }
+    const canMerge = isAdmin(roles) || crm.atLeast(roles, "orders", "rw");
+    ok(context, { people: h.people.map((p) => hub.maskPerson(p, acc)), queue: canMerge ? h.queue : [], stats: h.stats, generatedAt: h.generatedAt, sources: h.sources, access: acc, canMerge });
+    return;
+  }
+  if (method === "GET" && action === "person") {
+    const id = String((req.query && req.query.id) || "").trim().toUpperCase();
+    if (!/^HC-\d{6}$/.test(id)) { fail(context, 400, "bad_id"); return; }
+    const h = await hub.readHub();
+    const p = h && h.people.find((x) => x.crmId === id);
+    if (!p) { fail(context, 404, "not_found"); return; }
+    ok(context, { person: hub.maskPerson(p, acc), access: acc });
+    return;
+  }
+  if (action === "queue") {
+    if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    if (method === "GET") { const h = await hub.readHub(); ok(context, { queue: (h && h.queue) || [], generatedAt: h && h.generatedAt }); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const key = String(body.key || "");
+    const verdict = String(body.verdict || "");
+    if (!/^(account|customer):[^|]+\|(account|customer):[^|]+$/.test(key) || !["same", "different"].includes(verdict)) { fail(context, 400, "bad_verdict"); return; }
+    const d = await hub.readDecisions();
+    d.pairs[key] = { verdict, by: normUser(user), at: new Date().toISOString() };
+    await hub.writeDecisions(d);
+    await audit(context, { action: "crm.people.merge", by: normUser(user), key, verdict });
+    const h = await hub.rebuild({ log: (m) => context.log(m) });
+    ok(context, { ok: true, stats: h.stats, queue: h.queue });
+    return;
+  }
+  if (method === "POST" && action === "people-rebuild") {
+    if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    const h = await hub.rebuild({ log: (m) => context.log(m) });
+    await audit(context, { action: "crm.people.rebuild", by: normUser(user), stats: h.stats });
+    ok(context, { ok: true, stats: h.stats, generatedAt: h.generatedAt });
     return;
   }
 
