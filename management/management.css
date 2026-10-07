@@ -642,3 +642,12 @@ body.has-full::after { content: ""; position: fixed; inset: 0; background: rgba(
   .card.viz .vtable.hidden { display: none; }
   body { background: #fff; }
 }
+/* 录入 */
+#enf .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2) var(--s3); }
+#enf .grid3 { display: grid; grid-template-columns: 2fr 70px 110px; gap: var(--s2); align-items: end; margin-bottom: 6px; }
+#enf label.f { display: block; font-size: 12px; color: var(--muted); }
+#enf label.f input, #enf label.f select { display: block; width: 100%; margin-top: 3px; }
+#enf label.chk { display: block; font-size: 13px; margin: var(--s2) 0; }
+#enf .olist { max-height: 220px; overflow: auto; margin-bottom: 6px; }
+.card.feed { grid-column: 1 / -1; }
+.card.feed .olist { max-height: 360px; overflow: auto; }

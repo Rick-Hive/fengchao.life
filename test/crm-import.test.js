@@ -209,6 +209,32 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   rows.tblC[0].fields["CRM ID"] = "";
   await assert.rejects(() => equip.writeBackCrmIds([{ recId: "recC1", crmId: "HC-000001" }], {}), (e) => e.code === "no_write" && /data\.records:write/.test(e.message), "a read-only token is explained");
   schema[0].fields.pop(); schema[0].primaryFieldId = "f1"; rows.tblC.pop();
+
+  // ---- 录入 (phase 4): a customer, an order with lines and the received amount are written
+  // to Airtable with the live field names; only writable fields; a formula amount is left alone.
+  const created = [];
+  AirtableBase.prototype.create = async function (tableId, fields) { created.push([tableId, fields]); return { id: "recNEW" + created.length, fields }; };
+  AirtableBase.prototype.createMany = async function (tableId, list) { return list.map((fields, i) => { created.push([tableId, fields]); return { id: "recI" + i, fields }; }); };
+  const updated = [];
+  AirtableBase.prototype.update = async function (tableId, id, fields) { updated.push([tableId, id, fields]); return { id, fields }; };
+  const custRec = await equip.createCustomer({ email: "New.Parent@Gmail.com", teams: "", first: "New", last: "Parent", city: "苏州" });
+  assert.strictEqual(custRec, "recNEW1");
+  assert.deepStrictEqual(created[0], ["tblC", { "Personal Email": "new.parent@gmail.com", "First Name": "New", "Last Name": "Parent", City: "苏州" }], "normalised email, only fields that exist and are writable");
+  const no = await equip.createOrder({ customerRec: custRec, date: "2026-10-08", comments: "转账", received: 648, items: [{ sku: "iew-sss1a-fp", qty: 2 }] });
+  assert.ok(/^H-20261008-[A-Z0-9]{4}$/.test(no.orderId), no.orderId);
+  const orderRow = created.find((c) => c[0] === "tblO")[1];
+  assert.deepStrictEqual(orderRow, { "Order ID": no.orderId, "Order Date": "2026-10-08", "Order Comments": "转账", "Received Amount": 648, "Customer Email": ["recNEW1"] }, "the customer is a link; no formula written");
+  const itemRow = created.find((c) => c[0] === "tblI")[1];
+  assert.deepStrictEqual(itemRow, { "Order ID": ["recNEW2"], "Curriculum SKU": ["recK1"], Quantity: 2, "Unit Price": 648 }, "unit price defaults to the SKU's price; links by record id");
+  assert.deepStrictEqual(updated[0], ["tblO", "recNEW2", { "Order Amount": 1296 }], "a plain-number Order Amount gets the sum of the lines");
+  updated.length = 0;
+  schema[1].fields[2].type = "formula";
+  await equip.createOrder({ customerRec: custRec, date: "2026-10-08", items: [{ sku: "IEW-SSS1A-FP", qty: 1 }] });
+  assert.strictEqual(updated.length, 0, "a formula Order Amount is left to Airtable");
+  schema[1].fields[2].type = "currency";
+  await assert.rejects(() => equip.createOrder({ customerRec: custRec, date: "2026-10-08", items: [{ sku: "NOPE", qty: 1 }] }), (e) => e.code === "bad_sku");
+  await equip.setReceived("recNEW2", 1296);
+  assert.deepStrictEqual(updated[0], ["tblO", "recNEW2", { "Received Amount": 1296 }]);
   // ---- group names translated at read time (api/shared/people.js translateGroupNames) ----
   process.env.AZURE_TRANSLATOR_KEY = "k";
   const trPath = require.resolve(path.join(__dirname, "..", "api", "shared", "translate.js"));

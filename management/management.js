@@ -2013,8 +2013,9 @@
   function viewEquipOrders() {
     var canSync = isAdmin() || crmLevel("orders") === "rw";
     setTitle(t("经营 › 订单", "Operations › Orders"), t("Equip教材订单", "Equip textbook orders"),
+      (crmLevel("orders") === "rw" ? '<button class="btn sm" id="eEntry">' + t("＋ 录入订单", "+ New order") + "</button> " : "") +
       (canSync ? '<button class="btn secondary sm" id="eSync">' + t("从 Airtable 同步", "Sync from Airtable") + "</button> " : "") +
-      '<a class="btn sm" id="eOpen" href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "Open in Airtable") + ' ↗</a>',
+      '<a class="btn secondary sm" id="eOpen" href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "Open in Airtable") + ' ↗</a>',
       { info: t("EquipMe 教材的销售情况：所选月、本学年与上学年、出版社、教材、学科、年级段、新老客户。逐单查看与录入在 Airtable；管理中心每夜同步一份只读副本。", "How EquipMe textbooks are selling: the chosen month, this school year against the last, publishers, titles, subjects, grade bands, new and returning customers. Individual orders are viewed and entered in Airtable; the management centre syncs a read-only copy nightly.") });
     $("opsBody").innerHTML = '<div class="toolbar" id="ebar"><label class="inline">' + t("月份", "Month") + ' <select id="emonth"></select></label><span class="muted" style="font-size:12px">' + t("指标与图表都以所选月为准；学年按所选月所在学年", "Tiles and charts follow the chosen month; the school year is the one it falls in") + '</span></div><div class="kpis" id="ekpi"></div><div class="vgrid" id="evgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="efoot" style="font-size:.8rem"></p>';
     $("emonth").addEventListener("change", function () { equipState.month = this.value; renderEquip(); });
@@ -2032,7 +2033,62 @@
         loadEquip(true).then(renderEquip);
       });
     });
+    var eb = $("eEntry"); if (eb) eb.addEventListener("click", openEntryPanel);
     loadEquip(false).then(renderEquip).catch(function (r) { $("evgrid").innerHTML = '<p class="msg err">' + esc(errText(r)) + "</p>"; });
+  }
+  // ---- 录入 (phase 4, §8: 建客户、建订单、加订单行、标收款 — written to Airtable, which stays the
+  // system of record; the copy here and the people hub follow at once).
+  var entryCat = null;
+  function loadCatalogue() { if (entryCat) return Promise.resolve(entryCat); return api("crm/catalogue").then(function (r) { if (!r.ok) throw r; entryCat = r.body.skus || []; return entryCat; }); }
+  function openEntryPanel() {
+    var today = new Date().toISOString().slice(0, 10);
+    panelOpen('<div class="ph"><h3>' + t("录入教材订单", "New textbook order") + '</h3><span class="tag">Airtable</span><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><form id="enf">' +
+      "<h4>" + t("客户", "Customer") + '</h4><div class="search" style="margin-bottom:6px">' + ICON.search + '<input type="search" id="enQ" autocomplete="off" placeholder="' + t("搜索已有客户：姓名、邮箱、CRM ID", "Find an existing customer: name, email, CRM ID") + '" /></div><div id="enHits" class="olist hidden"></div>' +
+      '<div id="enPicked" class="hint hidden"></div>' +
+      '<label class="chk"><input type="checkbox" id="enNew" /> ' + t("新客户（Airtable 里还没有）", "New customer (not in Airtable yet)") + "</label>" +
+      '<div id="enNewF" class="grid2 hidden"><label class="f">' + t("名", "Given name") + '<input type="text" id="enFirst" maxlength="60" /></label><label class="f">' + t("姓", "Surname") + '<input type="text" id="enLast" maxlength="60" /></label><label class="f">' + t("邮箱", "Email") + '<input type="email" id="enEmail" /></label><label class="f">' + t("Teams 账号", "Teams account") + '<input type="email" id="enTeams" placeholder="name@equipme.cloud" /></label><label class="f">' + t("城市", "City") + '<input type="text" id="enCity" maxlength="40" /></label></div>' +
+      "<h4>" + t("订单", "Order") + '</h4><div class="grid2"><label class="f">' + t("下单日期", "Order date") + '<input type="date" id="enDate" value="' + today + '" required /></label><label class="f">' + t("已收金额（可空）", "Received (optional)") + '<input type="number" id="enRecv" min="0" step="0.01" /></label></div>' +
+      '<label class="f">' + t("备注", "Comments") + '<input type="text" id="enNote" maxlength="500" /></label>' +
+      "<h4>" + t("教材", "Items") + '</h4><div id="enLines"></div><button type="button" class="btn secondary sm" id="enAdd">' + t("＋ 加一行", "+ Add a line") + '</button><div class="kv" style="margin-top:8px"><span class="k">' + t("合计", "Total") + '</span><span id="enTotal">¥0</span></div>' +
+      '<div class="actions"><button class="btn" type="submit" id="enSave">' + t("写入 Airtable", "Write to Airtable") + '</button><span class="muted" style="font-size:12px">' + t("写入后会立刻同步并重建人员库", "Then synced here and the people hub rebuilt") + '</span></div><div id="enMsg"></div></form></div>');
+    var picked = null;
+    var people = ((peopleState.hub || {}).people || []).filter(function (p) { return p.sources && p.sources.customer; });
+    if (!people.length) loadPeople(false).then(function () { people = ((peopleState.hub || {}).people || []).filter(function (p) { return p.sources && p.sources.customer; }); }).catch(function () {});
+    $("enQ").addEventListener("input", debounce(function () {
+      var q = $("enQ").value.trim().toLowerCase(), box = $("enHits");
+      if (!q) { box.classList.add("hidden"); return; }
+      var hits = people.filter(function (p) { return [p.name, p.primaryEmail, p.crmId].concat((p.emails || []).map(function (e) { return e.email; })).join(" ").toLowerCase().indexOf(q) >= 0; }).slice(0, 8);
+      box.innerHTML = hits.length ? hits.map(function (p) { var c = p.facets.customers[0] || {}; return '<button type="button" class="orow link" data-pick="' + esc(c.recId) + '" data-name="' + esc(p.name) + '"><div class="omain"><b>' + esc(p.name) + '</b><span class="sub">' + esc([p.primaryEmail, p.crmId].filter(Boolean).join(" · ")) + "</span></div></button>"; }).join("") : '<div class="orow muted">' + t("没有匹配的客户；勾选「新客户」。", "No match; tick “New customer”.") + "</div>";
+      box.classList.remove("hidden");
+    }, 120));
+    $("enHits").addEventListener("click", function (e) { var b = e.target.closest("button[data-pick]"); if (!b) return; picked = { recId: b.getAttribute("data-pick"), name: b.getAttribute("data-name") }; $("enPicked").innerHTML = esc(t("已选客户：", "Customer: ") + picked.name); $("enPicked").classList.remove("hidden"); $("enHits").classList.add("hidden"); $("enQ").value = picked.name; $("enNew").checked = false; $("enNewF").classList.add("hidden"); });
+    $("enNew").addEventListener("change", function () { $("enNewF").classList.toggle("hidden", !this.checked); if (this.checked) { picked = null; $("enPicked").classList.add("hidden"); } });
+    var lines = 0;
+    function addLine() {
+      lines++;
+      $("enLines").insertAdjacentHTML("beforeend", '<div class="enl grid3" data-l="' + lines + '"><label class="f">SKU<select class="enSku" required><option value="">' + t("选择教材…", "Choose…") + "</option>" + entryCat.filter(function (k) { return k.available; }).map(function (k) { return '<option value="' + esc(k.sku) + '" data-price="' + (k.price == null ? "" : k.price) + '">' + esc(k.sku + " · " + (EN ? (k.nameEn || k.nameZh) : (k.nameZh || k.nameEn))) + "</option>"; }).join("") + '</select></label><label class="f">' + t("数量", "Qty") + '<input type="number" class="enQty" min="1" step="1" value="1" required /></label><label class="f">' + t("单价", "Unit price") + '<input type="number" class="enUnit" min="0" step="0.01" /></label></div>');
+    }
+    function total() { var sum = 0; document.querySelectorAll("#enLines .enl").forEach(function (l) { var q = +l.querySelector(".enQty").value || 0, u = l.querySelector(".enUnit").value, sel = l.querySelector(".enSku"), dp = sel.selectedOptions[0] && sel.selectedOptions[0].getAttribute("data-price"); sum += q * (u !== "" ? +u : (dp ? +dp : 0)); }); $("enTotal").textContent = fmtMoney(sum); }
+    loadCatalogue().then(function () { addLine(); }).catch(function (r) { $("enMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; });
+    $("enAdd").addEventListener("click", addLine);
+    $("enLines").addEventListener("change", function (e) { var sel = e.target.closest(".enSku"); if (sel) { var u = sel.closest(".enl").querySelector(".enUnit"), dp = sel.selectedOptions[0] && sel.selectedOptions[0].getAttribute("data-price"); if (!u.value && dp) u.value = dp; } total(); });
+    $("enLines").addEventListener("input", total);
+    $("enf").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var items = Array.prototype.map.call(document.querySelectorAll("#enLines .enl"), function (l) { var u = l.querySelector(".enUnit").value; return { sku: l.querySelector(".enSku").value, qty: +l.querySelector(".enQty").value, unitPrice: u === "" ? null : +u }; }).filter(function (it) { return it.sku; });
+      var customer = $("enNew").checked ? { new: { first: $("enFirst").value.trim(), last: $("enLast").value.trim(), email: $("enEmail").value.trim(), teams: $("enTeams").value.trim(), city: $("enCity").value.trim() } } : picked ? { recId: picked.recId } : null;
+      if (!customer) { $("enMsg").innerHTML = '<div class="msg err">' + t("请先选择客户或勾选「新客户」。", "Choose a customer or tick “New customer”.") + "</div>"; return; }
+      if (!items.length) { $("enMsg").innerHTML = '<div class="msg err">' + t("至少一行教材。", "At least one item.") + "</div>"; return; }
+      var b = $("enSave"); savingButton(b, t("写入中…", "Writing…"));
+      var recv = $("enRecv").value;
+      post("crm/entry", "POST", { customer: customer, date: $("enDate").value, comments: $("enNote").value.trim(), received: recv === "" ? undefined : +recv, items: items }).then(function (r) {
+        restoreButton(b);
+        if (!r.ok) { $("enMsg").innerHTML = '<div class="msg err">' + esc((r.body && r.body.message) || errText(r)) + "</div>"; return; }
+        equipState.list = null; peopleState.hub = null; entryCat = null;
+        savedAndClose(null, t("已写入 Airtable：订单 ", "Written to Airtable: order ") + "<b>" + esc(r.body.orderId) + "</b>" + t("，" + r.body.lines + " 行", ", " + r.body.lines + " lines") + (r.body.newCustomer ? t("，新客户已建", ", new customer created") : "") + "。");
+        if ($("evgrid")) loadEquip(true).then(renderEquip);
+      });
+    });
   }
   function loadEquip(force) {
     if (equipState.list && !force) return Promise.resolve(equipState.list);
@@ -2059,7 +2115,19 @@
         '<span class="k">' + t("金额 / 实收", "Amount / received") + "</span><span>" + money(o.amount, "CNY") + " / " + money(o.received, "CNY") + "</span>" +
         (o.comments ? '<span class="k">' + t("备注", "Comments") + "</span><span>" + esc(o.comments) + "</span>" : "") + "</div>" +
       "<h4>" + t("购买的教材", "Purchased items") + " · " + (o.items || []).length + '</h4><div class="olist">' + (items || '<div class="orow muted">' + t("没有订单明细。", "No line items.") + "</div>") + "</div>" +
-      '<p class="hint">' + t("只读：修改请在 Airtable 里进行，下一次同步后生效。", "Read-only: change it in Airtable; the next sync picks it up.") + "</p></div>", which);
+      (crmLevel("orders") === "rw" || crmLevel("money") === "rw" ? '<h4>' + t("标收款", "Record cash received") + '</h4><div class="actions"><input type="number" id="eoRecv" min="0" step="0.01" value="' + (o.received == null ? "" : o.received) + '" style="width:140px" /><button type="button" class="btn secondary sm" id="eoRecvSave" data-rec="' + esc(o.recId) + '">' + t("保存到 Airtable", "Save to Airtable") + '</button></div><div id="eoMsg"></div>' : "") +
+      '<p class="hint">' + t("订单内容在 Airtable 里改，下一次同步后生效。", "Change the order's contents in Airtable; the next sync picks it up.") + "</p></div>", which);
+    var rb = $("eoRecvSave");
+    if (rb) rb.addEventListener("click", function () {
+      var v = $("eoRecv").value; if (v === "") return;
+      savingButton(rb, t("保存中…", "Saving…"));
+      post("crm/received", "POST", { recId: rb.getAttribute("data-rec"), received: +v }).then(function (r) {
+        restoreButton(rb);
+        if (!r.ok) { $("eoMsg").innerHTML = '<div class="msg err">' + esc((r.body && r.body.message) || errText(r)) + "</div>"; return; }
+        o.received = +v; $("eoMsg").innerHTML = '<div class="msg ok">' + t("已记录实收 ", "Received recorded: ") + fmtMoney(+v) + "</div>";
+        if ($("evgrid")) renderEquip();
+      });
+    });
   }
   function ym(d) { return String(d || "").slice(0, 7); }
   function monthLabel(m) { var p = m.split("-"); return EN ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+p[1] - 1] + " " + p[0].slice(2) : +p[1] + "月"; }
@@ -2733,10 +2801,35 @@
     else cards.push('<div class="card soon"><div class="ch"><h2>' + t("合作伙伴", "Partners") + '</h2></div><p class="muted">' + esc(t("需要合作伙伴数据的查看权限。", "Needs read access to partner data.")) + "</p></div>");
     cards.push(
       '<div class="card soon"><div class="ch"><h2>' + t("许可", "Licences") + ' <span class="n">' + t("第 5 阶段 · 自建 DRM", "phase 5 · own DRM") + '</span></h2></div><p class="muted">' + esc(t("许可池余量和到期、已激活 vs 已售出、按地区的 DRM 用户增长。等自建 DRM 系统上线后显示。", "Licence pool balance and expiry, activated vs sold, DRM users by region — once Hive's own DRM system is live.")) + "</p></div>");
+    if (canSeeOrders()) cards.push('<div class="card feed" id="dFeed"><div class="ch"><h2>' + t("动态", "Activity") + ' <span class="n">' + t("最近的录入、状态变化、同步与合并", "recent entries, status changes, syncs and merges") + '</span></h2></div><div class="olist" id="dFeedList"><div class="orow muted">' + t("载入中…", "Loading…") + "</div></div></div>");
     $("dgrid").innerHTML = cards.join("");
     // 图形切换 for the trend card: 累计 / 按月
     var tc = $("dTrend"); if (tc) { var tg = tc.querySelector(".vtoggle"); tg.insertAdjacentHTML("afterbegin", '<button type="button" data-t="cum"' + (dashState.trend === "cum" ? ' class="on2"' : "") + ">" + t("累计", "Cumulative") + '</button><button type="button" data-t="monthly"' + (dashState.trend === "monthly" ? ' class="on2"' : "") + ">" + t("按月", "Monthly") + "</button>"); tg.addEventListener("click", function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; dashState.trend = b.getAttribute("data-t"); renderDashboard(); }); }
     drawCharts();
+    // 动态: the CRM's audit lines, in plain words.
+    if ($("dFeedList")) api("crm/feed?limit=30").then(function (r) {
+      var el = $("dFeedList"); if (!el) return;
+      if (!r.ok) { el.innerHTML = '<div class="orow muted">' + esc(errText(r)) + "</div>"; return; }
+      var say = function (e) {
+        var who = e.by || e.actor || "";
+        switch (e.action) {
+          case "crm.entry.order": return t("录入订单 ", "Entered order ") + (e.orderId || "") + (e.newCustomer ? t("（新客户）", " (new customer)") : "");
+          case "crm.entry.received": return t("记录实收 ", "Recorded received ") + fmtMoney(e.received);
+          case "crm.order.status": return (e.orderId || "") + " " + stTag(e.from) + " → " + stTag(e.to);
+          case "crm.orders.import": return t("导入课程订单 ", "Imported course orders ") + (e.created || 0);
+          case "crm.equip.sync": return t("Equip 同步 ", "Equip sync ") + ((e.counts || {}).orders || 0) + t(" 单", " orders");
+          case "crm.people.merge": return t("合并判定：", "Merge verdict: ") + (e.verdict === "same" ? t("同一人", "same person") : t("不同人", "different"));
+          case "crm.people.rebuild": return t("人员库重新匹配，", "People hub rebuilt, ") + ((e.stats || {}).people || 0) + t(" 人", " people");
+          case "crm.people.writeback": return t("回写 CRM ID ", "CRM IDs written back ") + (e.written || 0);
+          case "crm.email.replace": return t("邮箱替换标记：", "Email replacement: ") + (e.status || "") + " · " + (e.crmId || "");
+          case "crm.royalty.paid": return t("版税 ", "Royalty ") + (e.publisher || "") + " " + (e.quarter || "") + (e.paid ? t(" 标记已付", " marked paid") : t(" 撤销已付", " unmarked"));
+          case "crm.partner.update": return t("机构合作阶段：", "Partnership: ") + (e.domain || "") + " → " + (e.stage || "—");
+          case "crm.digest": return t("待处理摘要已发给 ", "Digest sent to ") + ((e.to || []).join(", ") || "");
+          default: return e.action;
+        }
+      };
+      el.innerHTML = r.body.feed.length ? r.body.feed.map(function (e) { return '<div class="orow"><div class="omain"><b>' + say(e) + '</b><span class="sub">' + esc(when(e.at) + ((e.by || e.actor) ? " · " + (e.by || e.actor) : "")) + "</span></div></div>"; }).join("") : '<div class="orow muted">' + t("还没有动态。", "Nothing yet.") + "</div>";
+    });
     // 长尾 from the catalogue: by publisher (bars), and the list behind 表.
     if ($("dTail")) api("crm/catalogue").then(function (r) {
       var card = $("dTail"); if (!card) return;

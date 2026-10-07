@@ -338,6 +338,63 @@ async function handler(context, req) {
     return;
   }
 
+  // ---- 录入 (phase 4): orders rw. POST entry { customer: { recId | new: {first,last,email,teams,city} },
+  // date, comments, received, items: [{sku, qty, unitPrice}] } → Airtable, then a sync + rebuild.
+  if (method === "POST" && action === "entry") {
+    if (!crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const c = body.customer || {};
+    try {
+      let customerRec = String(c.recId || "");
+      let newCustomer = false;
+      if (!customerRec && c.new) {
+        const nc = c.new;
+        if (!nc.email && !nc.teams) { fail(context, 400, "bad_request", { message: "a new customer needs an email or a Teams account" }); return; }
+        customerRec = await equip.createCustomer({ email: nc.email, teams: nc.teams, first: nc.first, last: nc.last, city: nc.city }, { log: (m) => context.log(m) });
+        newCustomer = true;
+      }
+      if (!customerRec) { fail(context, 400, "bad_request", { message: "customer missing" }); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.date || ""))) { fail(context, 400, "bad_request", { message: "date must be YYYY-MM-DD" }); return; }
+      const r = await equip.createOrder({ customerRec, date: body.date, comments: String(body.comments || "").slice(0, 500), received: typeof body.received === "number" ? body.received : undefined, items: body.items || [] }, { log: (m) => context.log(m) });
+      await audit(context, { action: "crm.entry.order", by: normUser(user), orderId: r.orderId, orderRec: r.orderRec, customerRec, newCustomer, lines: (body.items || []).length });
+      let status = null;
+      try { const data = await equip.syncEquip({ log: (m) => context.log(m) }); status = equip.status(data); await hub.rebuild({ log: (m) => context.log(m) }); } catch (err) { context.log.warn("crm: sync after entry failed: " + ((err && err.message) || err)); }
+      ok(context, { ok: true, orderId: r.orderId, orderRec: r.orderRec, customerRec, newCustomer, lines: r.itemRecs.length, status });
+    } catch (err) {
+      if (["no_pat", "bad_pat", "no_write", "no_field", "bad_sku", "bad_request"].includes(err.code)) { fail(context, err.code === "no_write" || err.code === "no_pat" ? 503 : 400, err.code, { message: err.message, sku: err.sku }); return; }
+      throw err;
+    }
+    return;
+  }
+  // 标收款: POST received { recId, received } → Airtable "Received Amount" (orders rw or money rw).
+  if (method === "POST" && action === "received") {
+    if (!crm.atLeast(roles, "orders", "rw") && !crm.atLeast(roles, "money", "rw")) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const recId = String(body.recId || ""), received = Number(body.received);
+    if (!/^rec[A-Za-z0-9]+$/.test(recId) || !Number.isFinite(received) || received < 0) { fail(context, 400, "bad_request"); return; }
+    try {
+      await equip.setReceived(recId, received, { log: (m) => context.log(m) });
+      const data = await equip.readEquip();
+      if (data) { const o = (data.orders || []).find((x) => x.recId === recId); if (o) { o.received = received; await equip.writeEquip(data); } }
+      await audit(context, { action: "crm.entry.received", by: normUser(user), orderRec: recId, received });
+      ok(context, { ok: true });
+    } catch (err) {
+      if (["no_pat", "bad_pat", "no_write", "no_field"].includes(err.code)) { fail(context, 503, err.code, { message: err.message }); return; }
+      throw err;
+    }
+    return;
+  }
+  // 动态 (feed): the CRM's own audit lines, newest first (orders ≥ read; names masked below identity read).
+  if (method === "GET" && action === "feed") {
+    const limit = Math.min(200, Number((req.query && req.query.limit) || 50) || 50);
+    const { readAudit } = require("../shared/audit");
+    const lines = await readAudit({ months: 2, filter: (e) => /^crm\./.test(String(e.action || "")) });
+    const seeWho = ["read", "rw"].includes(acc.identity);
+    const out = lines.slice(0, limit).map((e) => { const o = Object.assign({}, e); if (!seeWho) { for (const k of ["target", "email"]) if (o[k]) o[k] = "…"; } return o; });
+    ok(context, { feed: out, access: acc });
+    return;
+  }
+
   if (method === "POST" && action === "people-rebuild") {
     if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
     const h = await hub.rebuild({ log: (m) => context.log(m) });

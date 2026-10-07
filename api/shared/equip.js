@@ -297,4 +297,84 @@ async function writeBackCrmIds(pairs, opts) {
   return { written, already, conflicts, missing, field: field.name };
 }
 
-module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, syncEquip, readEquip, writeEquip, status, writeBackCrmIds };
+// ---- 录入 (phase 4): create a customer, an order and its lines in Airtable, mark cash
+// received. Airtable stays the system of record until the switch (§8), so the
+// management centre writes THERE — field names resolved the same tolerant way the
+// sync reads them, and only writable fields are written (a formula "Order Amount"
+// or a rollup is left to Airtable). Needs data.records:write on the token.
+async function entryBase() {
+  const token = pat();
+  if (!token) throw Object.assign(new Error("AIRTABLE_EQUIP_PAT app setting is not configured"), { code: "no_pat" });
+  const base = new AirtableBase(BASE_ID, token);
+  const tbl = {};
+  for (const key of ["customers", "orders", "items", "curriculums"]) {
+    const table = await base.table(TABLES[key]);
+    const map = {}, types = {};
+    for (const [k, spec] of Object.entries(FIELDS[key])) { const f = AirtableBase.field(table, spec); if (f) { map[k] = f.name; types[k] = f; } }
+    tbl[key] = { table, map, types };
+  }
+  return { base, tbl };
+}
+function writable(t, key) { const f = t.types[key]; return !!f && AirtableBase.isWritable(f); }
+function noWrite(err) { if (err && err.status === 403) return Object.assign(new Error(`Airtable refused the write (HTTP 403): the token in ${patSetting()} needs the data.records:write scope on the Equip base`), { code: "no_write" }); return err; }
+
+// Create a customer. input { email, teams, first, last, city }. Returns the record id.
+async function createCustomer(input, opts) {
+  const { base, tbl } = await entryBase();
+  const t = tbl.customers;
+  const fields = {};
+  const put = (k, v) => { if (v != null && v !== "" && t.map[k] && writable(t, k)) fields[t.map[k]] = v; };
+  put("email", normalizeEmail(input.email)); put("teams", normalizeEmail(input.teams)); put("first", input.first); put("last", input.last); put("city", input.city);
+  if (input.crmId) put("crmId", input.crmId);
+  if (!Object.keys(fields).length) throw Object.assign(new Error("nothing to write for the customer"), { code: "bad_request" });
+  try { const r = await base.create(t.table.id, fields); return r.id; } catch (err) { throw noWrite(err); }
+}
+
+// Create an order with its lines. input { customerRec, date (YYYY-MM-DD), comments, received, items: [{ sku, qty, unitPrice }] }.
+// Returns { orderRec, orderId, itemRecs }.
+async function createOrder(input, opts) {
+  const { base, tbl } = await entryBase();
+  const or = tbl.orders, it = tbl.items, cr = tbl.curriculums;
+  const skus = await base.list(cr.table.id, { fields: [cr.table.fields.find((f) => f.id === cr.table.primaryFieldId).name].concat(cr.map.price ? [cr.map.price] : []) });
+  const skuField = cr.table.fields.find((f) => f.id === cr.table.primaryFieldId).name;
+  const bySku = new Map(skus.map((r) => [s(r.fields[skuField]).toUpperCase(), r]));
+  const lines = (input.items || []).map((x) => ({ sku: s(x.sku).toUpperCase(), qty: Number(x.qty) || 0, unitPrice: x.unitPrice == null || x.unitPrice === "" ? null : Number(x.unitPrice) }));
+  for (const l of lines) { if (!bySku.has(l.sku)) throw Object.assign(new Error(`SKU not in Curriculums: ${l.sku}`), { code: "bad_sku", sku: l.sku }); if (!(l.qty > 0)) throw Object.assign(new Error(`quantity must be positive: ${l.sku}`), { code: "bad_request" }); }
+  if (!lines.length) throw Object.assign(new Error("an order needs at least one line"), { code: "bad_request" });
+  const orderId = input.orderId || ("H-" + String(input.date || new Date().toISOString().slice(0, 10)).replace(/-/g, "") + "-" + Math.random().toString(36).slice(2, 6).toUpperCase());
+  const of = {};
+  const putO = (k, v) => { if (v != null && v !== "" && or.map[k] && writable(or, k)) of[or.map[k]] = v; };
+  putO("id", orderId); putO("date", input.date); putO("comments", input.comments);
+  if (typeof input.received === "number") putO("received", input.received);
+  if (or.map.email && or.types.email.type === "multipleRecordLinks" && input.customerRec) of[or.map.email] = [input.customerRec];
+  let order;
+  try { order = await base.create(or.table.id, of); } catch (err) { throw noWrite(err); }
+  const itemFields = lines.map((l) => {
+    const f = {};
+    if (it.map.order && it.types.order.type === "multipleRecordLinks") f[it.map.order] = [order.id];
+    if (it.map.sku && it.types.sku.type === "multipleRecordLinks") f[it.map.sku] = [bySku.get(l.sku).id];
+    if (it.map.qty && writable(it, "qty")) f[it.map.qty] = l.qty;
+    const unit = l.unitPrice != null ? l.unitPrice : n(bySku.get(l.sku).fields[cr.map.price]);
+    if (unit != null && it.map.unit && writable(it, "unit")) f[it.map.unit] = unit;
+    return f;
+  });
+  let items = [];
+  try { items = await base.createMany(it.table.id, itemFields); } catch (err) { throw noWrite(err); }
+  // "Order Amount" when it is a plain number field (not a formula/rollup): the sum of the lines
+  if (or.map.amount && writable(or, "amount")) {
+    const total = lines.reduce((a, l, i) => a + l.qty * (itemFields[i][it.map.unit] || 0), 0);
+    try { await base.update(or.table.id, order.id, { [or.map.amount]: total }); } catch { /* best effort */ }
+  }
+  return { orderRec: order.id, orderId, itemRecs: items.map((r) => r.id) };
+}
+
+// Mark cash received on an order (the "Received Amount" field).
+async function setReceived(orderRec, received, opts) {
+  const { base, tbl } = await entryBase();
+  const or = tbl.orders;
+  if (!or.map.received || !writable(or, "received")) throw Object.assign(new Error(`Orders: "${FIELDS.orders.received}" is not a writable field`), { code: "no_field" });
+  try { await base.update(or.table.id, orderRec, { [or.map.received]: Number(received) || 0 }); } catch (err) { throw noWrite(err); }
+  return true;
+}
+
+module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, syncEquip, readEquip, writeEquip, status, writeBackCrmIds, createCustomer, createOrder, setReceived };

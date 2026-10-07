@@ -25,4 +25,24 @@ async function audit(context, entry) {
   }
 }
 
-module.exports = { audit };
+// Read back recent lines (newest first), for the CRM's 动态 feed. opts { months, filter }.
+async function readAudit(opts) {
+  const months = (opts && opts.months) || 1, filter = (opts && opts.filter) || (() => true);
+  const conn = process.env.STORAGE_CONNECTION_STRING;
+  if (!conn) throw new Error("STORAGE_CONNECTION_STRING not configured");
+  const container = BlobServiceClient.fromConnectionString(conn).getContainerClient(snapshotBlob.container);
+  const out = [];
+  const now = new Date();
+  for (let i = 0; i < months; i++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const name = `audit/${d.toISOString().slice(0, 7)}.jsonl`;
+    const blob = container.getBlobClient(name);
+    if (!(await blob.exists())) continue;
+    const text = (await blob.downloadToBuffer()).toString("utf8");
+    for (const line of text.split("\n")) { if (!line.trim()) continue; try { const e = JSON.parse(line); if (filter(e)) out.push(e); } catch { /* a torn line */ } }
+  }
+  out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  return out;
+}
+
+module.exports = { audit, readAudit };
