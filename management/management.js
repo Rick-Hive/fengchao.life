@@ -1828,18 +1828,170 @@
 
   // 教材订单: the Equip (EquipMe) textbook orders, read from Airtable by the nightly sync
   // (api/shared/equip.js). Airtable stays the place they are entered; this is a view.
+  // ================================================================================
+  // Charts (inline SVG, no library). Rules followed: thin marks with rounded data
+  // ends, 2px lines, >=8px markers with a surface ring, hairline grid, categorical
+  // hues in a fixed order (validated: blue/orange/aqua/yellow pass CVD and the
+  // normal-vision floor with direct labels), sequential = one hue, text never in
+  // the series colour, a legend for >=2 series, hover tooltip on every mark, and a
+  // table view behind every chart (图 / 表).
+  // ================================================================================
+  var VIZ = { cat: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"], seq: "#1d4a83", seq2: "#7fa9dc", seq3: "#cfe0f5", gray: "#b8c0cc", grid: "#e9edf3", ink: "#1b2430", muted: "#6b7787" };
+  var vizDraws = [];
+  function fmtNum(v) { return v == null ? "" : Math.round(v).toLocaleString(EN ? "en-US" : "zh-CN"); }
+  function fmtMoney(v) { return v == null ? "" : "¥" + Math.round(v).toLocaleString(EN ? "en-US" : "zh-CN"); }
+  function fmtCompact(v) { if (v == null) return ""; var a = Math.abs(v); return a >= 1e6 ? (v / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : a >= 1e4 ? (v / 1e3).toFixed(0) + "K" : a >= 1e3 ? (v / 1e3).toFixed(1).replace(/\.0$/, "") + "K" : String(Math.round(v)); }
+  function niceMax(v) { if (!v || v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))); var m = v / p; var n = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10; return n * p; }
+  // Gridlines: four steps, or one per unit when the top is a small count (no "1, 1, 1, 0, 0").
+  function ticks(max) { var n = max < 4 ? Math.max(1, Math.round(max)) : 4; var out = []; for (var k = 0; k <= n; k++) out.push(max * k / n); return out; }
+  // A category label cut to fit a pixel width (CJK glyphs count double), with the full text in a <title>.
+  function fitLabel(label, px) {
+    var w = 0, out = "";
+    for (var i = 0; i < label.length; i++) { var cw = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/.test(label[i]) ? 12 : 6.6; if (w + cw > px - 8) return out + "…"; w += cw; out += label[i]; }
+    return out;
+  }
+  function tipAttr(html) { return ' data-tip="' + esc(html) + '"'; }
+  function tipRow(color, label, value, isLine) { return '<div class="tr"><span class="key" style="' + (isLine ? "border-top:2px solid " + color + ";height:0" : "background:" + color) + '"></span><b>' + esc(value) + "</b><span>" + esc(label) + "</span></div>"; }
+
+  // A card with the chart drawn once its width is known (and again on resize).
+  function chartCard(id, title, sub, draw, tableHtml) {
+    vizDraws.push({ id: id, draw: draw });
+    return '<div class="card viz" id="' + id + '"><div class="ch"><h2>' + esc(title) + (sub ? ' <span class="n">' + esc(sub) + "</span>" : "") + '</h2><div class="vtoggle" role="tablist"><button type="button" class="on" data-v="chart">' + t("图", "Chart") + '</button><button type="button" data-v="table">' + t("表", "Table") + "</button></div></div>" +
+      '<div class="vbody"></div><div class="vtable hidden">' + tableHtml + "</div></div>";
+  }
+  function drawCharts() {
+    vizDraws = vizDraws.filter(function (d) { return $(d.id); });
+    vizDraws.forEach(function (d) { var body = $(d.id).querySelector(".vbody"); var w = body.clientWidth; if (w > 0) body.innerHTML = d.draw(w); });
+  }
+  window.addEventListener("resize", debounce(drawCharts, 150));
+  $("content").addEventListener("click", function (e) {
+    var b = e.target.closest(".vtoggle button"); if (!b) return;
+    var card = b.closest(".card"); card.querySelectorAll(".vtoggle button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    card.querySelector(".vbody").classList.toggle("hidden", b.getAttribute("data-v") !== "chart");
+    card.querySelector(".vtable").classList.toggle("hidden", b.getAttribute("data-v") !== "table");
+  });
+  // One tooltip for every mark: data-tip carries ready HTML built with esc() above.
+  var tip = document.createElement("div"); tip.className = "viztip"; tip.hidden = true; document.body.appendChild(tip);
+  $("content").addEventListener("mousemove", function (e) {
+    var m = e.target.closest("[data-tip]");
+    if (!m) { tip.hidden = true; return; }
+    tip.innerHTML = m.getAttribute("data-tip"); tip.hidden = false;
+    var x = e.clientX + 14, y = e.clientY + 14;
+    if (x + tip.offsetWidth > window.innerWidth - 8) x = e.clientX - tip.offsetWidth - 14;
+    if (y + tip.offsetHeight > window.innerHeight - 8) y = e.clientY - tip.offsetHeight - 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  });
+  $("content").addEventListener("mouseleave", function () { tip.hidden = true; });
+
+  function legend(series, isLine) {
+    return '<div class="vlegend">' + series.map(function (s) { return '<span><i style="' + (isLine ? "border-top:2px solid " + s.color + ";height:0;width:14px" : "background:" + s.color) + '"></i>' + esc(s.name) + "</span>"; }).join("") + "</div>";
+  }
+  function dataTable(head, rows) {
+    return '<table class="data vt"><thead><tr>' + head.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("") + "</tr></thead><tbody>" + rows.map(function (r) { return "<tr>" + r.map(function (c, i) { return '<td class="' + (i ? "num" : "") + '">' + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table>";
+  }
+
+  // Lines over categories (months). series: [{name, values, color, dash}]. fmt for tooltip/labels.
+  function linesChart(w, o) {
+    var h = o.height || 220, pl = 44, pr = 56, pt = 12, pb = 26, iw = Math.max(50, w - pl - pr), ih = h - pt - pb;
+    var n = o.x.length, max = niceMax(Math.max.apply(null, o.series.map(function (s) { return Math.max.apply(null, s.values.map(function (v) { return v || 0; })); }).concat([0])));
+    var X = function (i) { return pl + (n > 1 ? (i / (n - 1)) * iw : iw / 2); }, Y = function (v) { return pt + ih - (Math.max(0, v || 0) / max) * ih; };
+    var g = "";
+    ticks(max).forEach(function (tv) { var yy = Y(tv); g += '<line x1="' + pl + '" x2="' + (pl + iw) + '" y1="' + yy + '" y2="' + yy + '" stroke="' + VIZ.grid + '"/><text x="' + (pl - 8) + '" y="' + (yy + 4) + '" text-anchor="end" class="tk">' + fmtCompact(tv) + "</text>"; });
+    var step = Math.ceil(n / Math.max(1, Math.floor(iw / 56)));
+    o.x.forEach(function (lab, i) { if (i % step === 0 || i === n - 1) g += '<text x="' + X(i) + '" y="' + (h - 8) + '" text-anchor="middle" class="tk">' + esc(lab) + "</text>"; });
+    // null = no value yet (a future month): the line stops there and the end label sits on the last real point.
+    var paths = o.series.map(function (s) {
+      var d = "", pen = false;
+      s.values.forEach(function (v, i) { if (v == null) { pen = false; return; } d += (pen ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; pen = true; });
+      var last = -1; s.values.forEach(function (v, i) { if (v != null) last = i; });
+      if (last < 0) return "";
+      return '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"' + (s.dash ? ' stroke-dasharray="4 3"' : "") + "/>" +
+        '<circle cx="' + X(last) + '" cy="' + Y(s.values[last]) + '" r="4" fill="' + s.color + '" stroke="#fff" stroke-width="2"/>' +
+        '<text x="' + (X(last) + 8) + '" y="' + (Y(s.values[last]) + 4) + '" class="lbl">' + esc(o.fmt(s.values[last])) + "</text>";
+    }).join("");
+    // crosshair hit columns: one tooltip listing every series at that x
+    var hits = o.x.map(function (lab, i) {
+      var html = '<div class="th">' + esc(lab) + "</div>" + o.series.map(function (s) { return tipRow(s.color, s.name, s.values[i] == null ? "—" : o.fmt(s.values[i]), true); }).join("");
+      var x0 = i ? (X(i - 1) + X(i)) / 2 : pl, x1 = i < n - 1 ? (X(i) + X(i + 1)) / 2 : pl + iw;
+      return '<g class="hit"' + tipAttr(html) + '><rect x="' + x0 + '" y="' + pt + '" width="' + Math.max(1, x1 - x0) + '" height="' + ih + '" fill="transparent"/><line class="xh" x1="' + X(i) + '" x2="' + X(i) + '" y1="' + pt + '" y2="' + (pt + ih) + '" stroke="' + VIZ.muted + '"/>' + o.series.map(function (s) { return s.values[i] == null ? "" : '<circle class="xh" cx="' + X(i) + '" cy="' + Y(s.values[i]) + '" r="4" fill="' + s.color + '" stroke="#fff" stroke-width="2"/>'; }).join("") + "</g>";
+    }).join("");
+    return (o.series.length > 1 ? legend(o.series, true) : "") + '<svg class="viz-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '">' + g + paths + hits + "</svg>";
+  }
+
+  // Columns per category, optionally stacked. series: [{name, values, color}].
+  function columnsChart(w, o) {
+    var h = o.height || 220, pl = 44, pr = 12, pt = 16, pb = 26, iw = Math.max(50, w - pl - pr), ih = h - pt - pb;
+    var n = o.x.length, totals = o.x.map(function (_, i) { return o.series.reduce(function (a, s) { return a + (s.values[i] || 0); }, 0); });
+    var max = niceMax(Math.max.apply(null, totals.concat([0])));
+    var band = iw / n, bw = Math.min(24, band * 0.6), Y = function (v) { return (v / max) * ih; };
+    var g = "";
+    ticks(max).forEach(function (tv) { var yy = pt + ih - Y(tv); g += '<line x1="' + pl + '" x2="' + (pl + iw) + '" y1="' + yy + '" y2="' + yy + '" stroke="' + VIZ.grid + '"/><text x="' + (pl - 8) + '" y="' + (yy + 4) + '" text-anchor="end" class="tk">' + fmtCompact(tv) + "</text>"; });
+    var step = Math.ceil(n / Math.max(1, Math.floor(iw / 48)));
+    var bars = o.x.map(function (lab, i) {
+      var x = pl + band * i + (band - bw) / 2, y = pt + ih, out = "";
+      var html = '<div class="th">' + esc(lab) + "</div>" + o.series.map(function (s) { return tipRow(s.color, s.name, o.fmt(s.values[i])); }).join("") + (o.series.length > 1 ? tipRow("transparent", t("合计", "Total"), o.fmt(totals[i])) : "");
+      o.series.forEach(function (s, si) {
+        var v = s.values[i] || 0, hh = Y(v); if (!hh) return;
+        var top = si === o.series.length - 1 || o.series.slice(si + 1).every(function (z) { return !(z.values[i] || 0); });
+        y -= hh;
+        out += top ? '<path d="M' + x + " " + (y + hh) + "V" + (y + 4) + "q0 -4 4 -4h" + (bw - 8) + "q4 0 4 4V" + (y + hh) + 'Z" fill="' + s.color + '"/>' : '<rect x="' + x + '" y="' + y + '" width="' + bw + '" height="' + Math.max(0, hh - 2) + '" fill="' + s.color + '"/>';
+      });
+      if (totals[i] && (o.labelAll || i === n - 1 || totals[i] === Math.max.apply(null, totals))) out += '<text x="' + (x + bw / 2) + '" y="' + (y - 5) + '" text-anchor="middle" class="lbl">' + esc(o.fmt(totals[i])) + "</text>";
+      if (i % step === 0 || i === n - 1) out += '<text x="' + (x + bw / 2) + '" y="' + (h - 8) + '" text-anchor="middle" class="tk">' + esc(lab) + "</text>";
+      return '<g class="hit"' + tipAttr(html) + '><rect x="' + (pl + band * i) + '" y="' + pt + '" width="' + band + '" height="' + ih + '" fill="transparent"/>' + out + "</g>";
+    }).join("");
+    return (o.series.length > 1 ? legend(o.series) : "") + '<svg class="viz-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '">' + g + bars + "</svg>";
+  }
+
+  // Horizontal bars, one hue, value at the tip. rows: [{label, value, sub}].
+  function barsChart(w, o) {
+    var rowH = 30, pl = Math.min(170, Math.max(90, w * 0.32)), pr = 64, n = o.rows.length, h = n * rowH + 8;
+    var iw = Math.max(40, w - pl - pr), max = Math.max.apply(null, o.rows.map(function (r) { return r.value || 0; }).concat([1]));
+    var bars = o.rows.map(function (r, i) {
+      var y = 4 + i * rowH, bw = Math.max(0, (r.value || 0) / max * iw), color = r.color || o.color || VIZ.seq;
+      var html = '<div class="th">' + esc(r.label) + "</div>" + tipRow(color, r.sub || o.name || "", o.fmt(r.value));
+      return '<g class="hit"' + tipAttr(html) + '><rect x="0" y="' + y + '" width="' + w + '" height="' + rowH + '" fill="transparent"/>' +
+        '<text x="' + (pl - 10) + '" y="' + (y + rowH / 2 + 4) + '" text-anchor="end" class="cat"><title>' + esc(r.label) + "</title>" + esc(fitLabel(r.label, pl - 10)) + "</text>" +
+        (bw ? '<path d="M' + pl + " " + (y + 5) + "h" + Math.max(0, bw - 4) + "q4 0 4 4v" + (rowH - 18) + "q0 4 -4 4H" + pl + 'Z" fill="' + color + '"/>' : "") +
+        '<text x="' + (pl + bw + 8) + '" y="' + (y + rowH / 2 + 4) + '" class="lbl">' + esc(o.fmt(r.value)) + "</text></g>";
+    }).join("");
+    return '<svg class="viz-svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '">' + bars + "</svg>";
+  }
+
+  // A stat tile with an optional delta and sparkline (12 points, last one in the accent).
+  function statTile(label, value, opts) {
+    opts = opts || {};
+    var delta = "";
+    if (typeof opts.delta === "number" && isFinite(opts.delta)) { var up = opts.delta >= 0, good = opts.upIsGood === false ? !up : up; delta = '<span class="delta ' + (good ? "good" : "bad") + '">' + (up ? "▲" : "▼") + " " + Math.abs(Math.round(opts.delta * 100)) + "%</span>" + (opts.vs ? '<span class="vs">' + esc(opts.vs) + "</span>" : ""); }
+    var spark = "";
+    if (opts.spark && opts.spark.length > 1) {
+      var vals = opts.spark, w = 96, h = 28, max = Math.max.apply(null, vals.concat([1]));
+      var pts = vals.map(function (v, i) { return [(i / (vals.length - 1)) * (w - 4) + 2, h - 3 - ((v || 0) / max) * (h - 8)]; });
+      spark = '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '"><path d="' + pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ") + '" fill="none" stroke="' + VIZ.gray + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + pts[pts.length - 1][0] + '" cy="' + pts[pts.length - 1][1] + '" r="3.5" fill="' + VIZ.seq + '" stroke="#fff" stroke-width="2"/></svg>';
+    }
+    return '<div class="kpi stat' + (opts.cls ? " " + opts.cls : "") + '"' + (opts.attr || "") + '><div class="l">' + esc(label) + '</div><div class="vrow"><div class="v">' + value + "</div>" + spark + "</div>" + (delta || opts.sub ? '<div class="s">' + delta + (opts.sub ? '<span>' + esc(opts.sub) + "</span>" : "") + "</div>" : "") + "</div>";
+  }
+  // A one-row stacked bar of shares with direct labels under it (part-to-whole).
+  function shareBar(parts, total) {
+    total = total || parts.reduce(function (a, p) { return a + p.value; }, 0) || 1;
+    return '<div class="sharebar">' + parts.map(function (p) { return '<i style="width:' + (p.value / total * 100) + "%;background:" + p.color + '"' + tipAttr('<div class="th">' + esc(p.label) + "</div>" + tipRow(p.color, "", fmtNum(p.value) + " · " + Math.round(p.value / total * 100) + "%")) + "></i>"; }).join("") + "</div>" +
+      '<div class="sharekeys">' + parts.map(function (p) { return '<span><i style="background:' + p.color + '"></i>' + esc(p.label) + ' <b>' + fmtNum(p.value) + "</b></span>"; }).join("") + "</div>";
+  }
   var equipState = { list: null, status: null };
   var AIRTABLE_EQUIP_URL = "https://airtable.com/appae5kpY1qXn6XLq";
-  // Equip教材订单: Airtable already shows the orders well, so this tab is only what
-  // Airtable cannot do (Rick, 2026-10-07: 「保留同步，但tab页面的显示按照你说的来」):
-  // the month's figures for the dashboard, the sync state, and the way to the base.
+  // Equip教材订单: the orders themselves live in Airtable; this tab is the sales
+  // picture Airtable does not draw (Rick, 2026-10-08: 「Need all kinds of reports,
+  // diagrams」 / 「It's a CRM system, not an engineering system」): the month, the
+  // school year against the last one, publishers, titles, subjects, grade bands,
+  // new and returning customers. Money only for roles that may see it; others get
+  // units and orders.
   function viewEquipOrders() {
     var canSync = isAdmin() || crmLevel("orders") === "rw";
     setTitle(t("经营 › 订单", "Operations › Orders"), t("Equip教材订单", "Equip textbook orders"),
       (canSync ? '<button class="btn secondary sm" id="eSync">' + t("从 Airtable 同步", "Sync from Airtable") + "</button> " : "") +
       '<a class="btn sm" id="eOpen" href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "Open in Airtable") + ' ↗</a>',
-      t("EquipMe 的教材订单由 Airtable 管理：查看、录入、筛选都在那里。管理中心只同步一份只读副本，用来把客户连进人员库、按角色遮蔽、进仪表盘。", "EquipMe textbook orders live in Airtable: view, enter and filter them there. The management centre keeps a read-only copy only to link customers into the people hub, mask by role and feed the dashboard."));
-    $("opsBody").innerHTML = '<div class="kpis" id="ekpi"></div><div class="card" id="ecard"><p class="loading">' + t("载入中…", "Loading…") + "</p></div>";
+      t("EquipMe 教材的销售情况：本月、本学年与上学年、出版社、教材、学科、年级段、新老客户。逐单查看与录入在 Airtable。", "How EquipMe textbooks are selling: this month, this school year against the last, publishers, titles, subjects, grade bands, new and returning customers. Individual orders are viewed and entered in Airtable."));
+    $("opsBody").innerHTML = '<div class="kpis" id="ekpi"></div><div class="vgrid" id="evgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="efoot" style="font-size:.8rem"></p>';
     var sb = $("eSync");
     if (sb) sb.addEventListener("click", function () {
       savingButton(sb, t("同步中…", "Syncing…"));
@@ -1849,13 +2001,12 @@
         var st = (r.body && r.body.status) || {}, c = st.counts || {}, ppl = r.body && r.body.people;
         var summary = t("同步完成：", "Sync complete: ") + (c.orders || 0) + t(" 单订单、", " orders, ") + (c.items || 0) + t(" 条明细、", " line items, ") + (c.customers || 0) + t(" 位客户、", " customers, ") + (c.curriculums || 0) + t(" 条教材、", " textbooks, ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows") +
           (ppl ? t("；人员库 ", "; people hub ") + ppl.people + t(" 人", " people") : "");
-        // The notes themselves live on the card (查看同步提示); the notice only counts them.
-        flashOk(esc(summary) + ((st.warnings || []).length ? " · " + esc(t("提示 " + st.warnings.length + " 条，见下方", st.warnings.length + " notes, see below")) : ""), 8000);
+        flashOk(esc(summary) + ((st.warnings || []).length ? " · " + esc(t("提示 " + st.warnings.length + " 条，见页脚", st.warnings.length + " notes, see the page footer")) : ""), 8000);
         peopleState.hub = null;
         loadEquip(true).then(renderEquip);
       });
     });
-    loadEquip(false).then(renderEquip).catch(function (r) { $("ecard").innerHTML = '<p class="msg err">' + esc(errText(r)) + "</p>"; });
+    loadEquip(false).then(renderEquip).catch(function (r) { $("evgrid").innerHTML = '<p class="msg err">' + esc(errText(r)) + "</p>"; });
   }
   function loadEquip(force) {
     if (equipState.list && !force) return Promise.resolve(equipState.list);
@@ -1865,32 +2016,82 @@
       return equipState.list;
     });
   }
+  function equipName(it) { return (EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) || it.sku || ""; }
+  function ym(d) { return String(d || "").slice(0, 7); }
+  function monthLabel(m) { var p = m.split("-"); return EN ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+p[1] - 1] + " " + p[0].slice(2) : +p[1] + "月"; }
+  function addMonths(m, k) { var p = m.split("-"), d = new Date(Date.UTC(+p[0], +p[1] - 1 + k, 1)); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0"); }
+  // School year starts in August (decision 7): "2026" = Aug 2026 – Jul 2027.
+  function fyOf(m) { var p = m.split("-"); return +p[1] >= 8 ? +p[0] : +p[0] - 1; }
+  function fyLabel(y) { return t(y + "–" + (y + 1) + " 学年", "SY " + y + "–" + (y + 1).toString().slice(2)); }
+  var GRADE_BANDS = [["K–2", "K–2"], ["3–5", "3–5"], ["6–8", "6–8"], ["9–12", "9–12"], ["教师培训", "Teacher training"], ["未分类", "Unclassified"]];
+  function gradeBand(grade) {
+    var g = String(grade || "");
+    if (!g) return 5;
+    if (/teacher|教师|adult|成人|parent|家长/i.test(g)) return 4;
+    if (/\bK\b|kinder|幼/i.test(g)) return 0;
+    var m = /\d+/.exec(g); if (!m) return 5;
+    var n = +m[0]; return n <= 2 ? 0 : n <= 5 ? 1 : n <= 8 ? 2 : n <= 12 ? 3 : 5;
+  }
   function renderEquip() {
     var list = equipState.list || [], st = equipState.status || {}, c = st.counts || {};
-    var now = new Date(), ym = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
-    var month = list.filter(function (o) { return String(o.date || "").slice(0, 7) === ym; });
     var seeMoney = crmLevel("money") !== "none";
-    var sum = function (arr, k) { return arr.reduce(function (a, o) { return a + (typeof o[k] === "number" ? o[k] : 0); }, 0); };
-    var pubs = {}; list.forEach(function (o) { (o.publishers || []).forEach(function (p) { pubs[p] = (pubs[p] || 0) + 1; }); });
+    var fmt = seeMoney ? fmtMoney : fmtNum, measure = seeMoney ? t("销售额", "Sales") : t("件数", "Units");
+    var val = function (o) { return seeMoney ? (o.amount || 0) : (o.qty || 0); };
+    var now = new Date(), thisM = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    var months = []; for (var i = 11; i >= 0; i--) months.push(addMonths(thisM, -i));
+    var byM = {}; months.forEach(function (m) { byM[m] = { orders: 0, sales: 0, received: 0, units: 0, newC: 0, oldC: 0 }; });
+    // first order month per customer, for new vs returning
+    var firstM = {}; list.forEach(function (o) { var k = o.customerRec || o.email || o.name; var m = ym(o.date); if (k && m && (!firstM[k] || m < firstM[k])) firstM[k] = m; });
+    var seenInM = {};
+    list.forEach(function (o) {
+      var m = ym(o.date); if (!byM[m]) return;
+      var b = byM[m]; b.orders++; b.sales += o.amount || 0; b.received += o.received || 0; b.units += o.qty || 0;
+      var k = o.customerRec || o.email || o.name; if (k && !seenInM[m + "|" + k]) { seenInM[m + "|" + k] = 1; if (firstM[k] === m) b.newC++; else b.oldC++; }
+    });
+    var cur = byM[thisM], prev = byM[addMonths(thisM, -1)] || { orders: 0, sales: 0, units: 0 };
+    var pct = function (a, b) { return b ? (a - b) / b : null; };
+    // school years: current and previous, cumulative Aug→Jul
+    var fy = fyOf(thisM), fyMonths = []; for (var k = 0; k < 12; k++) fyMonths.push(addMonths(fy + "-08", k));
+    var cum = function (y) { var acc = 0; return fyMonths.map(function (m, idx) { var mm = addMonths(y + "-08", idx); if (mm > thisM) return null; list.forEach(function (o) { if (ym(o.date) === mm) acc += val(o); }); return acc; }); };
+    var cumCur = cum(fy), cumPrev = cum(fy - 1);
+    var fyOrders = list.filter(function (o) { return fyOf(ym(o.date)) === fy; }), pyOrders = list.filter(function (o) { return fyOf(ym(o.date)) === fy - 1 && ym(o.date) <= addMonths(thisM, -12); });
+    var sum = function (arr, f) { return arr.reduce(function (a, o) { return a + f(o); }, 0); };
+    var fyTotal = sum(fyOrders, val), pyTotal = sum(pyOrders, val);
+    var fyCust = {}; fyOrders.forEach(function (o) { var k = o.customerRec || o.email || o.name; if (k) fyCust[k] = firstM[k] >= fy + "-08" ? "new" : "old"; });
+    var fyNew = Object.keys(fyCust).filter(function (k) { return fyCust[k] === "new"; }).length, fyOld = Object.keys(fyCust).length - fyNew;
+
     $("ekpi").innerHTML =
-      '<div class="kpi"><div class="l">' + t("本月订单", "Orders this month") + '</div><div class="v">' + month.length + '</div><div class="s">' + t("按下单日", "by order date") + "</div></div>" +
-      (seeMoney ? '<div class="kpi"><div class="l">' + t("本月销售额", "Sales this month") + '</div><div class="v">' + money(sum(month, "amount"), "CNY") + '</div><div class="s">' + t("不与课程订单合计", "never summed with course orders") + "</div></div>" +
-        '<div class="kpi"><div class="l">' + t("本月实收", "Received this month") + '</div><div class="v">' + money(sum(month, "received"), "CNY") + '</div><div class="s">' + t("按订单", "by order") + "</div></div>" : "") +
-      '<div class="kpi"><div class="l">' + t("全部订单", "All orders") + '</div><div class="v">' + list.length + '</div><div class="s">' + (c.customers || 0) + t(" 位客户 · ", " customers · ") + Object.keys(pubs).length + t(" 家出版社", " publishers") + "</div></div>";
-    var sync = st.syncedAt ? '<span class="status ok">' + esc(t("同步于 ", "Synced ") + when(st.syncedAt)) + "</span>" :
-      st.configured === false ? '<span class="status warn">' + esc(t("还没有同步：系统管理员需要在 Static Web App 的应用设置里加上 AIRTABLE_EQUIP_PAT（只读、仅限 Equip 工作区的令牌）。", "Not synced yet: the system administrator needs to add AIRTABLE_EQUIP_PAT (a read-only token limited to the Equip workspace) to the Static Web App's settings.")) + "</span>" :
-      '<span class="status warn">' + esc(t("还没有同步。", "Not synced yet.")) + "</span>";
-    $("ecard").innerHTML =
-      '<div class="ch"><h2>' + t("数据同步", "Data sync") + "</h2><p>" + t("每夜自动从 Airtable 读一次，也可以随时点「从 Airtable 同步」；只读，Airtable 里的记录不会被改动。", "Read from Airtable nightly, or whenever “Sync from Airtable” is clicked; read-only, nothing in Airtable is changed.") + "</p></div>" +
-      '<div class="kv"><span class="k">' + t("状态", "Status") + "</span><span>" + sync + "</span>" +
-        (st.syncedAt ? '<span class="k">' + t("已同步", "Synced") + "</span><span>" + esc((c.orders || 0) + t(" 单订单 · ", " orders · ") + (c.items || 0) + t(" 条明细 · ", " line items · ") + (c.customers || 0) + t(" 位客户 · ", " customers · ") + (c.curriculums || 0) + t(" 条教材 · ", " textbooks · ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows")) + "</span>" : "") +
-        ((st.warnings || []).length ? '<span class="k">' + t("同步提示", "Sync notes") + '</span><span><details><summary>' + esc(t("查看 " + st.warnings.length + " 条", "Show " + st.warnings.length)) + "</summary><ul>" + st.warnings.map(function (w) { return "<li>" + esc(w) + "</li>"; }).join("") + "</ul></details></span>" : "") + "</div>" +
-      "<h2>" + t("管理中心用这份数据做什么", "What the management centre does with it") + "</h2>" +
-      '<ul class="plain">' +
-        "<li>" + t("把 Equip 客户和 Teams 账号、讲座名单、蜂巢课程订单连成一个人 → ", "Link Equip customers with Teams accounts, the seminar list and Hive course orders into one person → ") + '<a href="#/ops/people">' + t("人员库", "People hub") + "</a></li>" +
-        "<li>" + t("按角色遮蔽：财务看金额不看人，课程总监看人不看金额；版税只给财务。", "Mask by role: finance sees amounts, not people; the curriculum director sees people, not amounts; royalties only to finance.") + "</li>" +
-        "<li>" + t("上面的本月数字进经营仪表盘，不与课程订单合计。", "The month's figures above feed the operations dashboard, never summed with course orders.") + "</li></ul>" +
-      '<p class="hint">' + t("查看每一单、录入、筛选、导出：", "To see each order, enter, filter or export: ") + '<a href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "open in Airtable") + " ↗</a></p>";
+      statTile(seeMoney ? t("本月销售额", "Sales this month") : t("本月件数", "Units this month"), fmt(seeMoney ? cur.sales : cur.units), { delta: pct(seeMoney ? cur.sales : cur.units, seeMoney ? prev.sales : prev.units), vs: t("较上月", "vs last month"), spark: months.map(function (m) { return seeMoney ? byM[m].sales : byM[m].units; }) }) +
+      (seeMoney ? statTile(t("本月实收", "Received this month"), fmtMoney(cur.received), { sub: cur.sales ? Math.round(cur.received / cur.sales * 100) + "%" + t(" 已收", " received") : t("按订单", "by order") }) : "") +
+      statTile(t("本月订单", "Orders this month"), fmtNum(cur.orders), { delta: pct(cur.orders, prev.orders), vs: t("较上月", "vs last month"), spark: months.map(function (m) { return byM[m].orders; }) }) +
+      statTile(fyLabel(fy) + (seeMoney ? "" : " · " + measure), fmt(fyTotal), { delta: pct(fyTotal, pyTotal), vs: t("较上学年同期", "vs same period last year"), sub: fyOrders.length + t(" 单", " orders") }) +
+      statTile(t("本学年购买客户", "Buyers this school year"), fmtNum(fyNew + fyOld), { sub: t("新客户 ", "new ") + fyNew + t(" · 老客户 ", " · returning ") + fyOld });
+
+    // publishers, titles, subjects, grade bands — this school year
+    var agg = function (keyOf) { var m = {}; fyOrders.forEach(function (o) { (o.items || []).forEach(function (it) { var k = keyOf(it); if (k == null) return; m[k] = (m[k] || 0) + (seeMoney ? (it.total || 0) : (it.qty || 0)); }); }); return Object.keys(m).map(function (k) { return { label: k, value: m[k] }; }).sort(function (a, b) { return b.value - a.value; }); };
+    var pubs = agg(function (it) { return it.publisher || t("未知出版社", "Unknown publisher"); });
+    var titles = agg(function (it) { return equipName(it); }).slice(0, 10);
+    var subjects = agg(function (it) { return it.subject || t("未分类", "Unclassified"); }).slice(0, 10);
+    var bandsAgg = {}; fyOrders.forEach(function (o) { (o.items || []).forEach(function (it) { var b = gradeBand(it.grade); bandsAgg[b] = (bandsAgg[b] || 0) + (seeMoney ? (it.total || 0) : (it.qty || 0)); }); });
+    var bands = GRADE_BANDS.map(function (g, i) { return { label: t(g[0], g[1]), value: bandsAgg[i] || 0 }; }).filter(function (r) { return r.value; });
+    var mlabels = months.map(monthLabel);
+    var trendSeries = seeMoney ? [{ name: t("销售额", "Sales"), values: months.map(function (m) { return byM[m].sales; }), color: VIZ.cat[0] }, { name: t("实收", "Received"), values: months.map(function (m) { return byM[m].received; }), color: VIZ.cat[2] }] : [{ name: t("件数", "Units"), values: months.map(function (m) { return byM[m].units; }), color: VIZ.cat[0] }];
+    var fyl = fyMonths.map(monthLabel);
+    var barsTable = function (rows) { return dataTable([t("项目", "Item"), measure], rows.map(function (r) { return [r.label, fmt(r.value)]; })); };
+    vizDraws = [];
+    $("evgrid").innerHTML = !list.length ? '<div class="card"><p class="empty">' + (st.syncedAt ? t("Airtable 里还没有订单。", "No orders in Airtable yet.") : st.configured === false ? t("还没有同步：系统管理员需要在 Static Web App 的应用设置里加上 AIRTABLE_EQUIP_PAT。", "Not synced yet: the system administrator needs to add AIRTABLE_EQUIP_PAT to the Static Web App's settings.") : t("还没有同步。点「从 Airtable 同步」。", "Not synced yet. Click “Sync from Airtable”.")) + "</p></div>" :
+      chartCard("vTrend", t("近 12 个月", "Last 12 months"), seeMoney ? t("销售额与实收，按下单月", "sales and received, by order month") : t("件数，按下单月", "units by order month"), function (w) { return linesChart(w, { x: mlabels, series: trendSeries, fmt: fmt }); }, dataTable([t("月份", "Month")].concat(trendSeries.map(function (s) { return s.name; })), months.map(function (m, i) { return [m].concat(trendSeries.map(function (s) { return fmt(s.values[i]); })); }))) +
+      chartCard("vFy", t("学年累计", "School year to date"), fyLabel(fy) + " vs " + fyLabel(fy - 1), function (w) { return linesChart(w, { x: fyl, series: [{ name: fyLabel(fy), values: cumCur, color: VIZ.seq }, { name: fyLabel(fy - 1), values: cumPrev, color: VIZ.gray }], fmt: fmt }); }, dataTable([t("月份", "Month"), fyLabel(fy), fyLabel(fy - 1)], fyMonths.map(function (m, i) { return [monthLabel(m), cumCur[i] == null ? "—" : fmt(cumCur[i]), cumPrev[i] == null ? "—" : fmt(cumPrev[i])]; }))) +
+      chartCard("vOrders", t("每月订单", "Orders per month"), t("按下单月", "by order month"), function (w) { return columnsChart(w, { x: mlabels, series: [{ name: t("订单", "Orders"), values: months.map(function (m) { return byM[m].orders; }), color: VIZ.seq }], fmt: fmtNum }); }, dataTable([t("月份", "Month"), t("订单", "Orders")], months.map(function (m) { return [m, fmtNum(byM[m].orders)]; }))) +
+      chartCard("vCust", t("新老客户", "New and returning buyers"), t("每月下单的客户，按首单月份区分", "buyers each month, by whether it is their first order"), function (w) { return columnsChart(w, { x: mlabels, series: [{ name: t("新客户", "New"), values: months.map(function (m) { return byM[m].newC; }), color: VIZ.cat[0] }, { name: t("老客户", "Returning"), values: months.map(function (m) { return byM[m].oldC; }), color: VIZ.cat[1] }], fmt: fmtNum }); }, dataTable([t("月份", "Month"), t("新客户", "New"), t("老客户", "Returning")], months.map(function (m) { return [m, fmtNum(byM[m].newC), fmtNum(byM[m].oldC)]; }))) +
+      chartCard("vPub", t("出版社", "Publishers"), fyLabel(fy) + " · " + measure, function (w) { return barsChart(w, { rows: pubs, fmt: fmt, name: measure }); }, barsTable(pubs)) +
+      chartCard("vTitles", t("教材 Top 10", "Top 10 titles"), fyLabel(fy) + " · " + measure, function (w) { return barsChart(w, { rows: titles, fmt: fmt, name: measure }); }, barsTable(titles)) +
+      chartCard("vSubj", t("学科", "Subjects"), fyLabel(fy) + " · " + measure, function (w) { return barsChart(w, { rows: subjects, fmt: fmt, name: measure }); }, barsTable(subjects)) +
+      chartCard("vGrade", t("年级段", "Grade bands"), fyLabel(fy) + " · " + measure + " · " + t("按教材标注的年级", "by the textbook's grade"), function (w) { return barsChart(w, { rows: bands, fmt: fmt, name: measure }); }, barsTable(bands));
+    drawCharts();
+    $("efoot").innerHTML = (st.syncedAt ? esc(t("数据同步于 ", "Data synced ") + when(st.syncedAt)) + " · " + esc((c.orders || 0) + t(" 单订单 · ", " orders · ") + (c.customers || 0) + t(" 位客户 · ", " customers · ") + (c.curriculums || 0) + t(" 条教材", " textbooks")) : esc(t("尚未同步", "Not synced yet"))) +
+      ((st.warnings || []).length ? ' · <details style="display:inline-block"><summary>' + esc(t("同步提示 " + st.warnings.length + " 条", st.warnings.length + " sync notes")) + "</summary><ul>" + st.warnings.map(function (w) { return "<li>" + esc(w) + "</li>"; }).join("") + "</ul></details>" : "") +
+      (seeMoney ? "" : " · " + esc(t("金额按角色隐藏，图表以件数计", "Amounts hidden for this role; charts count units")));
   }
 
   // ================================================================================
@@ -1907,11 +2108,12 @@
   function tierTag(tier) { var d = TIERS[tier]; return d ? '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>" : ""; }
   function sourceTags(p) {
     var s = p.sources || {}, out = [];
-    if (s.customer) out.push('<span class="tag">Equip</span>');
-    if (s.account) out.push('<span class="tag accent">Teams</span>');
-    if (s.lead) out.push('<span class="tag">' + t("讲座", "Seminar") + "</span>");
-    if (s.hive) out.push('<span class="tag ok">' + t("蜂巢", "Hive") + "</span>");
-    return out.join(" ");
+    // a dot in the source's chart colour plus its name, so colour is never alone
+    if (s.customer) out.push('<span class="src"><i style="background:' + VIZ.cat[0] + '"></i>Equip</span>');
+    if (s.account) out.push('<span class="src"><i style="background:' + VIZ.cat[1] + '"></i>Teams</span>');
+    if (s.lead) out.push('<span class="src"><i style="background:' + VIZ.cat[2] + '"></i>' + t("讲座", "Seminar") + "</span>");
+    if (s.hive) out.push('<span class="src"><i style="background:' + VIZ.cat[3] + '"></i>' + t("蜂巢", "Hive") + "</span>");
+    return '<span class="srcs">' + out.join("") + "</span>";
   }
   function personTabs(p) { var tb = ["all"]; if (p.primaryTier === "replace") tb.push("replace"); if (p.primaryTier === "missing") tb.push("missing"); if (p.viaTeams) tb.push("viaTeams"); return tb; }
   function viewPeople() {
@@ -1921,10 +2123,10 @@
       (canMerge ? ' <button class="btn sm" id="pRebuild">' + t("重新匹配", "Rebuild") + "</button>" : ""),
       t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；同名同校、或账号备用邮箱等于客户邮箱的，放到「待合并」由人来判断（账号的备用邮箱多半是家长的，不会据此合并）。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school, or an account whose recovery email is a customer's email, only go to “To merge” for a person to decide (a recovery email is usually the parent's, so it never merges by itself). No WeChat or phone numbers are recorded."));
     $("content").innerHTML =
-      '<div class="toolbar" id="pbar">' + PEOPLE_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (peopleState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
+      '<div class="kpis" id="pkpi"></div>' +
+      '<div class="toolbar sticky" id="pbar">' + PEOPLE_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (peopleState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
         '<span class="spacer"></span><select id="pstage"><option value="">' + t("所有阶段", "All stages") + "</option>" + Object.keys(STAGES).map(function (s) { return '<option value="' + s + '"' + (peopleState.stage === s ? " selected" : "") + ">" + esc(t(STAGES[s][0], STAGES[s][1])) + "</option>"; }).join("") + "</select>" +
         '<div class="search">' + ICON.search + '<input type="search" id="pq" value="' + esc(peopleState.q) + '" placeholder="' + t("搜索姓名、邮箱、Teams 账号、CRM ID…", "Search name, email, Teams account, CRM ID…") + '" /></div></div>' +
-      '<div class="kpis" id="pkpi"></div>' +
       '<div id="pbody"></div>' +
       '<p class="muted" id="pfoot" style="font-size:.8rem"></p>';
     $("pbar").addEventListener("click", function (e) {
@@ -2013,12 +2215,15 @@
     var counts = { all: list.length, replace: s.replace || 0, missing: s.missing || 0, viaTeams: s.viaTeams || 0, queue: (h.queue || []).length };
     PEOPLE_TABS.forEach(function (tb) { var el = $("pbar").querySelector('[data-cnt="' + tb[0] + '"]'); if (el) el.textContent = counts[tb[0]] ? "(" + counts[tb[0]] + ")" : ""; });
     var st = s.stages || {};
+    var stageParts = [{ label: t("活跃", "Active"), value: st.active || 0, color: VIZ.seq }, { label: t("已注册", "Registered"), value: st.registered || 0, color: VIZ.seq2 }, { label: t("潜在", "Leads"), value: st.lead || 0, color: VIZ.seq3 }, { label: t("沉寂", "Dormant"), value: st.dormant || 0, color: VIZ.gray }];
+    var srcParts = [{ label: "Equip", value: s.customers || 0, color: VIZ.cat[0] }, { label: "Teams", value: s.accounts || 0, color: VIZ.cat[1] }, { label: t("讲座", "Seminar"), value: s.leads || 0, color: VIZ.cat[2] }, { label: t("蜂巢", "Hive"), value: s.hive || 0, color: VIZ.cat[3] }];
+    var tierParts = [{ label: t("可用", "OK"), value: Math.max(0, list.length - (s.replace || 0) - (s.missing || 0)), color: VIZ.seq }, { label: t("待替换", "Replace"), value: s.replace || 0, color: VIZ.cat[1] }, { label: t("无邮箱", "None"), value: s.missing || 0, color: VIZ.gray }];
     $("pkpi").innerHTML =
-      '<button class="kpi" data-kf="all"><div class="l">' + t("人员", "People") + '</div><div class="v">' + list.length + '</div><div class="s">' + t("活跃 ", "active ") + (st.active || 0) + t(" · 已注册 ", " · registered ") + (st.registered || 0) + t(" · 潜在 ", " · leads ") + (st.lead || 0) + t(" · 沉寂 ", " · dormant ") + (st.dormant || 0) + "</div></button>" +
-      '<div class="kpi"><div class="l">' + t("来源", "Sources") + '</div><div class="v">' + (s.customers || 0) + ' <span class="muted" style="font-size:13px">Equip</span> · ' + (s.accounts || 0) + ' <span class="muted" style="font-size:13px">Teams</span></div><div class="s">' + t("讲座名单 ", "seminar ") + (s.leads || 0) + t(" · 蜂巢订单 ", " · Hive orders ") + (s.hive || 0) + "</div></div>" +
-      '<button class="kpi" data-kf="replace"><div class="l">' + t("待替换邮箱", "Emails to replace") + '</div><div class="v' + (counts.replace ? " warn" : "") + '">' + counts.replace + '</div><div class="s">' + t("境内邮箱，建议换 Teams 账号", "mainland mailboxes; use the Teams account") + "</div></button>" +
-      (h.canMerge ? '<button class="kpi" data-kf="queue"><div class="l">' + t("待合并", "To merge") + '</div><div class="v' + (counts.queue ? " warn" : "") + '">' + counts.queue + '</div><div class="s">' + t("同名同校，需要人判断", "same name and school; a person decides") + "</div></button>" : "") +
-      '<div class="kpi"><div class="l">' + t("待回写 CRM ID", "CRM IDs to write back") + '</div><div class="v">' + (s.writeBack || 0) + '</div><div class="s">' + t("Airtable 客户表还没有的", "customers not yet tagged in Airtable") + "</div></div>";
+      '<button type="button" class="kpi stat wide" data-kf="all"><div class="l">' + t("人员", "People") + '</div><div class="v">' + fmtNum(list.length) + "</div>" + shareBar(stageParts, list.length) + "</button>" +
+      '<div class="kpi stat wide"><div class="l">' + t("来源（一人可有多个）", "Sources (a person can have several)") + '</div><div class="v">' + fmtNum(s.facets || 0) + ' <span class="unit">' + t("条记录", "records") + "</span></div>" + shareBar(srcParts) + "</div>" +
+      '<button type="button" class="kpi stat wide" data-kf="replace"><div class="l">' + t("邮箱", "Email") + '</div><div class="v' + (counts.replace ? " warn" : "") + '">' + fmtNum(counts.replace) + ' <span class="unit">' + t("待替换", "to replace") + "</span></div>" + shareBar(tierParts, list.length) + "</button>" +
+      (h.canMerge ? '<button type="button" class="kpi stat" data-kf="queue"><div class="l">' + t("待合并", "To merge") + '</div><div class="v' + (counts.queue ? " warn" : "") + '">' + fmtNum(counts.queue) + '</div><div class="s"><span>' + t("需要人判断的配对", "pairs for a person to decide") + "</span></div></button>" : "") +
+      '<div class="kpi stat"><div class="l">' + t("待回写 CRM ID", "CRM IDs to write back") + '</div><div class="v">' + fmtNum(s.writeBack || 0) + '</div><div class="s"><span>' + t("Airtable 客户表还没有的", "customers not yet tagged in Airtable") + "</span></div></div>";
     if (peopleState.tab === "queue") { renderQueue(); return; }
     var rows = sortPeople(peopleNow());
     var th = function (key, label) { var on = peopleState.sort.key === key; return '<th class="sortable' + (on ? " on" : "") + '" data-sort="' + key + '" aria-sort="' + (on ? (peopleState.sort.dir > 0 ? "ascending" : "descending") : "none") + '">' + label + '<span class="sortind">' + (on ? (peopleState.sort.dir > 0 ? "▲" : "▼") : "") + "</span></th>"; };
@@ -2029,11 +2234,11 @@
       var acc = (p.facets && p.facets.accounts) || [];
       var accTxt = acc.map(function (a) { return a.upn || a.domain; }).join(", ");
       var spend = crmLevel("money") === "none" ? "" : (typeof p.spend === "number" && p.spend ? " / " + money(p.spend, "CNY") : "");
-      return '<tr class="pick" data-id="' + esc(p.crmId) + '"><td class="nowrap"><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="tag muted" title="' + esc(t("Airtable 客户表还没有这个 CRM ID", "Not yet written to the Airtable customer")) + '">' + t("待回写", "to write") + "</span>" : "") + "</td>" +
-        '<td class="cell-ell" title="' + esc(p.name) + '">' + hl(p.name || "—", peopleState.q) + "</td>" +
+      return '<tr class="pick" data-id="' + esc(p.crmId) + '"><td class="nowrap"><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="dot warn" title="' + esc(t("待回写：Airtable 客户表还没有这个 CRM ID", "To write back: not yet on the Airtable customer")) + '"></span>' : "") + "</td>" +
+        '<td class="nowrap"><span class="avatar xs" style="background:' + hue(p.crmId) + ';color:#fff">' + esc(initials(p.name || p.crmId)) + '</span> <span class="cell-ell">' + hl(p.name || "—", peopleState.q) + "</span></td>" +
         '<td class="nowrap"><span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span> " + tierTag(p.primaryTier) + (p.viaTeams ? ' <span class="tag accent">Teams</span>' : "") + "</td>" +
         '<td class="nowrap">' + sourceTags(p) + "</td>" +
-        '<td class="cell-ell" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</td>" +
+        '<td class="nowrap"><span class="cell-ell acc" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</span></td>" +
         '<td class="nowrap">' + ((p.orders || 0) + (p.hiveOrders || 0)) + spend + "</td>" +
         '<td class="nowrap">' + esc(lastActive(p)) + "</td><td>" + stageTag(p.stage) + "</td></tr>";
     }).join("");
@@ -2072,16 +2277,13 @@
       !rows.length ? '<div class="card"><p class="muted">' + t("没有符合条件的建议。", "No suggestion matches.") + "</p></div>" :
       rows.map(function (x) {
         var c = x.customer, a = x.account;
-        var why = x.reason === "safeEmail" ? t("账号的备用邮箱 = 客户邮箱", "account's recovery email = customer email") : t("同名 · 同校", "same name · same school");
-        return '<div class="card merge" data-key="' + esc(x.key) + '"><div class="ch"><h2>' + esc(c.name) + ' <span class="n">' + esc(why) + "</span></h2></div>" +
-          '<div class="pair"><div class="kv"><span class="k">Equip</span><span><b>' + esc(c.name) + "</b> · " + esc(c.email || t("无邮箱", "no email")) + "</span>" +
-            '<span class="k">' + t("订单", "Orders") + "</span><span>" + (c.orders || 0) + "</span>" +
-            '<span class="k">CRM ID</span><span>' + esc(c.crmId || "—") + "</span></div>" +
-          '<div class="kv"><span class="k">Teams</span><span><b>' + esc(a.name) + "</b> · " + esc(a.upn) + "</span>" +
-            '<span class="k">' + t("身份", "Identity") + "</span><span>" + esc(vl(a.identity || "") || "—") + (a.lastSignIn ? ' · <span class="muted">' + esc(t("最近登录 ", "last sign-in ") + day(a.lastSignIn)) + "</span>" : "") + "</span>" +
-            (a.safeEmail ? '<span class="k">' + t("备用邮箱", "Recovery email") + "</span><span>" + esc(a.safeEmail) + "</span>" : "") +
-            '<span class="k">CRM ID</span><span>' + esc(a.crmId || "—") + "</span></div></div>" +
-          '<div class="actions"><button class="btn sm" data-verdict="same" data-key="' + esc(x.key) + '">' + t("是同一个人", "Same person") + '</button> <button class="btn secondary sm" data-verdict="different" data-key="' + esc(x.key) + '">' + t("不是", "Different people") + "</button></div></div>";
+        var why = x.reason === "safeEmail" ? t("账号的备用邮箱 = 客户邮箱", "recovery email = customer email") : t("同名 · 同校", "same name · same school");
+        var side = function (tag, name, line, meta, id) { return '<div class="mside"><span class="avatar" style="background:' + hue(name) + ';color:#fff">' + esc(initials(name)) + '</span><div class="who"><div class="nm">' + esc(name) + ' <span class="tag">' + tag + '</span></div><div class="ln">' + esc(line) + '</div><div class="mt">' + esc(meta) + "</div></div></div>"; };
+        return '<div class="card merge" data-key="' + esc(x.key) + '"><div class="pair">' +
+          side("Equip", c.name, c.email || t("无邮箱", "no email"), (c.orders || 0) + t(" 单", " orders") + " · " + (c.crmId || "")) +
+          '<div class="link"><span class="why">' + esc(why) + '</span><span class="q">?</span></div>' +
+          side("Teams", a.name, a.upn, [vl(a.identity || ""), a.lastSignIn ? t("最近登录 ", "last sign-in ") + day(a.lastSignIn) : "", a.safeEmail ? t("备用邮箱 ", "recovery ") + a.safeEmail : "", a.crmId].filter(Boolean).join(" · ")) +
+          '<div class="actions"><button class="btn sm" data-verdict="same" data-key="' + esc(x.key) + '">' + t("是同一个人", "Same person") + '</button><button class="btn secondary sm" data-verdict="different" data-key="' + esc(x.key) + '">' + t("不是", "Different") + "</button></div></div></div>";
       }).join("");
     $("pfoot").innerHTML = esc(t("合并后两条记录共用一个 CRM ID；「不是」只是不再提示。两种回答都会记录是谁、何时。", "Merged records share one CRM ID; “Different people” only silences the suggestion. Both answers record who and when."));
   }
@@ -2220,6 +2422,9 @@
     var k = $("content").querySelector(".kpis");
     var h = k && getComputedStyle(k).position === "sticky" ? k.offsetHeight : 0;
     $("content").style.setProperty("--kpi-h", h + "px");
+    // a sticky toolbar under the tiles (人员库) pushes the table headings down by its own height
+    var b = $("content").querySelector(".toolbar.sticky");
+    $("content").style.setProperty("--bar-h", (b && getComputedStyle(b).position === "sticky" ? b.offsetHeight : 0) + "px");
   }
   new MutationObserver(function () { document.querySelectorAll("table.data").forEach(colResize); stickyOffsets(); }).observe($("content"), { childList: true, subtree: true });
   window.addEventListener("resize", debounce(stickyOffsets, 100));
