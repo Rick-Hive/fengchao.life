@@ -442,9 +442,14 @@ async function handler(context, req) {
 
   if (method === "POST" && action === "people-rebuild") {
     if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    // 重新匹配 re-reads Airtable first (Rick, 2026-10-08: edited customers in Airtable,
+    // pressed 重新匹配, the rows did not change — the hub was rebuilt from the Equip
+    // copy of the day before). A sync failure does not stop the rebuild; it is reported.
+    let synced = null, syncError = "";
+    try { const data = await equip.syncEquip({ log: (m) => context.log(m) }); synced = equip.status(data); } catch (err) { syncError = (err && err.message) || String(err); context.log.warn("crm: sync before rebuild failed: " + syncError); }
     const h = await hub.rebuild({ log: (m) => context.log(m) });
-    await audit(context, { action: "crm.people.rebuild", by: normUser(user), stats: h.stats });
-    ok(context, { ok: true, stats: h.stats, generatedAt: h.generatedAt });
+    await audit(context, { action: "crm.people.rebuild", by: normUser(user), stats: h.stats, synced: !!synced });
+    ok(context, { ok: true, stats: h.stats, generatedAt: h.generatedAt, synced, syncError });
     return;
   }
 
