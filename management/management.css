@@ -507,10 +507,11 @@ ul.plain a, .card .kv a { color: var(--accent-dark); }
 .card > h2 { margin-top: var(--s4); margin-bottom: var(--s2); }
 
 /* ---- stat tiles, share bars, charts (dataviz) ------------------------------------- */
-.kpi.stat .vrow { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s2); }
+.kpi.stat .vrow { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s2); min-width: 0; overflow: hidden; }
+.kpi.stat .vrow .v { flex: 0 0 auto; }
 .kpi.stat .v { font-size: 26px; line-height: 1.15; }
 .kpi.stat .v .unit { font-size: 13px; font-weight: 500; color: var(--faint); margin-left: 2px; }
-.kpi.stat .spark { flex: none; margin-bottom: 3px; }
+.kpi.stat .spark { flex: 0 1 96px; width: 96px; min-width: 0; height: 28px; margin-bottom: 3px; }
 .kpi.stat .s { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
 .kpi.stat .delta { font-weight: 600; font-size: 12px; }
 .kpi.stat .delta.good { color: var(--ok); } .kpi.stat .delta.bad { color: var(--bad); }
@@ -586,3 +587,18 @@ table.data.fixed th { overflow: hidden; text-overflow: ellipsis; }
 button.orow.link { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); font: inherit; color: inherit; cursor: pointer; }
 button.orow.link:first-child { border-top: 0; }
 button.orow.link:hover { background: #f8fafc; }
+/* 仪表盘 */
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; vertical-align: middle; }
+.seg button { border: 0; background: var(--card); color: var(--muted); font: inherit; font-size: 13px; height: 32px; padding: 0 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+.kpi.go { cursor: pointer; }
+.kpi.go:hover { border-color: var(--accent-soft-line); }
+.vtoggle button.on2 { color: var(--accent-dark); font-weight: 600; }
+.vtoggle button[data-t] + button[data-v] { border-left: 1px solid var(--line-strong); }
+.card.todo .olist a.orow { text-decoration: none; color: inherit; }
+.card.todo .olist a.orow:hover { background: #f8fafc; }
+.card.soon { background: #fbfcfd; border-style: dashed; }
+/* a tile too narrow for number + sparkline drops the sparkline */
+.kpi.stat { container-type: inline-size; }
+@container (max-width: 175px) { .kpi.stat .spark { display: none; } }

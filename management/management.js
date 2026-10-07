@@ -73,6 +73,7 @@
     return esc(text.slice(0, i)) + "<mark>" + esc(text.slice(i, i + q.length)) + "</mark>" + esc(text.slice(i + q.length));
   }
   var ICON = {
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l4-5 3 3 5-6"/></svg>',
     camera: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     cart: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>',
     book: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5V5.5M8 7h8M8 10.5h8"/></svg>',
@@ -109,8 +110,9 @@
         { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },
       ] });
     }
-    if (canSeeOrders()) {
+    if (canSeeOrders() || isStaff()) {
       groups.push({ title: t("经营", "Operations"), items: [
+        { hash: "#/dashboard", icon: "chart", zh: "仪表盘", en: "Dashboard" },
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
         { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People Hub" },
       ] });
@@ -124,7 +126,7 @@
     } else if (canAssignRoles()) {
       groups.push({ title: t("系统", "System"), items: [{ hash: "#/system/roles", icon: "key", zh: "角色分配", en: "Roles" }] });
     }
-    var cur = location.hash || "#/account";
+    var cur = location.hash || (isStaff() ? "#/dashboard" : "#/account");
     $("nav").innerHTML = groups.map(function (g) {
       return '<div class="nav-group"><div class="nav-title">' + esc(g.title) + "</div>" + g.items.map(function (it) {
         var active = it.hash && cur.indexOf(it.hash) === 0;
@@ -1870,8 +1872,8 @@
   }
   window.addEventListener("resize", debounce(drawCharts, 150));
   $("content").addEventListener("click", function (e) {
-    var b = e.target.closest(".vtoggle button"); if (!b) return;
-    var card = b.closest(".card"); card.querySelectorAll(".vtoggle button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    var b = e.target.closest(".vtoggle button[data-v]"); if (!b) return;
+    var card = b.closest(".card"); card.querySelectorAll(".vtoggle button[data-v]").forEach(function (x) { x.classList.toggle("on", x === b); });
     card.querySelector(".vbody").classList.toggle("hidden", b.getAttribute("data-v") !== "chart");
     card.querySelector(".vtable").classList.toggle("hidden", b.getAttribute("data-v") !== "table");
   });
@@ -1974,9 +1976,9 @@
     if (opts.spark && opts.spark.length > 1) {
       var vals = opts.spark, w = 96, h = 28, max = Math.max.apply(null, vals.concat([1]));
       var pts = vals.map(function (v, i) { return [(i / (vals.length - 1)) * (w - 4) + 2, h - 3 - ((v || 0) / max) * (h - 8)]; });
-      spark = '<svg class="spark" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '"><path d="' + pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ") + '" fill="none" stroke="' + VIZ.gray + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + pts[pts.length - 1][0] + '" cy="' + pts[pts.length - 1][1] + '" r="3.5" fill="' + VIZ.seq + '" stroke="#fff" stroke-width="2"/></svg>';
+      spark = '<svg class="spark" viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="xMaxYMax meet"><path d="' + pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" ") + '" fill="none" stroke="' + VIZ.gray + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + pts[pts.length - 1][0] + '" cy="' + pts[pts.length - 1][1] + '" r="3.5" fill="' + VIZ.seq + '" stroke="#fff" stroke-width="2"/></svg>';
     }
-    return '<div class="kpi stat' + (opts.cls ? " " + opts.cls : "") + '"' + (opts.attr || "") + '><div class="l">' + esc(label) + '</div><div class="vrow"><div class="v">' + value + "</div>" + spark + "</div>" + (delta || opts.sub ? '<div class="s">' + delta + (opts.sub ? '<span>' + esc(opts.sub) + "</span>" : "") + "</div>" : "") + "</div>";
+    return '<div class="kpi stat' + (opts.cls ? " " + opts.cls : "") + '"' + (opts.attr || "") + '><div class="l">' + esc(label) + '</div><div class="vrow"><div class="v' + (opts.warn ? " warn" : "") + '">' + value + "</div>" + spark + "</div>" + (delta || opts.sub ? '<div class="s">' + delta + (opts.sub ? '<span>' + esc(opts.sub) + "</span>" : "") + "</div>" : "") + "</div>";
   }
   // A one-row stacked bar of shares with direct labels under it (part-to-whole).
   function shareBar(parts, total) {
@@ -2409,6 +2411,144 @@
   }
 
   // ================================================================================
+  // 经营 › 仪表盘 — the staff home page (design §5): KPIs for the period with a
+  // comparison, eight panels each answering one question, every number a way into
+  // the list behind it. Nothing about tenant accounts here (that stays in 用户);
+  // money only for roles that may see it, units otherwise. Period: 本月 / 本季 /
+  // 本学年 (August start, decision 7); the comparison is the period before, or the
+  // same period of the previous school year.
+  // ================================================================================
+  var dashState = { period: "month", trend: "cum" };
+  function isStaff() { return (me && me.roles || []).some(function (r) { return /^staff:/.test(r) && r !== "staff:contractor"; }); }
+  function curMonth() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+  // The months of a period and of its comparison, newest period first.
+  function periodMonths(kind) {
+    var m = curMonth(), months = [], prev = [];
+    if (kind === "month") { months = [m]; prev = [addMonths(m, -1)]; }
+    else if (kind === "quarter") { var q = Math.floor((+m.split("-")[1] - 1) / 3) * 3 + 1, start = m.split("-")[0] + "-" + String(q).padStart(2, "0"); for (var i = 0; i < 3; i++) { var mm = addMonths(start, i); if (mm <= m) months.push(mm); } prev = months.map(function (x) { return addMonths(x, -3); }); }
+    else { var fy = fyOf(m); for (var k = 0; k < 12; k++) { var x = addMonths(fy + "-08", k); if (x <= m) months.push(x); } prev = months.map(function (x) { return addMonths(x, -12); }); }
+    return { months: months, prev: prev, label: kind === "month" ? t("本月", "This month") : kind === "quarter" ? t("本季", "This quarter") : fyLabel(fyOf(m)), vs: kind === "month" ? t("较上月", "vs last month") : kind === "quarter" ? t("较上季", "vs last quarter") : t("较上学年同期", "vs the same period last year") };
+  }
+  function viewDashboard() {
+    setTitle(t("经营", "Operations"), t("仪表盘", "Dashboard"),
+      '<div class="seg" role="tablist">' + [["month", "本月", "Month"], ["quarter", "本季", "Quarter"], ["year", "本学年", "School year"]].map(function (p) { return '<button type="button" data-p="' + p[0] + '" aria-pressed="' + (dashState.period === p[0]) + '">' + t(p[1], p[2]) + "</button>"; }).join("") + '</div> <button class="btn secondary sm" id="dReload">' + t("刷新", "Refresh") + "</button>",
+      { info: t("员工首页：本期与上期的对比、八个面板各回答一个经营问题，每个数字都能点进名单。学年从 8 月起算；销售按下单日、实收按订单；蜂巢课程成交额只在这里显示，不与教材销售合计。", "The staff home: this period against the last, eight panels each answering one question, every number a way into the list. The school year starts in August; sales by order date, received by order; Hive course value is shown here only and never summed with textbook sales.") });
+    $("content").innerHTML = '<div class="kpis" id="dkpi"></div><div class="vgrid" id="dgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="dfoot" style="font-size:.8rem"></p>';
+    $("topActions").addEventListener("click", function (e) {
+      var b = e.target.closest(".seg button[data-p]"); if (!b) return;
+      dashState.period = b.getAttribute("data-p");
+      $("topActions").querySelectorAll(".seg button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      renderDashboard();
+    });
+    $("dReload").addEventListener("click", function () { equipState.list = null; ordersState.list = null; peopleState.hub = null; loadDashboard().then(renderDashboard); });
+    loadDashboard().then(renderDashboard);
+  }
+  function loadDashboard() {
+    var q = function (pr) { return pr.catch(function () { return null; }); };
+    return Promise.all([q(loadEquip(false)), canSeeOrders() ? q(loadOrders(false)) : Promise.resolve(null), canSeeOrders() ? q(loadPeople(false)) : Promise.resolve(null)]);
+  }
+  function renderDashboard() {
+    if (!$("dgrid")) return;
+    var seeMoney = crmLevel("money") !== "none", fmt = seeMoney ? fmtMoney : fmtNum, measure = seeMoney ? t("销售额", "Sales") : t("件数", "Units");
+    var P = periodMonths(dashState.period), inP = function (m) { return P.months.indexOf(m) >= 0; }, inPrev = function (m) { return P.prev.indexOf(m) >= 0; };
+    var equip = equipState.list || [], orders = ordersState.list || [], hub = peopleState.hub || null, people = (hub && hub.people) || [];
+    var val = function (o) { return seeMoney ? (o.amount || 0) : (o.qty || 0); };
+    var sum = function (arr, f) { return arr.reduce(function (a, o) { return a + f(o); }, 0); };
+    var eNow = equip.filter(function (o) { return inP(ym(o.date)); }), ePrev = equip.filter(function (o) { return inPrev(ym(o.date)); });
+    var pct = function (a, b) { return b ? (a - b) / b : null; };
+    var custKey = function (o) { return o.customerRec || o.email || o.name; };
+    var firstM = {}; equip.forEach(function (o) { var k = custKey(o), m = ym(o.date); if (k && m && (!firstM[k] || m < firstM[k])) firstM[k] = m; });
+    var buyers = {}; eNow.forEach(function (o) { var k = custKey(o); if (k) buyers[k] = firstM[k] >= P.months[0] ? "new" : "old"; });
+    var nNew = Object.keys(buyers).filter(function (k) { return buyers[k] === "new"; }).length, nOld = Object.keys(buyers).length - nNew;
+    var hNow = orders.filter(function (o) { return inP(String(o.submittedAt || "").slice(0, 7)) && o.status !== "cancelled"; }), hPrev = orders.filter(function (o) { return inPrev(String(o.submittedAt || "").slice(0, 7)) && o.status !== "cancelled"; });
+    var hSum = function (arr) { return sum(arr, function (o) { return typeof o.totalPrice === "number" ? o.totalPrice : 0; }); };
+    var counts = ordersState.counts || {}, stats = (hub && hub.stats) || {};
+    var todo = (counts.overdue || 0) + (counts.notifyFailed || 0) + (hub && hub.canMerge ? (hub.queue || []).length : 0);
+    var months12 = []; for (var i = 11; i >= 0; i--) months12.push(addMonths(curMonth(), -i));
+    var byM = function (arr, f, keyOf) { var o = {}; months12.forEach(function (m) { o[m] = 0; }); arr.forEach(function (x) { var m = keyOf(x); if (m in o) o[m] += f(x); }); return months12.map(function (m) { return o[m]; }); };
+
+    $("dkpi").innerHTML =
+      statTile(P.label + " · " + (seeMoney ? t("教材销售额", "Textbook sales") : t("教材件数", "Textbook units")), fmt(sum(eNow, val)), { delta: pct(sum(eNow, val), sum(ePrev, val)), vs: P.vs, spark: byM(equip, val, function (o) { return ym(o.date); }), attr: ' data-go="#/ops/orders/equip"', cls: "go" }) +
+      (seeMoney ? statTile(P.label + " · " + t("教材实收", "Textbook received"), fmtMoney(sum(eNow, function (o) { return o.received || 0; })), { sub: sum(eNow, val) ? Math.round(sum(eNow, function (o) { return o.received || 0; }) / sum(eNow, val) * 100) + "%" + t(" 已收", " received") : "" }) : "") +
+      statTile(P.label + " · " + t("教材订单", "Textbook orders"), fmtNum(eNow.length), { delta: pct(eNow.length, ePrev.length), vs: P.vs, sub: t("购买客户 ", "buyers ") + (nNew + nOld) + t("（新 ", " (new ") + nNew + ")" }) +
+      (canSeeOrders() ? statTile(P.label + " · " + t("课程订单", "Course orders"), fmtNum(hNow.length) + (seeMoney ? ' <span class="unit">' + fmtMoney(hSum(hNow)) + "</span>" : ""), { delta: pct(hNow.length, hPrev.length), vs: P.vs, sub: t("蜂巢网站 · 不与教材合计", "fengchao.life · never summed with textbooks"), attr: ' data-go="#/ops/orders"', cls: "go" }) : "") +
+      (hub ? statTile(t("人员库", "People"), fmtNum(stats.people || 0), { sub: t("活跃 ", "active ") + ((stats.stages || {}).active || 0) + t(" · 潜在 ", " · leads ") + ((stats.stages || {}).lead || 0) + t(" · 沉寂 ", " · dormant ") + ((stats.stages || {}).dormant || 0), attr: ' data-go="#/ops/people"', cls: "go" }) : "") +
+      (canSeeOrders() ? statTile(t("待处理", "To do"), fmtNum(todo), { cls: "go", warn: todo > 0, sub: t("超期 ", "overdue ") + (counts.overdue || 0) + t(" · 通知失败 ", " · notify failed ") + (counts.notifyFailed || 0) + (hub && hub.canMerge ? t(" · 待合并 ", " · to merge ") + (hub.queue || []).length : ""), attr: ' data-go="#/ops/orders"' }) : "");
+
+    // ---- panels ----
+    vizDraws = [];
+    var cards = [];
+    // 1 销售与收款趋势: cumulative this period vs the one before (or monthly columns)
+    var cumOf = function (ms) { var acc = 0; return ms.map(function (m) { if (m > curMonth()) return null; equip.forEach(function (o) { if (ym(o.date) === m) acc += val(o); }); return acc; }); };
+    var trendMonths = dashState.period === "month" ? months12 : P.months.length ? (dashState.period === "quarter" ? P.months.concat([]) : P.months) : [];
+    if (dashState.period === "year") { trendMonths = []; for (var k = 0; k < 12; k++) trendMonths.push(addMonths(fyOf(curMonth()) + "-08", k)); }
+    var prevMonths = trendMonths.map(function (m) { return addMonths(m, dashState.period === "month" ? -12 : dashState.period === "quarter" ? -3 : -12); });
+    var labelsT = trendMonths.map(monthLabel);
+    cards.push(chartCard("dTrend", t("销售与收款趋势", "Sales and cash"), (dashState.trend === "cum" ? t("累计 · ", "cumulative · ") : t("按月 · ", "monthly · ")) + (dashState.period === "month" ? t("近 12 个月 vs 去年同期", "last 12 months vs the year before") : P.label + " vs " + P.vs.replace(/^较/, "")), function (w) {
+      if (dashState.trend === "cum") return linesChart(w, { x: labelsT, series: [{ name: t("本期", "This period"), values: cumOf(trendMonths), color: VIZ.seq }, { name: t("上期", "Last period"), values: cumOf(prevMonths).map(function (v) { return v == null ? 0 : v; }), color: VIZ.gray }], fmt: fmt });
+      return columnsChart(w, { x: labelsT, series: [{ name: measure, values: trendMonths.map(function (m) { return sum(equip.filter(function (o) { return ym(o.date) === m; }), val); }), color: VIZ.seq }].concat(seeMoney ? [{ name: t("实收", "Received"), values: trendMonths.map(function (m) { return sum(equip.filter(function (o) { return ym(o.date) === m; }), function (o) { return o.received || 0; }); }), color: VIZ.cat[2] }] : []), fmt: fmt });
+    }, dataTable([t("月份", "Month"), t("本期", "This period"), t("上期", "Last period")], trendMonths.map(function (m, i) { var a = cumOf(trendMonths)[i], b = cumOf(prevMonths)[i]; return [monthLabel(m), a == null ? "—" : fmt(a), b == null ? "—" : fmt(b)]; }))));
+    // 2 客户漏斗
+    if (hub) {
+      var leads = people.filter(function (p) { return p.sources && p.sources.lead; }).length, registered = people.filter(function (p) { return p.sources && p.sources.account; }).length, customers = people.filter(function (p) { return p.sources && p.sources.customer; }).length, repeat = people.filter(function (p) { return (p.orders || 0) >= 2; }).length, active = ((stats.stages || {}).active || 0);
+      var funnel = [{ label: t("讲座线索", "Seminar leads"), value: leads }, { label: t("有 Teams 账号", "With a Teams account"), value: registered }, { label: t("买过教材", "Bought textbooks"), value: customers }, { label: t("复购（≥2 单）", "Repeat (≥2 orders)"), value: repeat }, { label: t("活跃", "Active"), value: active }];
+      cards.push(chartCard("dFunnel", t("客户漏斗", "Customer funnel"), t("人员库里各阶段的人数 · 讲座线索成为客户的比例", "people at each stage · how many seminar leads became customers"), function (w) { return barsChart(w, { rows: funnel, fmt: fmtNum, name: t("人", "people") }) + '<p class="hint">' + esc(t("讲座线索中已成为客户：", "Seminar leads who became customers: ") + people.filter(function (p) { return p.sources && p.sources.lead && p.sources.customer; }).length + " / " + leads) + "</p>"; }, dataTable([t("阶段", "Stage"), t("人数", "People")], funnel.map(function (r) { return [r.label, fmtNum(r.value)]; }))));
+    }
+    // 3 按出版社: retained vs royalty when the rates are visible
+    var pubAgg = {}; eNow.forEach(function (o) { (o.items || []).forEach(function (it) { var k = it.publisher || t("未知", "Unknown"); var v = seeMoney ? (it.total || 0) : (it.qty || 0); var rate = it.royalty && typeof it.royalty["Royalty Rate"] === "number" ? it.royalty["Royalty Rate"] : null; if (!pubAgg[k]) pubAgg[k] = { total: 0, royalty: 0, known: true }; pubAgg[k].total += v; if (rate == null) pubAgg[k].known = false; else pubAgg[k].royalty += v * rate; }); });
+    var pubs = Object.keys(pubAgg).map(function (k) { return { label: k, value: pubAgg[k].total, royalty: pubAgg[k].royalty, known: pubAgg[k].known }; }).sort(function (a, b) { return b.value - a.value; });
+    var royaltyKnown = seeMoney && pubs.length && pubs.every(function (p) { return p.known; });
+    cards.push(chartCard("dPub", t("按出版社", "By publisher"), P.label + " · " + measure + (royaltyKnown ? t(" · 深色为留存，浅色为版税", " · dark = retained, light = royalty") : ""), function (w) {
+      if (!royaltyKnown) return barsChart(w, { rows: pubs, fmt: fmt, name: measure });
+      return columnsChart(w, { x: pubs.map(function (p) { return p.label; }), series: [{ name: t("留存", "Retained"), values: pubs.map(function (p) { return p.value - p.royalty; }), color: VIZ.seq }, { name: t("版税", "Royalty"), values: pubs.map(function (p) { return p.royalty; }), color: VIZ.seq3 }], fmt: fmt, labelAll: true, height: 240 });
+    }, dataTable([t("出版社", "Publisher"), measure].concat(royaltyKnown ? [t("版税", "Royalty")] : []), pubs.map(function (p) { return [p.label, fmt(p.value)].concat(royaltyKnown ? [fmt(p.royalty)] : []); }))));
+    // 4 课程销售 Top 10, coloured by category
+    var catColor = { Curriculum: VIZ.cat[0], "Pre-recorded": VIZ.cat[1], Live: VIZ.cat[2] };
+    var catOf = function (c) { c = String(c || ""); return /live|直播/i.test(c) ? "Live" : /record|预录|video|视频/i.test(c) ? "Pre-recorded" : "Curriculum"; };
+    var skuAgg = {}; eNow.forEach(function (o) { (o.items || []).forEach(function (it) { var k = equipName(it); if (!skuAgg[k]) skuAgg[k] = { v: 0, cat: catOf(it.category) }; skuAgg[k].v += seeMoney ? (it.total || 0) : (it.qty || 0); }); });
+    var top = Object.keys(skuAgg).map(function (k) { return { label: k, value: skuAgg[k].v, color: catColor[skuAgg[k].cat], sub: skuAgg[k].cat === "Live" ? t("直播课", "Live") : skuAgg[k].cat === "Pre-recorded" ? t("预录课", "Pre-recorded") : t("教材", "Curriculum") }; }).sort(function (a, b) { return b.value - a.value; }).slice(0, 10);
+    cards.push(chartCard("dTop", t("课程销售 Top 10", "Top 10 titles"), P.label + " · " + measure, function (w) { return legend([{ name: t("教材", "Curriculum"), color: VIZ.cat[0] }, { name: t("预录课", "Pre-recorded"), color: VIZ.cat[1] }, { name: t("直播课", "Live"), color: VIZ.cat[2] }]) + barsChart(w, { rows: top, fmt: fmt }); }, dataTable([t("名称", "Title"), t("类型", "Type"), measure], top.map(function (r) { return [r.label, r.sub, fmt(r.value)]; }))));
+    // 5 客户分布与复购: by school (the domain of a person's Teams account)
+    if (hub) {
+      var bySchool = {}; people.forEach(function (p) { if (!(p.sources && p.sources.customer)) return; var d = (((p.facets || {}).accounts || [])[0] || {}).domain || t("无 Teams 账号", "No Teams account"); bySchool[d] = (bySchool[d] || 0) + 1; });
+      var schools = Object.keys(bySchool).map(function (k) { return { label: dname(k) || k, value: bySchool[k] }; }).sort(function (a, b) { return b.value - a.value; }).slice(0, 10);
+      var withOrders = people.filter(function (p) { return (p.orders || 0) >= 1; }).length, repeatN = people.filter(function (p) { return (p.orders || 0) >= 2; }).length;
+      cards.push(chartCard("dSchools", t("客户分布与复购", "Where customers are, and who comes back"), t("买过教材的人按学校 · 复购率 ", "textbook buyers by school · repeat rate ") + (withOrders ? Math.round(repeatN / withOrders * 100) + "% (" + repeatN + "/" + withOrders + ")" : "—"), function (w) { return barsChart(w, { rows: schools, fmt: fmtNum, name: t("客户", "customers") }); }, dataTable([t("学校", "School"), t("客户", "Customers")], schools.map(function (r) { return [r.label, fmtNum(r.value)]; }))));
+      // 6 社区与讲座
+      var sessions = {}; people.forEach(function (p) { ((p.facets || {}).leads || []).forEach(function (l) { var k = l.session || t("未注明场次", "Unnamed session"); if (!sessions[k]) sessions[k] = { n: 0, c: 0 }; sessions[k].n++; if (p.sources.customer) sessions[k].c++; }); });
+      var sess = Object.keys(sessions).sort().reverse().slice(0, 8).map(function (k) { return { label: k, value: sessions[k].n, c: sessions[k].c }; });
+      cards.push(chartCard("dSeminar", t("社区与讲座", "Community and seminars"), t("每场讲座报名人数 · 其中后来买了教材的", "sign-ups per session · of whom bought textbooks since"), function (w) { return columnsChart(w, { x: sess.map(function (r) { return r.label; }), series: [{ name: t("成为客户", "Became customers"), values: sess.map(function (r) { return r.c; }), color: VIZ.seq }, { name: t("未购买", "Not yet"), values: sess.map(function (r) { return r.value - r.c; }), color: VIZ.seq3 }], fmt: fmtNum, labelAll: true }); }, dataTable([t("场次", "Session"), t("报名", "Sign-ups"), t("成为客户", "Became customers")], sess.map(function (r) { return [r.label, fmtNum(r.value), fmtNum(r.c)]; }))));
+    }
+    // 7 待处理与异常 — a list, each line a way in
+    if (canSeeOrders()) {
+      var replaceAll = stats.replace || 0, replaceWithOrders = people.filter(function (p) { return p.primaryTier === "replace" && (p.orders || 0) > 0; }).length;
+      var rows = [
+        [t("超期订单", "Overdue orders"), counts.overdue || 0, "#/ops/orders", "overdue"],
+        [t("通知失败的订单", "Orders whose notification failed"), counts.notifyFailed || 0, "#/ops/orders", "notifyFailed"],
+        [t("待确认的订单", "Orders awaiting confirmation"), counts.submitted || 0, "#/ops/orders", "submitted"],
+      ].concat(hub ? [
+        [t("待合并的人员", "People to merge"), hub.canMerge ? (hub.queue || []).length : null, "#/ops/people", "queue"],
+        [t("待替换邮箱（其中有订单 " + replaceWithOrders + "）", "Emails to replace (" + replaceWithOrders + " with orders)"), replaceAll, "#/ops/people", "replace"],
+        [t("待回写 CRM ID", "CRM IDs to write back"), stats.writeBack || 0, "#/ops/people", "all"],
+      ] : []).filter(function (r) { return r[1] !== null; });
+      cards.push('<div class="card todo" id="dTodo"><div class="ch"><h2>' + t("待处理与异常", "To do and exceptions") + ' <span class="n">' + t("今天该有人去做的事", "what someone should do today") + '</span></h2></div><div class="olist">' + rows.map(function (r) { return '<a class="orow link" href="' + r[2] + '" data-tab="' + r[3] + '"><div class="omain"><b>' + esc(r[0]) + '</b></div><div class="oprice"><span class="tag ' + (r[1] ? "warn" : "ok") + '">' + fmtNum(r[1]) + "</span></div></a>"; }).join("") + "</div></div>");
+    }
+    // 8 合作伙伴 · 9 许可: later phases, said plainly
+    cards.push('<div class="card soon"><div class="ch"><h2>' + t("合作伙伴", "Partners") + ' <span class="n">' + t("第 3 阶段", "phase 3") + '</span></h2></div><p class="muted">' + esc(t("机构看板：合作进展、各机构的客户与账号。等机构与家庭模型建好后在这里显示。", "The institutions board — partnership progress, customers and accounts per institution — appears here once the organisations and families model is built.")) + "</p></div>" +
+      '<div class="card soon"><div class="ch"><h2>' + t("许可", "Licences") + ' <span class="n">' + t("第 5 阶段 · 自建 DRM", "phase 5 · own DRM") + '</span></h2></div><p class="muted">' + esc(t("许可池余量和到期、已激活 vs 已售出、按地区的 DRM 用户增长。等自建 DRM 系统上线后显示。", "Licence pool balance and expiry, activated vs sold, DRM users by region — once Hive's own DRM system is live.")) + "</p></div>");
+    $("dgrid").innerHTML = cards.join("");
+    // 图形切换 for the trend card: 累计 / 按月
+    var tc = $("dTrend"); if (tc) { var tg = tc.querySelector(".vtoggle"); tg.insertAdjacentHTML("afterbegin", '<button type="button" data-t="cum"' + (dashState.trend === "cum" ? ' class="on2"' : "") + ">" + t("累计", "Cumulative") + '</button><button type="button" data-t="monthly"' + (dashState.trend === "monthly" ? ' class="on2"' : "") + ">" + t("按月", "Monthly") + "</button>"); tg.addEventListener("click", function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; dashState.trend = b.getAttribute("data-t"); renderDashboard(); }); }
+    drawCharts();
+    var asOf = [(equipState.status || {}).syncedAt, hub && hub.generatedAt].filter(Boolean).sort()[0];
+    $("dfoot").innerHTML = esc((asOf ? t("数据截至 ", "Data as of ") + when(asOf) + " · " : "") + (seeMoney ? "" : t("金额按角色隐藏，图表以件数计 · ", "Amounts hidden for this role; charts count units · ")) + t("学年从 8 月起算", "School year from August"));
+  }
+  $("content").addEventListener("click", function (e) {
+    var k = e.target.closest("#dkpi .kpi[data-go]"); if (k) { location.hash = k.getAttribute("data-go"); return; }
+    var a = e.target.closest("#dTodo a[data-tab]"); if (a) { var tb = a.getAttribute("data-tab"); if (/people/.test(a.getAttribute("href"))) peopleState.tab = tb; else ordersState.tab = tb; }
+  });
+
+  // ================================================================================
   // boot + router
   // ================================================================================
   function loadMe() {
@@ -2434,9 +2574,11 @@
     // A notice belongs to the page that raised it (Rick, 2026-10-07: a sync notice was still
     // showing on 蜂巢课程订单 after switching tabs).
     if ($("flash")) { $("flash").hidden = true; clearTimeout(flash.timer); }
-    var h = location.hash || "#/account";
+    // Staff land on the dashboard (design §5); everyone else on their profile.
+    var h = location.hash || (isStaff() ? "#/dashboard" : "#/account");
     nav();
     if (!me) return;
+    if (h.indexOf("#/dashboard") === 0) { if (!isStaff() && !canSeeOrders()) { location.hash = "#/account"; return; } return viewDashboard(); }
     if (h.indexOf("#/teams") === 0) return viewTeams();
     if (h.indexOf("#/security") === 0) return viewSecurity();
     if (h.indexOf("#/domain") === 0) {
