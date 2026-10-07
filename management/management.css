@@ -180,10 +180,11 @@ div.msg.ok { background: var(--ok-soft); color: var(--ok); } div.msg.err { backg
 @media (min-width: 861px) {
   .kpis { position: sticky; top: 0; z-index: 4; background: var(--bg); margin-bottom: 0; padding-bottom: var(--s4); }
   /* cover the pane's side gutters too, so nothing scrolls past beside the tiles */
-  .kpis::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--s6)); right: -100vw; background: var(--bg); z-index: -1; }
+  /* cover the pane's own side gutters only — reaching further made the pane scroll sideways */
+  .kpis::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--s6)); right: calc(-1 * var(--s6)); background: var(--bg); z-index: -1; }
   .content table.data th { top: calc(var(--kpi-h, 0px) + var(--bar-h, 0px)); }
   .toolbar.sticky { position: sticky; top: var(--kpi-h, 0px); z-index: 4; background: var(--bg); margin: 0; padding: 0 0 var(--s3); }
-  .toolbar.sticky::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--s6)); right: -100vw; background: var(--bg); z-index: -1; }
+  .toolbar.sticky::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--s6)); right: calc(-1 * var(--s6)); background: var(--bg); z-index: -1; }
 }
 .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: var(--s3) var(--s4); }
 .kpi .l { font-size: 12px; color: var(--faint); }
@@ -531,8 +532,15 @@ ul.plain a, .card .kv a { color: var(--accent-dark); }
 .vtoggle { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; flex: none; }
 .vtoggle button { border: 0; background: var(--card); color: var(--muted); font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
 .vtoggle button.on { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
-.vtable table.vt { width: 100%; margin-top: var(--s2); }
-.vtable table.vt td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.vtable { max-height: 340px; overflow: auto; margin-top: var(--s2); }
+table.vt { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+table.vt th { text-align: left; font-weight: 600; font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; }
+table.vt td { padding: 6px 8px; border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table.vt tr:last-child td { border-bottom: 0; }
+table.vt .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.vt th:first-child, table.vt td:first-child { width: 42%; }
+label.inline { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+label.inline select { height: 32px; }
 .viz-svg { display: block; max-width: 100%; font-family: inherit; }
 .viz-svg .tk { font-size: 11px; fill: var(--faint); font-variant-numeric: tabular-nums; }
 .viz-svg .cat { font-size: 12px; fill: var(--muted); }
@@ -565,7 +573,16 @@ ul.plain a, .card .kv a { color: var(--accent-dark); }
 .srcs { display: inline-flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; color: var(--muted); max-width: 150px; }
 .srcs .src { white-space: nowrap; }
 .srcs i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-#ptable .cell-ell { max-width: 150px; }
-#ptable .cell-ell.acc { max-width: 140px; }
+/* a fixed-layout data table fills its pane and truncates instead of growing past it */
+table.data.fixed { table-layout: fixed; width: 100%; min-width: 0; }
+table.data.fixed td { overflow: hidden; }
+table.data.fixed td.ell { text-overflow: ellipsis; white-space: nowrap; }
+table.data.fixed th { overflow: hidden; text-overflow: ellipsis; }
+#ptable .cell-ell { max-width: calc(100% - 92px); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-left: 4px; }
 .dot.warn { background: var(--warn); }
+.ttl .info.big { width: 18px; height: 18px; font-size: 12px; vertical-align: middle; margin-left: 6px; }
+.ttl .info.big:hover::after, .ttl .info.big:focus::after { max-width: 420px; top: calc(100% + 4px); bottom: auto; left: 0; }
+button.orow.link { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); font: inherit; color: inherit; cursor: pointer; }
+button.orow.link:first-child { border-top: 0; }
+button.orow.link:hover { background: #f8fafc; }

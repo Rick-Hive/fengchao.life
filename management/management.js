@@ -112,7 +112,7 @@
     if (canSeeOrders()) {
       groups.push({ title: t("经营", "Operations"), items: [
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
-        { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People" },
+        { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People Hub" },
       ] });
     }
     if (isAdmin()) {
@@ -274,8 +274,12 @@
   try { new BroadcastChannel("fc-auth").onmessage = function (e) { if (e && e.data && e.data.kind === "out" && !window.__fcLeaving) location.replace("/"); }; } catch (e) {}
   window.addEventListener("storage", function (e) { if (e.key === "fc-auth-event" && /^out:/.test(e.newValue || "") && !window.__fcLeaving) location.replace("/"); });
 
+  // desc: a one-line description under the title; { info: "…" } instead puts a longer
+  // explanation behind an ⓘ beside the title (Rick, 2026-10-08: 「only displays when
+  // mouse is on it. Use 小i 方案」).
   function setTitle(crumb, title, actionsHtml, desc) {
-    $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + "</span>" : "") + (desc ? '<span class="desc">' + esc(desc) + "</span>" : "");
+    var info = desc && typeof desc === "object" ? desc.info : "";
+    $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + (info ? ' <span class="info big" tabindex="0" data-tip="' + esc(info) + '">i</span>' : "") + "</span>" : "") + (desc && !info ? '<span class="desc">' + esc(desc) + "</span>" : "");
     $("topActions").innerHTML = actionsHtml || "";
     document.querySelector(".topbar").classList.toggle("bare", !title && !crumb && !actionsHtml);
   }
@@ -296,6 +300,7 @@
   }
   $("panel").addEventListener("click", function (e) {
     if (e.target.closest(".x")) { panelClose(); return; }
+    var eo = e.target.closest("button[data-eorder]"); if (eo) { openEquipOrderPanel(eo.getAttribute("data-eorder"), "second"); return; }
     var g = e.target.closest("button[data-group]"); if (g) { openGroupPanel(g.getAttribute("data-group")); return; }
     var m = e.target.closest("button.mrow[data-upn]"); if (m) memberClick(m);
   });
@@ -1887,7 +1892,9 @@
     return '<div class="vlegend">' + series.map(function (s) { return '<span><i style="' + (isLine ? "border-top:2px solid " + s.color + ";height:0;width:14px" : "background:" + s.color) + '"></i>' + esc(s.name) + "</span>"; }).join("") + "</div>";
   }
   function dataTable(head, rows) {
-    return '<table class="data vt"><thead><tr>' + head.map(function (h) { return "<th>" + esc(h) + "</th>"; }).join("") + "</tr></thead><tbody>" + rows.map(function (r) { return "<tr>" + r.map(function (c, i) { return '<td class="' + (i ? "num" : "") + '">' + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table>";
+    // Its own table class: a chart's table is compact, numbers right-aligned, and must not pick
+    // up the data-table behaviours (sticky headings, draggable columns) that broke it in a card.
+    return '<table class="vt"><thead><tr>' + head.map(function (h, i) { return '<th class="' + (i ? "num" : "") + '">' + esc(h) + "</th>"; }).join("") + "</tr></thead><tbody>" + rows.map(function (r) { return "<tr>" + r.map(function (c, i) { return '<td class="' + (i ? "num" : "") + '">' + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table>";
   }
 
   // Lines over categories (months). series: [{name, values, color, dash}]. fmt for tooltip/labels.
@@ -1977,7 +1984,7 @@
     return '<div class="sharebar">' + parts.map(function (p) { return '<i style="width:' + (p.value / total * 100) + "%;background:" + p.color + '"' + tipAttr('<div class="th">' + esc(p.label) + "</div>" + tipRow(p.color, "", fmtNum(p.value) + " · " + Math.round(p.value / total * 100) + "%")) + "></i>"; }).join("") + "</div>" +
       '<div class="sharekeys">' + parts.map(function (p) { return '<span><i style="background:' + p.color + '"></i>' + esc(p.label) + ' <b>' + fmtNum(p.value) + "</b></span>"; }).join("") + "</div>";
   }
-  var equipState = { list: null, status: null };
+  var equipState = { list: null, status: null, month: "" };
   var AIRTABLE_EQUIP_URL = "https://airtable.com/appae5kpY1qXn6XLq";
   // Equip教材订单: the orders themselves live in Airtable; this tab is the sales
   // picture Airtable does not draw (Rick, 2026-10-08: 「Need all kinds of reports,
@@ -1990,8 +1997,9 @@
     setTitle(t("经营 › 订单", "Operations › Orders"), t("Equip教材订单", "Equip textbook orders"),
       (canSync ? '<button class="btn secondary sm" id="eSync">' + t("从 Airtable 同步", "Sync from Airtable") + "</button> " : "") +
       '<a class="btn sm" id="eOpen" href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "Open in Airtable") + ' ↗</a>',
-      t("EquipMe 教材的销售情况：本月、本学年与上学年、出版社、教材、学科、年级段、新老客户。逐单查看与录入在 Airtable。", "How EquipMe textbooks are selling: this month, this school year against the last, publishers, titles, subjects, grade bands, new and returning customers. Individual orders are viewed and entered in Airtable."));
-    $("opsBody").innerHTML = '<div class="kpis" id="ekpi"></div><div class="vgrid" id="evgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="efoot" style="font-size:.8rem"></p>';
+      { info: t("EquipMe 教材的销售情况：所选月、本学年与上学年、出版社、教材、学科、年级段、新老客户。逐单查看与录入在 Airtable；管理中心每夜同步一份只读副本。", "How EquipMe textbooks are selling: the chosen month, this school year against the last, publishers, titles, subjects, grade bands, new and returning customers. Individual orders are viewed and entered in Airtable; the management centre syncs a read-only copy nightly.") });
+    $("opsBody").innerHTML = '<div class="toolbar" id="ebar"><label class="inline">' + t("月份", "Month") + ' <select id="emonth"></select></label><span class="muted" style="font-size:12px">' + t("指标与图表都以所选月为准；学年按所选月所在学年", "Tiles and charts follow the chosen month; the school year is the one it falls in") + '</span></div><div class="kpis" id="ekpi"></div><div class="vgrid" id="evgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="efoot" style="font-size:.8rem"></p>';
+    $("emonth").addEventListener("change", function () { equipState.month = this.value; renderEquip(); });
     var sb = $("eSync");
     if (sb) sb.addEventListener("click", function () {
       savingButton(sb, t("同步中…", "Syncing…"));
@@ -2017,6 +2025,24 @@
     });
   }
   function equipName(it) { return (EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) || it.sku || ""; }
+  // One Equip order with its purchased items (Rick, 2026-10-08: 「could order ID be
+  // clickable? It will display order details with purchased items」). Read-only.
+  function openEquipOrderPanel(recId, which) {
+    var o = (equipState.list || []).filter(function (x) { return x.recId === recId; })[0];
+    if (!o) return;
+    var items = (o.items || []).map(function (it) {
+      var roy = it.royalty && Object.keys(it.royalty).length ? '<span class="sub">' + esc(Object.keys(it.royalty).map(function (k) { var v = it.royalty[k]; return k + " " + (typeof v === "number" && v <= 1 && /rate/i.test(k) ? Math.round(v * 100) + "%" : v); }).join(" · ")) + "</span>" : "";
+      return '<div class="orow"><div class="omain"><b>' + esc(equipName(it)) + '</b><span class="sub">' + esc([it.sku, it.publisher, it.category, it.subject, it.grade].filter(Boolean).join(" · ")) + "</span>" + roy + '</div><div class="oprice">' + (it.qty || 0) + " × " + money(it.unitPrice, "CNY") + "<br><b>" + money(it.total, "CNY") + "</b></div></div>";
+    }).join("");
+    panelOpen('<div class="ph"><h3>' + esc(o.orderId) + '</h3><span class="tag">EquipMe</span><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+      '<div class="kv"><span class="k">' + t("日期", "Date") + "</span><span>" + esc(o.date || "") + "</span>" +
+        '<span class="k">' + t("客户", "Customer") + "</span><span>" + esc(o.name || "—") + "</span>" +
+        '<span class="k">' + t("邮箱", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" +
+        '<span class="k">' + t("金额 / 实收", "Amount / received") + "</span><span>" + money(o.amount, "CNY") + " / " + money(o.received, "CNY") + "</span>" +
+        (o.comments ? '<span class="k">' + t("备注", "Comments") + "</span><span>" + esc(o.comments) + "</span>" : "") + "</div>" +
+      "<h4>" + t("购买的教材", "Purchased items") + " · " + (o.items || []).length + '</h4><div class="olist">' + (items || '<div class="orow muted">' + t("没有订单明细。", "No line items.") + "</div>") + "</div>" +
+      '<p class="hint">' + t("只读：修改请在 Airtable 里进行，下一次同步后生效。", "Read-only: change it in Airtable; the next sync picks it up.") + "</p></div>", which);
+  }
   function ym(d) { return String(d || "").slice(0, 7); }
   function monthLabel(m) { var p = m.split("-"); return EN ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+p[1] - 1] + " " + p[0].slice(2) : +p[1] + "月"; }
   function addMonths(m, k) { var p = m.split("-"), d = new Date(Date.UTC(+p[0], +p[1] - 1 + k, 1)); return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0"); }
@@ -2037,7 +2063,18 @@
     var seeMoney = crmLevel("money") !== "none";
     var fmt = seeMoney ? fmtMoney : fmtNum, measure = seeMoney ? t("销售额", "Sales") : t("件数", "Units");
     var val = function (o) { return seeMoney ? (o.amount || 0) : (o.qty || 0); };
-    var now = new Date(), thisM = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    var now = new Date(), curM = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    // The month picker (Rick, 2026-10-08: 「Should be able to choose month rather than only this
+    // month」): every month from the first order to now, newest first; everything below follows it.
+    var firstOrderM = list.map(function (o) { return ym(o.date); }).filter(Boolean).sort()[0] || curM;
+    var sel = $("emonth");
+    if (sel && sel.getAttribute("data-from") !== firstOrderM) {
+      sel.innerHTML = ""; sel.setAttribute("data-from", firstOrderM);
+      for (var mm = curM; mm >= firstOrderM; mm = addMonths(mm, -1)) { var op = document.createElement("option"); op.value = mm; op.textContent = (mm === curM ? t("本月 · ", "This month · ") : "") + mm; sel.appendChild(op); }
+    }
+    if (!equipState.month || equipState.month > curM) equipState.month = curM;
+    if (sel) sel.value = equipState.month;
+    var thisM = equipState.month, isCur = thisM === curM, mName = isCur ? t("本月", "This month") : thisM;
     var months = []; for (var i = 11; i >= 0; i--) months.push(addMonths(thisM, -i));
     var byM = {}; months.forEach(function (m) { byM[m] = { orders: 0, sales: 0, received: 0, units: 0, newC: 0, oldC: 0 }; });
     // first order month per customer, for new vs returning
@@ -2061,9 +2098,9 @@
     var fyNew = Object.keys(fyCust).filter(function (k) { return fyCust[k] === "new"; }).length, fyOld = Object.keys(fyCust).length - fyNew;
 
     $("ekpi").innerHTML =
-      statTile(seeMoney ? t("本月销售额", "Sales this month") : t("本月件数", "Units this month"), fmt(seeMoney ? cur.sales : cur.units), { delta: pct(seeMoney ? cur.sales : cur.units, seeMoney ? prev.sales : prev.units), vs: t("较上月", "vs last month"), spark: months.map(function (m) { return seeMoney ? byM[m].sales : byM[m].units; }) }) +
-      (seeMoney ? statTile(t("本月实收", "Received this month"), fmtMoney(cur.received), { sub: cur.sales ? Math.round(cur.received / cur.sales * 100) + "%" + t(" 已收", " received") : t("按订单", "by order") }) : "") +
-      statTile(t("本月订单", "Orders this month"), fmtNum(cur.orders), { delta: pct(cur.orders, prev.orders), vs: t("较上月", "vs last month"), spark: months.map(function (m) { return byM[m].orders; }) }) +
+      statTile(seeMoney ? mName + t("销售额", " sales") : mName + t("件数", " units"), fmt(seeMoney ? cur.sales : cur.units), { delta: pct(seeMoney ? cur.sales : cur.units, seeMoney ? prev.sales : prev.units), vs: t("较上月", "vs the month before"), spark: months.map(function (m) { return seeMoney ? byM[m].sales : byM[m].units; }) }) +
+      (seeMoney ? statTile(mName + t("实收", " received"), fmtMoney(cur.received), { sub: cur.sales ? Math.round(cur.received / cur.sales * 100) + "%" + t(" 已收", " received") : t("按订单", "by order") }) : "") +
+      statTile(mName + t("订单", " orders"), fmtNum(cur.orders), { delta: pct(cur.orders, prev.orders), vs: t("较上月", "vs the month before"), spark: months.map(function (m) { return byM[m].orders; }) }) +
       statTile(fyLabel(fy) + (seeMoney ? "" : " · " + measure), fmt(fyTotal), { delta: pct(fyTotal, pyTotal), vs: t("较上学年同期", "vs same period last year"), sub: fyOrders.length + t(" 单", " orders") }) +
       statTile(t("本学年购买客户", "Buyers this school year"), fmtNum(fyNew + fyOld), { sub: t("新客户 ", "new ") + fyNew + t(" · 老客户 ", " · returning ") + fyOld });
 
@@ -2080,7 +2117,7 @@
     var barsTable = function (rows) { return dataTable([t("项目", "Item"), measure], rows.map(function (r) { return [r.label, fmt(r.value)]; })); };
     vizDraws = [];
     $("evgrid").innerHTML = !list.length ? '<div class="card"><p class="empty">' + (st.syncedAt ? t("Airtable 里还没有订单。", "No orders in Airtable yet.") : st.configured === false ? t("还没有同步：系统管理员需要在 Static Web App 的应用设置里加上 AIRTABLE_EQUIP_PAT。", "Not synced yet: the system administrator needs to add AIRTABLE_EQUIP_PAT to the Static Web App's settings.") : t("还没有同步。点「从 Airtable 同步」。", "Not synced yet. Click “Sync from Airtable”.")) + "</p></div>" :
-      chartCard("vTrend", t("近 12 个月", "Last 12 months"), seeMoney ? t("销售额与实收，按下单月", "sales and received, by order month") : t("件数，按下单月", "units by order month"), function (w) { return linesChart(w, { x: mlabels, series: trendSeries, fmt: fmt }); }, dataTable([t("月份", "Month")].concat(trendSeries.map(function (s) { return s.name; })), months.map(function (m, i) { return [m].concat(trendSeries.map(function (s) { return fmt(s.values[i]); })); }))) +
+      chartCard("vTrend", t("近 12 个月", "Last 12 months"), (isCur ? "" : t("截至 ", "to ") + thisM + " · ") + (seeMoney ? t("销售额与实收，按下单月", "sales and received, by order month") : t("件数，按下单月", "units by order month")), function (w) { return linesChart(w, { x: mlabels, series: trendSeries, fmt: fmt }); }, dataTable([t("月份", "Month")].concat(trendSeries.map(function (s) { return s.name; })), months.map(function (m, i) { return [m].concat(trendSeries.map(function (s) { return fmt(s.values[i]); })); }))) +
       chartCard("vFy", t("学年累计", "School year to date"), fyLabel(fy) + " vs " + fyLabel(fy - 1), function (w) { return linesChart(w, { x: fyl, series: [{ name: fyLabel(fy), values: cumCur, color: VIZ.seq }, { name: fyLabel(fy - 1), values: cumPrev, color: VIZ.gray }], fmt: fmt }); }, dataTable([t("月份", "Month"), fyLabel(fy), fyLabel(fy - 1)], fyMonths.map(function (m, i) { return [monthLabel(m), cumCur[i] == null ? "—" : fmt(cumCur[i]), cumPrev[i] == null ? "—" : fmt(cumPrev[i])]; }))) +
       chartCard("vOrders", t("每月订单", "Orders per month"), t("按下单月", "by order month"), function (w) { return columnsChart(w, { x: mlabels, series: [{ name: t("订单", "Orders"), values: months.map(function (m) { return byM[m].orders; }), color: VIZ.seq }], fmt: fmtNum }); }, dataTable([t("月份", "Month"), t("订单", "Orders")], months.map(function (m) { return [m, fmtNum(byM[m].orders)]; }))) +
       chartCard("vCust", t("新老客户", "New and returning buyers"), t("每月下单的客户，按首单月份区分", "buyers each month, by whether it is their first order"), function (w) { return columnsChart(w, { x: mlabels, series: [{ name: t("新客户", "New"), values: months.map(function (m) { return byM[m].newC; }), color: VIZ.cat[0] }, { name: t("老客户", "Returning"), values: months.map(function (m) { return byM[m].oldC; }), color: VIZ.cat[1] }], fmt: fmtNum }); }, dataTable([t("月份", "Month"), t("新客户", "New"), t("老客户", "Returning")], months.map(function (m) { return [m, fmtNum(byM[m].newC), fmtNum(byM[m].oldC)]; }))) +
@@ -2118,10 +2155,10 @@
   function personTabs(p) { var tb = ["all"]; if (p.primaryTier === "replace") tb.push("replace"); if (p.primaryTier === "missing") tb.push("missing"); if (p.viaTeams) tb.push("viaTeams"); return tb; }
   function viewPeople() {
     var canMerge = isAdmin() || crmLevel("orders") === "rw";
-    setTitle(t("经营 › 人员库", "Operations › People"), t("人员库", "People hub"),
+    setTitle(t("经营 › 人员库", "Operations › People Hub"), t("人员库", "People Hub"),
       '<button class="btn secondary sm" id="pReload">' + t("刷新", "Refresh") + "</button> " + '<button class="btn secondary sm" id="pCsv">' + t("导出 CSV", "Export CSV") + "</button>" +
       (canMerge ? ' <button class="btn sm" id="pRebuild">' + t("重新匹配", "Rebuild") + "</button>" : ""),
-      t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；同名同校、或账号备用邮箱等于客户邮箱的，放到「待合并」由人来判断（账号的备用邮箱多半是家长的，不会据此合并）。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school, or an account whose recovery email is a customer's email, only go to “To merge” for a person to decide (a recovery email is usually the parent's, so it never merges by itself). No WeChat or phone numbers are recorded."));
+      { info: t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；同名同校、或账号备用邮箱等于客户邮箱的，放到「待合并」由人来判断（账号的备用邮箱多半是家长的，不会据此合并）。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school, or an account whose recovery email is a customer's email, only go to “To merge” for a person to decide (a recovery email is usually the parent's, so it never merges by itself). No WeChat or phone numbers are recorded.") });
     $("content").innerHTML =
       '<div class="kpis" id="pkpi"></div>' +
       '<div class="toolbar sticky" id="pbar">' + PEOPLE_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (peopleState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
@@ -2162,7 +2199,7 @@
       var tr = e.target.closest("tr[data-id]"); if (!tr) return;
       document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); });
       tr.classList.add("sel");
-      openPersonPanel(tr.getAttribute("data-id"));
+      openPersonPanel(tr.getAttribute("data-id"), !!e.target.closest("button[data-orders]"));
     });
     loadPeople(false).then(renderPeople).catch(function (r) { $("pbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; });
   }
@@ -2227,7 +2264,7 @@
     if (peopleState.tab === "queue") { renderQueue(); return; }
     var rows = sortPeople(peopleNow());
     var th = function (key, label) { var on = peopleState.sort.key === key; return '<th class="sortable' + (on ? " on" : "") + '" data-sort="' + key + '" aria-sort="' + (on ? (peopleState.sort.dir > 0 ? "ascending" : "descending") : "none") + '">' + label + '<span class="sortind">' + (on ? (peopleState.sort.dir > 0 ? "▲" : "▼") : "") + "</span></th>"; };
-    var html = '<div class="tbl-wrap"><table class="data" id="ptable"><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("email", t("主邮箱", "Primary email")) + th("sources", t("来源", "Sources")) + th("accounts", t("账号", "Accounts")) + th("orders", t("订单 / 消费", "Orders / spend")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
+    var html = '<div class="tbl-wrap"><table class="data fixed" id="ptable"><colgroup><col style="width:11%"><col style="width:15%"><col style="width:22%"><col style="width:9%"><col style="width:17%"><col style="width:9%"><col style="width:9%"><col style="width:8%"></colgroup><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("email", t("主邮箱", "Primary email")) + th("sources", t("来源", "Sources")) + th("accounts", t("账号", "Accounts")) + th("orders", t("订单 / 消费", "Orders / spend")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
     if (!list.length) html += '<tr><td colspan="8" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
     else if (!rows.length) html += '<tr><td colspan="8" class="empty">' + t("没有符合条件的人。", "Nobody matches.") + "</td></tr>";
     else html += rows.map(function (p) {
@@ -2237,9 +2274,9 @@
       return '<tr class="pick" data-id="' + esc(p.crmId) + '"><td class="nowrap"><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="dot warn" title="' + esc(t("待回写：Airtable 客户表还没有这个 CRM ID", "To write back: not yet on the Airtable customer")) + '"></span>' : "") + "</td>" +
         '<td class="nowrap"><span class="avatar xs" style="background:' + hue(p.crmId) + ';color:#fff">' + esc(initials(p.name || p.crmId)) + '</span> <span class="cell-ell">' + hl(p.name || "—", peopleState.q) + "</span></td>" +
         '<td class="nowrap"><span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span> " + tierTag(p.primaryTier) + (p.viaTeams ? ' <span class="tag accent">Teams</span>' : "") + "</td>" +
-        '<td class="nowrap">' + sourceTags(p) + "</td>" +
-        '<td class="nowrap"><span class="cell-ell acc" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</span></td>" +
-        '<td class="nowrap">' + ((p.orders || 0) + (p.hiveOrders || 0)) + spend + "</td>" +
+        "<td>" + sourceTags(p) + "</td>" +
+        '<td class="nowrap ell" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</td>" +
+        '<td class="nowrap">' + (((p.orders || 0) + (p.hiveOrders || 0)) ? '<button type="button" class="tag link" data-orders="' + esc(p.crmId) + '" title="' + esc(t("查看订单明细", "See the orders")) + '">' + ((p.orders || 0) + (p.hiveOrders || 0)) + spend + "</button>" : "0") + "</td>" +
         '<td class="nowrap">' + esc(lastActive(p)) + "</td><td>" + stageTag(p.stage) + "</td></tr>";
     }).join("");
     html += "</tbody></table></div>";
@@ -2307,7 +2344,7 @@
     var blob = new Blob(["﻿" + [head].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "people-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
-  function openPersonPanel(id) {
+  function openPersonPanel(id, toOrders) {
     var p = ((peopleState.hub || {}).people || []).filter(function (x) { return x.crmId === id; })[0];
     if (!p) return;
     var f = p.facets || {};
@@ -2315,6 +2352,16 @@
     var accounts = (f.accounts || []).map(function (a) {
       return '<div class="orow"><div class="omain"><b>' + esc(a.upn || ("…@" + a.domain)) + '</b><span class="sub">' + esc([vl(a.identity || ""), a.jobTitle, a.lastSignIn ? t("最近登录 ", "last sign-in ") + day(a.lastSignIn) : "", a.safeEmail ? t("备用邮箱 ", "recovery email ") + a.safeEmail : ""].filter(Boolean).join(" · ")) + "</span></div>" + (a.enabled === false ? '<span class="tag bad">' + t("已停用", "disabled") + "</span>" : "") + "</div>";
     }).join("");
+    var recIds = (f.customers || []).map(function (c) { return c.recId; });
+    var mails = (p.emails || []).map(function (e) { return e.email; });
+    var equipOrdersHtml = function () {
+      var os = (equipState.list || []).filter(function (o) { return recIds.indexOf(o.customerRec) >= 0 || (o.email && mails.indexOf(o.email) >= 0); }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+      if (!os.length) return '<div class="orow muted">' + t("没有教材订单。", "No textbook orders.") + "</div>";
+      return os.map(function (o) {
+        var names = (o.items || []).map(equipName);
+        return '<button type="button" class="orow link" data-eorder="' + esc(o.recId) + '"><div class="omain"><b>' + esc(o.orderId) + '</b><span class="sub">' + esc([o.date, names.slice(0, 2).join(" · ") + (names.length > 2 ? " +" + (names.length - 2) : "")].filter(Boolean).join(" · ")) + '</span></div><div class="oprice">' + (o.qty || 0) + t(" 件", " units") + (crmLevel("money") === "none" ? "" : "<br><b>" + money(o.amount, "CNY") + "</b>") + "</div></button>";
+      }).join("");
+    };
     var customers = (f.customers || []).map(function (c) {
       return '<div class="orow"><div class="omain"><b>' + esc(c.name || "") + '</b><span class="sub">' + esc([c.teams ? "Teams " + c.teams : "", c.city, c.firstOrder ? t("首单 ", "first ") + c.firstOrder : "", c.lastOrder ? t("最近 ", "last ") + c.lastOrder : ""].filter(Boolean).join(" · ")) + "</span>" + (c.crmId ? "" : '<span class="sub">' + esc(t("Airtable 客户表还没有 CRM ID", "No CRM ID in the Airtable customer yet")) + "</span>") + '</div><div class="oprice">' + (c.orders || 0) + t(" 单", " orders") + (crmLevel("money") === "none" ? "" : "<br><b>" + money(c.spend, "CNY") + "</b>") + "</div></div>";
     }).join("");
@@ -2331,9 +2378,13 @@
       (p.viaTeams ? '<p class="hint">' + t("主邮箱用的是 Teams 账号：原邮箱是境内邮箱，不用它联系。", "The Teams account serves as the primary email: the original is a mainland mailbox and is not used for contact.") + "</p>" : "") +
       "<h4>" + t("Teams 账号", "Teams accounts") + " · " + (f.accounts || []).length + '</h4><div class="olist">' + (accounts || '<div class="orow muted">' + t("没有匹配到账号。", "No account matched.") + "</div>") + "</div>" +
       "<h4>" + t("Equip 客户", "Equip customer") + " · " + (f.customers || []).length + '</h4><div class="olist">' + (customers || '<div class="orow muted">' + t("不是 Equip 客户。", "Not an Equip customer.") + "</div>") + "</div>" +
+      '<h4 id="pOrdersH">' + t("教材订单", "Textbook orders") + " · " + (p.orders || 0) + '</h4><div class="olist" id="pEquipOrders">' + (equipState.list ? equipOrdersHtml() : '<div class="orow muted">' + t("载入中…", "Loading…") + "</div>") + "</div>" +
       (crmLevel("orders") === "none" ? "" : "<h4>" + t("蜂巢课程订单", "Hive course orders") + " · " + (f.hive || []).length + '</h4><div class="olist">' + (hive || '<div class="orow muted">' + t("没有课程订单。", "No course orders.") + "</div>") + "</div>") +
       (crmLevel("leads") === "none" ? "" : "<h4>" + t("讲座名单", "Seminar list") + " · " + (f.leads || []).length + '</h4><div class="olist">' + (leads || '<div class="orow muted">' + t("没有讲座报名。", "No seminar sign-up.") + "</div>") + "</div>") +
       '<p class="hint">' + t("这条记录由匹配生成，不能在这里编辑：改邮箱、姓名请在来源（Airtable 或各校账号）里改，下次同步后更新。", "This record is generated by matching and cannot be edited here: change emails or names at the source (Airtable or the school's accounts); the next sync picks it up.") + "</p></div>");
+    if (!equipState.list && (p.orders || 0) > 0) loadEquip(false).then(function () { var el = $("pEquipOrders"); if (el) el.innerHTML = equipOrdersHtml(); if (toOrders) scrollToOrders(); }).catch(function () { var el = $("pEquipOrders"); if (el) el.innerHTML = '<div class="orow muted">' + t("订单读取失败。", "Orders could not be read.") + "</div>"; });
+    else if (toOrders) scrollToOrders();
+    function scrollToOrders() { var h = $("pOrdersH"); if (h) h.scrollIntoView({ block: "start", behavior: "smooth" }); }
   }
 
   // ================================================================================
