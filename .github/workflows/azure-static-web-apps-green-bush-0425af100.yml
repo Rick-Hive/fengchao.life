@@ -39,6 +39,8 @@ jobs:
           node-version: 20
       - name: Install API dependencies
         run: cd api && npm install --omit=dev --no-audit --no-fund
+      - name: Build the management centre script from its parts
+        run: node scripts/build-management.js
       - name: Run the unit tests
         run: bash scripts/test.sh
       # Serve compact files without keeping minified copies in the repository:

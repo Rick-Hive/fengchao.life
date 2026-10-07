@@ -78,6 +78,10 @@
       }
     },
     {
+      "route": "/management/src/*",
+      "statusCode": 404
+    },
+    {
       "route": "/management*",
       "allowedRoles": [
         "authenticated"

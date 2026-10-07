@@ -1,6 +1,9 @@
 # Local test output (Playwright screenshots) — never part of the deployed site.
 shots/
 
+# Built from management/src/*.js by scripts/build-management.js (the deploy workflow and scripts/test.sh run it).
+management/management.js
+
 # Node
 node_modules/
 npm-debug.log*

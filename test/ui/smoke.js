@@ -7,6 +7,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const assert = require("assert");
 const http = require("http"), fs = require("fs"), path = require("path");
 const ROOT = path.join(__dirname, "..", "..");
+require("child_process").execFileSync(process.execPath, [path.join(ROOT, "scripts", "build-management.js")], { stdio: "inherit" }); // the page loads the built file
 const OUT = process.env.OUT || path.join(__dirname, "shots");
 fs.mkdirSync(OUT, { recursive: true });
 const mime = { ".html": "text/html", ".css": "text/css", ".js": "application/javascript", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml" };
@@ -622,7 +623,7 @@ const EQUIP = [
     assert.ok(await p.$("#urole"), "role filter present");
     await p.selectOption("#urole", "role:teacher"); await p.waitForTimeout(200);
     let rows = await p.$$eval("#utable tr[data-upn]", r => r.length);
-    assert.strictEqual(rows, 2, "12 users, i % 5 === 2 → two Hive course teachers: " + rows);
+    assert.strictEqual(rows, 2, "12 users: i % 5 === 2 are in the Teachers table and are the ones whose identity is 老师 → two: " + rows);
     assert.ok(await p.$("#ukpi .kpi[data-kf=teacher]"), "teacher tile");
     await p.selectOption("#urole", "role:it"); await p.waitForTimeout(200);
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 1, "one domain IT: " + rows);
@@ -634,11 +635,22 @@ const EQUIP = [
     assert.ok(!(await p.$("#newUser")) && !(await p.$("#usNew")), "no new-account or sync buttons across all schools");
     const foot = await p.$eval("#ufoot", e => e.textContent); assert.ok(/15 \/ 15/.test(foot) && /2 所学校/.test(foot), foot);
     await p.selectOption("#urole", "role:teacher"); await p.waitForTimeout(200);
-    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 2, "teachers across schools (the demo school has none): " + rows);
+    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 3, "teachers across schools: two from the Teachers table + the demo school's one whose identity is 老师: " + rows);
     await p.selectOption("#urole", "");
     await p.click("#utable tr[data-dom]"); await p.waitForTimeout(400);
     assert.ok(await p.$("#panel .ph h3"), "person panel opens from the all-schools table");
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 15, "table still shows all schools after opening a panel: " + rows);
+  });
+  // Narrow panes wrap instead of clipping (Rick, 2026-10-08: "use two rows"); no sideways scroll.
+  await shot("users-narrow", 1000, 700, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#utable tr[data-upn]");
+    const over = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(over <= 0, "no sideways scroll on the users page at 1000px: " + over);
+  });
+  await shot("people-narrow", 1000, 700, "#/ops/people", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#ptable tr[data-id]");
+    const over = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(over <= 0, "no sideways scroll on the people page at 1000px: " + over);
   });
   console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "all orders/roles checks passed");
   await browser.close(); srv.close();
