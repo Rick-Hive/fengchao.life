@@ -250,6 +250,22 @@ async function syncEquip(opts) {
     counts: { customers: customers.length, orders: orders.length, items: items.length, curriculums: curriculums.length, seminar: seminar.length },
     customers, orders, curriculums, seminar,
   };
+  // Guard against a destructive sync (the website sync has had one since the start;
+  // this copy had only the 401/403 check — self-review 2026-10-08): a table that
+  // comes back empty, or less than half its last size, is far more likely a
+  // filtered view, a renamed table or a half-failed read than real deletions.
+  // Refuse to overwrite the last good copy unless the caller says force.
+  if (!(opts && opts.force)) {
+    const prev = await readEquip().catch(() => null);
+    if (prev && prev.counts) {
+      const drops = [];
+      for (const [k, n] of Object.entries(data.counts)) {
+        const was = prev.counts[k] || 0;
+        if (was >= 10 && (n === 0 || n < was / 2)) drops.push(`${k} ${was} → ${n}`);
+      }
+      if (drops.length) throw Object.assign(new Error(`Equip sync refused: ${drops.join(", ")} — more than half of a table vanished since the last copy. If the deletions are real, run the sync with force.`), { code: "suspicious_drop", drops });
+    }
+  }
   await writeEquip(data);
   return data;
 }

@@ -257,5 +257,11 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   const again = await people.translateGroupNames(grows, doc, "test");
   assert.strictEqual(calls.length, 2, "the second read translates nothing");
   assert.strictEqual(again[0].nameEn, "EN(中阶整本书阅读1班)");
+  // The suspicious-drop guard: a table that comes back under half its last size is refused, force overrides.
+  written.counts = Object.assign({}, written.counts, { customers: 20 });
+  await assert.rejects(() => equip.syncEquip({}), (e) => e.code === "suspicious_drop" && /customers 20 → 1/.test(e.message));
+  assert.strictEqual(written.counts.customers, 20, "the last good copy is kept");
+  const forced = await equip.syncEquip({ force: true });
+  assert.strictEqual(forced.counts.customers, 1, "force writes the new copy");
   console.log("crm-import: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

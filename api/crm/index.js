@@ -117,14 +117,17 @@ async function handler(context, req) {
   if (method === "POST" && action === "sync") {
     if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
     try {
-      const data = await equip.syncEquip({ log: (m) => context.log(m) });
-      await audit(context, { action: "crm.equip.sync", by: normUser(user), counts: data.counts, warnings: data.warnings.length });
+      // force (system administrator only) overrides the suspicious-drop guard when the deletions are real.
+      const force = !!(req.body && req.body.force) && isAdmin(roles);
+      const data = await equip.syncEquip({ log: (m) => context.log(m), force });
+      await audit(context, { action: "crm.equip.sync", by: normUser(user), counts: data.counts, warnings: data.warnings.length, force });
       let people = null;
       try { people = (await hub.rebuild({ log: (m) => context.log(m) })).stats; } catch (err) { context.log.error("crm: hub rebuild after sync failed: " + ((err && err.stack) || err)); }
       ok(context, { ok: true, status: equip.status(data), people });
     } catch (err) {
       if (err.code === "no_pat") { fail(context, 503, "no_pat", { message: err.message }); return; }
       if (err.code === "bad_pat") { fail(context, 503, "bad_pat", { message: err.message }); return; }
+      if (err.code === "suspicious_drop") { fail(context, 409, "suspicious_drop", { message: err.message, drops: err.drops, canForce: isAdmin(roles) }); return; }
       throw err;
     }
     return;

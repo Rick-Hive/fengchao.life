@@ -748,16 +748,18 @@
   // The users of every managed school, each row tagged with its domain, merged into one
   // table-shaped object { users, sync, partial }.
   function allDomainList() { return ((domainsInfo && domainsInfo.domains) || []).map(function (d) { return d.domain; }); }
-  function loadAllUsers() {
-    var saved = currentDomain;
-    return Promise.all(allDomainList().map(function (dom) { currentDomain = dom; return loadDomainData("users").catch(function () { return null; }); })).then(function () { currentDomain = saved; return mergedUsers(); });
+  // One request: the server merges the managed schools (domain=*), rows carry their domain.
+  function loadAllUsers(force) {
+    if (!force && state.domainUsers["*"]) return Promise.resolve(state.domainUsers["*"]);
+    return api("domain/users?domain=*").then(function (r) {
+      if (!r.ok) throw new Error(errText(r));
+      state.domainUsers["*"] = Object.assign({ all: true }, r.body);
+      // The per-school caches are filled from the same answer, so opening a row's panel needs no second fetch.
+      allDomainList().forEach(function (dom) { if (!state.domainUsers[dom]) state.domainUsers[dom] = { domain: dom, users: r.body.users.filter(function (u) { return u.domain === dom; }), sync: r.body.sync, partial: false }; });
+      return state.domainUsers["*"];
+    });
   }
-  function mergedUsers() {
-    var users = [], sync = null, partial = false;
-    allDomainList().forEach(function (dom) { var d = state.domainUsers[dom]; if (!d) return; d.users.forEach(function (u) { if (!u.domain) u.domain = dom; users.push(u); }); if (d.sync && (!sync || String(d.sync.at || "") > String(sync.at || ""))) sync = d.sync; if (d.partial) partial = true; });
-    return { users: users, sync: sync, partial: partial, all: true };
-  }
-  function usersTable() { return state.allDomains ? mergedUsers() : state.domainUsers[currentDomain]; }
+  function usersTable() { return state.allDomains ? state.domainUsers["*"] : state.domainUsers[currentDomain]; }
   function loadDomainData(kind, force) {
     var store = kind === "users" ? state.domainUsers : state.domainGroups;
     if (!force && store[currentDomain]) return Promise.resolve(store[currentDomain]);
@@ -790,7 +792,7 @@
     }
     return step().then(function (st) {
       // Both caches of this domain are stale now.
-      delete state.domainUsers[domain]; delete state.domainGroups[domain];
+      delete state.domainUsers[domain]; delete state.domainGroups[domain]; delete state.domainUsers["*"];
       currentDomain = saved;
       return st;
     });
@@ -1064,6 +1066,7 @@
       post("domain/user", "DELETE", { domain: currentDomain, user: u.upn }).then(function (r) {
         if (!r.ok) { restoreButton(delBtn); $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         var d = state.domainUsers[currentDomain]; if (d) d.users = d.users.filter(function (x) { return x.upn !== u.upn; });
+        var da = state.domainUsers["*"]; if (da) da.users = da.users.filter(function (x) { return x.upn !== u.upn; });
         // The groups cache lists members: drop it so the Teams 群组 page re-reads (the
         // server derives group members from the user cache, which the delete already
         // updated) instead of still showing the deleted account among the members.
@@ -1145,7 +1148,7 @@
       var b = $("nuSave"); b.disabled = true; b.textContent = t("创建中…", "Creating…");
       post("domain/user", "POST", body).then(function (r) {
         if (!r.ok) { b.disabled = false; b.textContent = t("创建账号", "Create account"); $("nuMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? " — " + esc(r.body.problems.join("；")) : "") + "</div>"; return; }
-        delete state.domainUsers[dom];
+        delete state.domainUsers[dom]; delete state.domainUsers["*"];
         var res = r.body;
         $("panel").querySelector(".pb").innerHTML =
           '<div class="msg ok">' + t("账号已创建。", "Account created.") + "</div>" +
@@ -2065,6 +2068,12 @@
       savingButton(sb, t("同步中…", "Syncing…"));
       post("crm/sync", "POST", {}).then(function (r) {
         restoreButton(sb);
+        if (!r.ok && r.body && r.body.error === "suspicious_drop") {
+          // The guard refused: a table shrank by more than half. A system administrator may confirm the deletions are real.
+          flash(esc(r.body.message) + (r.body.canForce ? ' <button type="button" class="btn sm" id="eqForce">' + t("删除属实，强制同步", "The deletions are real — force the sync") + "</button>" : ""), 60000);
+          var fb = $("eqForce"); if (fb) fb.addEventListener("click", function () { fb.disabled = true; post("crm/sync", "POST", { force: true }).then(function (r2) { if (!r2.ok) { flash(esc(errText(r2)), 20000); return; } flashOk(t("已强制同步。", "Forced sync done."), 8000); loadEquip(true).then(renderEquip); }); });
+          return;
+        }
         if (!r.ok) { flash(r.body && r.body.error === "no_pat" ? t("还没有配置 Airtable 令牌（AIRTABLE_EQUIP_PAT）。", "The Airtable token (AIRTABLE_EQUIP_PAT) is not configured yet.") : r.body && r.body.error === "bad_pat" ? esc(r.body.message) : esc(errText(r)), 20000); return; }
         var st = (r.body && r.body.status) || {}, c = st.counts || {}, ppl = r.body && r.body.people;
         var summary = t("同步完成：", "Sync complete: ") + (c.orders || 0) + t(" 单订单、", " orders, ") + (c.items || 0) + t(" 条明细、", " line items, ") + (c.customers || 0) + t(" 位客户、", " customers, ") + (c.curriculums || 0) + t(" 条教材、", " textbooks, ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows") +
