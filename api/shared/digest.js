@@ -9,9 +9,10 @@
 // Recipients: every account holding staff:sales in roles.json; CRM_DIGEST_TO
 // (comma list) adds or replaces. The Teams channel comes from the Schools table
 // (Rick, 2026-10-08: channel ids live there, field "Teams Channel ID", synced into
-// snapshot.private.schoolRouting): the row for the CRM / Hive itself — abbreviation
-// or name CRM, Hive, 蜂巢, Fengchao, BES, in that order. CRM_DIGEST_CHANNEL_ID
-// overrides; DEFAULT_TEAMS_CHANNEL_ID is the last resort, as for orders.
+// snapshot.private.schoolRouting): the row whose abbreviation (or name) is CRM —
+// one documented convention, not a list of guesses (self-review 2026-10-08).
+// CRM_DIGEST_CHANNEL_ID overrides; DEFAULT_TEAMS_CHANNEL_ID is the last resort, as
+// for orders.
 // What was sent last is kept in crm/digest.json so the same day is not sent twice.
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
@@ -22,7 +23,7 @@ const crm = require("./crm");
 const hub = require("./hub");
 const { readRoles } = require("./roles");
 
-const DIGEST_HIVES = ["CRM", "Hive", "蜂巢", "Fengchao", "BES", "Hive CRM", "Hive Orders"];
+const DIGEST_HIVES = ["CRM"];
 // Which Teams channel the digest goes to, and where that came from.
 async function channel() {
   if (process.env.CRM_DIGEST_CHANNEL_ID) return { id: process.env.CRM_DIGEST_CHANNEL_ID, from: "CRM_DIGEST_CHANNEL_ID" };

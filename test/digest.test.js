@@ -64,7 +64,7 @@ hub.readHub = async () => ({ people: [{ primaryTier: "replace", orders: 2 }, { p
   // The channel: the Schools table's CRM row first; a school's own channel never; the app settings override / fall back.
   assert.deepStrictEqual(await D.channel(), { id: "19:crm@thread.tacv2", from: "Schools: CRM" });
   routing = { KXC: routing.KXC, HIVE: { name: "蜂巢", abbr: "", teamsChannelId: "19:hive@thread.tacv2" } };
-  assert.strictEqual((await D.channel()).id, "19:hive@thread.tacv2", "a row named 蜂巢 / Hive also serves");
+  assert.deepStrictEqual(await D.channel(), { id: "", from: "" }, "only the CRM row serves — no guessing by other names");
   routing = { KXC: routing.KXC };
   assert.deepStrictEqual(await D.channel(), { id: "", from: "" }, "a school's channel is not the digest's");
   process.env.DEFAULT_TEAMS_CHANNEL_ID = "19:abc@thread.tacv2";

@@ -472,6 +472,9 @@ async function handler(context, req) {
       const email = String(asText(f(fields, tpf.email)) || "").trim().toLowerCase();
       teacherContacts.push({ id: r.id, teacherId: profile.teacherId, name, organization: profile.organization, teamsAccount: /@/.test(upn) ? upn : "", email: /@/.test(email) ? email : "" });
     }
+    if (teacherRecs.length && !teacherContacts.some((t) => t.teamsAccount || t.email)) {
+      earlyWarnings.push("Teachers: no Teams Account / Email column (or all empty) — Hive course teachers cannot be matched to accounts; add a Teams Account column to the Teachers table.");
+    }
 
     /* ---- tracks (1–6 real graduation tracks; the K–G8 tag track is excluded
             from the requirements list but its id still appears on courses) ---- */
