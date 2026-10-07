@@ -106,7 +106,34 @@ function methodView(m) {
     created: m.createdDateTime || m.createdOn || null,
   };
 }
-const USER_SELECT = "id,userPrincipalName,displayName,givenName,surname,accountEnabled,department,jobTitle,city,otherMails,createdDateTime,userType,signInActivity";
+const USER_SELECT = "id,userPrincipalName,displayName,givenName,surname,accountEnabled,department,jobTitle,city,otherMails,createdDateTime,userType,signInActivity,assignedLicenses";
+
+// Which plan an account's licences amount to — "student" for Office 365 A1 for
+// students, "faculty" for the faculty plan, "" otherwise. Every account holding
+// the student plan is a student (Rick, 2026-10-08), so this is the identity's
+// fallback when neither Hive nor the department field says. The tenant's SKU ids
+// are read once per process from subscribedSkus (Directory.Read.All) and cached.
+const STUDENT_PARTS = ["STANDARDWOFFPACK_STUDENT", "STANDARDWOFFPACK_IW_STUDENT", "M365EDU_A1_STUDENT", "STANDARDWOFFPACK_IW_STUUSEBNFT"];
+const FACULTY_PARTS = ["STANDARDWOFFPACK_FACULTY", "STANDARDWOFFPACK_IW_FACULTY", "M365EDU_A1_FACULTY"];
+let skuPlans = null; // skuId → "student" | "faculty"
+async function loadSkuPlans() {
+  if (skuPlans) return skuPlans;
+  const map = new Map();
+  try {
+    for (const k of await list("/subscribedSkus?$select=skuId,skuPartNumber", 100)) {
+      const part = String(k.skuPartNumber || "").toUpperCase();
+      if (STUDENT_PARTS.includes(part) || /STUDENT|_STU/.test(part)) map.set(k.skuId, "student");
+      else if (FACULTY_PARTS.includes(part) || /FACULTY|_FAC/.test(part)) map.set(k.skuId, "faculty");
+    }
+    skuPlans = map;
+  } catch { return map; } // not cached: the next sync tries again
+  return map;
+}
+function planOf(u, plans) {
+  const out = new Set();
+  for (const l of u.assignedLicenses || []) { const p = plans && plans.get(l.skuId); if (p) out.add(p); }
+  return out.has("student") ? "student" : out.has("faculty") ? "faculty" : "";
+}
 
 // The account list of a domain (cheap: one paged call). `since` narrows it to
 // accounts created after that instant. signInActivity needs a P1 licence; when
@@ -126,7 +153,7 @@ async function listAccounts(domain, since) {
 }
 
 // One account's row, from its basic record and the two per-account answers.
-function rowOf(u, m, g) {
+function rowOf(u, m, g, plans) {
   const methods = m && m.status === 200 ? ((m.body && m.body.value) || []).map(methodView).filter((x) => x.kind !== "password") : null;
   const strong = methods ? methods.filter((x) => x.strong) : [];
   const memberOf = g && g.status === 200 ? ((g.body && g.body.value) || []) : [];
@@ -137,6 +164,7 @@ function rowOf(u, m, g) {
     displayName: u.displayName || "",
     department: u.department || "",
     jobTitle: u.jobTitle || "",
+    plan: planOf(u, plans || skuPlans),
     city: u.city || "",
     safeEmail: (u.otherMails || [])[0] || "",
     enabled: u.accountEnabled !== false,
@@ -279,6 +307,7 @@ async function syncSlice(domain, mode, opts) {
   if (!DOMAIN_RE.test(domain)) throw Object.assign(new Error("malformed domain"), { status: 400 });
   let doc = await readDomain(domain);
   let added = 0, removed = 0;
+  const plans = await loadSkuPlans(); // student / faculty licence ids, once
 
   // "changes": pull the tenant's delta once, hand each domain its share, then go on
   // with this domain's queue. Without a token yet, fall back to "new" and take one.
@@ -374,7 +403,7 @@ async function syncSlice(domain, mode, opts) {
           (old ? { id: old.id, userPrincipalName: old.upn, displayName: old.displayName, department: old.department, jobTitle: old.jobTitle, accountEnabled: old.enabled, createdDateTime: old.created } : { id: c.id, userPrincipalName: c.upn });
         if (fresh && fresh.status === 404) { doc.users = doc.users.filter((r) => r.id !== c.id); return; } // gone meanwhile
         if (fresh && fresh.status === 200 && fresh.body && fresh.body.userType === "Guest") return;
-        const row = rowOf(basic, res[`m${i}`], res[`g${i}`]);
+        const row = rowOf(basic, res[`m${i}`], res[`g${i}`], plans);
         if (institution && !row.department && basic.id) {
           departmentFills.push(graph("PATCH", `/users/${basic.id}`, { department: institution }).then(() => { row.department = institution; }).catch((err) => log(`directory ${domain}: department for ${row.upn} not set: ${err.message}`)));
         }

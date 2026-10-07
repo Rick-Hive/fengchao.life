@@ -120,13 +120,13 @@ async function usersView(domain) {
   for (const e of rolesDoc.entries || []) rolesOf[e.user] = (e.roles || []).map((x) => ({ role: x, zh: roleLabel(x, "zh"), en: roleLabel(x, "en") }));
   const users = doc.users.map((r) => {
     const rec = people[r.upn] || null;
-    const entra = { department: r.department, jobTitle: r.jobTitle };
+    const entra = { department: r.department, jobTitle: r.jobTitle, plan: r.plan || "" };
     return Object.assign({}, r, {
       roles: rolesOf[r.upn] || [],
       hiveTeacher: teachers.get(r.upn) || null,
       groups: (r.groups || []).map((g) => ({ id: g.id, name: g.name, kind: g.kind, nameZh: (gn[g.id] && gn[g.id].zh) || "", nameEn: (gn[g.id] && gn[g.id].en) || "" })),
       identity: identityOf(rec, entra),
-      identitySource: rec && IDENTITIES.includes(rec.identity) ? "hive" : (identityOf(null, entra) ? "entra" : ""),
+      identitySource: rec && IDENTITIES.includes(rec.identity) ? "hive" : (identityOf(null, { department: r.department, jobTitle: r.jobTitle }) ? "entra" : identityOf(null, entra) ? "licence" : ""),
       linked: rec && Array.isArray(rec.linked) ? rec.linked : [],
       note: (rec && rec.note) || "",
       extra: (rec && rec.extra) || null,

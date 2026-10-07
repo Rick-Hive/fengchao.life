@@ -186,7 +186,10 @@ function identityOf(record, entraUser) {
   if (record && IDENTITIES.includes(record.identity)) return record.identity;
   const dep = String((entraUser && (entraUser.department || entraUser.jobTitle)) || "").trim();
   const hit = IDENTITIES.find((i) => dep === i || dep.includes(i));
-  return hit || "";
+  if (hit) return hit;
+  // Every account on the Office 365 A1 for students plan is a student (Rick, 2026-10-08).
+  if (entraUser && entraUser.plan === "student") return "学生";
+  return "";
 }
 
 // Check and normalise a 补充资料 body from the form. Returns { extra, problems }.
