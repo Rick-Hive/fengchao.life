@@ -1846,7 +1846,8 @@
         if (!r.ok) { flash(r.body && r.body.error === "no_pat" ? t("还没有配置 Airtable 令牌（AIRTABLE_EQUIP_PAT）。", "The Airtable token (AIRTABLE_EQUIP_PAT) is not configured yet.") : r.body && r.body.error === "bad_pat" ? esc(r.body.message) : esc(errText(r)), 20000); return; }
         var st = (r.body && r.body.status) || {}, c = st.counts || {};
         var summary = t("同步完成：", "Sync complete: ") + (c.orders || 0) + t(" 单订单、", " orders, ") + (c.items || 0) + t(" 条明细、", " line items, ") + (c.customers || 0) + t(" 位客户、", " customers, ") + (c.curriculums || 0) + t(" 条教材、", " textbooks, ") + (c.seminar || 0) + t(" 条讲座名单", " seminar rows");
-        if ((st.warnings || []).length) flash(esc(summary) + "<br>" + t("同步提示：", "Sync notes: ") + "<br>• " + st.warnings.map(esc).join("<br>• "), 20000); else flashOk(summary, 8000);
+        // The notes themselves live in the page footer (查看同步提示); the notice only counts them.
+        flashOk(esc(summary) + ((st.warnings || []).length ? " · " + esc(t("提示 " + st.warnings.length + " 条，见页脚", st.warnings.length + " notes, see the page footer")) : ""), 8000);
         loadEquip(true).then(renderEquip);
       });
     });
@@ -1955,6 +1956,9 @@
   }
   function route() {
     panelClose();
+    // A notice belongs to the page that raised it (Rick, 2026-10-07: a sync notice was still
+    // showing on 蜂巢课程订单 after switching tabs).
+    if ($("flash")) { $("flash").hidden = true; clearTimeout(flash.timer); }
     var h = location.hash || "#/account";
     nav();
     if (!me) return;

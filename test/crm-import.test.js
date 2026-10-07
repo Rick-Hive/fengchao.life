@@ -129,7 +129,7 @@ const schema = [
   { id: "tblC", name: "Customers", primaryFieldId: "f1", fields: [{ id: "f1", name: "Personal Email", type: "email" }, { name: "Teams Account", type: "singleLineText" }, { name: "First Name", type: "singleLineText" }, { name: "Last Name", type: "singleLineText" }, { name: "Order IDs", type: "multipleRecordLinks", options: { linkedTableId: "tblO" } }, { name: "Is Active User", type: "checkbox" }, { name: "City", type: "singleLineText" }] },
   { id: "tblO", name: "Orders", primaryFieldId: "o1", fields: [{ id: "o1", name: "Order ID", type: "singleLineText" }, { name: "Order Date", type: "date" }, { name: "Order Amount", type: "currency" }, { name: "Received Amount", type: "currency" }, { name: "Customer Email", type: "multipleRecordLinks", options: { linkedTableId: "tblC" } }, { name: "Order Items", type: "multipleRecordLinks", options: { linkedTableId: "tblI" } }, { name: "Order Comments", type: "multilineText" }] },
   { id: "tblI", name: "Order Items", primaryFieldId: "i1", fields: [{ id: "i1", name: "OrderItem ID", type: "autoNumber" }, { name: "Order ID", type: "multipleRecordLinks", options: { linkedTableId: "tblO" } }, { name: "Curriculum SKU", type: "multipleRecordLinks", options: { linkedTableId: "tblK" } }, { name: "Quantity", type: "number" }, { name: "Unit Price", type: "currency" }, { name: "Total Price (RMB)", type: "formula" }, { name: "Royalty Rate", type: "percent" }, { name: "Royalty Amount", type: "formula" }] },
-  { id: "tblK", name: "Curriculums", primaryFieldId: "k1", fields: [{ id: "k1", name: "SKU", type: "singleLineText" }, { name: "Product English Name", type: "singleLineText" }, { name: "Product Chinese Name", type: "singleLineText" }, { name: "Product Price", type: "currency" }, { name: "Category", type: "singleSelect" }, { name: "Subject", type: "singleSelect" }, { name: "Grade", type: "singleLineText" }, { name: "Language", type: "singleSelect" }, { name: "Publisher", type: "multipleRecordLinks", options: { linkedTableId: "tblP" } }, { name: "Royalty Rate (%)", type: "number" }, { name: "Available", type: "checkbox" }, { name: "Is this on Equipme.cloud?", type: "checkbox" }] },
+  { id: "tblK", name: "Curriculums", primaryFieldId: "k1", fields: [{ id: "k1", name: "SKU", type: "singleLineText" }, { name: "Product English Name", type: "singleLineText" }, { name: "Product Chinese Name", type: "singleLineText" }, { name: "Product Price", type: "currency" }, { name: "Category", type: "singleSelect" }, { name: "Subject", type: "singleSelect" }, { name: "Grade", type: "singleLineText" }, { name: "Language", type: "singleSelect" }, { name: "Publisher", type: "multipleLookupValues" }, { name: "Royalty Rate (%)", type: "number" }, { name: "Available", type: "checkbox" }, { name: "Is this on Equipme.cloud?", type: "checkbox" }] },
   { id: "tblP", name: "Publishers", primaryFieldId: "p1", fields: [{ id: "p1", name: "Name", type: "singleLineText" }, { name: "Country", type: "singleLineText" }] },
   { id: "tblS", name: "Seminar list", primaryFieldId: "s1", fields: [{ id: "s1", name: "Email", type: "email" }, { name: "Name", type: "singleLineText" }, { name: "Seminar", type: "singleSelect" }] },
 ];
@@ -174,7 +174,7 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   assert.strictEqual(o.amount, 1296);
   assert.strictEqual(o.itemCount, 2);
   assert.strictEqual(o.qty, 2);
-  assert.deepStrictEqual(o.publishers, ["IEW"], "a linked Publisher record shows its name, not its id (乱码 fix)");
+  assert.deepStrictEqual(o.publishers, ["IEW"], "Publisher is a lookup of rec ids with no link field naming Publishers: still resolved (every table's names are read)");
   assert.strictEqual(o.items[0].publisher, "IEW");
   assert.strictEqual(data.curriculums[0].publisher, "IEW");
   assert.strictEqual(o.items[0].sku, "IEW-SSS1A-FP");
@@ -185,7 +185,8 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   assert.strictEqual(k.royaltyRate, 0.15, "15 (%) → 0.15");
   assert.strictEqual(k.grade, "G3, 4, 5", "Grade is copied as written — decision 10, nothing normalised here");
   assert.strictEqual(data.seminar[0].email, "lead@gmail.com");
-  assert.strictEqual(data.warnings.filter((w) => /Teams Login Status|Teams Display name|CRM ID|Sales Amount|Customer Name|Publisher|Order Item Notes|Received Amount|Royalty Recipient/.test(w)).length, data.warnings.length, "only fields the fake base lacks are warned about: " + data.warnings.join(" | "));
+  assert.strictEqual(data.warnings.filter((w) => /CRM ID|Customer Name|Publisher|Received Amount/.test(w)).length, data.warnings.length, "only fields the fake base lacks and that matter are warned about: " + data.warnings.join(" | "));
+  assert.ok(!data.warnings.some((w) => /Seminar|Teams Display|Login Status|Sales Amount|Notes|Recipient/.test(w)), "optional fields are not notes");
   assert.ok(data.warnings.some((w) => /CRM ID/.test(w)), "the missing CRM ID field is reported (phase 0 step for Rick)");
   assert.strictEqual(equip.status(data).counts.orders, 1);
   // ---- group names translated at read time (api/shared/people.js translateGroupNames) ----

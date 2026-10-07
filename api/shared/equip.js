@@ -43,12 +43,14 @@ function n(v) { if (typeof v === "number") return v; if (Array.isArray(v)) retur
 function ids(v) { return (Array.isArray(v) ? v : v ? [v] : []).map(String).filter((x) => /^rec/.test(x)); }
 
 // Resolve a table's field specs to the live field names once; unresolved ones are warnings.
+// Fields whose absence is not worth a note (nice to have, nothing depends on them).
+const OPTIONAL = new Set(["session", "display", "login", "sales", "notes", "royaltyRecipient", "onEquipme"]);
 function resolve(table, specs, warnings, label) {
   const out = {};
   for (const [key, spec] of Object.entries(specs)) {
     const f = AirtableBase.field(table, spec);
     if (f) out[key] = f.name;
-    else warnings.push(`${label}: field "${spec instanceof RegExp ? spec.source : spec}" not found (${key})`);
+    else if (!OPTIONAL.has(key)) warnings.push(`${label}: field "${spec instanceof RegExp ? spec.source : spec}" not found (${key})`);
   }
   return out;
 }
@@ -101,16 +103,18 @@ async function syncEquip(opts) {
     names.set(t.table.id, m);
   }
   if (cu.table && cu.map.email) { const m = new Map(); for (const r of cu.records) m.set(r.id, normalizeEmail(r.fields[cu.map.email]) || names.get(cu.table.id).get(r.id)); names.set(cu.table.id, m); }
-  const foreign = new Set();
-  for (const t of Object.values(main)) for (const f of (t.table && t.table.fields) || []) if (f.type === "multipleRecordLinks" && f.options && f.options.linkedTableId && !names.has(f.options.linkedTableId)) foreign.add(f.options.linkedTableId);
+  // Every other table of the base, names only: a lookup (Publisher on Curriculums
+  // reached through another link, say) carries record ids of tables no link field of
+  // the five names directly (Rick, 2026-10-07: 「publisher name is still 乱码」 after
+  // the link fields were resolved). A base has a dozen tables; one request each.
   const schema = await base.schema();
-  for (const tid of foreign) {
-    const tbl = schema.find((x) => x.id === tid);
-    const prim = tbl && (tbl.fields.find((f) => f.id === tbl.primaryFieldId) || {}).name;
+  for (const tbl of schema) {
+    if (names.has(tbl.id)) continue;
+    const prim = (tbl.fields.find((f) => f.id === tbl.primaryFieldId) || {}).name;
     if (!prim) continue;
     try {
-      const recs = await base.list(tid, { fields: [prim] });
-      names.set(tid, new Map(recs.map((r) => [r.id, s(r.fields[prim])])));
+      const recs = await base.list(tbl.id, { fields: [prim] });
+      names.set(tbl.id, new Map(recs.map((r) => [r.id, s(r.fields[prim])])));
       log(`equip: ${tbl.name}: ${recs.length} records (names only)`);
     } catch (err) { warnings.push(`${tbl.name}: linked names not read (${String(err.message || err)})`); }
   }
@@ -124,7 +128,8 @@ async function syncEquip(opts) {
       const m = names.get(f.options.linkedTableId);
       return ids(raw).map((id) => (m && m.get(id)) || id).join(", ");
     }
-    if (f && (f.type === "multipleLookupValues" || f.type === "lookup") && Array.isArray(raw)) return raw.map((v) => (typeof v === "string" && /^rec[A-Za-z0-9]{14}$/.test(v) ? lookupName(v) : s(v))).filter(Boolean).join(", ");
+    if (Array.isArray(raw)) return raw.map((v) => (typeof v === "string" && /^rec[A-Za-z0-9]+$/.test(v) ? lookupName(v) : s(v))).filter(Boolean).join(", ");
+    if (typeof raw === "string" && /^rec[A-Za-z0-9]+$/.test(raw)) return lookupName(raw);
     return s(raw);
   }
   function lookupName(id) { for (const m of names.values()) if (m.has(id)) return m.get(id); return id; }
@@ -154,7 +159,7 @@ async function syncEquip(opts) {
       royalty: {},
     };
     // Every royalty column travels in its own bag; the API strips the bag for everyone but finance.
-    for (const [name, v] of Object.entries(r.fields)) if (/royalty|版税/i.test(name) && !/recipient/i.test(name)) row.royalty[name] = typeof v === "number" ? v : Array.isArray(v) ? v.map((x) => (typeof x === "string" && /^rec[A-Za-z0-9]{14}$/.test(x) ? lookupName(x) : s(x))).join(", ") : s(v);
+    for (const [name, v] of Object.entries(r.fields)) if (/royalty|版税/i.test(name) && !/recipient/i.test(name)) row.royalty[name] = typeof v === "number" ? v : Array.isArray(v) ? v.map((x) => (typeof x === "string" && /^rec[A-Za-z0-9]+$/.test(x) ? lookupName(x) : s(x))).join(", ") : s(v);
     if (row.orderRec) { if (!itemsByOrder.has(row.orderRec)) itemsByOrder.set(row.orderRec, []); itemsByOrder.get(row.orderRec).push(row); }
     return row;
   });
