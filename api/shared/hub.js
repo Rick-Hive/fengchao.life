@@ -113,7 +113,7 @@ function build(src) {
     // address — on a child's account it is the parent's — so it must not join accounts
     // to each other (Rick, 2026-10-08: four siblings had become one person) nor merge an
     // account into a customer on its own; it is a suggestion at most (level 3 below).
-    add({ kind: "account", id: u.upn, keys: [u.upn], name: u.displayName, domain: d.domain, upn: u.upn, safeEmail: normalizeEmail(u.safeEmail), identity: u.identity || "", lastSignIn: u.lastSignIn || null, enabled: u.enabled !== false, created: u.created || null, jobTitle: u.jobTitle || "", linked: (u.linked || []).map(normalizeEmail).filter(Boolean) });
+    add({ kind: "account", id: u.upn, keys: [u.upn], name: u.displayName, domain: d.domain, upn: u.upn, safeEmail: normalizeEmail(u.safeEmail), identity: u.identity || "", lastSignIn: u.lastSignIn || null, enabled: u.enabled !== false, verified: typeof u.verified === "boolean" ? u.verified : null, created: u.created || null, jobTitle: u.jobTitle || "", linked: (u.linked || []).map(normalizeEmail).filter(Boolean) });
   }
   for (const l of equip.seminar || []) add({ kind: "lead", id: l.recId, keys: [l.email], name: l.name, session: l.session, createdTime: l.createdTime });
   for (const o of src.hiveOrders || []) add({ kind: "hive", id: o.orderId, keys: [o.email, o.teamsAccount], name: "", orderId: o.orderId, status: o.status, total: o.totalPrice, at: o.submittedAt, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean) });
@@ -176,7 +176,7 @@ function build(src) {
       sources: { customer: customers.length > 0, account: accounts.length > 0, lead: leads.length > 0, hive: hive.length > 0 },
       facets: {
         customers: customers.map((c) => ({ recId: c.id, name: c.name, teams: c.teams, crmId: c.crmId, city: c.city, orders: c.orders, spend: c.spend, received: c.received, firstOrder: c.firstOrder, lastOrder: c.lastOrder })),
-        accounts: accounts.map((a) => ({ upn: a.upn, domain: a.domain, name: a.name, identity: a.identity, safeEmail: a.safeEmail, lastSignIn: a.lastSignIn, enabled: a.enabled, jobTitle: a.jobTitle })),
+        accounts: accounts.map((a) => ({ upn: a.upn, domain: a.domain, name: a.name, identity: a.identity, safeEmail: a.safeEmail, lastSignIn: a.lastSignIn, enabled: a.enabled, verified: a.verified, jobTitle: a.jobTitle })),
         leads: leads.map((l) => ({ recId: l.id, name: l.name, session: l.session, at: l.createdTime })),
         hive: hive.map((h) => ({ orderId: h.orderId, status: h.status, total: h.total, at: h.at, hives: h.hives })),
       },
@@ -313,7 +313,7 @@ function maskPerson(p, acc) {
     o.facets = Object.assign({}, p.facets, { customers: (p.facets.customers || []).map((c) => Object.assign({}, c, { teams: dom(c.teams), city: "" })) });
   }
   if (!seeMoney) { o.spend = null; o.hiveTotal = null; o.facets = Object.assign({}, o.facets, { customers: (o.facets.customers || []).map((c) => Object.assign({}, c, { spend: null, received: null })), hive: (o.facets.hive || []).map((h) => Object.assign({}, h, { total: null })) }); }
-  if (!seeAcc) o.facets = Object.assign({}, o.facets, { accounts: (o.facets.accounts || []).map((a) => ({ domain: a.domain, identity: a.identity })) });
+  if (!seeAcc) o.facets = Object.assign({}, o.facets, { accounts: (o.facets.accounts || []).map((a) => ({ domain: a.domain, identity: a.identity, verified: a.verified })) });
   if (!seeLeads) o.facets = Object.assign({}, o.facets, { leads: [] });
   if (!seeWho && o.family) o.family = Object.assign({}, o.family, { contactEmail: dom(o.family.contactEmail), members: (o.family.members || []).map((m) => Object.assign({}, m, { name: m.name ? m.name.slice(0, 1) + "…" : "" })) });
   if (!seeOrders) o.facets = Object.assign({}, o.facets, { hive: [] });

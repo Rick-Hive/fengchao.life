@@ -164,7 +164,7 @@ assert.strictEqual(H.replaceEmailOf(byName("Wang Wu")), "old@163.com");
 const fin = H.maskPerson(mei, C.accessMap(["staff:finance"]));
 assert.strictEqual(fin.primaryEmail, "…@equipme.cloud");
 assert.strictEqual(fin.spend, 1296);
-assert.deepStrictEqual(fin.facets.accounts, [{ domain: "equipme.cloud", identity: "家长" }], "finance has no accounts access: domain and identity only");
+assert.deepStrictEqual(fin.facets.accounts, [{ domain: "equipme.cloud", identity: "家长", verified: null }], "finance has no accounts access: domain and identity only");
 const cur = H.maskPerson(mei, C.accessMap(["staff:curriculum"]));
 assert.strictEqual(cur.spend, null);
 assert.strictEqual(cur.facets.accounts[0].upn, "mama@equipme.cloud", "the curriculum director reads accounts");

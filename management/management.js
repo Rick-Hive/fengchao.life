@@ -2282,6 +2282,15 @@
     if (s.hive) out.push('<span class="src"><i style="background:' + VIZ.cat[3] + '"></i>' + t("蜂巢", "Hive") + "</span>");
     return '<span class="srcs">' + out.join("") + "</span>";
   }
+  // Authenticator state across a person's accounts: true if any is verified, false if all known ones are not, null when unknown.
+  function authState(acc) { var known = (acc || []).filter(function (a) { return typeof a.verified === "boolean"; }); if (!known.length) return null; return known.some(function (a) { return a.verified; }); }
+  function authTag(acc) { var v = authState(acc); return v === null ? "" : v ? ' <span class="tag ok" title="' + esc(t("已登记验证器，可以登录 Teams", "Authenticator registered; can sign in to Teams")) + '">' + t("已验证", "Verified") + "</span>" : ' <span class="tag bad" title="' + esc(t("还没有登记验证器，登录 Teams 会停在「需要更多信息」", "No authenticator yet; the Teams sign-in stops at “More information required”")) + '">' + t("未验证", "Unverified") + "</span>"; }
+  function accountCell(p, acc, accTxt) {
+    var personal = p.primaryEmail && !(acc || []).some(function (a) { return (a.upn || "").toLowerCase() === p.primaryEmail.toLowerCase(); }) ? p.primaryEmail : "";
+    var warn = (p.primaryTier !== "safe" ? " " + tierTag(p.primaryTier) : "") + (p.primaryTier === "replace" ? " " + markTag(p) : "");
+    if (accTxt) return '<span class="cell-ell" title="' + esc(accTxt) + '">' + esc(accTxt) + "</span>" + authTag(acc) + (personal ? '<span class="sub"><span class="cell-ell" title="' + esc(personal) + '">' + esc(personal) + "</span>" + warn + "</span>" : (p.primaryTier === "replace" ? '<span class="sub">' + warn + "</span>" : ""));
+    return '<span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span>" + warn;
+  }
   function personTabs(p) { var tb = ["all"]; if (p.primaryTier === "replace") tb.push("replace"); if (p.primaryTier === "missing") tb.push("missing"); if (p.viaTeams) tb.push("viaTeams"); return tb; }
   function viewPeople() {
     var canMerge = isAdmin() || crmLevel("orders") === "rw";
@@ -2313,7 +2322,8 @@
         restoreButton(rb);
         if (!r.ok) { flash(esc(errText(r)), 8000); return; }
         var s = r.body.stats || {};
-        flashOk(esc(t("已重新匹配：", "Rebuilt: ") + s.people + t(" 人，待合并 ", " people, to merge ") + s.queue + t("，待回写 CRM ID ", ", CRM IDs to write back ") + s.writeBack), 8000);
+        var syncNote = r.body.synced ? t("已从 Airtable 同步，", "Synced from Airtable, ") : (r.body.syncError ? t("Airtable 同步失败（用的是上次的副本）：", "Airtable sync failed (last copy used): ") + r.body.syncError + " · " : "");
+        (r.body.syncError ? flash : flashOk)(esc(syncNote + t("已重新匹配：", "rebuilt: ") + s.people + t(" 人，待合并 ", " people, to merge ") + s.queue + t("，待回写 CRM ID ", ", CRM IDs to write back ") + s.writeBack), r.body.syncError ? 20000 : 8000);
         loadPeople(true).then(renderPeople);
       });
     });
@@ -2383,7 +2393,7 @@
         case "name": return (p.name || "").toLowerCase();
         case "email": return (p.primaryEmail || "").toLowerCase();
         case "sources": var s = p.sources || {}; return [s.customer, s.account, s.lead, s.hive].filter(Boolean).length;
-        case "accounts": return (((p.facets || {}).accounts || [])[0] || {}).upn || (((p.facets || {}).accounts || [])[0] || {}).domain || "";
+        case "accounts": return ((((p.facets || {}).accounts || [])[0] || {}).upn || (((p.facets || {}).accounts || [])[0] || {}).domain || p.primaryEmail || "").toLowerCase();
         case "orders": return (typeof p.spend === "number" ? p.spend : 0) * 1e6 + (p.orders || 0) + (p.hiveOrders || 0);
         case "active": return [p.lastOrder, p.lastSignIn].filter(Boolean).sort().pop() || "";
         case "stage": return STAGE_ORDER[p.stage] == null ? 9 : STAGE_ORDER[p.stage];
@@ -2423,18 +2433,21 @@
         '<span class="muted" style="font-size:12px">' + esc(t("有订单的 " + all.filter(function (p) { return (p.orders || 0) > 0; }).length + " 人优先 · 本月已替换 " + (s.replacedThisMonth || 0), all.filter(function (p) { return (p.orders || 0) > 0; }).length + " with orders first · replaced this month " + (s.replacedThisMonth || 0))) + "</span></div>";
     }
     var th = function (key, label) { var on = peopleState.sort.key === key; return '<th class="sortable' + (on ? " on" : "") + '" data-sort="' + key + '" aria-sort="' + (on ? (peopleState.sort.dir > 0 ? "ascending" : "descending") : "none") + '">' + label + '<span class="sortind">' + (on ? (peopleState.sort.dir > 0 ? "▲" : "▼") : "") + "</span></th>"; };
-    var html = '<div class="tbl-wrap"><table class="data fixed" id="ptable"><colgroup><col style="width:11%"><col style="width:15%"><col style="width:22%"><col style="width:9%"><col style="width:17%"><col style="width:9%"><col style="width:9%"><col style="width:8%"></colgroup><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("email", t("主邮箱", "Primary email")) + th("sources", t("来源", "Sources")) + th("accounts", t("账号", "Accounts")) + th("orders", t("订单 / 消费", "Orders / spend")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
-    if (!list.length) html += '<tr><td colspan="8" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
-    else if (!rows.length) html += '<tr><td colspan="8" class="empty">' + t("没有符合条件的人。", "Nobody matches.") + "</td></tr>";
+    var html = '<div class="tbl-wrap"><table class="data fixed" id="ptable"><colgroup><col style="width:11%"><col style="width:17%"><col style="width:32%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:8%"></colgroup><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("accounts", t("账号 / 邮箱", "Account / email")) + th("sources", t("来源", "Sources")) + th("orders", t("订单 / 消费", "Orders / spend")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
+    if (!list.length) html += '<tr><td colspan="7" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
+    else if (!rows.length) html += '<tr><td colspan="7" class="empty">' + t("没有符合条件的人。", "Nobody matches.") + "</td></tr>";
     else html += rows.map(function (p) {
       var acc = (p.facets && p.facets.accounts) || [];
       var accTxt = acc.map(function (a) { return a.upn || a.domain; }).join(", ");
       var spend = crmLevel("money") === "none" ? "" : (typeof p.spend === "number" && p.spend ? " / " + money(p.spend, "CNY") : "");
       return '<tr class="pick" data-id="' + esc(p.crmId) + '"><td class="nowrap"><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="dot warn" title="' + esc(t("待回写：Airtable 客户表还没有这个 CRM ID", "To write back: not yet on the Airtable customer")) + '"></span>' : "") + "</td>" +
         '<td class="nowrap"><span class="avatar xs" style="background:' + hue(p.crmId) + ';color:#fff">' + esc(initials(p.name || p.crmId)) + '</span> <span class="cell-ell">' + hl(p.name || "—", peopleState.q) + "</span>" + (p.family ? ' <span class="fam" title="' + esc(t("家庭 " + p.family.members.length + " 人", "Family of " + p.family.members.length)) + '">⌂' + p.family.members.length + "</span>" : "") + "</td>" +
-        '<td class="nowrap"><span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span> " + tierTag(p.primaryTier) + (p.viaTeams ? ' <span class="tag accent">Teams</span>' : "") + (p.primaryTier === "replace" ? " " + markTag(p) : "") + "</td>" +
+        // One column for how the person is reached (Rick, 2026-10-08: 主邮箱 and 账号 were
+        // the same for most rows, and "可用" / the Teams badge repeated the 来源 column).
+        // The Teams account first, with the authenticator state (已验证 / 未验证); a personal
+        // email on a second line only when it differs, carrying its 待替换 warning.
+        '<td class="nowrap">' + accountCell(p, acc, accTxt) + "</td>" +
         "<td>" + sourceTags(p) + "</td>" +
-        '<td class="nowrap ell" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</td>" +
         '<td class="nowrap">' + (((p.orders || 0) + (p.hiveOrders || 0)) ? '<button type="button" class="tag link" data-orders="' + esc(p.crmId) + '" title="' + esc(t("查看订单明细", "See the orders")) + '">' + ((p.orders || 0) + (p.hiveOrders || 0)) + spend + "</button>" : "0") + "</td>" +
         '<td class="nowrap">' + esc(lastActive(p)) + "</td><td>" + stageTag(p.stage) + "</td></tr>";
     }).join("");
