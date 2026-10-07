@@ -19,6 +19,11 @@ const rolesPath = require.resolve(path.join(__dirname, "..", "api", "shared", "r
 const realRoles = require(rolesPath);
 require.cache[rolesPath].exports = Object.assign({}, realRoles, { readRoles: async () => ({ entries: [{ user: "obadiah.sun@equipme.cloud", roles: ["staff:sales"] }, { user: "rick@bes", roles: ["staff:sysadmin", "admin"] }] }) });
 
+// snapshot.private.schoolRouting: the Schools table's Teams channel ids (a CRM row among the hives)
+const blobPath = require.resolve(path.join(__dirname, "..", "api", "shared", "blob.js"));
+const realBlob = require(blobPath);
+let routing = { KXC: { name: "科学虫", abbr: "KXC", teamsChannelId: "19:kxc@thread.tacv2" }, CRM: { name: "Hive CRM", abbr: "CRM", teamsChannelId: "19:crm@thread.tacv2" } };
+require.cache[blobPath].exports = Object.assign({}, realBlob, { readSnapshot: async () => ({ private: { schoolRouting: routing } }) });
 const crm = require(path.join(__dirname, "..", "api", "shared", "crm.js"));
 const hub = require(path.join(__dirname, "..", "api", "shared", "hub.js"));
 const D = require(path.join(__dirname, "..", "api", "shared", "digest.js"));
@@ -56,10 +61,21 @@ hub.readHub = async () => ({ people: [{ primaryTier: "replace", orders: 2 }, { p
   assert.deepStrictEqual(await D.recipients(), ["a@x.com", "b@x.com"], "CRM_DIGEST_TO replaces");
   delete process.env.CRM_DIGEST_TO;
 
+  // The channel: the Schools table's CRM row first; a school's own channel never; the app settings override / fall back.
+  assert.deepStrictEqual(await D.channel(), { id: "19:crm@thread.tacv2", from: "Schools: CRM" });
+  routing = { KXC: routing.KXC, HIVE: { name: "蜂巢", abbr: "", teamsChannelId: "19:hive@thread.tacv2" } };
+  assert.strictEqual((await D.channel()).id, "19:hive@thread.tacv2", "a row named 蜂巢 / Hive also serves");
+  routing = { KXC: routing.KXC };
+  assert.deepStrictEqual(await D.channel(), { id: "", from: "" }, "a school's channel is not the digest's");
+  process.env.DEFAULT_TEAMS_CHANNEL_ID = "19:abc@thread.tacv2";
+  assert.strictEqual((await D.channel()).from, "DEFAULT_TEAMS_CHANNEL_ID");
+  process.env.CRM_DIGEST_CHANNEL_ID = "19:override@thread.tacv2";
+  assert.strictEqual((await D.channel()).id, "19:override@thread.tacv2");
+  delete process.env.CRM_DIGEST_CHANNEL_ID;
+
   // Sending: the flow receives an order-shaped payload with one route to the channel and the email to the manager.
   await assert.rejects(() => D.send(d, {}), (e) => e.code === "no_flow");
   process.env.POWER_AUTOMATE_URL = "https://flow.example/x";
-  process.env.DEFAULT_TEAMS_CHANNEL_ID = "19:abc@thread.tacv2";
   const calls = [];
   global.fetch = async (url, init) => { calls.push({ url, body: JSON.parse(init.body), headers: init.headers }); return { ok: true, status: 202 }; };
   const r = await D.send(d, {});

@@ -2975,7 +2975,7 @@
       var el = $("dDigest"); if (!el) return;
       if (!r.ok) { el.innerHTML = '<span class="muted">' + esc(errText(r)) + "</span>"; return; }
       var b = r.body, last = b.last;
-      el.innerHTML = '<span class="muted">' + esc(t("每日摘要发给 ", "Daily digest to ") + (b.to.length ? b.to.join(", ") : t("（没有订单经理账号，请在角色分配里指定）", "(nobody holds the order-manager role yet)")) + (last ? t(" · 上次 ", " · last ") + day(last.at) + (last.ok ? "" : t("（失败）", " (failed)")) : t(" · 尚未发送过", " · not sent yet")) + (b.configured ? "" : t(" · 未配置通知流程", " · notification flow not configured"))) + "</span>" +
+      el.innerHTML = '<span class="muted">' + esc(t("每日摘要发给 ", "Daily digest to ") + (b.to.length ? b.to.join(", ") : t("（没有订单经理账号，请在角色分配里指定）", "(nobody holds the order-manager role yet)")) + (last ? t(" · 上次 ", " · last ") + day(last.at) + (last.ok ? "" : t("（失败）", " (failed)")) : t(" · 尚未发送过", " · not sent yet")) + (b.configured ? "" : t(" · 未配置通知流程", " · notification flow not configured")) + (b.channel ? t(" · 频道来自 ", " · channel from ") + b.channelFrom : t(" · 没有 Teams 频道：请在 Airtable 学校表加一行 CRM 并填 Teams Channel ID", " · no Teams channel: add a CRM row with a Teams Channel ID to the Schools table"))) + "</span>" +
         '<button type="button" class="btn secondary sm" id="dSend">' + t("现在发送", "Send now") + "</button>";
       $("dSend").addEventListener("click", function () {
         var btn = $("dSend"); if (!window.confirm(t("把当前的待处理与异常发给订单经理（Teams + 邮件）？", "Send the current to-do and exceptions to the order manager (Teams + email)?"))) return;

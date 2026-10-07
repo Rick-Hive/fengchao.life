@@ -301,8 +301,9 @@ async function handler(context, req) {
     if (method === "GET") {
       const d = await digest.collect();
       const to = await digest.recipients().catch(() => []);
+      const ch = await digest.channel().catch(() => ({ id: "", from: "" }));
       const m = digest.compose(d, new Date().toISOString().slice(0, 10));
-      ok(context, { summary: { total: d.total, overdue: d.overdue.length, notifyFailed: d.notifyFailed.length, queue: d.queue, replace: d.replace, replaceWithOrders: d.replaceWithOrders, writeBack: d.writeBack }, to, text: m.text, subject: m.subject, last: await digest.readLast().catch(() => null), configured: !!process.env.POWER_AUTOMATE_URL, channel: !!(process.env.CRM_DIGEST_CHANNEL_ID || process.env.DEFAULT_TEAMS_CHANNEL_ID) });
+      ok(context, { summary: { total: d.total, overdue: d.overdue.length, notifyFailed: d.notifyFailed.length, queue: d.queue, replace: d.replace, replaceWithOrders: d.replaceWithOrders, writeBack: d.writeBack }, to, text: m.text, subject: m.subject, last: await digest.readLast().catch(() => null), configured: !!process.env.POWER_AUTOMATE_URL, channel: !!ch.id, channelFrom: ch.from });
       return;
     }
     try {

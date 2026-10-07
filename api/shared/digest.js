@@ -7,15 +7,35 @@
 // email being the order manager's. No new permissions, no new flow.
 //
 // Recipients: every account holding staff:sales in roles.json; CRM_DIGEST_TO
-// (comma list) adds or replaces. The Teams channel is DEFAULT_TEAMS_CHANNEL_ID
-// (the Hive Orders team's General channel) unless CRM_DIGEST_CHANNEL_ID is set.
+// (comma list) adds or replaces. The Teams channel comes from the Schools table
+// (Rick, 2026-10-08: channel ids live there, field "Teams Channel ID", synced into
+// snapshot.private.schoolRouting): the row for the CRM / Hive itself — abbreviation
+// or name CRM, Hive, 蜂巢, Fengchao, BES, in that order. CRM_DIGEST_CHANNEL_ID
+// overrides; DEFAULT_TEAMS_CHANNEL_ID is the last resort, as for orders.
 // What was sent last is kept in crm/digest.json so the same day is not sent twice.
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
 const { escapeHtml } = require("./messages");
+const { readSnapshot } = require("./blob");
+const { hiveKey } = require("./hive");
 const crm = require("./crm");
 const hub = require("./hub");
 const { readRoles } = require("./roles");
+
+const DIGEST_HIVES = ["CRM", "Hive", "蜂巢", "Fengchao", "BES", "Hive CRM", "Hive Orders"];
+// Which Teams channel the digest goes to, and where that came from.
+async function channel() {
+  if (process.env.CRM_DIGEST_CHANNEL_ID) return { id: process.env.CRM_DIGEST_CHANNEL_ID, from: "CRM_DIGEST_CHANNEL_ID" };
+  const snap = await readSnapshot().catch(() => null);
+  const routing = (snap && snap.private && snap.private.schoolRouting) || {};
+  for (const name of DIGEST_HIVES) {
+    const r = routing[hiveKey(name)];
+    if (r && r.teamsChannelId) return { id: r.teamsChannelId, from: `Schools: ${r.abbr || r.name}` };
+  }
+  for (const r of Object.values(routing)) if (r && r.teamsChannelId && DIGEST_HIVES.some((n) => hiveKey(r.name) === hiveKey(n))) return { id: r.teamsChannelId, from: `Schools: ${r.abbr || r.name}` };
+  if (process.env.DEFAULT_TEAMS_CHANNEL_ID) return { id: process.env.DEFAULT_TEAMS_CHANNEL_ID, from: "DEFAULT_TEAMS_CHANNEL_ID" };
+  return { id: "", from: "" };
+}
 
 const BLOB = "crm/digest.json";
 const SITE = process.env.SITE_ORIGIN || "https://fengchao.life";
@@ -109,7 +129,7 @@ async function send(d, opts) {
   if (!flowUrl) throw Object.assign(new Error("POWER_AUTOMATE_URL app setting is not configured"), { code: "no_flow" });
   const to = await recipients();
   if (!to.length) throw Object.assign(new Error("no recipient: no account holds the 订单经理 (staff:sales) role and CRM_DIGEST_TO is not set"), { code: "no_recipient" });
-  const channelId = process.env.CRM_DIGEST_CHANNEL_ID || process.env.DEFAULT_TEAMS_CHANNEL_ID || "";
+  const ch = await channel(), channelId = ch.id;
   const date = new Date().toISOString().slice(0, 10);
   const m = compose(d, date);
   // Shaped like an order so the flow's trigger accepts it: one route (the channel),
@@ -125,7 +145,7 @@ async function send(d, opts) {
   if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;
   const res = await fetch(flowUrl, { method: "POST", headers, body: JSON.stringify(payload) });
   log(`digest: flow answered ${res.status} for ${to.join(", ")}`);
-  return { ok: res.ok, status: res.status, to, channelId: channelId ? "set" : "", subject: m.subject, text: m.text };
+  return { ok: res.ok, status: res.status, to, channelId: channelId ? "set" : "", channelFrom: ch.from, subject: m.subject, text: m.text };
 }
 
 // The daily run: collect, skip when nothing to act on or already sent today (force overrides), send, remember.
@@ -142,4 +162,4 @@ async function run(opts) {
   return Object.assign({ sent: r.ok, summary: d }, r, { last: doc });
 }
 
-module.exports = { collect, compose, recipients, send, run, readLast, BLOB };
+module.exports = { collect, compose, recipients, channel, send, run, readLast, BLOB };
