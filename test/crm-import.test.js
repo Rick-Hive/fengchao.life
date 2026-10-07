@@ -127,19 +127,21 @@ const equip = require(path.join(__dirname, "..", "api", "shared", "equip.js"));
 const { AirtableBase } = require(path.join(__dirname, "..", "api", "shared", "airtable.js"));
 const schema = [
   { id: "tblC", name: "Customers", primaryFieldId: "f1", fields: [{ id: "f1", name: "Personal Email", type: "email" }, { name: "Teams Account", type: "singleLineText" }, { name: "First Name", type: "singleLineText" }, { name: "Last Name", type: "singleLineText" }, { name: "Order IDs", type: "multipleRecordLinks", options: { linkedTableId: "tblO" } }, { name: "Is Active User", type: "checkbox" }, { name: "City", type: "singleLineText" }] },
-  { id: "tblO", name: "Orders", primaryFieldId: "o1", fields: [{ id: "o1", name: "Order ID", type: "singleLineText" }, { name: "Order Date", type: "date" }, { name: "Order Amount", type: "currency" }, { name: "Received Amount", type: "currency" }, { name: "Customer Email", type: "singleLineText" }, { name: "Order Items", type: "multipleRecordLinks", options: { linkedTableId: "tblI" } }, { name: "Order Comments", type: "multilineText" }] },
+  { id: "tblO", name: "Orders", primaryFieldId: "o1", fields: [{ id: "o1", name: "Order ID", type: "singleLineText" }, { name: "Order Date", type: "date" }, { name: "Order Amount", type: "currency" }, { name: "Received Amount", type: "currency" }, { name: "Customer Email", type: "multipleRecordLinks", options: { linkedTableId: "tblC" } }, { name: "Order Items", type: "multipleRecordLinks", options: { linkedTableId: "tblI" } }, { name: "Order Comments", type: "multilineText" }] },
   { id: "tblI", name: "Order Items", primaryFieldId: "i1", fields: [{ id: "i1", name: "OrderItem ID", type: "autoNumber" }, { name: "Order ID", type: "multipleRecordLinks", options: { linkedTableId: "tblO" } }, { name: "Curriculum SKU", type: "multipleRecordLinks", options: { linkedTableId: "tblK" } }, { name: "Quantity", type: "number" }, { name: "Unit Price", type: "currency" }, { name: "Total Price (RMB)", type: "formula" }, { name: "Royalty Rate", type: "percent" }, { name: "Royalty Amount", type: "formula" }] },
-  { id: "tblK", name: "Curriculums", primaryFieldId: "k1", fields: [{ id: "k1", name: "SKU", type: "singleLineText" }, { name: "Product English Name", type: "singleLineText" }, { name: "Product Chinese Name", type: "singleLineText" }, { name: "Product Price", type: "currency" }, { name: "Category", type: "singleSelect" }, { name: "Subject", type: "singleSelect" }, { name: "Grade", type: "singleLineText" }, { name: "Language", type: "singleSelect" }, { name: "Publisher", type: "singleSelect" }, { name: "Royalty Rate (%)", type: "number" }, { name: "Available", type: "checkbox" }, { name: "Is this on Equipme.cloud?", type: "checkbox" }] },
+  { id: "tblK", name: "Curriculums", primaryFieldId: "k1", fields: [{ id: "k1", name: "SKU", type: "singleLineText" }, { name: "Product English Name", type: "singleLineText" }, { name: "Product Chinese Name", type: "singleLineText" }, { name: "Product Price", type: "currency" }, { name: "Category", type: "singleSelect" }, { name: "Subject", type: "singleSelect" }, { name: "Grade", type: "singleLineText" }, { name: "Language", type: "singleSelect" }, { name: "Publisher", type: "multipleRecordLinks", options: { linkedTableId: "tblP" } }, { name: "Royalty Rate (%)", type: "number" }, { name: "Available", type: "checkbox" }, { name: "Is this on Equipme.cloud?", type: "checkbox" }] },
+  { id: "tblP", name: "Publishers", primaryFieldId: "p1", fields: [{ id: "p1", name: "Name", type: "singleLineText" }, { name: "Country", type: "singleLineText" }] },
   { id: "tblS", name: "Seminar list", primaryFieldId: "s1", fields: [{ id: "s1", name: "Email", type: "email" }, { name: "Name", type: "singleLineText" }, { name: "Seminar", type: "singleSelect" }] },
 ];
 const rows = {
   tblC: [{ id: "recC1", createdTime: "2026-01-01T00:00:00Z", fields: { "Personal Email": " Mama@QQ.com ", "Teams Account": "mama@equipme.cloud (deleted)", "First Name": "Mei", "Last Name": "Wang", "Order IDs": ["recO1"], "Is Active User": true, "City": "南京" } }],
-  tblO: [{ id: "recO1", createdTime: "2026-08-02T00:00:00Z", fields: { "Order ID": "Manual order 35", "Order Date": "2026-08-01", "Order Amount": 1296, "Received Amount": 1296, "Order Items": ["recI1", "recI2"], "Order Comments": "paid by transfer" } }],
+  tblO: [{ id: "recO1", createdTime: "2026-08-02T00:00:00Z", fields: { "Order ID": "Manual order 35", "Order Date": "2026-08-01", "Order Amount": 1296, "Received Amount": 1296, "Order Items": ["recI1", "recI2"], "Customer Email": ["recC1"], "Order Comments": "paid by transfer" } }],
   tblI: [
     { id: "recI1", fields: { "Order ID": ["recO1"], "Curriculum SKU": ["recK1"], Quantity: 1, "Unit Price": 648, "Total Price (RMB)": 648, "Royalty Rate": 0.15, "Royalty Amount": 97.2 } },
     { id: "recI2", fields: { "Order ID": ["recO1"], "Curriculum SKU": ["recK1"], Quantity: 1, "Unit Price": 648, "Total Price (RMB)": 648, "Royalty Rate": 0.15, "Royalty Amount": 97.2 } },
   ],
-  tblK: [{ id: "recK1", fields: { SKU: "IEW-SSS1A-FP", "Product English Name": "IEW: SSS 1-A - Full Package", "Product Chinese Name": "IEW 结构和风格 1A - 全套", "Product Price": 648, Category: "Curriculum", Subject: "English Grammar and Writing", Grade: "G3, 4, 5", Language: "中文", Publisher: "IEW", "Royalty Rate (%)": 15, Available: true, "Is this on Equipme.cloud?": true } }],
+  tblK: [{ id: "recK1", fields: { SKU: "IEW-SSS1A-FP", "Product English Name": "IEW: SSS 1-A - Full Package", "Product Chinese Name": "IEW 结构和风格 1A - 全套", "Product Price": 648, Category: "Curriculum", Subject: "English Grammar and Writing", Grade: "G3, 4, 5", Language: "中文", Publisher: ["recP1"], "Royalty Rate (%)": 15, Available: true, "Is this on Equipme.cloud?": true } }],
+  tblP: [{ id: "recP1", fields: { Name: "IEW", Country: "US" } }],
   tblS: [{ id: "recS1", createdTime: "2026-05-01T00:00:00Z", fields: { Email: "Lead@Gmail.com", Name: "Lead One", Seminar: "2026-05 Classical" } }],
 };
 AirtableBase.prototype.schema = async function () { return schema; };
@@ -167,12 +169,14 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   assert.strictEqual(c.name, "Mei Wang");
   const o = data.orders[0];
   assert.strictEqual(o.orderId, "Manual order 35");
-  assert.strictEqual(o.email, "mama@qq.com", "the customer's email through the Order IDs link");
+  assert.strictEqual(o.email, "mama@qq.com", "Customer Email is a link to Customers: resolved to the email, not a rec id");
   assert.strictEqual(o.name, "Mei Wang");
   assert.strictEqual(o.amount, 1296);
   assert.strictEqual(o.itemCount, 2);
   assert.strictEqual(o.qty, 2);
-  assert.deepStrictEqual(o.publishers, ["IEW"]);
+  assert.deepStrictEqual(o.publishers, ["IEW"], "a linked Publisher record shows its name, not its id (乱码 fix)");
+  assert.strictEqual(o.items[0].publisher, "IEW");
+  assert.strictEqual(data.curriculums[0].publisher, "IEW");
   assert.strictEqual(o.items[0].sku, "IEW-SSS1A-FP");
   assert.strictEqual(o.items[0].nameZh, "IEW 结构和风格 1A - 全套");
   assert.strictEqual(o.items[0].total, 648);

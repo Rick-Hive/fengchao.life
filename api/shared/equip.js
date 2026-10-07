@@ -86,14 +86,57 @@ async function syncEquip(opts) {
   }
   const [cu, or, it, cr, se] = await Promise.all([read("customers"), read("orders"), read("items"), read("curriculums"), read("seminar")]);
 
+  // Linked records show as names, not ids (Rick, 2026-10-07: 「很多乱码」 — Publisher,
+  // Customer Email and the like are links in this base, and a link comes over the API
+  // as record ids). Every link field of the five tables is resolved through its target
+  // table's primary field; a target not among the five (Publishers, say) is read for
+  // its primary field only. A link to Customers resolves to the customer's email.
+  const main = { customers: cu, orders: or, items: it, curriculums: cr, seminar: se };
+  const names = new Map(); // tableId → Map(recId → display)
+  for (const t of Object.values(main)) {
+    if (!t.table) continue;
+    const prim = (t.table.fields.find((f) => f.id === t.table.primaryFieldId) || {}).name;
+    const m = new Map();
+    for (const r of t.records) m.set(r.id, s(prim ? r.fields[prim] : ""));
+    names.set(t.table.id, m);
+  }
+  if (cu.table && cu.map.email) { const m = new Map(); for (const r of cu.records) m.set(r.id, normalizeEmail(r.fields[cu.map.email]) || names.get(cu.table.id).get(r.id)); names.set(cu.table.id, m); }
+  const foreign = new Set();
+  for (const t of Object.values(main)) for (const f of (t.table && t.table.fields) || []) if (f.type === "multipleRecordLinks" && f.options && f.options.linkedTableId && !names.has(f.options.linkedTableId)) foreign.add(f.options.linkedTableId);
+  const schema = await base.schema();
+  for (const tid of foreign) {
+    const tbl = schema.find((x) => x.id === tid);
+    const prim = tbl && (tbl.fields.find((f) => f.id === tbl.primaryFieldId) || {}).name;
+    if (!prim) continue;
+    try {
+      const recs = await base.list(tid, { fields: [prim] });
+      names.set(tid, new Map(recs.map((r) => [r.id, s(r.fields[prim])])));
+      log(`equip: ${tbl.name}: ${recs.length} records (names only)`);
+    } catch (err) { warnings.push(`${tbl.name}: linked names not read (${String(err.message || err)})`); }
+  }
+  // A field's value as a person reads it: link ids → the linked records' names.
+  function text(t, rec, key) {
+    const fname = t.map[key];
+    if (!fname) return "";
+    const raw = rec.fields[fname];
+    const f = t.table.fields.find((x) => x.name === fname);
+    if (f && f.type === "multipleRecordLinks" && f.options) {
+      const m = names.get(f.options.linkedTableId);
+      return ids(raw).map((id) => (m && m.get(id)) || id).join(", ");
+    }
+    if (f && (f.type === "multipleLookupValues" || f.type === "lookup") && Array.isArray(raw)) return raw.map((v) => (typeof v === "string" && /^rec[A-Za-z0-9]{14}$/.test(v) ? lookupName(v) : s(v))).filter(Boolean).join(", ");
+    return s(raw);
+  }
+  function lookupName(id) { for (const m of names.values()) if (m.has(id)) return m.get(id); return id; }
+
   // Curriculums: SKU = the primary field.
   const skuField = cr.table ? (cr.table.fields.find((f) => f.id === cr.table.primaryFieldId) || {}).name : null;
   const curriculums = cr.records.map((r) => {
     const rate = n(get(r, cr.map, "royaltyRate"));
     return {
       recId: r.id, sku: s(skuField ? r.fields[skuField] : ""), nameEn: s(get(r, cr.map, "nameEn")), nameZh: s(get(r, cr.map, "nameZh")),
-      price: n(get(r, cr.map, "price")), category: s(get(r, cr.map, "category")), subject: s(get(r, cr.map, "subject")), grade: s(get(r, cr.map, "grade")),
-      language: s(get(r, cr.map, "language")), publisher: s(get(r, cr.map, "publisher")), royaltyRecipient: s(get(r, cr.map, "royaltyRecipient")),
+      price: n(get(r, cr.map, "price")), category: text(cr, r, "category"), subject: text(cr, r, "subject"), grade: text(cr, r, "grade"),
+      language: text(cr, r, "language"), publisher: text(cr, r, "publisher"), royaltyRecipient: text(cr, r, "royaltyRecipient"),
       royaltyRate: rate == null ? null : rate > 1 ? rate / 100 : rate, available: !!get(r, cr.map, "available"), onEquipme: !!get(r, cr.map, "onEquipme"),
     };
   });
@@ -105,13 +148,13 @@ async function syncEquip(opts) {
     const skuRec = ids(get(r, it.map, "sku"))[0] || "";
     const sku = bySku.get(skuRec) || null;
     const row = {
-      recId: r.id, orderRec: ids(get(r, it.map, "order"))[0] || "", skuRec, sku: sku ? sku.sku : s(get(r, it.map, "sku")),
+      recId: r.id, orderRec: ids(get(r, it.map, "order"))[0] || "", skuRec, sku: sku ? sku.sku : text(it, r, "sku"),
       nameEn: sku ? sku.nameEn : "", nameZh: sku ? sku.nameZh : "", publisher: sku ? sku.publisher : "", category: sku ? sku.category : "", subject: sku ? sku.subject : "", grade: sku ? sku.grade : "", language: sku ? sku.language : "",
-      qty: n(get(r, it.map, "qty")) || 0, unitPrice: n(get(r, it.map, "unit")), total: n(get(r, it.map, "total")), received: n(get(r, it.map, "received")), notes: s(get(r, it.map, "notes")),
+      qty: n(get(r, it.map, "qty")) || 0, unitPrice: n(get(r, it.map, "unit")), total: n(get(r, it.map, "total")), received: n(get(r, it.map, "received")), notes: text(it, r, "notes"),
       royalty: {},
     };
     // Every royalty column travels in its own bag; the API strips the bag for everyone but finance.
-    for (const [name, v] of Object.entries(r.fields)) if (/royalty|版税/i.test(name) && !/recipient/i.test(name)) row.royalty[name] = typeof v === "number" ? v : s(v);
+    for (const [name, v] of Object.entries(r.fields)) if (/royalty|版税/i.test(name) && !/recipient/i.test(name)) row.royalty[name] = typeof v === "number" ? v : Array.isArray(v) ? v.map((x) => (typeof x === "string" && /^rec[A-Za-z0-9]{14}$/.test(x) ? lookupName(x) : s(x))).join(", ") : s(v);
     if (row.orderRec) { if (!itemsByOrder.has(row.orderRec)) itemsByOrder.set(row.orderRec, []); itemsByOrder.get(row.orderRec).push(row); }
     return row;
   });
@@ -123,7 +166,7 @@ async function syncEquip(opts) {
     return {
       recId: r.id, email, teams, emailTier: tier(email), first: s(get(r, cu.map, "first")), last: s(get(r, cu.map, "last")), display: s(get(r, cu.map, "display")),
       name: [s(get(r, cu.map, "first")), s(get(r, cu.map, "last"))].filter(Boolean).join(" ") || s(get(r, cu.map, "display")),
-      active: !!get(r, cu.map, "active"), login: s(get(r, cu.map, "login")), city: s(get(r, cu.map, "city")), orderRecs: ids(get(r, cu.map, "orders")),
+      active: !!get(r, cu.map, "active"), login: text(cu, r, "login"), city: text(cu, r, "city"), orderRecs: ids(get(r, cu.map, "orders")),
       crmId: s(get(r, cu.map, "crmId")), sales: n(get(r, cu.map, "sales")), createdTime: r.createdTime || null,
     };
   });
@@ -136,18 +179,18 @@ async function syncEquip(opts) {
     const linked = customerLink ? ids(r.fields[customerLink.name])[0] : "";
     const cust = (linked && customers.find((c) => c.recId === linked)) || customerByOrder.get(r.id) || null;
     const rows = itemsByOrder.get(r.id) || [];
-    const email = normalizeEmail(get(r, or.map, "email")) || (cust ? cust.email : "");
+    const email = normalizeEmail(text(or, r, "email")) || (cust ? cust.email : "");
     return {
       source: "equip", recId: r.id, orderId: s(get(r, or.map, "id")) || r.id, date: s(get(r, or.map, "date")) || (r.createdTime || "").slice(0, 10),
-      amount: n(get(r, or.map, "amount")), received: n(get(r, or.map, "received")), email, name: s(get(r, or.map, "name")) || (cust ? cust.name : ""),
-      customerRec: cust ? cust.recId : "", customerCrmId: cust ? cust.crmId : "", comments: s(get(r, or.map, "comments")),
+      amount: n(get(r, or.map, "amount")), received: n(get(r, or.map, "received")), email, name: text(or, r, "name") || (cust ? cust.name : ""),
+      customerRec: cust ? cust.recId : "", customerCrmId: cust ? cust.crmId : "", comments: text(or, r, "comments"),
       publishers: Array.from(new Set(rows.map((x) => x.publisher).filter(Boolean))), itemCount: rows.length, qty: rows.reduce((a, x) => a + (x.qty || 0), 0),
       items: rows, createdTime: r.createdTime || null,
     };
   });
   orders.sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.createdTime || "").localeCompare(String(a.createdTime || "")));
 
-  const seminar = se.records.map((r) => ({ recId: r.id, email: normalizeEmail(get(r, se.map, "email")), name: s(get(r, se.map, "name")), session: s(get(r, se.map, "session")), createdTime: r.createdTime || null }));
+  const seminar = se.records.map((r) => ({ recId: r.id, email: normalizeEmail(text(se, r, "email")), name: text(se, r, "name"), session: text(se, r, "session"), createdTime: r.createdTime || null }));
 
   const data = {
     syncedAt: new Date().toISOString(), startedAt: started, baseId: BASE_ID, warnings,
