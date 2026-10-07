@@ -1015,6 +1015,10 @@
       post("domain/user", "DELETE", { domain: currentDomain, user: u.upn }).then(function (r) {
         if (!r.ok) { restoreButton(delBtn); $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         var d = state.domainUsers[currentDomain]; if (d) d.users = d.users.filter(function (x) { return x.upn !== u.upn; });
+        // The groups cache lists members: drop it so the Teams 群组 page re-reads (the
+        // server derives group members from the user cache, which the delete already
+        // updated) instead of still showing the deleted account among the members.
+        delete state.domainGroups[currentDomain];
         renderUsers();
         delBtn.textContent = t("已删除 ✓", "Deleted ✓");
         savedAndClose(null, t("已删除 ", "Deleted ") + "<b>" + esc(u.displayName || u.upn) + "</b>" + t(" 的账号；30 天内可在 Microsoft 365 管理中心恢复。", "'s account; restorable for 30 days in the Microsoft 365 admin center."), opts && opts.beside ? "second" : "");
