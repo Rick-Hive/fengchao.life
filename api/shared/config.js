@@ -215,6 +215,14 @@ module.exports = {
     gradeLevels: /^Grade Level/i,
     organization: /^Organization/i,
   },
+  // Teachers table, PRIVATE: how a Hive course teacher is reached and which tenant
+  // account is theirs. Synced into snapshot.private.teachers (never served); the
+  // management centre marks the matching account 蜂巢课程教师 (Rick, 2026-10-08:
+  // "a separate Hive Course Teachers"). Any of these column names will do.
+  teacherPrivateFields: {
+    teamsAccount: /^(Teams\s*Account|Teams\s*账号|UPN|Microsoft\s*account|账号)/i,
+    email: /^(E-?mail|邮箱|Contact\s*email)/i,
+  },
 
 
   // Textbook table: public-safe fields only (sales/order fields never synced).

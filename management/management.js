@@ -92,7 +92,7 @@
   var me = null;            // /api/me/summary body
   var domainsInfo = null;   // /api/domain/domains body or null
   var currentDomain = "";
-  var state = { teams: null, teamFilter: "all", teamSort: "az", teamQ: "", domainUsers: {}, domainGroups: {}, userQ: "", userFilter: "all" };
+  var state = { teams: null, teamFilter: "all", teamSort: "az", teamQ: "", domainUsers: {}, domainGroups: {}, userQ: "", userFilter: "all", userRole: "", allDomains: false };
 
   // ---- shell: sidebar, footer, sign-out, drawer ------------------------------
   function nav() {
@@ -738,11 +738,26 @@
   // 「Only display Chinese or English name according to site language」); the raw
   // domain appears only where no name has been set, and on 系统 › 机构名称.
   function dlabel(domain) { return esc(dname(domain)); }
-  function domainPicker(id) {
+  // `all` adds 所有学校 (value "*") — the users table across every school the person
+  // manages (Rick, 2026-10-08: filter users by role "inside domain or site wide").
+  function domainPicker(id, all) {
     var ds = ((domainsInfo && domainsInfo.domains) || []).slice().sort(function (a, b) { return dname(a.domain).localeCompare(dname(b.domain), EN ? "en" : "zh-Hans-CN"); });
     if (ds.length <= 1) return ds.length ? '<span class="tag accent">' + esc(dname(ds[0].domain)) + "</span>" : "";
-    return '<select id="' + id + '">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === currentDomain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>";
+    return '<select id="' + id + '">' + (all ? '<option value="*"' + (state.allDomains ? " selected" : "") + ">" + t("所有学校", "All schools") + "</option>" : "") + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (!(all && state.allDomains) && d.domain === currentDomain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>";
   }
+  // The users of every managed school, each row tagged with its domain, merged into one
+  // table-shaped object { users, sync, partial }.
+  function allDomainList() { return ((domainsInfo && domainsInfo.domains) || []).map(function (d) { return d.domain; }); }
+  function loadAllUsers() {
+    var saved = currentDomain;
+    return Promise.all(allDomainList().map(function (dom) { currentDomain = dom; return loadDomainData("users").catch(function () { return null; }); })).then(function () { currentDomain = saved; return mergedUsers(); });
+  }
+  function mergedUsers() {
+    var users = [], sync = null, partial = false;
+    allDomainList().forEach(function (dom) { var d = state.domainUsers[dom]; if (!d) return; d.users.forEach(function (u) { if (!u.domain) u.domain = dom; users.push(u); }); if (d.sync && (!sync || String(d.sync.at || "") > String(sync.at || ""))) sync = d.sync; if (d.partial) partial = true; });
+    return { users: users, sync: sync, partial: partial, all: true };
+  }
+  function usersTable() { return state.allDomains ? mergedUsers() : state.domainUsers[currentDomain]; }
   function loadDomainData(kind, force) {
     var store = kind === "users" ? state.domainUsers : state.domainGroups;
     if (!force && store[currentDomain]) return Promise.resolve(store[currentDomain]);
@@ -786,11 +801,19 @@
       (d && d.can && d.can.full ? ' <button class="btn secondary sm" id="' + id + 'Full">' + t("完整同步", "Full sync") + "</button>" : "");
   }
   function viewUsers() {
+    var canAll = allDomainList().length > 1;
+    if (!canAll) state.allDomains = false;
+    var all = state.allDomains;
     setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("用户", "Users"),
-      (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") +
-      syncButtons("us") + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
+      (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>");
+    // Role filter (Rick, 2026-10-08): identity (家长/学生/老师/行政/教育顾问), Hive roles
+    // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
+    // school, or across all schools with 所有学校 in the picker.
+    var ROLE_OPTS = [["", t("全部角色", "All roles")]].concat(IDENTITIES.map(function (i) { return ["id:" + i, vl(i)]; })).concat([
+      ["role:teacher", t("蜂巢课程教师", "Hive course teacher")], ["role:it", t("域管理员（IT）", "Domain administrator (IT)")], ["role:hive", t("域蜂巢管理员", "Domain Hive administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
     $("content").innerHTML =
-      '<div class="toolbar" id="ubar">' + domainPicker("dsel") +
+      '<div class="toolbar" id="ubar">' + domainPicker("dsel", canAll) +
+        '<select id="urole" aria-label="' + t("按角色筛选", "Filter by role") + '">' + ROLE_OPTS.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (state.userRole === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>" +
         '<button class="chip" data-f="all" aria-pressed="' + (state.userFilter === "all") + '">' + t("全部", "All") + "</button>" +
         '<button class="chip" data-f="noauth" aria-pressed="' + (state.userFilter === "noauth") + '">' + t("未登记验证器", "No authenticator") + "</button>" +
         '<button class="chip" data-f="noid" aria-pressed="' + (state.userFilter === "noid") + '">' + t("身份未填", "No identity") + "</button>" +
@@ -803,7 +826,8 @@
         '</tr></thead><tbody><tr><td colspan="7" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
       '<p class="muted" id="ufoot" style="font-size:.8rem"></p>';
     var sel = $("dsel");
-    if (sel) sel.addEventListener("change", function () { currentDomain = this.value; viewUsers(); });
+    if (sel) sel.addEventListener("change", function () { if (this.value === "*") state.allDomains = true; else { state.allDomains = false; currentDomain = this.value; } viewUsers(); });
+    $("urole").addEventListener("change", function () { state.userRole = this.value; renderUsers(); });
     $("ubar").addEventListener("click", function (e) {
       var c = e.target.closest(".chip[data-f]"); if (!c) return;
       state.userFilter = c.getAttribute("data-f");
@@ -828,36 +852,51 @@
     $("ukpi").addEventListener("click", function (e) {
       var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
       var f = k.getAttribute("data-kf");
-      if (f === "groups") { location.hash = "#/domain/groups"; return; }
+      if (f === "groups") { if (!state.allDomains) location.hash = "#/domain/groups"; return; }
+      if (f === "teacher") { state.userRole = state.userRole === "role:teacher" ? "" : "role:teacher"; $("urole").value = state.userRole; renderUsers(); return; }
       state.userFilter = f; renderUsers();
     });
     var nu = $("newUser"); if (nu) nu.addEventListener("click", function () { openNewUserPanel(currentDomain); });
     $("utable").addEventListener("click", function (e) {
       var gb = e.target.closest("button[data-group]");
-      if (gb) { e.stopPropagation(); openGroupPanel(gb.getAttribute("data-group"), currentDomain); return; }
+      var trd = e.target.closest("tr[data-dom]"), rowDom = trd ? trd.getAttribute("data-dom") : "";
+      if (gb) { e.stopPropagation(); openGroupPanel(gb.getAttribute("data-group"), rowDom || currentDomain); return; }
       var tr = e.target.closest("tr[data-upn]"); if (!tr) return;
       document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); });
       tr.classList.add("sel");
-      openUserPanel(tr.getAttribute("data-upn"));
+      openUserPanel(tr.getAttribute("data-upn"), rowDom || undefined);
     });
-    loadDomainData("users").then(renderUsers).catch(showUsersError);
+    (state.allDomains ? loadAllUsers() : loadDomainData("users")).then(renderUsers).catch(showUsersError);
   }
   function showUsersError(e) { var tb = $("utable") && $("utable").tBodies[0]; if (tb) tb.innerHTML = '<tr><td colspan="7"><div class="msg err">' + esc(e.message || e) + "</div></td></tr>"; }
   function usersNow() { var d = state.domainUsers[currentDomain]; return d ? d.users : []; }
   function renderUsers() {
     if (!$("utable")) return;
-    var d = state.domainUsers[currentDomain]; if (!d) return;
-    var q = state.userQ.toLowerCase(), f = state.userFilter;
+    var d = usersTable(); if (!d) return;
+    var q = state.userQ.toLowerCase(), f = state.userFilter, role = state.userRole;
+    function hasRole(u, kind) {
+      var rs = (u.roles || []).map(function (r) { return r.role || r; });
+      if (kind === "any") return rs.length > 0;
+      if (kind === "it") return rs.some(function (r) { return /^domain_(it|admin):/.test(r); });
+      if (kind === "hive") return rs.some(function (r) { return /^domain_(hive|admin):/.test(r); });
+      if (kind === "staff") return rs.some(function (r) { return /^staff:/.test(r) || r === "coordinator"; });
+      if (kind === "admin") return rs.some(function (r) { return r === "admin" || r === "staff:sysadmin"; });
+      if (kind === "teacher") return !!u.hiveTeacher;
+      return true;
+    }
     var rows = d.users.filter(function (u) {
       if (f === "noauth" && u.verified !== false) return false;
       if (f === "noid" && u.identity) return false;
       if (f === "never" && u.lastSignIn) return false;
+      if (role.indexOf("id:") === 0 && u.identity !== role.slice(3)) return false;
+      if (role.indexOf("role:") === 0 && !hasRole(u, role.slice(5))) return false;
       if (q) {
-        var hay = [u.upn, u.displayName, u.identity, u.linked.join(" "), u.groups.map(function (g) { return g.name; }).join(" "), u.devices.map(function (x) { return x.name; }).join(" ")].join(" ").toLowerCase();
+        var hay = [u.upn, u.displayName, u.identity, u.linked.join(" "), u.groups.map(function (g) { return g.name; }).join(" "), u.devices.map(function (x) { return x.name; }).join(" "), u.domain ? dname(u.domain) : "", (u.roles || []).map(function (r) { return (EN ? r.en : r.zh) || r.role || ""; }).join(" ")].join(" ").toLowerCase();
         if (hay.indexOf(q) < 0) return false;
       }
       return true;
     });
+    var teachers = d.users.filter(function (u) { return u.hiveTeacher; }).length;
     var n = d.users.length, noauth = d.users.filter(function (u) { return u.verified === false; }).length, noid = d.users.filter(function (u) { return !u.identity; }).length;
     // Never signed in to Microsoft 365 (no successful sign-in on record — Rick, 2026-10-04:
     // 「Display how many users haven't login office 365 successfully」). The date comes from
@@ -871,7 +910,8 @@
       kpi("never", t("从未登录", "Never signed in"), anySignIn || !n ? never : "—", never && anySignIn ? " warn" : "", anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") +
       kpi("noauth", t("未登记验证器", "No authenticator"), noauth, noauth ? " bad" : "") +
       kpi("noid", t("身份未填", "No identity"), noid) +
-      kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users));
+      (teachers ? '<button type="button" class="kpi' + (state.userRole === "role:teacher" ? " on" : "") + '" data-kf="teacher"><div class="l">' + t("蜂巢课程教师", "Hive course teachers") + '</div><div class="v">' + teachers + "</div></button>" : "") +
+      (d.all ? kpi("", t("学校", "Schools"), allDomainList().length) : kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)));
     $("ubar").querySelectorAll(".chip[data-f]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-f") === state.userFilter ? "true" : "false"); });
     $("utable").tBodies[0].innerHTML = rows.length ? rows.map(function (u) {
       var auth = u.verified === null ? '<span class="tag">?</span>' : u.verified ? '<span class="tag ok">Yes</span>' : '<span class="tag bad">No</span>';
@@ -889,24 +929,25 @@
       var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "class" || g.kind === "m365"; });
       var gl = gs.slice(0, 2).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + hl(gname(g), state.userQ) + "</button>"; }).join("") + (gs.length > 2 ? '<span class="tag muted" title="' + esc(gs.slice(2).map(function (g) { return gname(g); }).join(", ")) + '">+' + (gs.length - 2) + "</span>" : "");
       var signTip = u.lastSignIn ? t("最近登录 ", "Last sign-in ") + when(u.lastSignIn) : t("从未登录", "Never signed in");
-      return '<tr class="pick" data-upn="' + esc(u.upn) + '"><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
+      var roleTags = (u.roles || []).length ? ' <span class="info" tabindex="0" data-tip="' + esc((u.roles || []).map(function (r) { return EN ? (r.en || r.role) : (r.zh || r.role); }).join("\n")) + '">i</span>' : "";
+      return '<tr class="pick" data-upn="' + esc(u.upn) + '"' + (u.domain ? ' data-dom="' + esc(u.domain) + '"' : "") + '><td class="acct">' + hl(u.upn, state.userQ) + (d.all ? ' <span class="tag muted">' + esc(dname(u.domain)) + "</span>" : "") + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
         '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (u.lastSignIn ? "" : " never") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
         '<td class="nowrap">' + auth + '</td><td class="nowrap devcell">' + dev + '</td><td><div class="tags nowrap">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
-        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + "</td>" +
+        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + (u.hiveTeacher ? ' <span class="tag ok" title="' + esc(t("蜂巢课程教师", "Hive course teacher") + (u.hiveTeacher.teacherId ? " · " + u.hiveTeacher.teacherId : "")) + '">' + t("课程教师", "Course teacher") + "</span>" : "") + ((u.roles || []).length ? ' <span class="tag">' + t("角色", "Role") + "</span>" + roleTags : "") + "</td>" +
         '<td class="nowrap">' + (u.linked.length ? '<span class="cell-ell" title="' + esc(u.linked.join(", ")) + '">' + u.linked.map(function (l) { return hl(l, state.userQ); }).join(", ") + "</span>" : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="empty">' + t("没有匹配的账号。", "No matching accounts.") + "</div></td></tr>";
-    $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号 · ", rows.length + " of " + n + " accounts · ") + syncLine(d.sync) + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
+    $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号" + (d.all ? "（" + allDomainList().length + " 所学校）" : "") + " · ", rows.length + " of " + n + " accounts" + (d.all ? " (" + allDomainList().length + " schools)" : "") + " · ") + (d.sync ? syncLine(d.sync) : "") + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
   }
   function uniqueGroups(users) { var s = {}; users.forEach(function (u) { u.groups.forEach(function (g) { s[g.id] = 1; }); }); return Object.keys(s).length; }
   function exportUsersCsv() {
-    var d = state.domainUsers[currentDomain]; if (!d) return;
-    var cols = [t("账号", "Account"), t("显示名", "Display name"), t("验证", "Authentication"), t("验证设备", "Devices"), t("Teams 群组", "Groups"), t("身份", "Identity"), t("关联账号", "Linked"), t("最近登录", "Last sign-in"), t("已启用", "Enabled")];
+    var d = usersTable(); if (!d) return;
+    var cols = [t("账号", "Account"), t("学校", "School"), t("显示名", "Display name"), t("验证", "Authentication"), t("验证设备", "Devices"), t("Teams 群组", "Groups"), t("身份", "Identity"), t("蜂巢角色", "Hive roles"), t("蜂巢课程教师", "Hive course teacher"), t("关联账号", "Linked"), t("最近登录", "Last sign-in"), t("已启用", "Enabled")];
     var cell = function (v) { var s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var lines = [cols.join(",")].concat(d.users.map(function (u) {
-      return [u.upn, u.displayName, u.verified === null ? "" : u.verified ? "Yes" : "No", u.devices.map(function (x) { return x.name; }).join("; "), u.groups.map(function (g) { return g.name; }).join("; "), u.identity, u.linked.join("; "), u.lastSignIn || "", u.enabled ? "Yes" : "No"].map(cell).join(",");
+      return [u.upn, dname(u.domain || currentDomain), u.displayName, u.verified === null ? "" : u.verified ? "Yes" : "No", u.devices.map(function (x) { return x.name; }).join("; "), u.groups.map(function (g) { return g.name; }).join("; "), u.identity, (u.roles || []).map(function (r) { return EN ? (r.en || r.role) : (r.zh || r.role); }).join("; "), u.hiveTeacher ? "Yes" : "", u.linked.join("; "), u.lastSignIn || "", u.enabled ? "Yes" : "No"].map(cell).join(",");
     }));
     var blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = currentDomain + "-users-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click();
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = (d.all ? "all-schools" : currentDomain) + "-users-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   var IDENTITIES = ["家长", "学生", "老师", "行政", "教育顾问"]; // = IDENTITIES in api/shared/people.js

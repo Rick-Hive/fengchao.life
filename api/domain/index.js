@@ -38,6 +38,26 @@ const people = require("../shared/people");
 const peopleMod = people;
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
+const { readSnapshot } = require("../shared/blob");
+
+// Hive course teachers (Rick, 2026-10-08: "a separate Hive Course Teachers"): the
+// Teachers table's private contacts (snapshot.private.teachers) matched to tenant
+// accounts by Teams account, else by the account's recovery email. Name is never a
+// key. Returns Map(upn → { name, teacherId, organization }).
+async function hiveTeachersByUpn(users) {
+  const snap = await readSnapshot().catch(() => null);
+  const list = (snap && snap.private && snap.private.teachers) || [];
+  if (!list.length) return new Map();
+  const byUpn = new Map(), byEmail = new Map();
+  for (const t of list) { if (t.teamsAccount) byUpn.set(t.teamsAccount, t); if (t.email) byEmail.set(t.email, t); }
+  const out = new Map();
+  for (const u of users) {
+    const upn = String(u.upn || "").toLowerCase();
+    const t = byUpn.get(upn) || byEmail.get(upn) || (u.safeEmail ? byEmail.get(String(u.safeEmail).toLowerCase()) : null);
+    if (t) out.set(u.upn, { name: t.name, teacherId: t.teacherId, organization: t.organization });
+  }
+  return out;
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const { DOMAIN_RE, domainOf, methodView } = dir;
@@ -90,6 +110,7 @@ function temporaryPassword() {
 async function usersView(domain) {
   const [doc, peopleDoc, rolesDoc, gnames] = await Promise.all([dir.readDomain(domain), readPeople(), readRoles().catch(() => ({ entries: [] })), peopleMod.readGroupNames()]);
   const people = peopleDoc.people;
+  const teachers = await hiveTeachersByUpn(doc.users);
   // Every distinct group these accounts belong to, translated once (cached in groupnames.json).
   const distinct = new Map();
   for (const r of doc.users) for (const g of r.groups || []) if (g && g.id && !distinct.has(g.id)) distinct.set(g.id, { id: g.id, name: g.name });
@@ -102,6 +123,7 @@ async function usersView(domain) {
     const entra = { department: r.department, jobTitle: r.jobTitle };
     return Object.assign({}, r, {
       roles: rolesOf[r.upn] || [],
+      hiveTeacher: teachers.get(r.upn) || null,
       groups: (r.groups || []).map((g) => ({ id: g.id, name: g.name, kind: g.kind, nameZh: (gn[g.id] && gn[g.id].zh) || "", nameEn: (gn[g.id] && gn[g.id].en) || "" })),
       identity: identityOf(rec, entra),
       identitySource: rec && IDENTITIES.includes(rec.identity) ? "hive" : (identityOf(null, entra) ? "entra" : ""),

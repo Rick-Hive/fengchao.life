@@ -440,6 +440,7 @@ async function handler(context, req) {
     const tef = cfg.teacherFields;
     const teacherByRec = new Map();
     const teacherProfiles = [];
+    const teacherContacts = [];
     for (const r of teacherRecs) {
       const fields = r.fields;
       const name = f(fields, tef.name) || "";
@@ -465,6 +466,11 @@ async function handler(context, req) {
       };
       teacherByRec.set(r.id, profile);
       teacherProfiles.push(profile);
+      // Private contact → snapshot.private.teachers (the public profile above carries none of it).
+      const tpf = cfg.teacherPrivateFields;
+      const upn = String(asText(f(fields, tpf.teamsAccount)) || "").trim().toLowerCase().replace(/\s*\(deleted\)$/, "");
+      const email = String(asText(f(fields, tpf.email)) || "").trim().toLowerCase();
+      teacherContacts.push({ id: r.id, teacherId: profile.teacherId, name, organization: profile.organization, teamsAccount: /@/.test(upn) ? upn : "", email: /@/.test(email) ? email : "" });
     }
 
     /* ---- tracks (1–6 real graduation tracks; the K–G8 tag track is excluded
@@ -930,7 +936,7 @@ async function handler(context, req) {
       curriculumMap,
       // PRIVATE — stripped by /api/data before the snapshot reaches a browser.
       // Anything secret or internal belongs under this key and nowhere else.
-      private: { schoolRouting },
+      private: { schoolRouting, teachers: teacherContacts },
     };
 
     // ---- guard against a destructive sync ---------------------------------
