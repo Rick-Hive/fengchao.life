@@ -31,6 +31,7 @@ const teamsOrders = require("../shared/teamsOrders");
 const teamsFetch = require("../shared/teamsFetch");
 const hub = require("../shared/hub");
 const digest = require("../shared/digest");
+const royalty = require("../shared/royalty");
 const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
@@ -262,6 +263,31 @@ async function handler(context, req) {
       if (err.code === "no_flow" || err.code === "no_recipient") { fail(context, 503, err.code, { message: err.message }); return; }
       throw err;
     }
+    return;
+  }
+
+  // 版税结算表: finance (money rw) and the CEO; paid marks by finance only.
+  if (action === "royalty") {
+    const canSee = crm.atLeast(roles, "money", "rw") || staffFunctions(roles).includes("ceo");
+    if (!canSee) { fail(context, 403, "no_access"); return; }
+    const canPay = crm.atLeast(roles, "money", "rw");
+    if (method === "GET") {
+      const data = await equip.readEquip();
+      const table = royalty.build(data, { quarters: Number((req.query && req.query.quarters) || 8) || 8 });
+      ok(context, Object.assign(table, { paid: (await royalty.readPaid()).paid || {}, canPay }));
+      return;
+    }
+    if (!canPay) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const pub = String(body.publisher || "").slice(0, 80), q = String(body.quarter || "");
+    if (!pub || !/^\d{4} Q[1-4]$/.test(q)) { fail(context, 400, "bad_request"); return; }
+    const doc = await royalty.readPaid();
+    const key = pub + "|" + q;
+    if (body.paid) doc.paid[key] = { by: normUser(user), at: new Date().toISOString(), note: String(body.note || "").slice(0, 200), amount: typeof body.amount === "number" ? body.amount : null };
+    else delete doc.paid[key];
+    await royalty.writePaid(doc);
+    await audit(context, { action: "crm.royalty.paid", by: normUser(user), publisher: pub, quarter: q, paid: !!body.paid, amount: body.amount });
+    ok(context, { ok: true, key, mark: doc.paid[key] || null });
     return;
   }
 
