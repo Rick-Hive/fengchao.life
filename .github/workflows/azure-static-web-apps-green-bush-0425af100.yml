@@ -32,6 +32,15 @@ jobs:
                const coredemo = require('@actions/core')
                return await coredemo.getIDToken()
            result-encoding: string
+      # The unit tests gate the deploy: a failing test keeps the site as it is
+      # (self-review 2026-10-08: nothing ran the tests but a person's terminal).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install API dependencies
+        run: cd api && npm install --omit=dev --no-audit --no-fund
+      - name: Run the unit tests
+        run: bash scripts/test.sh
       # Serve compact files without keeping minified copies in the repository:
       # the sources are minified in place here, just before upload (scripts/minify.sh).
       - name: Minify JS and CSS
