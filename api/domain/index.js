@@ -174,6 +174,21 @@ async function handler(context, req) {
       return;
     }
 
+    // domain=* — the users of every school the caller manages, merged server side,
+    // each row carrying its domain (the 所有学校 view; self-review 2026-10-08: the page
+    // used to fetch every school separately and merge in the browser).
+    if (method === "GET" && action === "users" && domain === "*") {
+      let list = all ? [] : allowed.filter((d) => d !== "*");
+      if (all) { try { list = (await dir.verifiedDomains()).map((d) => d.domain); } catch { list = []; } if (!list.length) { try { list = (await dir.cachedDomains()).map((d) => d.domain); } catch { list = []; } } }
+      if (list.length < 2) return fail(context, 403, "all schools needs more than one managed school", { allowed: list });
+      const views = await Promise.all(list.map((d) => usersView(d).then((v) => ({ d, v })).catch(() => null)));
+      const users = [], syncs = [];
+      for (const x of views) { if (!x) continue; for (const u of x.v.users) users.push(Object.assign({}, u, { domain: x.d })); syncs.push(dir.status(x.v.doc)); }
+      const latest = syncs.filter((s) => s && s.syncedAt).sort((a, b) => String(b.syncedAt).localeCompare(String(a.syncedAt)))[0] || null;
+      context.res = { status: 200, body: { domain: "*", domains: list, users, partial: users.some((u) => u.partial), sync: latest } };
+      return;
+    }
+
     if (!DOMAIN_RE.test(domain)) return fail(context, 400, "domain missing or malformed");
     if (!may(domain)) return fail(context, 403, `you do not manage ${domain}`, { allowed: all ? ["*"] : allowed });
 

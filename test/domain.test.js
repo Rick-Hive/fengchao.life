@@ -526,5 +526,14 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   r = await rcall({ headers: { "x-ms-client-principal": principal(`lei@${DOMAIN}`, IT) } });
   assert.strictEqual(r.status, 403, "a domain administrator does not see 角色分配");
 
+  // 13. domain=* — the users of every managed school, merged server side, each row with its domain.
+  dir._store.listDomains = async () => Object.keys(blobs).filter((n) => /^[a-z0-9.-]+\.json$/.test(n) && !/^(delta|roles)/.test(n)).map((n) => ({ domain: n.replace(/\.json$/, ""), isDefault: false, isInitial: false }));
+  blobs["other.example.edu.json"] = JSON.stringify({ domain: "other.example.edu", syncedAt: "2026-10-01T00:00:00Z", users: [{ upn: "a@other.example.edu", displayName: "A", groups: [], methods: [], verified: true, enabled: true }], pending: [] });
+  r = await call({ action: "users", query: { domain: "*" }, user: DOMADMIN, roles: [`domain_it:${DOMAIN}`] });
+  assert.strictEqual(r.status, 403, "one managed school: no all-schools view: " + JSON.stringify(r.body));
+  r = await call({ action: "users", query: { domain: "*" }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(r.body.domains.includes(DOMAIN) && r.body.domains.includes("other.example.edu"), "both verified schools listed: " + r.body.domains);
+  assert.ok(r.body.users.some((u) => u.domain === "other.example.edu" && u.upn === "a@other.example.edu") && r.body.users.some((u) => u.domain === DOMAIN), "rows carry their domain");
   console.log("domain: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });
