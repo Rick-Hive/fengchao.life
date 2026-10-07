@@ -9,8 +9,11 @@
 // How people are matched (§3 "怎么把三处对上"; decisions 1–3):
 //   level 0  a customer already carrying a CRM ID  → that person, no recomputation
 //   level 1  identical email (any of a person's addresses, normalised)  → merged
+//            (a tenant account's recovery email is NOT an address of the person:
+//            on a child's account it is the parent's — suggestion only, level 3)
 //   level 2  the customer's Teams account = a tenant account's UPN     → merged
-//   level 3  same name + same school domain                            → suggested only:
+//   level 3  same name + same school domain, or recovery email = customer email
+//            (non-student accounts)                                    → suggested only:
 //            the pair goes to the merge queue, a person says 是同一个人 / 不是,
 //            and the verdict is kept (crm/merge-decisions.json) and applied
 //   No matching by WeChat or phone — they are not recorded.
@@ -82,7 +85,11 @@ function build(src) {
       orders: os.length, spend: os.reduce((a, o) => a + (o.amount || 0), 0), received: os.reduce((a, o) => a + (o.received || 0), 0), lastOrder: os.map((o) => o.date).sort().pop() || "", firstOrder: os.map((o) => o.date).sort()[0] || "" });
   }
   for (const d of src.domains || []) for (const u of d.users || []) {
-    add({ kind: "account", id: u.upn, keys: [u.upn, u.safeEmail], name: u.displayName, domain: d.domain, upn: u.upn, safeEmail: normalizeEmail(u.safeEmail), identity: u.identity || "", lastSignIn: u.lastSignIn || null, enabled: u.enabled !== false, created: u.created || null, jobTitle: u.jobTitle || "" });
+    // Only the UPN is a key. The recovery email (otherMails) is the household's contact
+    // address — on a child's account it is the parent's — so it must not join accounts
+    // to each other (Rick, 2026-10-08: four siblings had become one person) nor merge an
+    // account into a customer on its own; it is a suggestion at most (level 3 below).
+    add({ kind: "account", id: u.upn, keys: [u.upn], name: u.displayName, domain: d.domain, upn: u.upn, safeEmail: normalizeEmail(u.safeEmail), identity: u.identity || "", lastSignIn: u.lastSignIn || null, enabled: u.enabled !== false, created: u.created || null, jobTitle: u.jobTitle || "" });
   }
   for (const l of equip.seminar || []) add({ kind: "lead", id: l.recId, keys: [l.email], name: l.name, session: l.session, createdTime: l.createdTime });
   for (const o of src.hiveOrders || []) add({ kind: "hive", id: o.orderId, keys: [o.email, o.teamsAccount], name: "", orderId: o.orderId, status: o.status, total: o.totalPrice, at: o.submittedAt, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean) });
@@ -155,19 +162,31 @@ function build(src) {
   people.sort((a, b) => String(b.lastOrder || b.lastSignIn || "").localeCompare(String(a.lastOrder || a.lastSignIn || "")) || a.name.localeCompare(b.name, "zh"));
   const idOf = new Map(); people.forEach((p) => p.keys.forEach((k) => idOf.set(k, p.crmId)));
 
-  // Level 3: same name, same school domain, not already one person, no verdict yet.
+  // Level 3: suggestions only, each a customer ↔ account pair for a person to decide:
+  //   "name"       same name and the customer is not already that account's person
+  //   "safeEmail"  the account's recovery email is the customer's email — unless the
+  //                account is a student's, whose recovery email is the parent's by design
+  // Not already one person, no verdict yet.
   const queue = [];
-  const accByName = new Map();
-  for (const f of facets) if (f.kind === "account" && f.name) { const k = normName(f.name); if (!accByName.has(k)) accByName.set(k, []); accByName.get(k).push(f); }
-  for (const c of facets) {
-    if (c.kind !== "customer" || !c.name) continue;
+  const suggested = new Set();
+  const suggest = (c, a, reason) => {
     const cid = idOf.get(c.keys[0]);
-    for (const a of accByName.get(normName(c.name)) || []) {
-      if (idOf.get(a.keys[0]) === cid) continue;
-      const k = pairKey("customer:" + c.id, "account:" + a.id);
-      if (decisions[k]) continue;
-      queue.push({ key: k, reason: "name", customer: { recId: c.id, name: c.name, email: c.keys[0] || "", orders: c.orders, crmId: cid }, account: { upn: a.upn, domain: a.domain, name: a.name, identity: a.identity, lastSignIn: a.lastSignIn, crmId: idOf.get(a.keys[0]) } });
-    }
+    if (!cid || idOf.get(a.keys[0]) === cid) return;
+    const k = pairKey("customer:" + c.id, "account:" + a.id);
+    if (decisions[k] || suggested.has(k)) return;
+    suggested.add(k);
+    queue.push({ key: k, reason, customer: { recId: c.id, name: c.name, email: c.keys[0] || "", orders: c.orders, crmId: cid }, account: { upn: a.upn, domain: a.domain, name: a.name, identity: a.identity, safeEmail: a.safeEmail, lastSignIn: a.lastSignIn, crmId: idOf.get(a.keys[0]) } });
+  };
+  const accByName = new Map(), accBySafe = new Map();
+  for (const f of facets) {
+    if (f.kind !== "account") continue;
+    if (f.name) { const k = normName(f.name); if (!accByName.has(k)) accByName.set(k, []); accByName.get(k).push(f); }
+    if (f.safeEmail && f.identity !== "学生") { if (!accBySafe.has(f.safeEmail)) accBySafe.set(f.safeEmail, []); accBySafe.get(f.safeEmail).push(f); }
+  }
+  for (const c of facets) {
+    if (c.kind !== "customer") continue;
+    if (c.name) for (const a of accByName.get(normName(c.name)) || []) suggest(c, a, "name");
+    for (const e of c.keys) for (const a of accBySafe.get(e) || []) suggest(c, a, "safeEmail");
   }
 
   const stats = {

@@ -1919,7 +1919,7 @@
     setTitle(t("经营 › 人员库", "Operations › People"), t("人员库", "People hub"),
       '<button class="btn secondary sm" id="pReload">' + t("刷新", "Refresh") + "</button> " + '<button class="btn secondary sm" id="pCsv">' + t("导出 CSV", "Export CSV") + "</button>" +
       (canMerge ? ' <button class="btn sm" id="pRebuild">' + t("重新匹配", "Rebuild") + "</button>" : ""),
-      t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；只是同名同校的放到「待合并」，由人来判断。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school only go to “To merge” for a person to decide. No WeChat or phone numbers are recorded."));
+      t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；同名同校、或账号备用邮箱等于客户邮箱的，放到「待合并」由人来判断（账号的备用邮箱多半是家长的，不会据此合并）。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school, or an account whose recovery email is a customer's email, only go to “To merge” for a person to decide (a recovery email is usually the parent's, so it never merges by itself). No WeChat or phone numbers are recorded."));
     $("content").innerHTML =
       '<div class="toolbar" id="pbar">' + PEOPLE_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (peopleState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
         '<span class="spacer"></span><select id="pstage"><option value="">' + t("所有阶段", "All stages") + "</option>" + Object.keys(STAGES).map(function (s) { return '<option value="' + s + '"' + (peopleState.stage === s ? " selected" : "") + ">" + esc(t(STAGES[s][0], STAGES[s][1])) + "</option>"; }).join("") + "</select>" +
@@ -2024,12 +2024,14 @@
       !rows.length ? '<div class="card"><p class="muted">' + t("没有符合条件的建议。", "No suggestion matches.") + "</p></div>" :
       rows.map(function (x) {
         var c = x.customer, a = x.account;
-        return '<div class="card merge" data-key="' + esc(x.key) + '"><div class="ch"><h2>' + esc(c.name) + ' <span class="n">' + t("同名 · 同校", "same name · same school") + "</span></h2></div>" +
+        var why = x.reason === "safeEmail" ? t("账号的备用邮箱 = 客户邮箱", "account's recovery email = customer email") : t("同名 · 同校", "same name · same school");
+        return '<div class="card merge" data-key="' + esc(x.key) + '"><div class="ch"><h2>' + esc(c.name) + ' <span class="n">' + esc(why) + "</span></h2></div>" +
           '<div class="pair"><div class="kv"><span class="k">Equip</span><span><b>' + esc(c.name) + "</b> · " + esc(c.email || t("无邮箱", "no email")) + "</span>" +
             '<span class="k">' + t("订单", "Orders") + "</span><span>" + (c.orders || 0) + "</span>" +
             '<span class="k">CRM ID</span><span>' + esc(c.crmId || "—") + "</span></div>" +
           '<div class="kv"><span class="k">Teams</span><span><b>' + esc(a.name) + "</b> · " + esc(a.upn) + "</span>" +
-            '<span class="k">' + t("身份", "Identity") + "</span><span>" + esc(vl(a.identity || "")) + (a.lastSignIn ? ' · <span class="muted">' + esc(t("最近登录 ", "last sign-in ") + day(a.lastSignIn)) + "</span>" : "") + "</span>" +
+            '<span class="k">' + t("身份", "Identity") + "</span><span>" + esc(vl(a.identity || "") || "—") + (a.lastSignIn ? ' · <span class="muted">' + esc(t("最近登录 ", "last sign-in ") + day(a.lastSignIn)) + "</span>" : "") + "</span>" +
+            (a.safeEmail ? '<span class="k">' + t("备用邮箱", "Recovery email") + "</span><span>" + esc(a.safeEmail) + "</span>" : "") +
             '<span class="k">CRM ID</span><span>' + esc(a.crmId || "—") + "</span></div></div>" +
           '<div class="actions"><button class="btn sm" data-verdict="same" data-key="' + esc(x.key) + '">' + t("是同一个人", "Same person") + '</button> <button class="btn secondary sm" data-verdict="different" data-key="' + esc(x.key) + '">' + t("不是", "Different people") + "</button></div></div>";
       }).join("");
@@ -2061,7 +2063,7 @@
     var f = p.facets || {};
     var emails = (p.emails || []).length ? (p.emails || []).map(function (e) { return '<div class="orow"><div class="omain"><b>' + esc(e.email) + "</b>" + (e.upn ? '<span class="sub">' + t("Teams 账号", "Teams account") + "</span>" : "") + "</div><div>" + tierTag(e.tier) + (e.email === p.primaryEmail ? ' <span class="tag accent">' + t("主邮箱", "primary") + "</span>" : "") + "</div></div>"; }).join("") : '<div class="orow muted">' + t("没有邮箱。", "No email.") + "</div>";
     var accounts = (f.accounts || []).map(function (a) {
-      return '<div class="orow"><div class="omain"><b>' + esc(a.upn || ("…@" + a.domain)) + '</b><span class="sub">' + esc([vl(a.identity || ""), a.jobTitle, a.lastSignIn ? t("最近登录 ", "last sign-in ") + day(a.lastSignIn) : ""].filter(Boolean).join(" · ")) + "</span></div>" + (a.enabled === false ? '<span class="tag bad">' + t("已停用", "disabled") + "</span>" : "") + "</div>";
+      return '<div class="orow"><div class="omain"><b>' + esc(a.upn || ("…@" + a.domain)) + '</b><span class="sub">' + esc([vl(a.identity || ""), a.jobTitle, a.lastSignIn ? t("最近登录 ", "last sign-in ") + day(a.lastSignIn) : "", a.safeEmail ? t("备用邮箱 ", "recovery email ") + a.safeEmail : ""].filter(Boolean).join(" · ")) + "</span></div>" + (a.enabled === false ? '<span class="tag bad">' + t("已停用", "disabled") + "</span>" : "") + "</div>";
     }).join("");
     var customers = (f.customers || []).map(function (c) {
       return '<div class="orow"><div class="omain"><b>' + esc(c.name || "") + '</b><span class="sub">' + esc([c.teams ? "Teams " + c.teams : "", c.city, c.firstOrder ? t("首单 ", "first ") + c.firstOrder : "", c.lastOrder ? t("最近 ", "last ") + c.lastOrder : ""].filter(Boolean).join(" · ")) + "</span>" + (c.crmId ? "" : '<span class="sub">' + esc(t("Airtable 客户表还没有 CRM ID", "No CRM ID in the Airtable customer yet")) + "</span>") + '</div><div class="oprice">' + (c.orders || 0) + t(" 单", " orders") + (crmLevel("money") === "none" ? "" : "<br><b>" + money(c.spend, "CNY") + "</b>") + "</div></div>";
