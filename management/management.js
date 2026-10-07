@@ -812,7 +812,7 @@
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
     // school, or across all schools with 所有学校 in the picker.
     var ROLE_OPTS = [["", t("全部角色", "All roles")]].concat(IDENTITIES.map(function (i) { return ["id:" + i, vl(i)]; })).concat([
-      ["role:teacher", t("蜂巢课程教师", "Hive course teacher")], ["role:it", t("域管理员（IT）", "Domain administrator (IT)")], ["role:hive", t("域蜂巢管理员", "Domain Hive administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
+      ["role:teacher", t("蜂巢课程教师（教师表 + 身份为老师）", "Hive course teachers (Teachers table + identity Teacher)")], ["role:it", t("域管理员（IT）", "Domain administrator (IT)")], ["role:hive", t("域蜂巢管理员", "Domain Hive administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel", canAll) +
         '<select id="urole" aria-label="' + t("按角色筛选", "Filter by role") + '">' + ROLE_OPTS.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (state.userRole === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>" +
@@ -883,7 +883,8 @@
       if (kind === "hive") return rs.some(function (r) { return /^domain_(hive|admin):/.test(r); });
       if (kind === "staff") return rs.some(function (r) { return /^staff:/.test(r) || r === "coordinator"; });
       if (kind === "admin") return rs.some(function (r) { return r === "admin" || r === "staff:sysadmin"; });
-      if (kind === "teacher") return !!u.hiveTeacher;
+      // 蜂巢课程教师 (Rick, 2026-10-08): from the Hive Teachers table, or any account whose identity is 老师.
+      if (kind === "teacher") return !!u.hiveTeacher || u.identity === "老师";
       return true;
     }
     var rows = d.users.filter(function (u) {
@@ -898,7 +899,7 @@
       }
       return true;
     });
-    var teachers = d.users.filter(function (u) { return u.hiveTeacher; }).length;
+    var teachers = d.users.filter(function (u) { return u.hiveTeacher || u.identity === "老师"; }).length;
     var n = d.users.length, noauth = d.users.filter(function (u) { return u.verified === false; }).length, noid = d.users.filter(function (u) { return !u.identity; }).length;
     // Never signed in to Microsoft 365 (no successful sign-in on record — Rick, 2026-10-04:
     // 「Display how many users haven't login office 365 successfully」). The date comes from
