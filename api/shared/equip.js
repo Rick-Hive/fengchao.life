@@ -253,4 +253,48 @@ function status(data) {
   return data ? { syncedAt: data.syncedAt, counts: data.counts, warnings: data.warnings || [] } : { syncedAt: null, counts: null, warnings: [], configured: !!pat() };
 }
 
-module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, syncEquip, readEquip, writeEquip, status };
+// The one write the CRM ever makes to Airtable (decision 3): the CRM ID onto a
+// Customers record that has none. pairs = [{ recId, crmId }]. The current values are
+// re-read first, so a record someone filled meanwhile is left alone and reported.
+// Returns { written: [recId], already: [recId], conflicts: [{recId, has, want}] }.
+async function writeBackCrmIds(pairs, opts) {
+  const log = (opts && opts.log) || (() => {});
+  const token = pat();
+  if (!token) throw Object.assign(new Error("AIRTABLE_EQUIP_PAT app setting is not configured"), { code: "no_pat" });
+  const base = new AirtableBase(BASE_ID, token);
+  const table = await base.table(TABLES.customers);
+  const field = AirtableBase.field(table, FIELDS.customers.crmId);
+  if (!field) throw Object.assign(new Error(`Customers: field "${FIELDS.customers.crmId}" not found — add it in Airtable first`), { code: "no_field" });
+  const current = new Map();
+  for (const r of await base.list(table.id, { fields: [field.name] })) current.set(r.id, s(r.fields[field.name]));
+  const written = [], already = [], conflicts = [], missing = [], records = [];
+  for (const p of pairs) {
+    if (!current.has(p.recId)) { missing.push(p.recId); continue; }
+    const has = current.get(p.recId);
+    if (!has) records.push({ id: p.recId, fields: { [field.name]: p.crmId } });
+    else if (has === p.crmId) already.push(p.recId);
+    else conflicts.push({ recId: p.recId, has, want: p.crmId });
+  }
+  if (records.length) {
+    try {
+      for (const r of await base.updateMany(table.id, records)) written.push(r.id);
+    } catch (err) {
+      if (err.status === 403) throw Object.assign(new Error(`Airtable refused the write (HTTP 403): the token in ${patSetting()} needs the data.records:write scope on the Equip base`), { code: "no_write" });
+      throw err;
+    }
+  }
+  log(`equip: CRM ID write-back: ${written.length} written, ${already.length} already, ${conflicts.length} conflicts, ${missing.length} unknown records`);
+  // the local copy follows at once, so the hub does not list them as pending until the next sync
+  if (written.length) {
+    const data = await readEquip();
+    if (data) {
+      const want = new Map(pairs.map((p) => [p.recId, p.crmId]));
+      for (const c of data.customers || []) if (written.includes(c.recId)) c.crmId = want.get(c.recId);
+      for (const o of data.orders || []) if (o.customerRec && written.includes(o.customerRec)) o.customerCrmId = want.get(o.customerRec);
+      await writeEquip(data);
+    }
+  }
+  return { written, already, conflicts, missing, field: field.name };
+}
+
+module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, syncEquip, readEquip, writeEquip, status, writeBackCrmIds };

@@ -188,6 +188,16 @@ class AirtableBase {
   async update(tableId, recordId, fields) {
     return this._request("PATCH", `${this.baseId}/${tableId}/${recordId}`, { body: { fields, typecast: true } });
   }
+
+  // Update several records ([{ id, fields }]; Airtable takes at most 10 per request).
+  async updateMany(tableId, records) {
+    const out = [];
+    for (let i = 0; i < records.length; i += 10) {
+      const data = await this._request("PATCH", `${this.baseId}/${tableId}`, { body: { records: records.slice(i, i + 10), typecast: true } });
+      out.push(...((data && data.records) || []));
+    }
+    return out;
+  }
 }
 
 // Coerce a value to the shape Airtable expects for the field type; undefined

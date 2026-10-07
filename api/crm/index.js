@@ -198,6 +198,30 @@ async function handler(context, req) {
     ok(context, { ok: true, stats: h.stats, queue: h.queue });
     return;
   }
+  // CRM ID write-back to the Airtable Customers (decision 3: the only write, confirmed each
+  // run). dryRun lists what would be written; a real run writes empty CRM ID fields only.
+  if (method === "POST" && action === "writeback") {
+    if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const h = await hub.readHub();
+    if (!h) { fail(context, 409, "no_hub"); return; }
+    const pairs = [];
+    for (const p of h.people) for (const recId of p.writeBack || []) { const c = (p.facets.customers || []).find((x) => x.recId === recId) || {}; pairs.push({ recId, crmId: p.crmId, name: c.name || p.name, email: p.primaryEmail }); }
+    if (body.dryRun === true) { ok(context, { ok: true, dryRun: true, count: pairs.length, preview: pairs.slice(0, 50).map((x) => ({ crmId: x.crmId, name: x.name })) }); return; }
+    let result;
+    try {
+      result = await equip.writeBackCrmIds(pairs.map((x) => ({ recId: x.recId, crmId: x.crmId })), { log: (m) => context.log(m) });
+    } catch (err) {
+      if (err.code === "no_pat" || err.code === "bad_pat" || err.code === "no_write" || err.code === "no_field") { fail(context, err.code === "no_field" ? 409 : 503, err.code, { message: err.message }); return; }
+      throw err;
+    }
+    await audit(context, { action: "crm.people.writeback", by: normUser(user), written: result.written.length, already: result.already.length, conflicts: result.conflicts.length, missing: result.missing.length });
+    let stats = null;
+    try { stats = (await hub.rebuild({ log: (m) => context.log(m) })).stats; } catch (err) { context.log.error("crm: hub rebuild after write-back failed: " + ((err && err.stack) || err)); }
+    ok(context, { ok: true, written: result.written.length, already: result.already.length, conflicts: result.conflicts, missing: result.missing.length, stats });
+    return;
+  }
+
   if (method === "POST" && action === "people-rebuild") {
     if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
     const h = await hub.rebuild({ log: (m) => context.log(m) });

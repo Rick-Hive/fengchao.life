@@ -190,15 +190,34 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   assert.ok(!data.warnings.some((w) => /Seminar|Teams Display|Login Status|Sales Amount|Notes|Recipient/.test(w)), "optional fields are not notes");
   assert.ok(data.warnings.some((w) => /CRM ID/.test(w)), "the missing CRM ID field is reported (phase 0 step for Rick)");
   assert.strictEqual(equip.status(data).counts.orders, 1);
+
+  // ---- CRM ID write-back (decision 3): the Customers table now carries "CRM ID" (Rick made it
+  // the primary field, 2026-10-08); empty ones are written, a filled one is a conflict, an
+  // unknown record is skipped, nothing else is touched, and the local copy follows.
+  schema[0].fields.push({ id: "f9", name: "CRM ID", type: "singleLineText" }); schema[0].primaryFieldId = "f9";
+  rows.tblC.push({ id: "recC2", fields: { "CRM ID": "HC-000999", "Personal Email": "x@gmail.com", "First Name": "X", "Last Name": "Y" } });
+  const patched = [];
+  AirtableBase.prototype.updateMany = async function (tableId, records) { patched.push([tableId, records]); return records.map((r) => ({ id: r.id, fields: r.fields })); };
+  const wb = await equip.writeBackCrmIds([{ recId: "recC1", crmId: "HC-000001" }, { recId: "recC2", crmId: "HC-000002" }, { recId: "recZZ", crmId: "HC-000003" }], {});
+  assert.deepStrictEqual(wb.written, ["recC1"]);
+  assert.deepStrictEqual(wb.conflicts, [{ recId: "recC2", has: "HC-000999", want: "HC-000002" }], "a CRM ID someone already filled is never overwritten");
+  assert.deepStrictEqual(wb.missing, ["recZZ"]);
+  assert.deepStrictEqual(patched, [["tblC", [{ id: "recC1", fields: { "CRM ID": "HC-000001" } }]]], "one PATCH, only the empty field, only that field");
+  assert.strictEqual((await equip.readEquip()).customers[0].crmId, "HC-000001", "the cached copy carries the id at once");
+  assert.strictEqual((await equip.readEquip()).orders[0].customerCrmId, "HC-000001");
+  AirtableBase.prototype.updateMany = async function () { throw Object.assign(new Error("Airtable PATCH x -> HTTP 403: INVALID_PERMISSIONS"), { status: 403 }); };
+  rows.tblC[0].fields["CRM ID"] = "";
+  await assert.rejects(() => equip.writeBackCrmIds([{ recId: "recC1", crmId: "HC-000001" }], {}), (e) => e.code === "no_write" && /data\.records:write/.test(e.message), "a read-only token is explained");
+  schema[0].fields.pop(); schema[0].primaryFieldId = "f1"; rows.tblC.pop();
   // ---- group names translated at read time (api/shared/people.js translateGroupNames) ----
   process.env.AZURE_TRANSLATOR_KEY = "k";
   const trPath = require.resolve(path.join(__dirname, "..", "api", "shared", "translate.js"));
   const calls = [];
   require.cache[trPath] = { id: trPath, filename: trPath, loaded: true, exports: { configured: () => true, sideOf: (t) => (/[\u3400-\u9fff]/.test(t) ? "zh" : /[A-Za-z]/.test(t) ? "en" : ""), translate: async (texts, to) => { calls.push([texts, to]); return texts.map((t) => (to === "en" ? "EN(" + t + ")" : "ZH(" + t + ")")); } } };
   const people = require(path.join(__dirname, "..", "api", "shared", "people.js"));
-  const rows = [{ id: "a", name: "中阶整本书阅读1班" }, { id: "b", name: "Hive Orders" }, { id: "c", name: "Hive/蜂巢" }, { id: "d", name: "G6母语班" }, { id: "e", name: "2026" }];
+  const grows = [{ id: "a", name: "中阶整本书阅读1班" }, { id: "b", name: "Hive Orders" }, { id: "c", name: "Hive/蜂巢" }, { id: "d", name: "G6母语班" }, { id: "e", name: "2026" }];
   const doc = { groups: { d: { zh: "G6母语班", en: "Grade 6 Mother Tongue", by: "rick" } } };
-  const out = await people.translateGroupNames(rows, doc, "test");
+  const out = await people.translateGroupNames(grows, doc, "test");
   assert.deepStrictEqual(calls.map((c) => c[1]).sort(), ["en", "zh"], "one call per direction");
   assert.deepStrictEqual(calls.find((c) => c[1] === "en")[0], ["中阶整本书阅读1班"], "only the Chinese-only name goes to English");
   assert.deepStrictEqual(calls.find((c) => c[1] === "zh")[0], ["Hive Orders"], "only the English-only name goes to Chinese");
@@ -209,7 +228,7 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   assert.strictEqual(out[3].nameEn, "Grade 6 Mother Tongue", "a hand-typed name is kept");
   assert.strictEqual(out[4].nameZh, "", "a name in neither script is not translated");
   assert.ok(doc.groups.a && doc.groups.a.auto && doc.groups.b, "translations cached in groupnames.json");
-  const again = await people.translateGroupNames(rows, doc, "test");
+  const again = await people.translateGroupNames(grows, doc, "test");
   assert.strictEqual(calls.length, 2, "the second read translates nothing");
   assert.strictEqual(again[0].nameEn, "EN(中阶整本书阅读1班)");
   console.log("crm-import: all assertions passed");

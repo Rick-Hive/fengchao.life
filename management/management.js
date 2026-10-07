@@ -2157,7 +2157,7 @@
     var canMerge = isAdmin() || crmLevel("orders") === "rw";
     setTitle(t("经营 › 人员库", "Operations › People Hub"), t("人员库", "People Hub"),
       '<button class="btn secondary sm" id="pReload">' + t("刷新", "Refresh") + "</button> " + '<button class="btn secondary sm" id="pCsv">' + t("导出 CSV", "Export CSV") + "</button>" +
-      (canMerge ? ' <button class="btn sm" id="pRebuild">' + t("重新匹配", "Rebuild") + "</button>" : ""),
+      (canMerge ? ' <button class="btn secondary sm" id="pRebuild">' + t("重新匹配", "Rebuild") + '</button> <button class="btn sm" id="pWriteback">' + t("回写 CRM ID", "Write CRM IDs back") + "</button>" : ""),
       { info: t("Equip 客户、各校 Teams 账号、讲座名单、蜂巢课程订单里的同一个人，在这里是一条记录（CRM ID）。邮箱和 Teams 账号相同的自动合并；同名同校、或账号备用邮箱等于客户邮箱的，放到「待合并」由人来判断（账号的备用邮箱多半是家长的，不会据此合并）。不记录微信和手机号。", "One record (CRM ID) per person across the Equip customers, each school's Teams accounts, the seminar list and the Hive course orders. Identical emails and Teams accounts merge on their own; same name and school, or an account whose recovery email is a customer's email, only go to “To merge” for a person to decide (a recovery email is usually the parent's, so it never merges by itself). No WeChat or phone numbers are recorded.") });
     $("content").innerHTML =
       '<div class="kpis" id="pkpi"></div>' +
@@ -2185,6 +2185,27 @@
         var s = r.body.stats || {};
         flashOk(esc(t("已重新匹配：", "Rebuilt: ") + s.people + t(" 人，待合并 ", " people, to merge ") + s.queue + t("，待回写 CRM ID ", ", CRM IDs to write back ") + s.writeBack), 8000);
         loadPeople(true).then(renderPeople);
+      });
+    });
+    // 回写 CRM ID (decision 3: the CRM's only write to Airtable, confirmed each run): a dry
+    // run first, the count in the confirmation, then empty CRM ID fields only.
+    var wb = $("pWriteback");
+    if (wb) wb.addEventListener("click", function () {
+      savingButton(wb, t("检查中…", "Checking…"));
+      post("crm/writeback", "POST", { dryRun: true }).then(function (r) {
+        restoreButton(wb);
+        if (!r.ok) { flash(esc(errText(r)), 8000); return; }
+        if (!r.body.count) { flashOk(t("Airtable 客户表里没有待回写的 CRM ID。", "No CRM IDs waiting to be written to the Airtable customers."), 5000); return; }
+        var sample = (r.body.preview || []).slice(0, 5).map(function (x) { return x.crmId + " " + x.name; }).join("\n");
+        if (!window.confirm(t("把 " + r.body.count + " 个 CRM ID 写入 Airtable 的 Customers 表（只写空的，不覆盖已有值）？\n\n例如：\n", "Write " + r.body.count + " CRM IDs to the Airtable Customers table (empty fields only, nothing overwritten)?\n\nFor example:\n") + sample)) return;
+        savingButton(wb, t("回写中…", "Writing…"));
+        post("crm/writeback", "POST", {}).then(function (r2) {
+          restoreButton(wb);
+          if (!r2.ok) { flash(r2.body && (r2.body.error === "no_write" || r2.body.error === "no_field" || r2.body.error === "bad_pat") ? esc(r2.body.message) : esc(errText(r2)), 20000); return; }
+          var b = r2.body;
+          flashOk(esc(t("已回写 " + b.written + " 个 CRM ID", "Wrote " + b.written + " CRM IDs") + (b.already ? t("，已存在 " + b.already, ", " + b.already + " already there") : "") + (b.conflicts.length ? t("，" + b.conflicts.length + " 个已有不同的值未改", ", " + b.conflicts.length + " had a different value and were left") : "") + (b.missing ? t("，" + b.missing + " 条记录 Airtable 里已不存在", ", " + b.missing + " records no longer in Airtable") : "") + "。"), 10000);
+          loadPeople(true).then(renderPeople);
+        });
       });
     });
     $("pkpi").addEventListener("click", function (e) {
