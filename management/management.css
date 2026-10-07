@@ -445,14 +445,15 @@ table.roles2 { min-width: 720px; }
 .adminrow .tags { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 @media (max-width: 560px) { .adminrow .tags { display: none; } }
 
-/* ---- one-line user rows (2026-10-05) ----------------------------------------------- */
-table.data td.nowrap { white-space: nowrap; }
-table.data td.acct { white-space: nowrap; }
-table.data .tags.nowrap { flex-wrap: nowrap; }
-.cell-ell { display: inline-block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+/* ---- compact rows (2026-10-05), wrapping when the column is too narrow (Rick,
+   2026-10-08: "use two rows … the same rule for all other tables") ------------------ */
+table.data td.nowrap { white-space: normal; }
+table.data td.nowrap .tag, table.data td.nowrap .info, table.data td.nowrap .dn, #ptable td:first-child { white-space: nowrap; }
+table.data td.acct { white-space: normal; overflow-wrap: anywhere; }
+table.data .tags.nowrap { flex-wrap: wrap; }
+.cell-ell { display: inline; max-width: 100%; overflow-wrap: anywhere; vertical-align: bottom; } /* was an ellipsis at 180px; now wraps (Rick, 2026-10-08) */
 /* on a cell itself (orders, people) the ellipsis must not turn the td into an inline block */
-table.data td.cell-ell { display: table-cell; max-width: 220px; vertical-align: top; }
-.devcell .cell-ell { max-width: 150px; }
+table.data td.cell-ell { display: table-cell; max-width: 260px; vertical-align: top; }
 table.data .tag.muted { color: var(--faint); }
 
 /* ---- KPI tiles are buttons; column resize handles (2026-10-05) ----------------------- */
@@ -579,9 +580,8 @@ label.inline select { height: 32px; }
 /* a fixed-layout data table fills its pane and truncates instead of growing past it */
 table.data.fixed { table-layout: fixed; width: 100%; min-width: 0; }
 table.data.fixed td { overflow: hidden; }
-table.data.fixed td.ell { text-overflow: ellipsis; white-space: nowrap; }
+table.data.fixed td.ell { overflow-wrap: anywhere; } /* wraps to a second line when narrow (Rick, 2026-10-08) */
 table.data.fixed th { overflow: hidden; text-overflow: ellipsis; }
-#ptable .cell-ell { max-width: calc(100% - 92px); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-left: 4px; }
 .dot.warn { background: var(--warn); }
 .ttl .info.big { width: 18px; height: 18px; font-size: 12px; vertical-align: middle; margin-left: 6px; }
