@@ -623,3 +623,22 @@ button.orow.link:hover { background: #f8fafc; }
 #itable td.num, #itable th.num { text-align: right; font-variant-numeric: tabular-nums; }
 #ipf label.f { display: block; margin-bottom: var(--s3); font-size: 13px; color: var(--muted); }
 #ipf label.f select, #ipf label.f input, #ipf label.f textarea { display: block; width: 100%; margin-top: 4px; }
+/* chart card tools, full screen, range, print */
+.vtools { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.vfull { border: 1px solid var(--line-strong); background: var(--card); color: var(--muted); border-radius: 8px; width: 26px; height: 24px; font-size: 13px; line-height: 1; cursor: pointer; }
+.vfull:hover { color: var(--accent-dark); border-color: var(--accent-soft-line); }
+.card.full { position: fixed; inset: 24px; z-index: 60; overflow: auto; margin: 0; box-shadow: 0 20px 60px rgba(16, 24, 40, 0.3); }
+.card.full .vbody { min-height: 60vh; }
+.card.full .vfull { background: var(--accent-soft); color: var(--accent-dark); }
+body.has-full::after { content: ""; position: fixed; inset: 0; background: rgba(16, 24, 40, 0.35); z-index: 55; }
+.range { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); vertical-align: middle; }
+.range select.sm { height: 32px; font-size: 13px; width: auto; }
+@media print {
+  .site-header, .side, #nav, .topbar #topActions, .vtools, .toolbar, #flash, .panel, .scrim, .side-foot, .digest { display: none !important; }
+  .content { overflow: visible !important; padding: 0 !important; }
+  .kpis { position: static !important; display: grid; grid-template-columns: repeat(3, 1fr); }
+  .vgrid { display: block; }
+  .vgrid .card { break-inside: avoid; margin-bottom: 12px; box-shadow: none; }
+  .card.viz .vtable.hidden { display: none; }
+  body { background: #fff; }
+}

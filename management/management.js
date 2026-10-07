@@ -1865,9 +1865,23 @@
   // A card with the chart drawn once its width is known (and again on resize).
   function chartCard(id, title, sub, draw, tableHtml) {
     vizDraws.push({ id: id, draw: draw });
-    return '<div class="card viz" id="' + id + '"><div class="ch"><h2>' + esc(title) + (sub ? ' <span class="n">' + esc(sub) + "</span>" : "") + '</h2><div class="vtoggle" role="tablist"><button type="button" class="on" data-v="chart">' + t("图", "Chart") + '</button><button type="button" data-v="table">' + t("表", "Table") + "</button></div></div>" +
+    return '<div class="card viz" id="' + id + '"><div class="ch"><h2>' + esc(title) + (sub ? ' <span class="n">' + esc(sub) + "</span>" : "") + '</h2><div class="vtools"><div class="vtoggle" role="tablist"><button type="button" class="on" data-v="chart">' + t("图", "Chart") + '</button><button type="button" data-v="table">' + t("表", "Table") + '</button></div><button type="button" class="vfull" data-full="1" title="' + esc(t("全屏", "Full screen")) + '" aria-label="' + esc(t("全屏", "Full screen")) + '">⤢</button></div></div>' +
       '<div class="vbody"></div><div class="vtable hidden">' + tableHtml + "</div></div>";
   }
+  // Full screen for one card (design §5 panel actions): the card lifts over the page,
+  // its chart redrawn at the new width; ⤢ again or Esc puts it back.
+  function cardFull(card, on) {
+    document.querySelectorAll(".card.full").forEach(function (c) { if (c !== card) { c.classList.remove("full"); } });
+    card.classList.toggle("full", on);
+    document.body.classList.toggle("has-full", !!document.querySelector(".card.full"));
+    var d = vizDraws.filter(function (x) { return x.id === card.id; })[0];
+    if (d) { var body = card.querySelector(".vbody"); if (body && body.clientWidth) body.innerHTML = d.draw(body.clientWidth); }
+  }
+  $("content").addEventListener("click", function (e) {
+    var b = e.target.closest("button.vfull"); if (!b) return;
+    var card = b.closest(".card"); cardFull(card, !card.classList.contains("full"));
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { var c = document.querySelector(".card.full"); if (c) cardFull(c, false); } });
   function drawCharts() {
     vizDraws = vizDraws.filter(function (d) { return $(d.id); });
     vizDraws.forEach(function (d) { var body = $(d.id).querySelector(".vbody"); var w = body.clientWidth; if (w > 0) body.innerHTML = d.draw(w); });
@@ -2578,12 +2592,18 @@
   // 本学年 (August start, decision 7); the comparison is the period before, or the
   // same period of the previous school year.
   // ================================================================================
-  var dashState = { period: "month", trend: "cum" };
+  var dashState = { period: "month", trend: "cum", from: "", to: "" };
   function isStaff() { return (me && me.roles || []).some(function (r) { return /^staff:/.test(r) && r !== "staff:contractor"; }); }
   function curMonth() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
   // The months of a period and of its comparison, newest period first.
   function periodMonths(kind) {
     var m = curMonth(), months = [], prev = [];
+    if (kind === "custom") {
+      var a = dashState.from && dashState.from <= m ? dashState.from : addMonths(m, -2), b = dashState.to && dashState.to <= m ? dashState.to : m; if (a > b) { var tmp = a; a = b; b = tmp; }
+      for (var mm = a; mm <= b; mm = addMonths(mm, 1)) months.push(mm);
+      prev = months.map(function (x) { return addMonths(x, -months.length); });
+      return { months: months, prev: prev, label: a === b ? a : a + " – " + b, vs: t("较前 " + months.length + " 个月", "vs the " + months.length + " months before") };
+    }
     if (kind === "month") { months = [m]; prev = [addMonths(m, -1)]; }
     else if (kind === "quarter") { var q = Math.floor((+m.split("-")[1] - 1) / 3) * 3 + 1, start = m.split("-")[0] + "-" + String(q).padStart(2, "0"); for (var i = 0; i < 3; i++) { var mm = addMonths(start, i); if (mm <= m) months.push(mm); } prev = months.map(function (x) { return addMonths(x, -3); }); }
     else { var fy = fyOf(m); for (var k = 0; k < 12; k++) { var x = addMonths(fy + "-08", k); if (x <= m) months.push(x); } prev = months.map(function (x) { return addMonths(x, -12); }); }
@@ -2591,15 +2611,26 @@
   }
   function viewDashboard() {
     setTitle(t("经营", "Operations"), t("仪表盘", "Dashboard"),
-      '<div class="seg" role="tablist">' + [["month", "本月", "Month"], ["quarter", "本季", "Quarter"], ["year", "本学年", "School year"]].map(function (p) { return '<button type="button" data-p="' + p[0] + '" aria-pressed="' + (dashState.period === p[0]) + '">' + t(p[1], p[2]) + "</button>"; }).join("") + '</div> <button class="btn secondary sm" id="dReload">' + t("刷新", "Refresh") + "</button>",
+      '<span id="dRange" class="range' + (dashState.period === "custom" ? "" : " hidden") + '"><select id="dFrom" class="sm"></select> – <select id="dTo" class="sm"></select></span> <div class="seg" role="tablist">' + [["month", "本月", "Month"], ["quarter", "本季", "Quarter"], ["year", "本学年", "School year"], ["custom", "自定义", "Custom"]].map(function (p) { return '<button type="button" data-p="' + p[0] + '" aria-pressed="' + (dashState.period === p[0]) + '">' + t(p[1], p[2]) + "</button>"; }).join("") + '</div> <button class="btn secondary sm" id="dExport">' + t("导出月报", "Export report") + '</button> <button class="btn secondary sm" id="dCsv">' + t("导出数据", "Export data") + '</button> <button class="btn secondary sm" id="dReload">' + t("刷新", "Refresh") + "</button>",
       { info: t("员工首页：本期与上期的对比、八个面板各回答一个经营问题，每个数字都能点进名单。学年从 8 月起算；销售按下单日、实收按订单；蜂巢课程成交额只在这里显示，不与教材销售合计。", "The staff home: this period against the last, eight panels each answering one question, every number a way into the list. The school year starts in August; sales by order date, received by order; Hive course value is shown here only and never summed with textbook sales.") });
     $("content").innerHTML = '<div class="kpis" id="dkpi"></div><div class="vgrid" id="dgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="dfoot" style="font-size:.8rem"></p>';
     $("topActions").addEventListener("click", function (e) {
       var b = e.target.closest(".seg button[data-p]"); if (!b) return;
       dashState.period = b.getAttribute("data-p");
       $("topActions").querySelectorAll(".seg button").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      $("dRange").classList.toggle("hidden", dashState.period !== "custom");
       renderDashboard();
     });
+    // 自定义: any two months, newest first in the lists
+    var c0 = curMonth(), opts = []; for (var i = 0; i < 36; i++) opts.push(addMonths(c0, -i));
+    ["dFrom", "dTo"].forEach(function (id) { $(id).innerHTML = opts.map(function (mm) { return '<option value="' + mm + '">' + mm + "</option>"; }).join(""); });
+    $("dFrom").value = dashState.from || addMonths(c0, -2); $("dTo").value = dashState.to || c0;
+    $("dFrom").addEventListener("change", function () { dashState.from = this.value; renderDashboard(); });
+    $("dTo").addEventListener("change", function () { dashState.to = this.value; renderDashboard(); });
+    // 导出月报: the page as it stands, through the browser's print dialog (save as PDF);
+    // 导出数据: every panel's table in one CSV, so two people never report two numbers.
+    $("dExport").addEventListener("click", function () { document.body.classList.add("printing"); setTimeout(function () { window.print(); document.body.classList.remove("printing"); }, 50); });
+    $("dCsv").addEventListener("click", exportDashboardCsv);
     $("dReload").addEventListener("click", function () { equipState.list = null; ordersState.list = null; peopleState.hub = null; loadDashboard().then(renderDashboard); });
     loadDashboard().then(renderDashboard);
   }
@@ -2640,9 +2671,9 @@
     var cards = [];
     // 1 销售与收款趋势: cumulative this period vs the one before (or monthly columns)
     var cumOf = function (ms) { var acc = 0; return ms.map(function (m) { if (m > curMonth()) return null; equip.forEach(function (o) { if (ym(o.date) === m) acc += val(o); }); return acc; }); };
-    var trendMonths = dashState.period === "month" ? months12 : P.months.length ? (dashState.period === "quarter" ? P.months.concat([]) : P.months) : [];
+    var trendMonths = dashState.period === "month" ? months12 : P.months.length ? P.months.slice() : [];
     if (dashState.period === "year") { trendMonths = []; for (var k = 0; k < 12; k++) trendMonths.push(addMonths(fyOf(curMonth()) + "-08", k)); }
-    var prevMonths = trendMonths.map(function (m) { return addMonths(m, dashState.period === "month" ? -12 : dashState.period === "quarter" ? -3 : -12); });
+    var prevMonths = trendMonths.map(function (m) { return addMonths(m, dashState.period === "month" ? -12 : dashState.period === "quarter" ? -3 : dashState.period === "custom" ? -trendMonths.length : -12); });
     var labelsT = trendMonths.map(monthLabel);
     cards.push(chartCard("dTrend", t("销售与收款趋势", "Sales and cash"), (dashState.trend === "cum" ? t("累计 · ", "cumulative · ") : t("按月 · ", "monthly · ")) + (dashState.period === "month" ? t("近 12 个月 vs 去年同期", "last 12 months vs the year before") : P.label + " vs " + P.vs.replace(/^较/, "")), function (w) {
       if (dashState.trend === "cum") return linesChart(w, { x: labelsT, series: [{ name: t("本期", "This period"), values: cumOf(trendMonths), color: VIZ.seq }, { name: t("上期", "Last period"), values: cumOf(prevMonths).map(function (v) { return v == null ? 0 : v; }), color: VIZ.gray }], fmt: fmt });
@@ -2679,6 +2710,8 @@
       var sess = Object.keys(sessions).sort().reverse().slice(0, 8).map(function (k) { return { label: k, value: sessions[k].n, c: sessions[k].c }; });
       cards.push(chartCard("dSeminar", t("社区与讲座", "Community and seminars"), t("每场讲座报名人数 · 其中后来买了教材的", "sign-ups per session · of whom bought textbooks since"), function (w) { return columnsChart(w, { x: sess.map(function (r) { return r.label; }), series: [{ name: t("成为客户", "Became customers"), values: sess.map(function (r) { return r.c; }), color: VIZ.seq }, { name: t("未购买", "Not yet"), values: sess.map(function (r) { return r.value - r.c; }), color: VIZ.seq3 }], fmt: fmtNum, labelAll: true }); }, dataTable([t("场次", "Session"), t("报名", "Sign-ups"), t("成为客户", "Became customers")], sess.map(function (r) { return [r.label, fmtNum(r.value), fmtNum(r.c)]; }))));
     }
+    // 6b 长尾: available titles nobody bought in a year (the curriculum director's one)
+    if (crmLevel("catalogue") !== "none") cards.push('<div class="card viz" id="dTail"><div class="ch"><h2>' + t("一年没卖出的在售教材", "Available titles unsold for a year") + ' <span class="n">' + t("可售但 12 个月内无订单", "available, no order in 12 months") + '</span></h2><div class="vtools"><div class="vtoggle" role="tablist"><button type="button" class="on" data-v="chart">' + t("图", "Chart") + '</button><button type="button" data-v="table">' + t("表", "Table") + '</button></div></div></div><div class="vbody"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><div class="vtable hidden"></div></div>');
     // 7 待处理与异常 — a list, each line a way in
     if (canSeeOrders()) {
       var replaceAll = stats.replace || 0, replaceWithOrders = people.filter(function (p) { return p.primaryTier === "replace" && (p.orders || 0) > 0; }).length;
@@ -2704,6 +2737,21 @@
     // 图形切换 for the trend card: 累计 / 按月
     var tc = $("dTrend"); if (tc) { var tg = tc.querySelector(".vtoggle"); tg.insertAdjacentHTML("afterbegin", '<button type="button" data-t="cum"' + (dashState.trend === "cum" ? ' class="on2"' : "") + ">" + t("累计", "Cumulative") + '</button><button type="button" data-t="monthly"' + (dashState.trend === "monthly" ? ' class="on2"' : "") + ">" + t("按月", "Monthly") + "</button>"); tg.addEventListener("click", function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; dashState.trend = b.getAttribute("data-t"); renderDashboard(); }); }
     drawCharts();
+    // 长尾 from the catalogue: by publisher (bars), and the list behind 表.
+    if ($("dTail")) api("crm/catalogue").then(function (r) {
+      var card = $("dTail"); if (!card) return;
+      if (!r.ok) { card.querySelector(".vbody").innerHTML = '<p class="muted">' + esc(errText(r)) + "</p>"; return; }
+      var cutoff = addMonths(curMonth(), -12) + "-01";
+      var tail = r.body.skus.filter(function (k) { return k.available && (!k.lastSale || k.lastSale < cutoff); }).sort(function (a, b) { return String(a.lastSale || "").localeCompare(String(b.lastSale || "")) || a.sku.localeCompare(b.sku); });
+      var avail = r.body.skus.filter(function (k) { return k.available; }).length;
+      var byPub = {}; tail.forEach(function (k) { var pk = k.publisher || t("未知", "Unknown"); byPub[pk] = (byPub[pk] || 0) + 1; });
+      var rows = Object.keys(byPub).map(function (k) { return { label: k, value: byPub[k] }; }).sort(function (a, b) { return b.value - a.value; });
+      card.querySelector(".ch h2 .n").textContent = tail.length + " / " + avail + t(" 种在售教材 · 按出版社", " available titles · by publisher");
+      var draw = function (w) { return rows.length ? barsChart(w, { rows: rows, fmt: fmtNum, name: t("种", "titles") }) : '<p class="muted">' + t("在售教材一年内都有售出。", "Every available title sold within the year.") + "</p>"; };
+      vizDraws.push({ id: "dTail", draw: draw });
+      card.querySelector(".vbody").innerHTML = draw(card.querySelector(".vbody").clientWidth);
+      card.querySelector(".vtable").innerHTML = dataTable(["SKU", t("名称", "Title"), t("出版社", "Publisher"), t("类别", "Category"), t("最近售出", "Last sold"), t("累计件数", "Units ever")], tail.map(function (k) { return [k.sku, EN ? (k.nameEn || k.nameZh) : (k.nameZh || k.nameEn), k.publisher, k.category, k.lastSale || t("从未", "never"), fmtNum(k.unitsEver)]; }));
+    });
     // 合作伙伴: the institutions, this school year's sales (or accounts when amounts are hidden), stage chips.
     if ($("dPartners")) loadInstitutionsCrm(false).then(function (d) {
       var body = $("dPartners") && $("dPartners").querySelector(".vbody"); if (!body) return;
@@ -2732,6 +2780,24 @@
     });
     var asOf = [(equipState.status || {}).syncedAt, hub && hub.generatedAt].filter(Boolean).sort()[0];
     $("dfoot").innerHTML = esc((asOf ? t("数据截至 ", "Data as of ") + when(asOf) + " · " : "") + (seeMoney ? "" : t("金额按角色隐藏，图表以件数计 · ", "Amounts hidden for this role; charts count units · ")) + t("学年从 8 月起算", "School year from August"));
+  }
+  function exportDashboardCsv() {
+    var cell = function (v) { v = String(v == null ? "" : v).replace(/\s+/g, " ").trim(); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var lines = [[t("蜂巢 CRM 经营仪表盘", "Hive CRM dashboard"), new Date().toISOString().slice(0, 10), periodMonths(dashState.period).label].map(cell).join(",")];
+    // the tiles
+    lines.push(""); lines.push(cell(t("指标", "Tiles")));
+    document.querySelectorAll("#dkpi .kpi").forEach(function (k) { var l = k.querySelector(".l"), v = k.querySelector(".v"), sub = k.querySelector(".s"); lines.push([l && l.textContent, v && v.textContent, sub && sub.textContent].map(cell).join(",")); });
+    // every panel's table
+    document.querySelectorAll("#dgrid .card").forEach(function (c) {
+      var h = c.querySelector(".ch h2"); if (!h) return;
+      var title = (h.childNodes[0] && h.childNodes[0].textContent || "").trim(), sub = h.querySelector(".n");
+      var tbl = c.querySelector("table.vt");
+      lines.push(""); lines.push([title, sub ? sub.textContent : ""].map(cell).join(","));
+      if (tbl) tbl.querySelectorAll("tr").forEach(function (tr) { lines.push(Array.prototype.map.call(tr.children, function (td) { return cell(td.textContent); }).join(",")); });
+      else c.querySelectorAll(".olist .orow").forEach(function (row) { lines.push(Array.prototype.map.call(row.children, function (d) { return cell(d.textContent); }).join(",")); });
+    });
+    var blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "dashboard-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
   $("content").addEventListener("click", function (e) {
     var k = e.target.closest("#dkpi .kpi[data-go]"); if (k) { location.hash = k.getAttribute("data-go"); return; }

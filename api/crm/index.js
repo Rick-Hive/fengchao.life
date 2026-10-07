@@ -93,6 +93,18 @@ async function handler(context, req) {
   }
 
   if (method === "GET" && action === "equip-status") { ok(context, equip.status(await equip.readEquip())); return; }
+  // The textbook catalogue with each SKU's last sale (catalogue ≥ read): the long tail
+  // — available titles nobody bought in a year — is the curriculum director's panel.
+  if (method === "GET" && action === "catalogue") {
+    if (!crm.atLeast(roles, "catalogue", "read")) { fail(context, 403, "no_access"); return; }
+    const data = await equip.readEquip();
+    if (!data) { ok(context, { skus: [], syncedAt: null }); return; }
+    const last = new Map(), units = new Map();
+    for (const o of data.orders || []) for (const it of o.items || []) { if (!it.sku) continue; const d = String(o.date || "").slice(0, 10); if (!last.has(it.sku) || d > last.get(it.sku)) last.set(it.sku, d); units.set(it.sku, (units.get(it.sku) || 0) + (it.qty || 0)); }
+    const skus = (data.curriculums || []).map((c) => ({ sku: c.sku, nameZh: c.nameZh, nameEn: c.nameEn, publisher: c.publisher, category: c.category, subject: c.subject, grade: c.grade, language: c.language, available: c.available, onEquipme: c.onEquipme, price: ["read", "rw"].includes(acc.money) ? c.price : null, lastSale: last.get(c.sku) || null, unitsEver: units.get(c.sku) || 0 }));
+    ok(context, { skus, syncedAt: data.syncedAt || null });
+    return;
+  }
 
   if (method === "GET" && action === "equip-orders") {
     const data = await equip.readEquip();
