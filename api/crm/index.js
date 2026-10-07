@@ -175,7 +175,42 @@ async function handler(context, req) {
     const canMerge = isAdmin(roles) || crm.atLeast(roles, "orders", "rw");
     const canMark = isAdmin(roles) || crm.atLeast(roles, "identity", "rw");
     const marks = await hub.readMarks().catch(() => ({ marks: {} }));
-    ok(context, { people: hub.withMarks(h.people, marks).map((p) => hub.maskPerson(p, acc)), queue: canMerge ? h.queue : [], stats: Object.assign({}, h.stats, hub.markStats(h.people, marks)), generatedAt: h.generatedAt, sources: h.sources, access: acc, canMerge, canMark });
+    const famById = new Map((h.families || []).map((f) => [f.id, f]));
+    const people = hub.withMarks(h.people, marks).map((p) => hub.maskPerson(p.familyId && famById.has(p.familyId) ? Object.assign({}, p, { family: famById.get(p.familyId) }) : p, acc));
+    ok(context, { people, queue: canMerge ? h.queue : [], stats: Object.assign({}, h.stats, hub.markStats(h.people, marks)), generatedAt: h.generatedAt, sources: h.sources, access: acc, canMerge, canMark });
+    return;
+  }
+  // 机构 (phase 3): one row per school domain with its names, partnership stage, accounts,
+  // customers and this school year's sales. partners ≥ read; the stage is set by partners rw.
+  if (action === "institutions") {
+    if (!crm.atLeast(roles, "partners", "read")) { fail(context, 403, "no_access"); return; }
+    const canEdit = isAdmin(roles) || crm.atLeast(roles, "partners", "rw");
+    const seeMoney = ["read", "rw"].includes(acc.money);
+    const peopleMod = require("../shared/people");
+    const [h, inst, partners, data] = await Promise.all([hub.readHub(), peopleMod.readInstitutions().catch(() => ({ institutions: {} })), hub.readPartners().catch(() => ({ partners: {} })), equip.readEquip().catch(() => null)]);
+    if (method === "POST") {
+      if (!canEdit) { fail(context, 403, "no_access"); return; }
+      const body = req.body && typeof req.body === "object" ? req.body : {};
+      const domain = String(body.domain || "").trim().toLowerCase(), stage = String(body.stage || "");
+      if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain) || (stage && !hub.PARTNER_STAGES.includes(stage))) { fail(context, 400, "bad_request"); return; }
+      if (stage || body.note || body.owner) partners.partners[domain] = { stage, note: String(body.note || "").slice(0, 500), owner: String(body.owner || "").slice(0, 120), by: normUser(user), at: new Date().toISOString() };
+      else delete partners.partners[domain];
+      await hub.writePartners(partners);
+      await audit(context, { action: "crm.partner.update", by: normUser(user), domain, stage });
+      ok(context, { ok: true, partner: partners.partners[domain] || null });
+      return;
+    }
+    // this school year's Equip sales per institution: the customers' orders in the FY
+    const now = new Date(), fy = now.getMonth() + 1 >= 8 ? now.getFullYear() : now.getFullYear() - 1, fyStart = fy + "-08";
+    const custPerson = new Map(); for (const p of (h && h.people) || []) for (const c of p.facets.customers || []) custPerson.set(c.recId, p.crmId);
+    const fySales = new Map(), fyOrders = new Map();
+    for (const o of (data && data.orders) || []) { if (String(o.date || "").slice(0, 7) < fyStart) continue; const id = custPerson.get(o.customerRec); if (!id) continue; fySales.set(id, (fySales.get(id) || 0) + (o.amount || 0)); fyOrders.set(id, (fyOrders.get(id) || 0) + 1); }
+    const rows = ((h && h.institutions) || []).map((i) => {
+      const n = inst.institutions[i.domain] || {}, pt = partners.partners[i.domain] || null;
+      const fySum = (i.customerIds || []).reduce((a, id) => a + (fySales.get(id) || 0), 0), fyN = (i.customerIds || []).reduce((a, id) => a + (fyOrders.get(id) || 0), 0);
+      return { domain: i.domain, name: n.name || "", nameEn: n.nameEn || "", partner: pt, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null };
+    });
+    ok(context, { rows, fy, canEdit, stages: hub.PARTNER_STAGES, generatedAt: h && h.generatedAt, access: acc });
     return;
   }
   // 待替换邮箱 marks: POST { crmId, status: "notified" | "replaced" | "" , note } (identity rw or sysadmin).

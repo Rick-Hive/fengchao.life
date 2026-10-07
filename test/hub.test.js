@@ -92,6 +92,22 @@ assert.strictEqual(sib.people.length, 5, "mum + four children: " + sib.people.ma
 assert.ok(sib.people.every((p) => p.facets.accounts.length <= 1));
 assert.strictEqual(sib.queue.length, 0, "students are not suggested by the parent's recovery email");
 assert.strictEqual(sib.people.find((p) => p.name === "Enqi Bao").primaryEmail, "enqi.bao@xqzw.edu");
+// …but they are one 家庭 (phase 3): four children and the parent whose email is their recovery address.
+assert.strictEqual(sib.families.length, 1);
+assert.strictEqual(sib.families[0].members.length, 5);
+assert.deepStrictEqual(sib.families[0].members.map((m) => m.role).sort(), ["adult", "child", "child", "child", "child"]);
+assert.ok(/^FM-\d{6}$/.test(sib.families[0].id));
+assert.strictEqual(sib.people.find((p) => p.name === "Enqi Bao").familyId, sib.families[0].id);
+const sib2 = H.build({ equip: { customers: [{ recId: "recP", email: "mum@gmail.com", teams: "", name: "Mum Bao", crmId: "", createdTime: "2025-09-01T00:00:00Z" }], orders: [], seminar: [] }, domains: [{ domain: "xqzw.edu", users: ["enqi", "enya", "enyu", "mingen"].map((n) => ({ upn: n + ".bao@xqzw.edu", displayName: n[0].toUpperCase() + n.slice(1) + " Bao", safeEmail: "mum@gmail.com", lastSignIn: "2026-10-05T00:00:00Z", enabled: true, created: "2025-09-10T00:00:00Z", identity: "学生" })) }], hiveOrders: [], prev: sib, decisions: { pairs: {} }, now });
+assert.strictEqual(sib2.families[0].id, sib.families[0].id, "family id stable across rebuilds");
+// 机构: one row per domain with the accounts, the active ones, the customers among them and families.
+const xq = sib.institutions.find((i) => i.domain === "xqzw.edu");
+assert.deepStrictEqual([xq.accounts, xq.active, xq.people, xq.customers, xq.families], [4, 4, 4, 0, 1]);
+// A 关联账号 link (people.json) also makes a family: parent account ↔ child account.
+const linkHub = H.build({ equip: { customers: [], orders: [], seminar: [] }, domains: [{ domain: "k.edu", users: [{ upn: "dad@k.edu", displayName: "Dad", safeEmail: "", lastSignIn: null, enabled: true, identity: "家长", linked: ["kid@k.edu"] }, { upn: "kid@k.edu", displayName: "Kid", safeEmail: "", lastSignIn: null, enabled: true, identity: "学生", linked: ["dad@k.edu"] }, { upn: "other@k.edu", displayName: "Other", safeEmail: "", lastSignIn: null, enabled: true, identity: "老师" }] }], hiveOrders: [], prev: null, decisions: { pairs: {} }, now });
+assert.strictEqual(linkHub.families.length, 1);
+assert.deepStrictEqual(linkHub.families[0].members.map((m) => [m.name, m.role]).sort(), [["Dad", "adult"], ["Kid", "child"]]);
+assert.strictEqual(linkHub.people.find((p) => p.name === "Other").familyId, undefined);
 
 // Level 0: a customer already carrying a CRM ID keeps it.
 const li = byName("Li Si");

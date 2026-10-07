@@ -619,3 +619,7 @@ button.orow.link:hover { background: #f8fafc; }
 #rtable button.link { background: none; border: 0; color: var(--accent-dark); cursor: pointer; font: inherit; font-size: 11px; text-decoration: underline; padding: 0; }
 #rQuarters.sm { height: 32px; font-size: 13px; width: auto; vertical-align: middle; }
 .tbl-wrap.in { border: 0; }
+.fam { display: inline-block; font-size: 11px; color: var(--accent-dark); background: var(--accent-soft); border-radius: 6px; padding: 0 5px; margin-left: 4px; vertical-align: middle; }
+#itable td.num, #itable th.num { text-align: right; font-variant-numeric: tabular-nums; }
+#ipf label.f { display: block; margin-bottom: var(--s3); font-size: 13px; color: var(--muted); }
+#ipf label.f select, #ipf label.f input, #ipf label.f textarea { display: block; width: 100%; margin-top: 4px; }

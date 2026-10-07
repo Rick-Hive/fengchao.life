@@ -115,7 +115,7 @@
         { hash: "#/dashboard", icon: "chart", zh: "仪表盘", en: "Dashboard" },
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
         { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People Hub" },
-      ].concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
+      ].concat(crmLevel("partners") !== "none" ? [{ hash: "#/ops/institutions", icon: "tree", zh: "机构", en: "Institutions" }] : []).concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
     }
     if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [
@@ -303,6 +303,7 @@
   $("panel").addEventListener("click", function (e) {
     if (e.target.closest(".x")) { panelClose(); return; }
     var eo = e.target.closest("button[data-eorder]"); if (eo) { openEquipOrderPanel(eo.getAttribute("data-eorder"), "second"); return; }
+    var pp = e.target.closest("button[data-person]"); if (pp) { openPersonPanel(pp.getAttribute("data-person")); return; }
     var g = e.target.closest("button[data-group]"); if (g) { openGroupPanel(g.getAttribute("data-group")); return; }
     var m = e.target.closest("button.mrow[data-upn]"); if (m) memberClick(m);
   });
@@ -2307,7 +2308,7 @@
       var accTxt = acc.map(function (a) { return a.upn || a.domain; }).join(", ");
       var spend = crmLevel("money") === "none" ? "" : (typeof p.spend === "number" && p.spend ? " / " + money(p.spend, "CNY") : "");
       return '<tr class="pick" data-id="' + esc(p.crmId) + '"><td class="nowrap"><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="dot warn" title="' + esc(t("待回写：Airtable 客户表还没有这个 CRM ID", "To write back: not yet on the Airtable customer")) + '"></span>' : "") + "</td>" +
-        '<td class="nowrap"><span class="avatar xs" style="background:' + hue(p.crmId) + ';color:#fff">' + esc(initials(p.name || p.crmId)) + '</span> <span class="cell-ell">' + hl(p.name || "—", peopleState.q) + "</span></td>" +
+        '<td class="nowrap"><span class="avatar xs" style="background:' + hue(p.crmId) + ';color:#fff">' + esc(initials(p.name || p.crmId)) + '</span> <span class="cell-ell">' + hl(p.name || "—", peopleState.q) + "</span>" + (p.family ? ' <span class="fam" title="' + esc(t("家庭 " + p.family.members.length + " 人", "Family of " + p.family.members.length)) + '">⌂' + p.family.members.length + "</span>" : "") + "</td>" +
         '<td class="nowrap"><span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span> " + tierTag(p.primaryTier) + (p.viaTeams ? ' <span class="tag accent">Teams</span>' : "") + (p.primaryTier === "replace" ? " " + markTag(p) : "") + "</td>" +
         "<td>" + sourceTags(p) + "</td>" +
         '<td class="nowrap ell" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</td>" +
@@ -2448,6 +2449,7 @@
         (crmLevel("money") === "none" ? "" : '<span class="k">' + t("消费", "Spend") + "</span><span>" + money(p.spend, "CNY") + (p.hiveTotal ? " + " + money(p.hiveTotal, "CNY") + ' <span class="muted">' + t("蜂巢", "Hive") + "</span>" : "") + "</span>") + "</div>" +
       "<h4>" + t("邮箱", "Emails") + '</h4><div class="olist">' + emails + "</div>" +
       (p.primaryTier === "replace" ? replaceSection(p) : "") +
+      (p.family ? "<h4>" + t("家庭", "Family") + " · " + p.family.members.length + '</h4><div class="olist">' + p.family.members.map(function (m) { return (m.crmId === p.crmId ? '<div class="orow"><div class="omain"><b>' + esc(m.name || m.crmId) + "</b>" : '<button type="button" class="orow link" data-person="' + esc(m.crmId) + '"><div class="omain"><b>' + esc(m.name || m.crmId) + "</b>") + '<span class="sub">' + esc(m.crmId) + "</span></div><div>" + (m.role === "adult" ? '<span class="tag">' + t("家长 / 成人", "Adult") + "</span>" : m.role === "child" ? '<span class="tag accent">' + t("孩子", "Child") + "</span>" : "") + (m.crmId === p.crmId ? "</div></div>" : "</div></button>"); }).join("") + "</div>" + '<p class="hint">' + t("家庭由关联账号、共同的备用邮箱和「家长买、孩子读」的 Teams 账号推出；在用户页设置关联账号可以修正。", "Families follow linked accounts, a shared recovery email and a parent's purchase read on a child's account; set linked accounts on the Users page to correct one.") + "</p>" : "") +
       (p.viaTeams ? '<p class="hint">' + t("主邮箱用的是 Teams 账号：原邮箱是境内邮箱，不用它联系。", "The Teams account serves as the primary email: the original is a mainland mailbox and is not used for contact.") + "</p>" : "") +
       "<h4>" + t("Teams 账号", "Teams accounts") + " · " + (f.accounts || []).length + '</h4><div class="olist">' + (accounts || '<div class="orow muted">' + t("没有匹配到账号。", "No account matched.") + "</div>") + "</div>" +
       "<h4>" + t("Equip 客户", "Equip customer") + " · " + (f.customers || []).length + '</h4><div class="olist">' + (customers || '<div class="orow muted">' + t("不是 Equip 客户。", "Not an Equip customer.") + "</div>") + "</div>" +
@@ -2512,6 +2514,63 @@
   }
 
   // ================================================================================
+  // 经营 › 机构 (phase 3): one row per school — partnership stage, accounts, customers,
+  // this school year's sales. The partnership director sets the stage and a note.
+  // ================================================================================
+  var STAGES_P = { contact: ["接触", "Contact", ""], trial: ["试用", "Trial", "accent"], partner: ["合作", "Partner", "ok"], paused: ["暂停", "Paused", "muted"] };
+  var instState = { data: null, q: "" };
+  function pstTag(st) { var d = STAGES_P[st]; return d ? '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>" : '<span class="muted">—</span>'; }
+  function viewInstitutionsCrm() {
+    setTitle(t("经营 › 机构", "Operations › Institutions"), t("机构", "Institutions"), '<button class="btn secondary sm" id="iReload">' + t("刷新", "Refresh") + "</button>",
+      { info: t("每所学校 / 蜂巢一行：合作阶段、账号数与活跃、其中的 Equip 客户与本学年购买、讲座线索、家庭数。合作阶段和备注由合作发展总监维护；数字来自人员库，每次同步后更新。", "One row per school or hive: partnership stage, accounts and active ones, the Equip customers among them and this school year's purchases, seminar leads, families. The partnership director keeps the stage and note; the numbers come from the people hub after each sync.") });
+    $("content").innerHTML = '<div class="toolbar"><div class="search">' + ICON.search + '<input type="search" id="iq" value="' + esc(instState.q) + '" placeholder="' + t("搜索机构、域名…", "Search institution, domain…") + '" /></div></div><div class="kpis" id="ikpi"></div><div class="tbl-wrap"><table class="data fixed" id="itable"><colgroup><col style="width:24%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:9%"><col style="width:9%"><col style="width:8%"></colgroup><thead><tr><th>' + t("机构", "Institution") + "</th><th>" + t("合作阶段", "Stage") + '</th><th class="num">' + t("账号", "Accounts") + '</th><th class="num">' + t("活跃", "Active") + '</th><th class="num">' + t("客户", "Customers") + '</th><th class="num">' + t("本学年销售", "SY sales") + '</th><th class="num">' + t("讲座线索", "Leads") + '</th><th class="num">' + t("家庭", "Families") + '</th><th class="num">' + t("课程订单", "Course orders") + '</th></tr></thead><tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + '</td></tr></tbody></table></div><p class="muted" id="ifoot" style="font-size:.8rem"></p>';
+    $("iq").addEventListener("input", debounce(function () { instState.q = $("iq").value.trim(); renderInstitutionsCrm(); }, 120));
+    $("iReload").addEventListener("click", function () { loadInstitutionsCrm(true).then(renderInstitutionsCrm); });
+    $("itable").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-domain]"); if (!tr) return; document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); }); tr.classList.add("sel"); openInstitutionPanel(tr.getAttribute("data-domain")); });
+    loadInstitutionsCrm(false).then(renderInstitutionsCrm).catch(function (r) { $("itable").tBodies[0].innerHTML = '<tr><td colspan="9" class="loading">' + esc(errText(r)) + "</td></tr>"; });
+  }
+  function loadInstitutionsCrm(force) { if (instState.data && !force) return Promise.resolve(instState.data); return api("crm/institutions").then(function (r) { if (!r.ok) throw r; instState.data = r.body; return r.body; }); }
+  function instName(row) { return (EN ? (row.nameEn || row.name) : (row.name || row.nameEn)) || row.domain; }
+  function renderInstitutionsCrm() {
+    var d = instState.data; if (!d || !$("itable")) return;
+    var q = instState.q.toLowerCase(), rows = d.rows.filter(function (r) { return !q || (r.domain + " " + r.name + " " + r.nameEn).toLowerCase().indexOf(q) >= 0; });
+    var seeMoney = crmLevel("money") !== "none";
+    var byStage = {}; d.rows.forEach(function (r) { var st = r.partner && r.partner.stage; if (st) byStage[st] = (byStage[st] || 0) + 1; });
+    $("ikpi").innerHTML = statTile(t("机构", "Institutions"), fmtNum(d.rows.length), { sub: Object.keys(STAGES_P).map(function (k) { return t(STAGES_P[k][0], STAGES_P[k][1]) + " " + (byStage[k] || 0); }).join(" · ") }) +
+      statTile(t("账号", "Accounts"), fmtNum(d.rows.reduce(function (a, r) { return a + r.accounts; }, 0)), { sub: t("90 天内活跃 ", "active in 90 days ") + fmtNum(d.rows.reduce(function (a, r) { return a + r.active; }, 0)) }) +
+      statTile(t("Equip 客户", "Equip customers"), fmtNum(d.rows.reduce(function (a, r) { return a + r.customers; }, 0)), { sub: t("本学年购买 ", "bought this SY ") + fmtNum(d.rows.reduce(function (a, r) { return a + r.fyOrders; }, 0)) + t(" 单", " orders") }) +
+      (seeMoney ? statTile(fyLabel(d.fy) + " · " + t("教材销售", "textbook sales"), fmtMoney(d.rows.reduce(function (a, r) { return a + (r.fySales || 0); }, 0)), { sub: t("有 Teams 账号的客户的订单", "orders by customers with a Teams account") }) : "");
+    $("itable").tBodies[0].innerHTML = rows.length ? rows.map(function (r) {
+      return '<tr class="pick" data-domain="' + esc(r.domain) + '"><td class="ell"><b>' + esc(instName(r)) + '</b><span class="sub">' + esc(r.domain) + "</span></td><td>" + pstTag(r.partner && r.partner.stage) + '</td><td class="num">' + fmtNum(r.accounts) + '</td><td class="num">' + fmtNum(r.active) + '</td><td class="num">' + fmtNum(r.customers) + '</td><td class="num">' + (seeMoney ? fmtMoney(r.fySales || 0) : fmtNum(r.fyOrders) + t(" 单", " orders")) + '</td><td class="num">' + fmtNum(r.leads) + '</td><td class="num">' + fmtNum(r.families) + '</td><td class="num">' + fmtNum(r.hiveOrders) + "</td></tr>";
+    }).join("") : '<tr><td colspan="9" class="empty">' + t("没有机构。", "No institutions.") + "</td></tr>";
+    $("ifoot").textContent = (d.generatedAt ? t("数据来自人员库，匹配于 ", "From the people hub, matched ") + when(d.generatedAt) : "") + (seeMoney ? "" : " · " + t("金额按角色隐藏", "Amounts hidden for this role"));
+  }
+  function openInstitutionPanel(domain) {
+    var d = instState.data, r = d && d.rows.filter(function (x) { return x.domain === domain; })[0]; if (!r) return;
+    var pt = r.partner || {}, seeMoney = crmLevel("money") !== "none";
+    panelOpen('<div class="ph"><span class="tav" style="background:' + hue(domain) + '">' + esc(initials(instName(r))) + "</span><h3>" + esc(instName(r)) + "</h3>" + pstTag(pt.stage) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+      '<div class="kv"><span class="k">' + t("域名", "Domain") + "</span><span>" + esc(r.domain) + "</span>" +
+        '<span class="k">' + t("账号", "Accounts") + "</span><span>" + fmtNum(r.accounts) + t(" · 活跃 ", " · active ") + fmtNum(r.active) + "</span>" +
+        '<span class="k">' + t("客户", "Customers") + "</span><span>" + fmtNum(r.customers) + t(" · 买过 ", " · bought ") + fmtNum(r.buyers) + t(" · 家庭 ", " · families ") + fmtNum(r.families) + "</span>" +
+        '<span class="k">' + fyLabel(d.fy) + "</span><span>" + fmtNum(r.fyOrders) + t(" 单", " orders") + (seeMoney ? " · " + fmtMoney(r.fySales || 0) : "") + "</span>" +
+        (seeMoney ? '<span class="k">' + t("累计销售", "All-time sales") + "</span><span>" + fmtMoney(r.spend || 0) + "</span>" : "") +
+        '<span class="k">' + t("讲座线索", "Leads") + "</span><span>" + fmtNum(r.leads) + "</span></div>" +
+      "<h4>" + t("合作", "Partnership") + "</h4>" +
+      (d.canEdit ? '<form id="ipf"><label class="f">' + t("阶段", "Stage") + '<select id="ipStage"><option value="">' + t("未设置", "Not set") + "</option>" + Object.keys(STAGES_P).map(function (k) { return '<option value="' + k + '"' + (pt.stage === k ? " selected" : "") + ">" + esc(t(STAGES_P[k][0], STAGES_P[k][1])) + "</option>"; }).join("") + '</select></label><label class="f">' + t("负责人", "Owner") + '<input type="text" id="ipOwner" maxlength="120" value="' + esc(pt.owner || "") + '" /></label><label class="f">' + t("备注", "Note") + '<textarea id="ipNote" rows="3" maxlength="500">' + esc(pt.note || "") + '</textarea></label><div class="actions"><button class="btn sm" type="submit" id="ipSave">' + t("保存", "Save") + '</button><span class="muted" style="font-size:12px">' + (pt.at ? esc(t("上次 ", "last ") + day(pt.at) + (pt.by ? " · " + pt.by : "")) : "") + '</span></div><div id="ipMsg"></div></form>' :
+        '<div class="kv"><span class="k">' + t("阶段", "Stage") + "</span><span>" + pstTag(pt.stage) + '</span><span class="k">' + t("负责人", "Owner") + "</span><span>" + esc(pt.owner || "—") + '</span><span class="k">' + t("备注", "Note") + "</span><span>" + esc(pt.note || "—") + "</span></div>") +
+      '<p class="hint">' + t("账号与活跃来自目录缓存；客户与销售来自人员库里挂在这个域名账号上的人。", "Accounts and activity from the directory cache; customers and sales from the people whose Teams account is in this domain.") + "</p></div>");
+    var f = $("ipf");
+    if (f) f.addEventListener("submit", function (e) {
+      e.preventDefault(); var b = $("ipSave"); savingButton(b);
+      post("crm/institutions", "POST", { domain: domain, stage: $("ipStage").value, owner: $("ipOwner").value.trim(), note: $("ipNote").value.trim() }).then(function (res) {
+        restoreButton(b);
+        if (!res.ok) { $("ipMsg").innerHTML = '<div class="msg err">' + esc(errText(res)) + "</div>"; return; }
+        r.partner = res.body.partner; renderInstitutionsCrm(); savedAndClose(null, t("已保存 ", "Saved ") + "<b>" + esc(instName(r)) + "</b>" + t(" 的合作信息。", "'s partnership."));
+      });
+    });
+  }
+
+  // ================================================================================
   // 经营 › 仪表盘 — the staff home page (design §5): KPIs for the period with a
   // comparison, eight panels each answering one question, every number a way into
   // the list behind it. Nothing about tenant accounts here (that stays in 用户);
@@ -2573,7 +2632,7 @@
       (seeMoney ? statTile(P.label + " · " + t("教材实收", "Textbook received"), fmtMoney(sum(eNow, function (o) { return o.received || 0; })), { sub: sum(eNow, val) ? Math.round(sum(eNow, function (o) { return o.received || 0; }) / sum(eNow, val) * 100) + "%" + t(" 已收", " received") : "" }) : "") +
       statTile(P.label + " · " + t("教材订单", "Textbook orders"), fmtNum(eNow.length), { delta: pct(eNow.length, ePrev.length), vs: P.vs, sub: t("购买客户 ", "buyers ") + (nNew + nOld) + t("（新 ", " (new ") + nNew + ")" }) +
       (canSeeOrders() ? statTile(P.label + " · " + t("课程订单", "Course orders"), fmtNum(hNow.length) + (seeMoney ? ' <span class="unit">' + fmtMoney(hSum(hNow)) + "</span>" : ""), { delta: pct(hNow.length, hPrev.length), vs: P.vs, sub: t("蜂巢网站 · 不与教材合计", "fengchao.life · never summed with textbooks"), attr: ' data-go="#/ops/orders"', cls: "go" }) : "") +
-      (hub ? statTile(t("人员库", "People"), fmtNum(stats.people || 0), { sub: t("活跃 ", "active ") + ((stats.stages || {}).active || 0) + t(" · 潜在 ", " · leads ") + ((stats.stages || {}).lead || 0) + t(" · 沉寂 ", " · dormant ") + ((stats.stages || {}).dormant || 0), attr: ' data-go="#/ops/people"', cls: "go" }) : "") +
+      (hub ? statTile(t("人员库", "People"), fmtNum(stats.people || 0), { sub: t("活跃 ", "active ") + ((stats.stages || {}).active || 0) + t(" · 潜在 ", " · leads ") + ((stats.stages || {}).lead || 0) + t(" · 家庭 ", " · families ") + (stats.families || 0), attr: ' data-go="#/ops/people"', cls: "go" }) : "") +
       (canSeeOrders() ? statTile(t("待处理", "To do"), fmtNum(todo), { cls: "go", warn: todo > 0, sub: t("超期 ", "overdue ") + (counts.overdue || 0) + t(" · 通知失败 ", " · notify failed ") + (counts.notifyFailed || 0) + (hub && hub.canMerge ? t(" · 待合并 ", " · to merge ") + (hub.queue || []).length : ""), attr: ' data-go="#/ops/orders"' }) : "");
 
     // ---- panels ----
@@ -2637,12 +2696,22 @@
         (canDigest ? '<div class="digest" id="dDigest"><span class="muted">' + t("每日摘要：载入中…", "Daily digest: loading…") + "</span></div>" : "") + "</div>");
     }
     // 8 合作伙伴 · 9 许可: later phases, said plainly
-    cards.push('<div class="card soon"><div class="ch"><h2>' + t("合作伙伴", "Partners") + ' <span class="n">' + t("第 3 阶段", "phase 3") + '</span></h2></div><p class="muted">' + esc(t("机构看板：合作进展、各机构的客户与账号。等机构与家庭模型建好后在这里显示。", "The institutions board — partnership progress, customers and accounts per institution — appears here once the organisations and families model is built.")) + "</p></div>" +
+    if (crmLevel("partners") !== "none") cards.push('<div class="card viz" id="dPartners"><div class="ch"><h2>' + t("合作伙伴", "Partners") + ' <span class="n">' + t("各机构 · 本学年教材销售与合作阶段", "institutions · this school year's textbook sales and partnership stage") + '</span></h2></div><div class="vbody"><p class="loading">' + t("载入中…", "Loading…") + "</p></div></div>");
+    else cards.push('<div class="card soon"><div class="ch"><h2>' + t("合作伙伴", "Partners") + '</h2></div><p class="muted">' + esc(t("需要合作伙伴数据的查看权限。", "Needs read access to partner data.")) + "</p></div>");
+    cards.push(
       '<div class="card soon"><div class="ch"><h2>' + t("许可", "Licences") + ' <span class="n">' + t("第 5 阶段 · 自建 DRM", "phase 5 · own DRM") + '</span></h2></div><p class="muted">' + esc(t("许可池余量和到期、已激活 vs 已售出、按地区的 DRM 用户增长。等自建 DRM 系统上线后显示。", "Licence pool balance and expiry, activated vs sold, DRM users by region — once Hive's own DRM system is live.")) + "</p></div>");
     $("dgrid").innerHTML = cards.join("");
     // 图形切换 for the trend card: 累计 / 按月
     var tc = $("dTrend"); if (tc) { var tg = tc.querySelector(".vtoggle"); tg.insertAdjacentHTML("afterbegin", '<button type="button" data-t="cum"' + (dashState.trend === "cum" ? ' class="on2"' : "") + ">" + t("累计", "Cumulative") + '</button><button type="button" data-t="monthly"' + (dashState.trend === "monthly" ? ' class="on2"' : "") + ">" + t("按月", "Monthly") + "</button>"); tg.addEventListener("click", function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; dashState.trend = b.getAttribute("data-t"); renderDashboard(); }); }
     drawCharts();
+    // 合作伙伴: the institutions, this school year's sales (or accounts when amounts are hidden), stage chips.
+    if ($("dPartners")) loadInstitutionsCrm(false).then(function (d) {
+      var body = $("dPartners") && $("dPartners").querySelector(".vbody"); if (!body) return;
+      var rows = d.rows.slice().sort(function (a, b) { return (b.fySales || 0) - (a.fySales || 0) || b.accounts - a.accounts; }).slice(0, 8);
+      var bars = rows.map(function (r) { return { label: instName(r), value: seeMoney ? (r.fySales || 0) : r.accounts, sub: (r.partner && STAGES_P[r.partner.stage] ? t(STAGES_P[r.partner.stage][0], STAGES_P[r.partner.stage][1]) + " · " : "") + fmtNum(r.customers) + t(" 客户 · ", " customers · ") + fmtNum(r.accounts) + t(" 账号", " accounts") }; });
+      var byStage = {}; d.rows.forEach(function (r) { var st = r.partner && r.partner.stage; if (st) byStage[st] = (byStage[st] || 0) + 1; });
+      body.innerHTML = '<div class="vlegend">' + Object.keys(STAGES_P).map(function (k) { return "<span>" + pstTag(k) + " " + (byStage[k] || 0) + "</span>"; }).join("") + '<a href="#/ops/institutions" style="margin-left:auto">' + t("全部机构 →", "All institutions →") + "</a></div>" + barsChart(body.clientWidth, { rows: bars, fmt: seeMoney ? fmtMoney : fmtNum, name: seeMoney ? t("本学年销售", "SY sales") : t("账号", "accounts") });
+    }).catch(function () { var body = $("dPartners") && $("dPartners").querySelector(".vbody"); if (body) body.innerHTML = '<p class="muted">' + t("机构数据暂不可用。", "Institution data is not available.") + "</p>"; });
     // The daily digest to the order manager (decision 18): who gets it, when it last went, send now.
     if ($("dDigest")) api("crm/digest").then(function (r) {
       var el = $("dDigest"); if (!el) return;
@@ -2709,7 +2778,7 @@
     }
     if (h.indexOf("#/ops") === 0) {
       if (!canSeeOrders()) { location.hash = "#/account"; return; }
-      return h.indexOf("#/ops/people") === 0 ? viewPeople() : h.indexOf("#/ops/royalty") === 0 ? (canSeeRoyalty() ? viewRoyalty() : viewOrders()) : viewOrders();
+      return h.indexOf("#/ops/people") === 0 ? viewPeople() : h.indexOf("#/ops/royalty") === 0 ? (canSeeRoyalty() ? viewRoyalty() : viewOrders()) : h.indexOf("#/ops/institutions") === 0 ? (crmLevel("partners") !== "none" ? viewInstitutionsCrm() : viewOrders()) : viewOrders();
     }
     if (h.indexOf("#/system") === 0) {
       if (!isAdmin()) { if (canAssignRoles() && h.indexOf("#/system/roles") === 0) return viewRoles(); location.hash = "#/account"; return; }

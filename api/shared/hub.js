@@ -52,6 +52,12 @@ const writeDecisions = (d) => writeJson(DECISIONS_BLOB, d);
 // 待替换邮箱 progress (decision 14: prompt, never force): a mark per mainland address —
 // notified / replaced — kept by the address so it survives rebuilds. crm/email-replace.json.
 const MARKS_BLOB = "crm/email-replace.json";
+// 合作伙伴 (phase 3): the partnership stage and note per institution — crm/partners.json
+// { partners: { "<domain>": { stage, note, owner, by, at } } }. Stages: contact → trial → partner → paused.
+const PARTNERS_BLOB = "crm/partners.json";
+const PARTNER_STAGES = ["contact", "trial", "partner", "paused"];
+const readPartners = () => readJson(PARTNERS_BLOB, { partners: {} });
+const writePartners = (d) => writeJson(PARTNERS_BLOB, d);
 const readMarks = () => readJson(MARKS_BLOB, { marks: {} });
 const writeMarks = (d) => writeJson(MARKS_BLOB, d);
 // The mainland address a person is still on (the one the mark is kept by).
@@ -107,7 +113,7 @@ function build(src) {
     // address — on a child's account it is the parent's — so it must not join accounts
     // to each other (Rick, 2026-10-08: four siblings had become one person) nor merge an
     // account into a customer on its own; it is a suggestion at most (level 3 below).
-    add({ kind: "account", id: u.upn, keys: [u.upn], name: u.displayName, domain: d.domain, upn: u.upn, safeEmail: normalizeEmail(u.safeEmail), identity: u.identity || "", lastSignIn: u.lastSignIn || null, enabled: u.enabled !== false, created: u.created || null, jobTitle: u.jobTitle || "" });
+    add({ kind: "account", id: u.upn, keys: [u.upn], name: u.displayName, domain: d.domain, upn: u.upn, safeEmail: normalizeEmail(u.safeEmail), identity: u.identity || "", lastSignIn: u.lastSignIn || null, enabled: u.enabled !== false, created: u.created || null, jobTitle: u.jobTitle || "", linked: (u.linked || []).map(normalizeEmail).filter(Boolean) });
   }
   for (const l of equip.seminar || []) add({ kind: "lead", id: l.recId, keys: [l.email], name: l.name, session: l.session, createdTime: l.createdTime });
   for (const o of src.hiveOrders || []) add({ kind: "hive", id: o.orderId, keys: [o.email, o.teamsAccount], name: "", orderId: o.orderId, status: o.status, total: o.totalPrice, at: o.submittedAt, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean) });
@@ -207,15 +213,66 @@ function build(src) {
     for (const e of c.keys) for (const a of accBySafe.get(e) || []) suggest(c, a, "safeEmail");
   }
 
+  // ---- 家庭 (phase 3): people who belong to one household. Joined by
+  //   • a 关联账号 link in people.json (parent ↔ child, set on the user page)
+  //   • accounts sharing a recovery email, and the person that email belongs to
+  //   • a customer whose Teams Account is another person's account (the parent bought,
+  //     the child reads)
+  // Never by name. Family ids FM-000001… are kept across rebuilds by their members.
+  const personOfFacet = new Map(); people.forEach((p) => { (p.facets.accounts || []).forEach((a) => personOfFacet.set("account:" + a.upn, p)); (p.facets.customers || []).forEach((c) => personOfFacet.set("customer:" + c.recId, p)); });
+  const personByKey = new Map(); people.forEach((p) => p.keys.forEach((k) => personByKey.set(k, p)));
+  const pidx = new Map(people.map((p, i) => [p.crmId, i]));
+  const fu = uf(people.length);
+  const join = (a, b) => { if (a && b && a !== b) fu.union(pidx.get(a.crmId), pidx.get(b.crmId)); };
+  const bySafe = new Map();
+  for (const f of facets) {
+    if (f.kind === "account") {
+      const me = personOfFacet.get("account:" + f.upn);
+      for (const l of f.linked || []) join(me, personByKey.get(l));
+      if (f.safeEmail) { if (!bySafe.has(f.safeEmail)) bySafe.set(f.safeEmail, []); bySafe.get(f.safeEmail).push(me); }
+    }
+    if (f.kind === "customer" && f.teams) join(personOfFacet.get("customer:" + f.id), personByKey.get(normalizeEmail(f.teams)));
+  }
+  for (const [email, members] of bySafe) { const owner = personByKey.get(email); members.forEach((m) => { join(members[0], m); if (owner) join(owner, m); }); }
+  const famGroups = new Map();
+  people.forEach((p, i) => { const r = fu.find(i); if (!famGroups.has(r)) famGroups.set(r, []); famGroups.get(r).push(p); });
+  const prevFam = new Map(); for (const f of (src.prev && src.prev.families) || []) for (const m of f.members || []) prevFam.set(m.crmId, f.id);
+  let nextFam = (src.prev && src.prev.nextFamily) || 1;
+  const usedFam = new Set();
+  const families = [];
+  const ADULT = new Set(["家长", "老师", "行政", "教育顾问"]);
+  for (const members of famGroups.values()) {
+    if (members.length < 2) continue;
+    let id = members.map((m) => prevFam.get(m.crmId)).find((x) => x && !usedFam.has(x));
+    if (!id) id = "FM-" + String(nextFam++).padStart(6, "0");
+    usedFam.add(id);
+    const role = (p) => { const ids = (p.facets.accounts || []).map((a) => a.identity).filter(Boolean); if (ids.some((x) => x === "学生")) return "child"; if (p.sources.customer || ids.some((x) => ADULT.has(x))) return "adult"; return ""; };
+    const fam = { id, members: members.map((p) => ({ crmId: p.crmId, name: p.name, role: role(p) })), contactEmail: members.map((p) => p.primaryEmail).find(Boolean) || "", orders: members.reduce((a, p) => a + (p.orders || 0), 0), spend: members.reduce((a, p) => a + (p.spend || 0), 0) };
+    families.push(fam);
+    members.forEach((p) => { p.familyId = id; });
+  }
+  families.sort((a, b) => a.id.localeCompare(b.id));
+
+  // ---- 机构 (phase 3): one row per school domain — accounts, active, customers among
+  // them, leads, and the buyers' orders. Sales are summed here from the customers'
+  // Equip facets (total, not by period; the period view is computed by the reader).
+  const institutions = (src.domains || []).map((d) => {
+    const users = d.users || [];
+    const persons = new Set(); users.forEach((u) => { const p = personOfFacet.get("account:" + normalizeEmail(u.upn)); if (p) persons.add(p); });
+    const ps = Array.from(persons);
+    const active = users.filter((u) => u.lastSignIn && now - Date.parse(u.lastSignIn) <= 90 * DAY).length;
+    return { domain: d.domain, accounts: users.length, active, people: ps.length, customers: ps.filter((p) => p.sources.customer).length, leads: ps.filter((p) => p.sources.lead).length, buyers: ps.filter((p) => (p.orders || 0) > 0).length, orders: ps.reduce((a, p) => a + (p.orders || 0), 0), spend: ps.reduce((a, p) => a + (p.spend || 0), 0), hiveOrders: ps.reduce((a, p) => a + (p.hiveOrders || 0), 0), families: new Set(ps.map((p) => p.familyId).filter(Boolean)).size, customerIds: ps.filter((p) => p.sources.customer).map((p) => p.crmId) };
+  }).sort((a, b) => b.spend - a.spend || b.accounts - a.accounts);
+
   const stats = {
     people: people.length, customers: people.filter((p) => p.sources.customer).length, accounts: people.filter((p) => p.sources.account).length,
     leads: people.filter((p) => p.sources.lead).length, hive: people.filter((p) => p.sources.hive).length,
     replace: people.filter((p) => p.primaryTier === "replace").length, missing: people.filter((p) => p.primaryTier === "missing").length, viaTeams: people.filter((p) => p.viaTeams).length,
     queue: queue.length, writeBack: people.reduce((a, p) => a + p.writeBack.length, 0),
     stages: ["lead", "registered", "active", "dormant"].reduce((o, s) => (o[s] = people.filter((p) => p.stage === s).length, o), {}),
-    facets: facets.length,
+    facets: facets.length, families: families.length, institutions: institutions.length,
   };
-  return { generatedAt: new Date(now).toISOString(), nextId: next, people, queue, stats, sources: { equipSyncedAt: (src.equip && src.equip.syncedAt) || null, domains: (src.domains || []).length, hiveOrders: (src.hiveOrders || []).length } };
+  return { generatedAt: new Date(now).toISOString(), nextId: next, nextFamily: nextFam, people, queue, families, institutions, stats, sources: { equipSyncedAt: (src.equip && src.equip.syncedAt) || null, domains: (src.domains || []).length, hiveOrders: (src.hiveOrders || []).length } };
 }
 
 // Gather the sources and write the hub.
@@ -232,7 +289,7 @@ async function rebuild(opts) {
   for (const d of domainsList) {
     try {
       const doc = await dir.readDomain(d.domain);
-      const users = (doc.users || []).map((u) => Object.assign({}, u, { identity: peopleMod.identityOf(peopleDoc.people[u.upn], u) }));
+      const users = (doc.users || []).map((u) => Object.assign({}, u, { identity: peopleMod.identityOf(peopleDoc.people[u.upn], u), linked: (peopleDoc.people[u.upn] && peopleDoc.people[u.upn].linked) || [] }));
       domains.push({ domain: d.domain, users });
     } catch { /* a school without a cache yet */ }
   }
@@ -257,8 +314,9 @@ function maskPerson(p, acc) {
   if (!seeMoney) { o.spend = null; o.hiveTotal = null; o.facets = Object.assign({}, o.facets, { customers: (o.facets.customers || []).map((c) => Object.assign({}, c, { spend: null, received: null })), hive: (o.facets.hive || []).map((h) => Object.assign({}, h, { total: null })) }); }
   if (!seeAcc) o.facets = Object.assign({}, o.facets, { accounts: (o.facets.accounts || []).map((a) => ({ domain: a.domain, identity: a.identity })) });
   if (!seeLeads) o.facets = Object.assign({}, o.facets, { leads: [] });
+  if (!seeWho && o.family) o.family = Object.assign({}, o.family, { contactEmail: dom(o.family.contactEmail), members: (o.family.members || []).map((m) => Object.assign({}, m, { name: m.name ? m.name.slice(0, 1) + "…" : "" })) });
   if (!seeOrders) o.facets = Object.assign({}, o.facets, { hive: [] });
   return o;
 }
 
-module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, MARKS_BLOB, build, rebuild, readHub, readDecisions, writeDecisions, readMarks, writeMarks, withMarks, markStats, replaceEmailOf, maskPerson, normName, pairKey };
+module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, MARKS_BLOB, PARTNERS_BLOB, PARTNER_STAGES, readPartners, writePartners, build, rebuild, readHub, readDecisions, writeDecisions, readMarks, writeMarks, withMarks, markStats, replaceEmailOf, maskPerson, normName, pairKey };
