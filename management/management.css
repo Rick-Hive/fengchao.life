@@ -603,3 +603,9 @@ button.orow.link:hover { background: #f8fafc; }
 .kpi.stat { container-type: inline-size; }
 @container (max-width: 175px) { .kpi.stat .spark { display: none; } }
 .card.todo .digest { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-top: var(--s3); font-size: 12px; flex-wrap: wrap; }
+.toolbar.sub { margin: 0 0 var(--s3); gap: 6px; }
+.toolbar.sub .chip { height: 26px; font-size: 12px; }
+.msgtpl { margin-top: var(--s3); font-size: 13px; }
+.msgtpl summary { cursor: pointer; color: var(--accent-dark); }
+.msgtpl textarea { width: 100%; margin: var(--s2) 0 4px; font: inherit; font-size: 12.5px; line-height: 1.45; padding: 8px; border: 1px solid var(--line-strong); border-radius: 8px; resize: vertical; }
+.msgtpl .btn { margin-bottom: var(--s2); }

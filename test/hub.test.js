@@ -134,6 +134,16 @@ const hub4 = H.build({ equip, domains, hiveOrders, prev: hub, decisions: { pairs
 assert.strictEqual(hub4.queue.length, 1, "a 不是 verdict silences that suggestion");
 assert.strictEqual(hub4.people.find((p) => p.facets.customers.some((c) => c.recId === "recC2")).facets.accounts.length, 0);
 
+// 待替换邮箱 marks ride on the mainland address and survive a rebuild.
+const marks = { marks: { "mama@qq.com": { status: "replaced", by: "om", at: now2026("2026-10-02") }, "old@163.com": { status: "notified", by: "om", at: "2026-09-01T00:00:00Z" } } };
+function now2026(d) { return d + "T00:00:00Z"; }
+const marked = H.withMarks(hub.people, marks);
+assert.strictEqual(marked.find((p) => p.name === "Mei Wang").replaceMark.status, "replaced");
+assert.strictEqual(marked.find((p) => p.name === "Wang Wu").replaceMark.status, "notified");
+assert.strictEqual(marked.find((p) => p.name === "Li Si").replaceMark, undefined);
+assert.deepStrictEqual(H.markStats(hub.people, marks, Date.parse("2026-10-07T00:00:00Z")), { notified: 1, replaced: 0, replacedThisMonth: 0 }, "Mei's primary is her Teams UPN, so she is not 'replace' any more and not counted; Wang Wu is notified");
+assert.strictEqual(H.replaceEmailOf(byName("Wang Wu")), "old@163.com");
+
 // Masking by the matrix.
 const fin = H.maskPerson(mei, C.accessMap(["staff:finance"]));
 assert.strictEqual(fin.primaryEmail, "…@equipme.cloud");

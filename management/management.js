@@ -2142,7 +2142,10 @@
   var PEOPLE_TABS = [["all", "全部", "All"], ["replace", "待替换邮箱", "Email to replace"], ["missing", "无邮箱", "No email"], ["viaTeams", "Teams 代用", "Via Teams"], ["queue", "待合并", "To merge"]];
   var STAGES = { lead: ["潜在", "Lead", ""], registered: ["已注册", "Registered", "accent"], active: ["活跃", "Active", "ok"], dormant: ["沉寂", "Dormant", "muted"] };
   var TIERS = { safe: ["可用", "OK", "ok"], replace: ["待替换", "Replace", "warn"], missing: ["无邮箱", "No email", "bad"] };
-  var peopleState = { hub: null, tab: "all", q: "", stage: "", sort: { key: "", dir: 1 } };
+  var peopleState = { hub: null, tab: "all", q: "", stage: "", mark: "", sort: { key: "", dir: 1 } };
+  var MARK_TABS = [["", "全部", "All"], ["none", "未通知", "Not contacted"], ["notified", "已通知", "Contacted"], ["replaced", "已替换", "Replaced"]];
+  function markOf(p) { return p.replaceMark ? p.replaceMark.status : "none"; }
+  function markTag(p) { var m = p.replaceMark; return !m ? "" : m.status === "replaced" ? '<span class="tag ok">' + t("已替换", "Replaced") + "</span>" : '<span class="tag accent">' + t("已通知", "Contacted") + "</span>"; }
   function stageTag(s) { var d = STAGES[s] || [s, s, ""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
   function tierTag(tier) { var d = TIERS[tier]; return d ? '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>" : ""; }
   function sourceTags(p) {
@@ -2238,6 +2241,7 @@
     var h = peopleState.hub || {}, q = peopleState.q.toLowerCase();
     return (h.people || []).filter(function (p) {
       if (peopleState.tab !== "all" && personTabs(p).indexOf(peopleState.tab) < 0) return false;
+      if (peopleState.tab === "replace" && peopleState.mark && markOf(p) !== peopleState.mark) return false;
       if (peopleState.stage && p.stage !== peopleState.stage) return false;
       if (!q) return true;
       var hay = [p.crmId, p.name, (p.emails || []).map(function (e) { return e.email; }).join(" "), ((p.facets || {}).accounts || []).map(function (a) { return a.upn || a.domain; }).join(" "), ((p.facets || {}).customers || []).map(function (c) { return c.teams + " " + c.city; }).join(" ")].join(" ").toLowerCase();
@@ -2286,6 +2290,13 @@
       '<div class="kpi stat"><div class="l">' + t("待回写 CRM ID", "CRM IDs to write back") + '</div><div class="v">' + fmtNum(s.writeBack || 0) + '</div><div class="s"><span>' + t("Airtable 客户表还没有的", "customers not yet tagged in Airtable") + "</span></div></div>";
     if (peopleState.tab === "queue") { renderQueue(); return; }
     var rows = sortPeople(peopleNow());
+    // On 待替换邮箱: progress by mark (decision 14 — prompt, never force), with orders first in mind.
+    var subbar = "";
+    if (peopleState.tab === "replace") {
+      var all = list.filter(function (p) { return p.primaryTier === "replace"; }), cnt = function (k) { return k ? all.filter(function (p) { return markOf(p) === k; }).length : all.length; };
+      subbar = '<div class="toolbar sub" id="pmarks">' + MARK_TABS.map(function (m) { return '<button class="chip" data-m="' + m[0] + '" aria-pressed="' + (peopleState.mark === m[0]) + '">' + esc(t(m[1], m[2])) + ' <span class="cnt">(' + cnt(m[0]) + ")</span></button>"; }).join("") +
+        '<span class="muted" style="font-size:12px">' + esc(t("有订单的 " + all.filter(function (p) { return (p.orders || 0) > 0; }).length + " 人优先 · 本月已替换 " + (s.replacedThisMonth || 0), all.filter(function (p) { return (p.orders || 0) > 0; }).length + " with orders first · replaced this month " + (s.replacedThisMonth || 0))) + "</span></div>";
+    }
     var th = function (key, label) { var on = peopleState.sort.key === key; return '<th class="sortable' + (on ? " on" : "") + '" data-sort="' + key + '" aria-sort="' + (on ? (peopleState.sort.dir > 0 ? "ascending" : "descending") : "none") + '">' + label + '<span class="sortind">' + (on ? (peopleState.sort.dir > 0 ? "▲" : "▼") : "") + "</span></th>"; };
     var html = '<div class="tbl-wrap"><table class="data fixed" id="ptable"><colgroup><col style="width:11%"><col style="width:15%"><col style="width:22%"><col style="width:9%"><col style="width:17%"><col style="width:9%"><col style="width:9%"><col style="width:8%"></colgroup><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("email", t("主邮箱", "Primary email")) + th("sources", t("来源", "Sources")) + th("accounts", t("账号", "Accounts")) + th("orders", t("订单 / 消费", "Orders / spend")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
     if (!list.length) html += '<tr><td colspan="8" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
@@ -2296,15 +2307,16 @@
       var spend = crmLevel("money") === "none" ? "" : (typeof p.spend === "number" && p.spend ? " / " + money(p.spend, "CNY") : "");
       return '<tr class="pick" data-id="' + esc(p.crmId) + '"><td class="nowrap"><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="dot warn" title="' + esc(t("待回写：Airtable 客户表还没有这个 CRM ID", "To write back: not yet on the Airtable customer")) + '"></span>' : "") + "</td>" +
         '<td class="nowrap"><span class="avatar xs" style="background:' + hue(p.crmId) + ';color:#fff">' + esc(initials(p.name || p.crmId)) + '</span> <span class="cell-ell">' + hl(p.name || "—", peopleState.q) + "</span></td>" +
-        '<td class="nowrap"><span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span> " + tierTag(p.primaryTier) + (p.viaTeams ? ' <span class="tag accent">Teams</span>' : "") + "</td>" +
+        '<td class="nowrap"><span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span> " + tierTag(p.primaryTier) + (p.viaTeams ? ' <span class="tag accent">Teams</span>' : "") + (p.primaryTier === "replace" ? " " + markTag(p) : "") + "</td>" +
         "<td>" + sourceTags(p) + "</td>" +
         '<td class="nowrap ell" title="' + esc(accTxt) + '">' + esc(accTxt || "—") + "</td>" +
         '<td class="nowrap">' + (((p.orders || 0) + (p.hiveOrders || 0)) ? '<button type="button" class="tag link" data-orders="' + esc(p.crmId) + '" title="' + esc(t("查看订单明细", "See the orders")) + '">' + ((p.orders || 0) + (p.hiveOrders || 0)) + spend + "</button>" : "0") + "</td>" +
         '<td class="nowrap">' + esc(lastActive(p)) + "</td><td>" + stageTag(p.stage) + "</td></tr>";
     }).join("");
     html += "</tbody></table></div>";
-    $("pbody").innerHTML = html;
+    $("pbody").innerHTML = subbar + html;
     colResize($("ptable"));
+    if ($("pmarks")) $("pmarks").addEventListener("click", function (e) { var c = e.target.closest(".chip[data-m]"); if (!c) return; peopleState.mark = c.getAttribute("data-m"); renderPeople(); });
     // Click a heading to sort by it; again to reverse (Rick, 2026-10-08: 「CRM ID field, when clicking, should be 排序」).
     $("ptable").tHead.addEventListener("click", function (e) {
       if (e.target.closest(".rz")) return;
@@ -2367,6 +2379,41 @@
     var blob = new Blob(["﻿" + [head].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "people-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
+  // 邮箱替换 (decision 14): where this person stands, the buttons to move them on, and a
+  // message to copy — the Teams account to use is theirs if they have one.
+  function replaceSection(p) {
+    var h = peopleState.hub || {}, m = p.replaceMark, upn = (((p.facets || {}).accounts || [])[0] || {}).upn || "";
+    var mail = (p.emails || []).filter(function (e) { return e.tier === "replace"; }).map(function (e) { return e.email; })[0] || "";
+    var zh = (p.name || "") + " 您好，\n\n您在蜂巢/EquipMe 登记的联系邮箱是 " + mail + "。境内邮箱接收海外邮件不稳定，也不够安全，我们建议改用" + (upn ? "您的 Teams 账号 " + upn + "（它自带邮箱）" : "一个 Teams 账号（我们可以为您开通，自带邮箱）") + "作为联系邮箱。\n\n如果方便，请回复确认，我们在系统里为您更新。谢谢！";
+    var en = "Hello " + (p.name || "") + ",\n\nThe contact email we have for you is " + mail + ". Mainland mailboxes receive overseas mail unreliably and are less secure, so we suggest using " + (upn ? "your Teams account " + upn + " (it has its own mailbox)" : "a Teams account (we can set one up for you; it comes with a mailbox)") + " as your contact email.\n\nIf that works for you, please reply to confirm and we will update it. Thank you!";
+    return "<h4>" + t("邮箱替换", "Email replacement") + "</h4>" +
+      '<div class="kv"><span class="k">' + t("状态", "Status") + "</span><span>" + (m ? (m.status === "replaced" ? '<span class="tag ok">' + t("已替换", "Replaced") + "</span>" : '<span class="tag accent">' + t("已通知", "Contacted") + "</span>") + ' <span class="muted">' + esc(day(m.at) + (m.by ? " · " + m.by : "") + (m.note ? " · " + m.note : "")) + "</span>" : '<span class="tag warn">' + t("未通知", "Not contacted") + "</span>") + "</span>" +
+        '<span class="k">' + t("建议改用", "Suggested") + "</span><span>" + (upn ? esc(upn) : '<span class="muted">' + t("还没有 Teams 账号（可在用户页新建）", "No Teams account yet (create one on the Users page)") + "</span>") + "</span></div>" +
+      (h.canMark ? '<div class="actions">' + (m && m.status === "notified" ? "" : '<button type="button" class="btn secondary sm" data-mark="notified">' + t("标记已通知", "Mark contacted") + "</button>") + (m && m.status === "replaced" ? "" : '<button type="button" class="btn sm" data-mark="replaced">' + t("标记已替换", "Mark replaced") + "</button>") + (m ? '<button type="button" class="btn secondary sm" data-mark="">' + t("撤销标记", "Clear") + "</button>" : "") + "</div>" : "") +
+      '<details class="msgtpl"><summary>' + t("提醒话术（可复制）", "Message to send (copy)") + '</summary><textarea readonly rows="7">' + esc(zh) + '</textarea><button type="button" class="btn secondary sm" data-copy="zh">' + t("复制中文", "Copy Chinese") + '</button><textarea readonly rows="7">' + esc(en) + '</textarea><button type="button" class="btn secondary sm" data-copy="en">' + t("复制英文", "Copy English") + "</button></details>" +
+      '<p class="hint">' + t("标记只记录进度，不改任何来源；邮箱本身在 Airtable 客户表里改，下次同步后这个人就不再出现在待替换里。", "Marks record progress only; the address itself is changed on the Airtable customer, after which the next sync drops the person from this list.") + "</p>";
+  }
+  $("panel").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-mark]");
+    if (b) {
+      var id = ($("panel").getAttribute("data-crm") || ""), status = b.getAttribute("data-mark");
+      if (!id) return;
+      savingButton(b, t("记录中…", "Saving…"));
+      post("crm/email-replace", "POST", { crmId: id, status: status }).then(function (r) {
+        restoreButton(b);
+        if (!r.ok) { flash(esc(errText(r)), 6000); return; }
+        var p = ((peopleState.hub || {}).people || []).filter(function (x) { return x.crmId === id; })[0];
+        if (p) { if (r.body.mark) p.replaceMark = r.body.mark; else delete p.replaceMark; }
+        if (peopleState.hub && peopleState.hub.stats) Object.assign(peopleState.hub.stats, r.body.stats || {});
+        flashOk(status === "replaced" ? t("已标记为已替换。", "Marked as replaced.") : status === "notified" ? t("已标记为已通知。", "Marked as contacted.") : t("已撤销标记。", "Mark cleared."), 3000);
+        if ($("ptable")) renderPeople();
+        openPersonPanel(id);
+      });
+      return;
+    }
+    var c = e.target.closest("button[data-copy]");
+    if (c) { var ta = c.previousElementSibling; if (ta && navigator.clipboard) navigator.clipboard.writeText(ta.value).then(function () { c.textContent = t("已复制 ✓", "Copied ✓"); setTimeout(function () { c.textContent = c.getAttribute("data-copy") === "zh" ? t("复制中文", "Copy Chinese") : t("复制英文", "Copy English"); }, 1500); }); }
+  });
   function openPersonPanel(id, toOrders) {
     var p = ((peopleState.hub || {}).people || []).filter(function (x) { return x.crmId === id; })[0];
     if (!p) return;
@@ -2392,12 +2439,14 @@
       return '<div class="orow"><div class="omain"><b>' + esc(o.orderId) + '</b><span class="sub">' + esc([day(o.at), (o.hives || []).map(function (hv) { return hv.abbr || hv.name; }).join(", ")].filter(Boolean).join(" · ")) + '</span></div><div class="oprice">' + stTag(o.status) + (crmLevel("money") === "none" ? "" : "<br><b>" + money(o.total, "CNY") + "</b>") + "</div></div>";
     }).join("");
     var leads = (f.leads || []).map(function (l) { return '<div class="orow"><div class="omain"><b>' + esc(l.session || t("讲座", "Seminar")) + '</b><span class="sub">' + esc([l.name, day(l.at)].filter(Boolean).join(" · ")) + "</span></div></div>"; }).join("");
+    $("panel").setAttribute("data-crm", p.crmId);
     panelOpen('<div class="ph"><h3>' + esc(p.name || p.crmId) + "</h3>" + stageTag(p.stage) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
       '<div class="kv"><span class="k">CRM ID</span><span><b>' + esc(p.crmId) + "</b>" + (p.writeBack && p.writeBack.length ? ' <span class="tag muted">' + t("待回写 Airtable", "to write back to Airtable") + "</span>" : "") + "</span>" +
         '<span class="k">' + t("首次出现", "First seen") + "</span><span>" + esc(day(p.firstSeen) || "—") + "</span>" +
         '<span class="k">' + t("最近活动", "Last active") + "</span><span>" + esc(lastActive(p)) + "</span>" +
         (crmLevel("money") === "none" ? "" : '<span class="k">' + t("消费", "Spend") + "</span><span>" + money(p.spend, "CNY") + (p.hiveTotal ? " + " + money(p.hiveTotal, "CNY") + ' <span class="muted">' + t("蜂巢", "Hive") + "</span>" : "") + "</span>") + "</div>" +
       "<h4>" + t("邮箱", "Emails") + '</h4><div class="olist">' + emails + "</div>" +
+      (p.primaryTier === "replace" ? replaceSection(p) : "") +
       (p.viaTeams ? '<p class="hint">' + t("主邮箱用的是 Teams 账号：原邮箱是境内邮箱，不用它联系。", "The Teams account serves as the primary email: the original is a mainland mailbox and is not used for contact.") + "</p>" : "") +
       "<h4>" + t("Teams 账号", "Teams accounts") + " · " + (f.accounts || []).length + '</h4><div class="olist">' + (accounts || '<div class="orow muted">' + t("没有匹配到账号。", "No account matched.") + "</div>") + "</div>" +
       "<h4>" + t("Equip 客户", "Equip customer") + " · " + (f.customers || []).length + '</h4><div class="olist">' + (customers || '<div class="orow muted">' + t("不是 Equip 客户。", "Not an Equip customer.") + "</div>") + "</div>" +
@@ -2528,7 +2577,7 @@
         [t("待确认的订单", "Orders awaiting confirmation"), counts.submitted || 0, "#/ops/orders", "submitted"],
       ].concat(hub ? [
         [t("待合并的人员", "People to merge"), hub.canMerge ? (hub.queue || []).length : null, "#/ops/people", "queue"],
-        [t("待替换邮箱（其中有订单 " + replaceWithOrders + "）", "Emails to replace (" + replaceWithOrders + " with orders)"), replaceAll, "#/ops/people", "replace"],
+        [t("待替换邮箱（有订单 " + replaceWithOrders + " · 本月已替换 " + (stats.replacedThisMonth || 0) + "）", "Emails to replace (" + replaceWithOrders + " with orders · " + (stats.replacedThisMonth || 0) + " replaced this month)"), replaceAll, "#/ops/people", "replace"],
         [t("待回写 CRM ID", "CRM IDs to write back"), stats.writeBack || 0, "#/ops/people", "all"],
       ] : []).filter(function (r) { return r[1] !== null; });
       var canDigest = isAdmin() || crmLevel("orders") === "rw";

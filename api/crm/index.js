@@ -172,7 +172,27 @@ async function handler(context, req) {
     const h = await hub.readHub();
     if (!h) { ok(context, { people: [], queue: [], stats: null, generatedAt: null, access: acc }); return; }
     const canMerge = isAdmin(roles) || crm.atLeast(roles, "orders", "rw");
-    ok(context, { people: h.people.map((p) => hub.maskPerson(p, acc)), queue: canMerge ? h.queue : [], stats: h.stats, generatedAt: h.generatedAt, sources: h.sources, access: acc, canMerge });
+    const canMark = isAdmin(roles) || crm.atLeast(roles, "identity", "rw");
+    const marks = await hub.readMarks().catch(() => ({ marks: {} }));
+    ok(context, { people: hub.withMarks(h.people, marks).map((p) => hub.maskPerson(p, acc)), queue: canMerge ? h.queue : [], stats: Object.assign({}, h.stats, hub.markStats(h.people, marks)), generatedAt: h.generatedAt, sources: h.sources, access: acc, canMerge, canMark });
+    return;
+  }
+  // 待替换邮箱 marks: POST { crmId, status: "notified" | "replaced" | "" , note } (identity rw or sysadmin).
+  if (method === "POST" && action === "email-replace") {
+    if (!isAdmin(roles) && !crm.atLeast(roles, "identity", "rw")) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const id = String(body.crmId || "").toUpperCase(), status = String(body.status || "");
+    if (!/^HC-\d{6}$/.test(id) || !["notified", "replaced", ""].includes(status)) { fail(context, 400, "bad_request"); return; }
+    const h = await hub.readHub();
+    const p = h && h.people.find((x) => x.crmId === id);
+    if (!p) { fail(context, 404, "not_found"); return; }
+    const email = hub.replaceEmailOf(p);
+    if (!email) { fail(context, 409, "no_replace_email"); return; }
+    const doc = await hub.readMarks();
+    if (!status) delete doc.marks[email]; else doc.marks[email] = { status, by: normUser(user), at: new Date().toISOString(), note: String(body.note || "").slice(0, 200) };
+    await hub.writeMarks(doc);
+    await audit(context, { action: "crm.email.replace", by: normUser(user), crmId: id, status: status || "cleared" });
+    ok(context, { ok: true, mark: status ? Object.assign({ email }, doc.marks[email]) : null, stats: hub.markStats(h.people, doc) });
     return;
   }
   if (method === "GET" && action === "person") {

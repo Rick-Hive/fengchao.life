@@ -49,6 +49,24 @@ async function writeJson(name, obj) {
 const readHub = () => readJson(PEOPLE_BLOB, null);
 const readDecisions = () => readJson(DECISIONS_BLOB, { pairs: {} });
 const writeDecisions = (d) => writeJson(DECISIONS_BLOB, d);
+// 待替换邮箱 progress (decision 14: prompt, never force): a mark per mainland address —
+// notified / replaced — kept by the address so it survives rebuilds. crm/email-replace.json.
+const MARKS_BLOB = "crm/email-replace.json";
+const readMarks = () => readJson(MARKS_BLOB, { marks: {} });
+const writeMarks = (d) => writeJson(MARKS_BLOB, d);
+// The mainland address a person is still on (the one the mark is kept by).
+function replaceEmailOf(p) { const e = (p.emails || []).find((x) => x.tier === "replace"); return e ? e.email : ""; }
+// People with their mark attached, plus the month's counts for the dashboard.
+function withMarks(people, doc) {
+  const marks = (doc && doc.marks) || {};
+  return people.map((p) => { const e = replaceEmailOf(p); const m = e && marks[e]; return m ? Object.assign({}, p, { replaceMark: Object.assign({ email: e }, m) }) : p; });
+}
+function markStats(people, doc, now) {
+  const marks = (doc && doc.marks) || {}, ym = new Date(now || Date.now()).toISOString().slice(0, 7);
+  let notified = 0, replaced = 0, replacedThisMonth = 0;
+  for (const p of people) { if (p.primaryTier !== "replace") continue; const m = marks[replaceEmailOf(p)]; if (!m) continue; if (m.status === "notified") notified++; if (m.status === "replaced") { replaced++; if (String(m.at || "").slice(0, 7) === ym) replacedThisMonth++; } }
+  return { notified, replaced, replacedThisMonth };
+}
 
 // ---- helpers --------------------------------------------------------------
 function normName(s) { return String(s || "").toLowerCase().replace(/[\s·.,，、_\-]+/g, ""); }
@@ -243,4 +261,4 @@ function maskPerson(p, acc) {
   return o;
 }
 
-module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, build, rebuild, readHub, readDecisions, writeDecisions, maskPerson, normName, pairKey };
+module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, MARKS_BLOB, build, rebuild, readHub, readDecisions, writeDecisions, readMarks, writeMarks, withMarks, markStats, replaceEmailOf, maskPerson, normName, pairKey };
