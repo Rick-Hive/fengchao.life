@@ -61,8 +61,20 @@ async function writeJson(name, obj) {
   await blob.upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" } });
 }
 
+// The schools that have a directory cache: every directory/<domain>.json. The hub's
+// fallback when Graph cannot list the tenant's domains (and what the tests see).
+async function cachedDomains() {
+  const { container } = blobFor("x");
+  const out = [];
+  for await (const b of container.listBlobsFlat({ prefix: PREFIX })) {
+    const m = /^directory\/([a-z0-9][a-z0-9.-]*\.[a-z]{2,})\.json$/.exec(b.name);
+    if (m) out.push({ domain: m[1], isDefault: false, isInitial: false });
+  }
+  return out;
+}
+
 // Tests swap these for an in-memory pair.
-const store = { read: readJson, write: writeJson };
+const store = { read: readJson, write: writeJson, listDomains: cachedDomains };
 
 // ---- shapes -------------------------------------------------------------------------
 function domainOf(upn) { return String(upn || "").toLowerCase().split("@")[1] || ""; }
@@ -433,4 +445,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };

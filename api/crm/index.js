@@ -200,7 +200,13 @@ async function handler(context, req) {
     const canEdit = isAdmin(roles) || crm.atLeast(roles, "partners", "rw");
     const seeMoney = ["read", "rw"].includes(acc.money);
     const peopleMod = require("../shared/people");
-    const [h, inst, partners, data] = await Promise.all([hub.readHub(), peopleMod.readInstitutions().catch(() => ({ institutions: {} })), hub.readPartners().catch(() => ({ partners: {} })), equip.readEquip().catch(() => null)]);
+    let [h, inst, partners, data] = await Promise.all([hub.readHub(), peopleMod.readInstitutions().catch(() => ({ institutions: {} })), hub.readPartners().catch(() => ({ partners: {} })), equip.readEquip().catch(() => null)]);
+    // A people.json built by an older version has no institutions (Rick, 2026-10-08:
+    // 「为什么机构里还是空的？」— the hub is rebuilt after a sync, and none had run since
+    // the deploy). Rebuild once here instead of showing an empty page.
+    if (method === "GET" && h && h.people && h.people.length && !Array.isArray(h.institutions)) {
+      try { h = await hub.rebuild({ log: (m) => context.log(m) }); } catch (err) { context.log.error("crm: hub rebuild for institutions failed: " + ((err && err.stack) || err)); }
+    }
     if (method === "POST") {
       if (!canEdit) { fail(context, 403, "no_access"); return; }
       const body = req.body && typeof req.body === "object" ? req.body : {};

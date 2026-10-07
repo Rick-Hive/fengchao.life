@@ -2672,7 +2672,7 @@
       (seeMoney ? statTile(fyLabel(d.fy) + " · " + t("教材销售", "textbook sales"), fmtMoney(d.rows.reduce(function (a, r) { return a + (r.fySales || 0); }, 0)), { sub: t("有 Teams 账号的客户的订单", "orders by customers with a Teams account") }) : "");
     $("itable").tBodies[0].innerHTML = rows.length ? rows.map(function (r) {
       return '<tr class="pick" data-domain="' + esc(r.domain) + '"><td class="ell"><b>' + esc(instName(r)) + '</b><span class="sub">' + esc(r.domain) + "</span></td><td>" + pstTag(r.partner && r.partner.stage) + '</td><td class="num">' + fmtNum(r.accounts) + '</td><td class="num">' + fmtNum(r.active) + '</td><td class="num">' + fmtNum(r.customers) + '</td><td class="num">' + (seeMoney ? fmtMoney(r.fySales || 0) : fmtNum(r.fyOrders) + t(" 单", " orders")) + '</td><td class="num">' + fmtNum(r.leads) + '</td><td class="num">' + fmtNum(r.families) + '</td><td class="num">' + fmtNum(r.hiveOrders) + "</td></tr>";
-    }).join("") : '<tr><td colspan="9" class="empty">' + t("没有机构。", "No institutions.") + "</td></tr>";
+    }).join("") : '<tr><td colspan="9" class="empty">' + t("没有机构。机构来自人员库：各学校的目录缓存要先同步（本域管理 › 用户 › 同步），然后在人员库点「重新匹配」或在这里点「刷新」。", "No institutions. They come from the people hub: sync each school's directory first (My domain › Users › Sync), then Rebuild in the People Hub or Refresh here.") + "</td></tr>";
     $("ifoot").textContent = (d.generatedAt ? t("数据来自人员库，匹配于 ", "From the people hub, matched ") + when(d.generatedAt) : "") + (seeMoney ? "" : " · " + t("金额按角色隐藏", "Amounts hidden for this role"));
   }
   function openInstitutionPanel(domain) {

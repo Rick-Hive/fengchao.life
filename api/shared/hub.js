@@ -285,6 +285,7 @@ async function rebuild(opts) {
   const [equipData, prev, decisions, hiveOrders, peopleDoc] = await Promise.all([equip.readEquip(), readHub(), readDecisions(), crm.listOrders().catch(() => []), peopleMod.readPeople().catch(() => ({ people: {} }))]);
   let domainsList = [];
   try { domainsList = await dir.verifiedDomains(); } catch (err) { log(`hub: domains not listed (${err.message}); using cached schools only`); }
+  if (!domainsList.length) { try { domainsList = await dir.cachedDomains(); } catch (err) { log(`hub: cached schools not listed (${err.message})`); } }
   const domains = [];
   for (const d of domainsList) {
     try {
