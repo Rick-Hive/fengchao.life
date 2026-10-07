@@ -194,7 +194,8 @@
     <a href="#s6"><span class="num">6</span><span data-en="Teams groups">Teams 群组</span></a>
     <a href="#s7"><span class="num">7</span><span data-en="Identity, linked accounts and self-reported details">身份、关联账号与补充资料</span></a>
     <a href="#s8"><span class="num">8</span><span data-en="Security, audit and the limits of the role">安全、审计与权限边界</span></a>
-    <a href="#s9"><span class="num">9</span><span data-en="Getting help">获取帮助</span></a>
+    <a href="#s9"><span class="num">9</span><span data-en="Finding the cause of a sign-in problem from the logs">用日志定位登录问题（配合 AI）</span></a>
+    <a href="#s10"><span class="num">10</span><span data-en="Getting help">获取帮助</span></a>
   </nav>
 
   <!-- ===================== 1 ===================== -->
@@ -355,13 +356,139 @@
   </div>
 
   <!-- ===================== 9 ===================== -->
-  <h2 class="cat" id="s9" data-en="9　Getting help">9　获取帮助</h2>
+  <h2 class="cat" id="s9" data-en="9　Finding the cause of a sign-in problem from the logs — with an AI's help">9　用登录日志和审计日志定位登录问题（配合 AI）</h2>
+  <p class="cat-note" data-en="“I can't sign in” has a dozen causes — wrong password, an authenticator on a phone that is gone, a request that timed out, an account locked after too many tries, a personal Microsoft account used by mistake. Microsoft records every attempt. Two downloadable logs plus an AI assistant turn the guesswork into a five-minute diagnosis. This section is written for the <strong>domain administrator</strong>; the box at the end is for the <strong>person</strong> who cannot sign in.">「登不进去」背后有十来种原因——密码错了、验证器在一部已经不在的手机上、验证请求超时没批准、试太多次被锁定、误用了个人微软账号……微软把每一次尝试都记了下来。两份可下载的日志，加上一个 AI 助手，能把猜来猜去变成五分钟的诊断。本节写给<strong>域管理员</strong>；末尾的方框写给<strong>登不进去的本人</strong>。</p>
+
+  <div class="case" style="padding:14px 18px" id="logs-what">
+    <h3 data-en="The two logs and where to get them">两份日志是什么、从哪里拿</h3>
+    <div class="tbl-wrap"><table class="grid">
+      <thead><tr><th data-en="Log">日志</th><th data-en="What it records">记录什么</th><th data-en="Who can download it, and where">谁能下载、在哪里</th></tr></thead>
+      <tbody>
+        <tr><td data-en="Sign-in log">登录日志</td><td data-en="Every sign-in attempt of the last 7 days: time, which app (Teams, Outlook, the Hive site…), success or failure, the failure reason and Microsoft's error code, IP address and place, operating system and browser.">最近 7 天的每一次登录尝试：时间、哪个应用（Teams、Outlook、蜂巢网站……）、成功还是失败、失败原因和微软的错误码、IP 地址与地点、操作系统与浏览器。</td><td data-en="The account owner: Management Center → <a href='/management/#/security'>My account → Sign-in and security</a> → <strong>Sign-in logs → Download</strong> (CSV or JSON). Hive's system administrator sees the same in Microsoft Entra (30 days).">账号本人：管理中心 →<a href="/management/#/security">我的账号 → 登录与安全</a>→<strong>「登录日志」→「下载」</strong>（CSV 或 JSON）。蜂巢的系统管理员在 Microsoft Entra 里能看到同样的记录（30 天）。</td></tr>
+        <tr><td data-en="Audit log">审计日志</td><td data-en="Every change made to the account itself in the last 7 days: password reset or change, authenticator added or deleted, profile updated, group membership — with who did it (the person, an administrator, or Hive) and the result. It does not record chats or files.">最近 7 天对账号本身的每一次更改：重置或修改密码、添加或删除验证器、修改资料、加入群组——含操作者（本人、管理员，还是蜂巢系统）和结果。不记录聊天和文件。</td><td data-en="Same place, <strong>Audit logs → Download</strong>. Your own actions in the Management Center (device removed, password reset) appear here under your name.">同一处，<strong>「审计日志」→「下载」</strong>。你在管理中心做的操作（删设备、重置密码）会以你的名字出现在这里。</td></tr>
+        <tr><td data-en="What you see yourself">你自己能直接看到的</td><td data-en="In the person panel (§4): last sign-in, Authentication Yes/No, each authenticator device with model, version and the date it was added, whether the account is enabled.">人员面板（第 4 节）里：最近登录、验证 Yes/No、每台验证设备的型号、版本和添加日期、账号是否启用。</td><td data-en="You — no download needed. Check this first: half the cases are settled by the device list alone.">你——不用下载。先看这里：一半的情况光看设备列表就能定。</td></tr>
+      </tbody>
+    </table></div>
+    <p data-en="Only the owner can download their own logs — a domain administrator cannot pull another person's. That is deliberate: the log says where and on which devices someone has been. So step one is always to ask the person to export and send the files to you.">只有本人能下载自己的日志，域管理员拉不到别人的——这是有意为之：日志里写着一个人在哪里、用什么设备。所以第一步永远是请本人导出并发给你。</p>
+  </div>
+
+  <details class="case" id="case-logs">
+    <summary><span class="num">9.1</span><span class="ttl" data-en="Step by step: from “I can't sign in” to the cause">处理步骤：从「登不进去」到找到原因</span></summary>
+    <div class="case-body">
+      <ol class="fix">
+        <li data-en="<strong>Look at the person panel first</strong> (Users → the person). Last sign-in long ago and Authentication No → the person never finished registering an authenticator (<a href='/help/teams-cases.html#case-android-only'>case 2.1</a>). A device model that is not the phone they hold now → changed phones (<a href='#case-new-phone'>5.1</a>). Account disabled → the school switched it off in Microsoft 365. If the panel settles it, stop here."><strong>先看人员面板</strong>（「用户」→ 此人）。最近登录很久以前、验证 No → 本人从没完成验证器注册（<a href="/help/teams-cases.html#case-android-only">案例 2.1</a>）。设备型号和他现在手里的手机对不上 → 换过手机（<a href="#case-new-phone">5.1</a>）。账号已停用 → 学校在 Microsoft 365 里关掉了。面板能定的，到此为止。</li>
+        <li data-en="<strong>Ask the person to export both logs</strong> and send them to you — by Teams private chat or email to you personally, <em>not</em> in a group. If they cannot open the Management Center at all (that is the problem, after all), they can do it from any browser where they are still signed in, or from a colleague's computer in a private window; failing that, go to step 5 with a screenshot of the error."><strong>请本人导出两份日志</strong>发给你——Teams 私聊或发到你个人邮箱，<em>不要</em>发到群里。如果他连管理中心都打不开（这正是问题所在），可以在任何一台还保持登录的浏览器上操作，或借同事的电脑用无痕窗口登录一次；实在不行，带着报错截图直接跳到第 5 步。</li>
+        <li data-en="<strong>Read the sign-in log yourself first</strong> — open the CSV in Excel, sort by time, look at the <code>ok</code>, <code>code</code> and <code>reason</code> columns. The table in 9.2 translates the common codes. A run of the same code is the story; one odd line is noise."><strong>自己先读登录日志</strong>——用 Excel 打开 CSV，按时间排序，看 <code>ok</code>、<code>code</code>、<code>reason</code> 三列。9.2 的表翻译了常见错误码。连续多行同一个码才是线索；孤零零的一行多半是噪音。</li>
+        <li data-en="<strong>Hand both files to an AI assistant</strong> with the prompt in 9.3 and ask for a timeline and the most likely cause. Use only <strong>Claude, ChatGPT (OpenAI) or Gemini</strong> — see the security note in 9.3 for why, and what to strip first."><strong>把两个文件交给 AI 助手</strong>，用 9.3 的提示词，要它给出时间线和最可能的原因。只用 <strong>Claude、ChatGPT（OpenAI）或 Gemini</strong>——原因和上传前要删什么，见 9.3 的安全提示。</li>
+        <li data-en="<strong>Act on the finding</strong> with the matching step of this handbook (table 9.4). Verify identity before removing a device or resetting a password, as always (§8)."><strong>按结论操作</strong>，对照 9.4 的表找到本手册里对应的步骤。删设备、重置密码之前照例先核实身份（第 8 节）。</li>
+        <li data-en="<strong>Delete the log files</strong> once the case is closed — from your downloads, from the chat, and from the AI conversation (delete the chat). They are personal data of the person you helped."><strong>处理完删掉日志文件</strong>——你的下载目录、聊天记录、AI 对话（删除该对话）里都删。那是你帮助的那个人的个人数据。</li>
+      </ol>
+      <p class="result" data-en="Result: a cause you can name, a fix from §5, and a short note for the person — usually within ten minutes, without asking them to “try again” a sixth time.">结果：说得出的原因、第 5 节里的对应处理、给本人的一句话说明——通常十分钟内，不用再让他「再试一次」。</p>
+    </div>
+  </details>
+
+  <details class="case" id="case-logs-codes">
+    <summary><span class="num">9.2</span><span class="ttl" data-en="Reading the sign-in log: columns and the common error codes">读懂登录日志：字段和常见错误码</span></summary>
+    <div class="case-body">
+      <h4 data-en="Columns">字段</h4>
+      <p data-en="<code>time</code> (UTC — add 8 hours for Beijing) · <code>app</code> which application · <code>client</code> browser or mobile app · <code>ok</code> true/false · <code>code</code> Microsoft's error code (0 = success) · <code>reason</code> and <code>detail</code> Microsoft's explanation · <code>ip</code> and <code>place</code> where the attempt came from · <code>os</code>, <code>browser</code> the device · <code>ca</code> whether an access policy applied."><code>time</code>（UTC，北京时间加 8 小时）· <code>app</code> 哪个应用 · <code>client</code> 浏览器还是手机 App · <code>ok</code> 成功与否 · <code>code</code> 微软错误码（0 = 成功）· <code>reason</code>、<code>detail</code> 微软的说明 · <code>ip</code>、<code>place</code> 从哪里发起 · <code>os</code>、<code>browser</code> 什么设备 · <code>ca</code> 是否触发了访问策略。</p>
+      <p data-en="The audit log has <code>time</code>, <code>activity</code> (what happened), <code>result</code>, <code>reason</code>, <code>by</code> (who did it) and <code>targets</code> (to whom). Typical activities: <em>User registered security info</em> (an authenticator was added), <em>User deleted security info</em>, <em>Reset user password</em> (by an administrator), <em>Change user password</em> (by the person), <em>Update user</em>.">审计日志有 <code>time</code>、<code>activity</code>（发生了什么）、<code>result</code>、<code>reason</code>、<code>by</code>（谁做的）、<code>targets</code>（对谁）。常见的 activity：<em>User registered security info</em>（添加了验证器）、<em>User deleted security info</em>（删除了验证器）、<em>Reset user password</em>（管理员重置密码）、<em>Change user password</em>（本人改密码）、<em>Update user</em>（资料更新）。</p>
+      <h4 data-en="Common codes">常见错误码</h4>
+      <div class="tbl-wrap"><table class="grid">
+        <thead><tr><th data-en="Code">错误码</th><th data-en="Meaning">含义</th><th data-en="Usually means">通常说明</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td data-en="Success">成功</td><td data-en="A successful line from a place or device the person does not recognise is the one finding that must go to the system administrator the same day.">一条成功记录，但地点或设备本人不认识——这是唯一必须当天报给系统管理员的发现。</td></tr>
+          <tr><td>50126</td><td data-en="Wrong password">密码错误</td><td data-en="Typo, caps lock, an old password saved in the app. Five or more in a row → <a href='#case-forgot'>5.2 reset</a>.">输错、大写锁定、App 里存着旧密码。连续五次以上 → <a href="#case-forgot">5.2 重置</a>。</td></tr>
+          <tr><td>50053</td><td data-en="Account locked">账号被锁定</td><td data-en="Too many wrong passwords in a short time (or the IP was flagged). It unlocks itself after a while; a password reset unlocks it at once.">短时间内密码错太多次（或该 IP 被标记）。过一会儿自动解锁；重置密码立即解锁。</td></tr>
+          <tr><td>50055</td><td data-en="Password expired">密码过期</td><td data-en="Microsoft asks for a new one at sign-in; if the person cannot get past it, reset.">登录时微软会要求改密；过不去就重置。</td></tr>
+          <tr><td>50057</td><td data-en="Account disabled">账号已停用</td><td data-en="Switched off by the school in Microsoft 365 — not something you can undo here (§8).">学校在 Microsoft 365 里停用了——这里恢复不了（第 8 节）。</td></tr>
+          <tr><td>50034</td><td data-en="Account does not exist">账号不存在</td><td data-en="Mistyped account name, or the wrong domain (<code>@gmail.com</code> instead of the school account).">账号名拼错，或域名不对（输成了 <code>@gmail.com</code> 而不是学校账号）。</td></tr>
+          <tr><td>50020 / 90072</td><td data-en="Account from another directory">账号属于别的目录</td><td data-en="A personal Microsoft account or another organisation's account was used → <a href='/help/teams-cases.html#case-personal-account'>case 5.1</a>.">用了个人微软账号或别的机构的账号 → <a href="/help/teams-cases.html#case-personal-account">案例 5.1</a>。</td></tr>
+          <tr><td>50072 / 50079</td><td data-en="Must register an authenticator">需要注册验证器</td><td data-en="The “More information required” screen. No authenticator yet, or the only one was deleted → <a href='/help/teams-setup.html'>setup wizard</a>, <a href='/help/teams-cases.html#case-android-only'>case 2.1</a>.">就是「需要更多信息」那一屏。还没有验证器，或唯一的验证器被删了 → <a href="/help/teams-setup.html">设置向导</a>、<a href="/help/teams-cases.html#case-android-only">案例 2.1</a>。</td></tr>
+          <tr><td>50074 / 50076</td><td data-en="Verification required and not completed">需要验证而未完成</td><td data-en="Password accepted, authenticator step not passed. On its own: the request went to a phone that was not answered.">密码对了，验证器那一步没过。单独出现：请求发到了没人响应的手机上。</td></tr>
+          <tr><td>500121</td><td data-en="Verification failed">验证失败</td><td data-en="The prompt was denied, timed out or never arrived. Repeated 500121 = the authenticator is on a phone the person no longer has or cannot reach → <a href='#case-new-phone'>5.1</a>, <a href='/help/teams-cases.html#case-old-phone'>cases 1.1–1.3</a>. Denied by the person while they were not signing in = someone else tried their password: reset it.">提示被拒绝、超时或根本没到。反复 500121 = 验证器在本人已经没有或够不着的手机上 → <a href="#case-new-phone">5.1</a>、<a href="/help/teams-cases.html#case-old-phone">案例 1.1–1.3</a>。本人没在登录却收到并拒绝了提示 = 有人在试他的密码：重置。</td></tr>
+          <tr><td>50173 / 50133 / 70044</td><td data-en="Session no longer valid">会话失效</td><td data-en="Password was changed or reset, or the session expired: devices must sign in again. Expected after a reset.">改过或重置过密码，或会话到期：各设备要重新登录。重置之后出现属正常。</td></tr>
+          <tr><td>53003</td><td data-en="Blocked by an access policy">被访问策略阻止</td><td data-en="A tenant rule stopped it (device, place or app not allowed). Contact the system administrator with the line.">租户策略拦截（设备、地点或应用不允许）。把这一行发给系统管理员。</td></tr>
+          <tr><td>50058 / 50140</td><td data-en="Background noise">背景噪音</td><td data-en="Silent sign-in failed / “Stay signed in?” prompt. Harmless; ignore unless they are the only lines.">静默登录失败 / 「保持登录？」提示。无害，除非整份日志只有这些。</td></tr>
+        </tbody>
+      </table></div>
+      <p data-en="Codes not listed: search “AADSTS” followed by the number, or just ask the AI in the next step — it knows the whole catalogue.">表里没有的码：搜索「AADSTS」加这个数字，或者直接问下一步的 AI——它认得全部目录。</p>
+    </div>
+  </details>
+
+  <details class="case" id="case-logs-ai">
+    <summary><span class="num">9.3</span><span class="ttl" data-en="Letting an AI read the logs — safely">让 AI 读日志——安全地</span></summary>
+    <div class="case-body">
+      <div class="admin-box" style="margin:8px 0 14px">
+        <h2 data-en="Security first: which AI, and what not to upload">安全第一：用哪个 AI，不上传什么</h2>
+        <ul>
+          <li data-en="<strong>Use Claude (claude.ai), ChatGPT (OpenAI) or Gemini (Google) only.</strong> Do <strong>not</strong> paste or upload these logs into any AI service operated from mainland China — DeepSeek, Doubao (豆包), Kimi, Qwen (通义), Ernie (文心), GLM and the like — nor into unknown “free” tools or browser plug-ins. The logs show where our teachers, parents and students are, which devices they use and the names of their accounts; that information must stay outside those jurisdictions and outside anyone's training data."><strong>只用 Claude（claude.ai）、ChatGPT（OpenAI）或 Gemini（Google）。</strong>这些日志<strong>不要</strong>贴进或上传到任何在中国大陆运营的 AI 服务——DeepSeek、豆包、Kimi、通义千问、文心一言、智谱等——也不要给来路不明的「免费」工具或浏览器插件。日志里有我们的老师、家长、学生在哪里、用什么设备、账号叫什么；这些信息不能落到那些管辖范围内，也不能进任何人的训练数据。</li>
+          <li data-en="<strong>Turn off “use my chats to improve the model”</strong> in the AI's settings (all three have such a switch), or use a paid/work plan where it is off by default. Delete the conversation when you are done."><strong>在 AI 的设置里关掉「用我的对话改进模型」</strong>（三家都有这个开关），或者使用默认关闭的付费 / 工作版。处理完删除对话。</li>
+          <li data-en="<strong>Strip what the diagnosis does not need.</strong> Open the CSV first and delete the <code>ip</code> column; the <code>place</code> column is enough for a diagnosis. Never include a temporary password, a screenshot of one, or anything from a group chat."><strong>删掉诊断用不着的列。</strong>先打开 CSV，删去 <code>ip</code> 列；诊断有 <code>place</code> 列就够了。绝不包含临时密码、临时密码的截图或群聊内容。</li>
+          <li data-en="<strong>One person's logs per conversation.</strong> Do not accumulate several people's files in one chat."><strong>一个对话只放一个人的日志。</strong>不要把几个人的文件堆进同一个对话。</li>
+        </ul>
+      </div>
+      <h4 data-en="The prompt — copy, fill in the brackets, attach the two files">提示词——复制、填好方括号、附上两个文件</h4>
+      <pre style="white-space:pre-wrap;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:.86rem;line-height:1.5" data-en="You are helping a school IT administrator diagnose a Microsoft 365 sign-in problem. Attached are one user's sign-in log and audit log (CSV, last 7 days, times in UTC; convert to Beijing time, UTC+8). The user says: [what the person reported, e.g. “Teams asks me to approve on my phone but nothing arrives” — since about [date]]. Their phone is [model]; the administrator sees these authenticator devices on the account: [list from the person panel, with dates added].
+
+Please:
+1. Build a timeline of the attempts, grouped by day, app and device; mark successes and failures.
+2. Translate each distinct error code (AADSTS…) into plain language.
+3. Match the audit log against the timeline: password changes, authenticators added or removed, by whom.
+4. State the single most likely cause, the evidence for it, and one or two alternatives.
+5. Point out anything suspicious: a successful sign-in from an unexpected place or device, a device registered by someone other than the user, bursts of wrong passwords.
+6. Recommend the next action in one or two sentences, choosing from: remove an authenticator device; reset the password; ask the user to register an authenticator (“More information required”); the account is disabled or blocked by policy — escalate to the system administrator; sign in with the school account instead of a personal one; nothing to fix — explain what the user should do differently.
+Answer in Chinese, briefly; do not repeat the raw log.">你在帮助一所学校的 IT 管理员诊断一个 Microsoft 365 登录问题。附件是一位用户的登录日志和审计日志（CSV，最近 7 天，时间为 UTC，请换算成北京时间 UTC+8）。用户的描述：[本人的原话，例如「Teams 让我在手机上批准，但手机上什么都没收到」——大约从 [日期] 开始]。他现在用的手机是 [型号]；管理员在账号上看到这些验证设备：[从人员面板抄下来的列表，含添加日期]。
+
+请：
+1. 按日期、应用、设备整理一条时间线，标出成功与失败。
+2. 把出现过的每个错误码（AADSTS…）翻译成通俗的话。
+3. 把审计日志对到时间线上：改密码、增删验证器，各是谁做的。
+4. 给出最可能的单一原因、支持它的证据，以及一两个备选解释。
+5. 指出可疑之处：从陌生地点或设备的成功登录、不是本人登记的设备、短时间内大量密码错误。
+6. 用一两句话建议下一步，从这些里选：删除某台验证设备；重置密码；请用户注册验证器（「需要更多信息」）；账号被停用或被策略阻止——转交系统管理员；改用学校账号而不是个人账号登录；无需修复——说明用户该怎么做。
+请用中文简要回答，不要复述原始日志。</pre>
+      <p data-en="Read the answer critically: the AI sees the log, not the person. If its conclusion contradicts what you see in the person panel (a device it says is missing is in fact listed), the panel wins. When in doubt, paste its summary — without the files — to the system administrator.">批判地读它的回答：AI 看到的是日志，不是人。如果它的结论和你在人员面板里看到的相矛盾（它说没有的设备其实列在那里），以面板为准。拿不准时，把它的摘要——不带文件——发给系统管理员。</p>
+    </div>
+  </details>
+
+  <details class="case" id="case-logs-act">
+    <summary><span class="num">9.4</span><span class="ttl" data-en="From finding to action">从结论到操作</span></summary>
+    <div class="case-body">
+      <div class="tbl-wrap"><table class="grid">
+        <thead><tr><th data-en="The log says">日志显示</th><th data-en="What it means">意思是</th><th data-en="Do this">这样做</th></tr></thead>
+        <tbody>
+          <tr><td data-en="Repeated 500121 / 50074; the device list shows a phone the person no longer has">反复 500121 / 50074；设备列表里有一部本人已经没有的手机</td><td data-en="Authenticator on the old phone">验证器在旧手机上</td><td><a href="#case-new-phone" data-en="5.1 Changed phones">5.1 换了手机</a> · <a href="/help/teams-cases.html#case-old-phone" data-en="cases 1.1–1.3">案例 1.1–1.3</a></td></tr>
+          <tr><td data-en="50072 / 50079; Authentication No in the panel">50072 / 50079；面板里验证 No</td><td data-en="Never registered, or the only device was deleted">从未注册，或唯一设备被删</td><td><a href="/help/teams-setup.html" data-en="Setup wizard">设置向导</a> · <a href="/help/teams-cases.html#case-android-only" data-en="case 2.1 (Android)">案例 2.1（安卓）</a></td></tr>
+          <tr><td data-en="A run of 50126, perhaps ending in 50053">一串 50126，可能以 50053 收尾</td><td data-en="Forgotten password, now locked">忘记密码，已被锁定</td><td><a href="#case-forgot" data-en="5.2 Reset the password">5.2 重置密码</a> · <a href="/help/teams-cases.html#case-forgot" data-en="case 4.1">案例 4.1</a></td></tr>
+          <tr><td data-en="500121 while the person was not signing in; 50126 from an unfamiliar place; a successful sign-in from a device nobody recognises">本人没在登录却出现 500121；陌生地点的 50126；无人认识的设备成功登录</td><td data-en="Someone else has, or is guessing, the password">别人拿到或正在猜密码</td><td data-en="Reset the password and remove unknown devices the same day; tell the system administrator — <a href='#case-two-devices'>5.6</a>, <a href='/help/teams-cases.html#case-two-phones'>case 6.1</a>">当天重置密码并删除不认识的设备；告知系统管理员——<a href="#case-two-devices">5.6</a>、<a href="/help/teams-cases.html#case-two-phones">案例 6.1</a></td></tr>
+          <tr><td data-en="Audit: “User registered security info” by someone other than the person">审计：「User registered security info」操作者不是本人</td><td data-en="An administrator scanned for them (fine) — or not (not fine)">管理员代扫（正常）——或者不是（不正常）</td><td data-en="Check with the person; see <a href='/help/teams-faq.html#q-admin-scan'>what it means when the administrator scans</a>">和本人核对；见<a href="/help/teams-faq.html#q-admin-scan">管理员帮我扫码意味着什么</a></td></tr>
+          <tr><td data-en="50020 / 90072; app = Teams, account ends in outlook.com / gmail.com">50020 / 90072；应用是 Teams，账号以 outlook.com / gmail.com 结尾</td><td data-en="Personal account used">用了个人账号</td><td><a href="/help/teams-cases.html#case-personal-account" data-en="case 5.1">案例 5.1</a></td></tr>
+          <tr><td data-en="50057 or 53003">50057 或 53003</td><td data-en="Disabled by the school, or blocked by a tenant policy">学校停用，或租户策略拦截</td><td data-en="Not yours to change (§8) — send the line to the system administrator">不在你的权限内（第 8 节）——把这一行发给系统管理员</td></tr>
+          <tr><td data-en="Only 50058 / 50140 and successes">只有 50058 / 50140 和成功记录</td><td data-en="Nothing is wrong on Microsoft's side">微软这边没有问题</td><td data-en="The trouble is on the device: network (<a href='/help/teams-faq.html#q-page-error'>page will not open</a>), a stale app, or the wrong app. Ask for a screenshot.">问题在设备上：网络（<a href="/help/teams-faq.html#q-page-error">页面打不开</a>）、过期的 App、或打开了错误的 App。请对方截图。</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </details>
+
+  <div class="admin-box" id="for-users-logs">
+    <h2 data-en="For the person who cannot sign in: do the first pass yourself">给登不进去的本人：自己先走一遍</h2>
+    <ul>
+      <li data-en="<strong>Download your two logs:</strong> Management Center → <a href='/management/#/security'>My account → Sign-in and security</a> → Sign-in logs → Download, then Audit logs → Download (CSV). Any browser where you are still signed in will do."><strong>下载你的两份日志：</strong>管理中心 →<a href="/management/#/security">我的账号 → 登录与安全</a>→「登录日志」→「下载」，再「审计日志」→「下载」（CSV）。任何一台你还保持登录的浏览器都可以。</li>
+      <li data-en="<strong>Ask an AI</strong> — Claude, ChatGPT or Gemini only, never a mainland-China AI or an unknown tool (the logs show where you have been and which devices you use). Delete the <code>ip</code> column first. Say what happens when you try to sign in, attach the files, and ask: “What is the most likely reason I cannot sign in, and what should I ask my school's administrator to do?”"><strong>问 AI</strong>——只用 Claude、ChatGPT 或 Gemini，不要用国内的 AI 或来路不明的工具（日志里有你去过哪里、用什么设备）。先删掉 <code>ip</code> 列。说清你登录时看到什么，附上文件，问：「我最可能因为什么登不进去？应该请学校的管理员做什么？」</li>
+      <li data-en="<strong>Send your administrator</strong> (listed under Need help? on that same page) the AI's one-paragraph conclusion and a screenshot of the error — by private message, not in a group. Do not send the log files to a group either."><strong>把 AI 的结论</strong>（一段话）和报错截图<strong>发给你的管理员</strong>（同一页「需要帮助？」下面列着）——私聊，不要发群。日志文件也不要发到群里。</li>
+      <li data-en="<strong>Then stop trying.</strong> More attempts add more lines and may lock the account. Removing an old device or resetting a password takes the administrator a minute."><strong>然后停止尝试。</strong>再试只会多出几行记录，还可能把账号锁住。删旧设备、重置密码，管理员一分钟就能做完。</li>
+    </ul>
+  </div>
+
+  <!-- ===================== 10 ===================== -->
+  <h2 class="cat" id="s10" data-en="10　Getting help">10　获取帮助</h2>
   <div class="case" style="padding:14px 18px">
-    <p data-en="For the people you support: the <a href='/help/teams-setup.html'>setup wizard</a>, the <a href='/help/teams-faq.html'>Q&amp;A</a> and the <a href='/help/teams-cases.html'>case studies</a> answer most authenticator questions and are safe to forward. For anything the Management Center does not let you do, or an account that looks compromised, contact Hive's system administrator the same day.">给你支持的人：<a href="/help/teams-setup.html">设置向导</a>、<a href="/help/teams-faq.html">问答</a>和<a href="/help/teams-cases.html">案例分析</a>能回答大多数验证器问题，可以直接转发。管理中心做不了的事，或疑似被盗用的账号，请当天联系蜂巢的系统管理员。</p>
+    <p data-en="For the people you support: the <a href='/help/teams-setup.html'>setup wizard</a>, the <a href='/help/teams-faq.html'>Q&amp;A</a> and the <a href='/help/teams-cases.html'>case studies</a> answer most authenticator questions and are safe to forward. When someone cannot sign in and the reason is not obvious, §9 shows how to find it from their logs. For anything the Management Center does not let you do, or an account that looks compromised, contact Hive's system administrator the same day.">给你支持的人：<a href="/help/teams-setup.html">设置向导</a>、<a href="/help/teams-faq.html">问答</a>和<a href="/help/teams-cases.html">案例分析</a>能回答大多数验证器问题，可以直接转发。有人登不进去、原因又不明显时，第 9 节教你从他的日志里找原因。管理中心做不了的事，或疑似被盗用的账号，请当天联系蜂巢的系统管理员。</p>
     <a class="cta" href="/management/#/domain/users" data-en="Open the Management Center →">打开管理中心 →</a>
   </div>
 
-  <footer class="page" data-en="Hive · Domain administrator handbook · updated 2026-10-04">蜂巢 · 域管理员操作手册 · 更新于 2026-10-04</footer>
+  <footer class="page" data-en="Hive · Domain administrator handbook · updated 2026-10-08">蜂巢 · 域管理员操作手册 · 更新于 2026-10-08</footer>
 </div>
 <script>
 (function () {
