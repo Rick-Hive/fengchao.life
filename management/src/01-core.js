@@ -267,12 +267,12 @@
   try { new BroadcastChannel("fc-auth").onmessage = function (e) { if (e && e.data && e.data.kind === "out" && !window.__fcLeaving) location.replace("/"); }; } catch (e) {}
   window.addEventListener("storage", function (e) { if (e.key === "fc-auth-event" && /^out:/.test(e.newValue || "") && !window.__fcLeaving) location.replace("/"); });
 
-  // desc: a one-line description under the title; { info: "…" } instead puts a longer
-  // explanation behind an ⓘ beside the title (Rick, 2026-10-08: 「only displays when
-  // mouse is on it. Use 小i 方案」).
+  // desc: the page's description — a string or { info: "…" } — shown behind an ⓘ beside
+  // the title, never as a line under it (Rick, 2026-10-08: 「Use little i to hint. Apply
+  // with all headings」; earlier the same for the People Hub's long description).
   function setTitle(crumb, title, actionsHtml, desc) {
-    var info = desc && typeof desc === "object" ? desc.info : "";
-    $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + (info ? ' <span class="info big" tabindex="0" data-tip="' + esc(info) + '">i</span>' : "") + "</span>" : "") + (desc && !info ? '<span class="desc">' + esc(desc) + "</span>" : "");
+    var info = desc && typeof desc === "object" ? desc.info : (desc || "");
+    $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + (info ? ' <span class="info big" tabindex="0" data-tip="' + esc(info) + '">i</span>' : "") + "</span>" : "") + "";
     $("topActions").innerHTML = actionsHtml || "";
     document.querySelector(".topbar").classList.toggle("bare", !title && !crumb && !actionsHtml);
   }
@@ -285,6 +285,17 @@
   function panel2Close() { var p = $("panel2"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); }
   function panelClose() { var p = $("panel"); p.classList.remove("open"); p.setAttribute("aria-hidden", "true"); panel2Close(); document.querySelectorAll("table.data tr.sel").forEach(function (tr) { tr.classList.remove("sel"); }); }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if ($("panel2").classList.contains("open")) panel2Close(); else { panelClose(); closeDrawer(); } } });
+  // A click anywhere outside the open panel closes it (Rick, 2026-10-08: 「no need to
+  // click x on top right corner. Apply this with all UIs」). Capture phase, so a click
+  // on another row closes this panel first and the row's own handler opens the next.
+  // The second panel goes first, as with Escape. The flash bar and chart tooltips are
+  // not "outside".
+  document.addEventListener("click", function (e) {
+    var p = $("panel"), p2 = $("panel2");
+    if (!p.classList.contains("open") && !p2.classList.contains("open")) return;
+    if (!(e.target instanceof Element) || e.target.closest("#panel, #panel2, #flash, .viztip, .vfull")) return;
+    if (p2.classList.contains("open")) panel2Close(); else panelClose();
+  }, true);
   // A member clicked in a group's panel opens beside it, in the second panel, so the
   // group stays in view (Rick, 2026-10-03: 「点击用户，应该在左侧显示用户详细信息」).
   function memberClick(m) {
