@@ -119,4 +119,44 @@ assert.strictEqual(P.cleanNext({ action: "  " }), null); assert.deepStrictEqual(
 assert.deepStrictEqual(P.visibleTypes({ seeConfidential: false }).includes("funder"), false);
 assert.deepStrictEqual(P.visibleTypes({ seeConfidential: true }).length, 7);
 
+// Seeding (design v2 §13): one starting relationship per source row, our own entities
+// excluded and flagged internal, the old partners.json folded in, a second run idle.
+const src = {
+  institutions: [
+    { key: "xqzw.edu", domain: "xqzw.edu", kind: "tenant", name: "心桥中文", accounts: 40, country: "中国" },
+    { key: "kxc.edu", domain: "kxc.edu", kind: "both", name: "Kids X Center", abbr: "KXC", type: "蜂巢", courses: 3, hiveKey: "KXC", country: "中国", city: "南京" },
+    { key: "hive:GCU", domain: "", kind: "hive", name: "Grace Christian University", abbr: "GCU", type: "大学", courses: 0, hiveKey: "GCU", country: "美国" },
+    { key: "hive:EQUIP", domain: "", kind: "hive", name: "Equip 教育社区", abbr: "EQUIP", type: "蜂巢", courses: 5, hiveKey: "EQUIP" },
+    { key: "equipme.cloud", domain: "equipme.cloud", kind: "tenant", name: "桥梁教育服务 EQUIP", accounts: 9 },
+  ],
+  people: [{ crmId: "HC-000010", name: "Enqi Bao", keys: ["enqi.bao@xqzw.edu"] }, { crmId: "HC-000011", name: "Li Teacher", keys: ["li@gmail.com"] }],
+  publishers: [{ recId: "recPub1", name: "IEW" }, { recId: "", name: "" }],
+  teachers: [{ id: "recT1", name: "Li Teacher", email: "li@gmail.com", teamsAccount: "" }, { id: "recT2", name: "Nobody", email: "no@x.com", teamsAccount: "" }],
+  domainAdmins: { "xqzw.edu": ["enqi.bao@xqzw.edu", "ghost@xqzw.edu"] },
+  oldPartners: { "xqzw.edu": { stage: "trial", note: "试用两个月", owner: "pd@equipme.cloud", type: "school", region: "cn" }, "hive:GCU": { stage: "contact", type: "school" } },
+};
+const docs = { rels: { next: 1, items: {} }, orgs: { next: 1, byKey: {}, orgs: {} } };
+const res = P.seed(src, docs, { exclude: P.DEFAULT_EXCLUDE }, "system", now);
+const types = res.created.map((c) => c.type).sort();
+assert.deepStrictEqual(types, ["course", "course", "it", "it", "publisher", "university"], "one relationship per source row: " + JSON.stringify(res.created));
+assert.deepStrictEqual(res.excluded.sort(), ["equipme.cloud", "hive:EQUIP"], "ourselves excluded");
+assert.ok(docs.orgs.orgs[docs.orgs.byKey["hive:EQUIP"]].internal && docs.orgs.orgs[docs.orgs.byKey["equipme.cloud"]].internal, "excluded rows are flagged internal");
+const all = Object.values(docs.rels.items);
+const xq = all.find((r) => r.party.key === "xqzw.edu");
+assert.strictEqual(xq.type, "it"); assert.strictEqual(xq.stage, "proposal", "old 试用 → 方案"); assert.strictEqual(xq.owner, "pd@equipme.cloud"); assert.strictEqual(xq.region, "cn"); assert.strictEqual(xq.currency, "CNY");
+assert.deepStrictEqual(xq.contacts, [{ person: "HC-000010", name: "Enqi Bao", role: "学校/机构代表", primary: false }], "the domain admin known to the hub becomes the contact");
+assert.ok(xq.log.some((l) => l.migrated && /试用两个月/.test(l.text)), "the old note is in the log"); assert.strictEqual(xq.confirmed, false); assert.strictEqual(xq.terms.unitPriceYear, 5);
+const kxc = all.filter((r) => r.party.key === "kxc.edu").map((r) => r.type).sort();
+assert.deepStrictEqual(kxc, ["course", "it"], "a tenant that delivers courses gets both");
+const gcu = all.find((r) => r.party.key === "hive:GCU");
+assert.strictEqual(gcu.type, "university"); assert.strictEqual(gcu.stage, "lead"); assert.strictEqual(gcu.region, "na"); assert.strictEqual(gcu.currency, "USD");
+const li = all.find((r) => r.party.kind === "person");
+assert.strictEqual(li.party.id, "HC-000011"); assert.strictEqual(li.type, "course"); assert.strictEqual(li.source, "seed:teacher");
+assert.ok(res.skipped.includes("teacher:Nobody"), "a teacher nobody matches is skipped");
+const pub = all.find((r) => r.type === "publisher");
+assert.strictEqual(pub.party.key, "equip:recPub1"); assert.strictEqual(pub.stage, "onsale"); assert.strictEqual(pub.party.name, "IEW");
+const again = P.seed(src, docs, { exclude: P.DEFAULT_EXCLUDE }, "system", now);
+assert.strictEqual(again.created.length, 0, "a second run creates nothing"); assert.strictEqual(Object.keys(docs.rels.items).length, 6);
+assert.strictEqual(P.regionOf({ country: "Singapore" }), "sea"); assert.strictEqual(P.regionOf({ region: "intl-cn" }), "cn"); assert.strictEqual(P.regionOf({ domain: "abc.cn" }), "cn"); assert.strictEqual(P.regionOf({}), "other");
+
 console.log("partners: all assertions passed");

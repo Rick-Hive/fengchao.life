@@ -355,6 +355,9 @@ async function rebuild(opts) {
   const hub = build({ equip: equipData, domains, hiveOrders, prev, decisions, hiveInstitutions, schoolRouting, institutionNames, contacts: contactsDoc.people });
   await writeJson(PEOPLE_BLOB, hub);
   log(`hub: ${hub.stats.people} people from ${hub.stats.facets} facets; queue ${hub.stats.queue}`);
+  // 合作伙伴 auto-seeding is a derived dataset of the hub (design v2 §13): new
+  // institutions, teachers and publishers get their starting relationship here.
+  if (!(opts && opts.noSeed)) { try { await require("./partners").runSeed({ log, by: "system" }); } catch (err) { log(`partners: seeding failed (${err.message})`); } }
   return hub;
 }
 

@@ -120,7 +120,7 @@ const EQUIP = [
       { domain: "xqzw.edu", users: ["enqi", "enya"].map(n => ({ upn: n + ".bao@xqzw.edu", displayName: n[0].toUpperCase() + n.slice(1) + " Bao", safeEmail: "mum@gmail.com", lastSignIn: "2026-10-05T00:00:00Z", enabled: true, created: "2025-09-10T00:00:00Z", identity: "学生" })) }],
     hiveOrders: [{ orderId: "FC-20261001-KXC-001", email: "lead@gmail.com", teamsAccount: "", totalPrice: 1200, status: "paid", submittedAt: "2026-10-01T02:00:00Z", hives: [{ abbr: "KXC" }] }],
     decisions: { pairs: {} }, now: Date.parse("2026-10-07T00:00:00Z") };
-  const ptPosts = [];
+  const ptPosts = [], seeds = [];
   let HUB = hubMod.build(HUB_SRC); const MARKS = { marks: {} }; const ROY_PAID = {}; const PARTNERS = {}; const entries = []; const received = [];
   const royaltyMod = require(path.join(ROOT, "api", "shared", "royalty.js"));
   // 合作伙伴: the real rules (api/shared/partners.js) over in-memory documents.
@@ -157,7 +157,8 @@ const EQUIP = [
       else if (p === "/api/crm/queue") { const b = JSON.parse(r.request().postData()); verdicts.push(b); HUB_SRC.decisions.pairs[b.key] = { verdict: b.verdict }; HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, stats: HUB.stats, queue: HUB.queue }; }
       else if (p === "/api/crm/writeback") { const b = JSON.parse(r.request().postData() || "{}"); writebacks.push(b); const pairs = HUB.people.flatMap(x => x.writeBack.map(id => ({ crmId: x.crmId, name: x.name, recId: id }))); if (b.dryRun) body = { ok: true, dryRun: true, count: pairs.length, preview: pairs }; else { pairs.forEach(pr => { const c = HUB_SRC.equip.customers.find(c => c.recId === pr.recId); if (c) c.crmId = pr.crmId; }); HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, written: pairs.length, already: 0, conflicts: [], missing: 0, stats: HUB.stats }; } }
       else if (p === "/api/crm/digest") { if (r.request().method() === "POST") { digests.push(1); body = { ok: true, sent: true, to: ["obadiah.sun@equipme.cloud"], status: 202, total: 3 }; } else body = { summary: { total: 3 }, to: ["obadiah.sun@equipme.cloud"], text: "x", subject: "s", last: null, configured: true, channel: true }; }
-      else if (p === "/api/crm/institutions") { if (r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); const k = b.key || b.domain; PARTNERS[k] = { stage: b.stage, note: b.note, owner: b.owner, type: b.type, region: b.region, by: "pd", at: new Date().toISOString() }; body = { ok: true, partner: PARTNERS[k] }; } else { const canEdit = isAdm || acc.partners === "rw"; const seeMoney = acc.money !== "none"; body = { rows: HUB.institutions.map(i => ({ key: i.key || i.domain, domain: i.domain || "", kind: i.kind || "tenant", abbr: i.abbr || "", type: i.type || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, name: i.name || (i.domain === "kxc.edu" ? "Kids X Center" : ""), nameEn: i.nameEn || "", partner: PARTNERS[i.key || i.domain] || null, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: i.orders, fySales: seeMoney ? i.spend : null })), fy: 2026, canEdit, stages: ["contact", "trial", "partner", "paused"], generatedAt: HUB.generatedAt, access: acc }; } }
+      else if (p === "/api/crm/institutions") { if (r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); const k = b.key || b.domain; if (typeof b.internal === "boolean") { const id = ptMod.orgIdFor(ORGS, k, {}); ORGS.orgs[id].internal = b.internal; body = { ok: true, internal: b.internal, orgId: id }; } else { PARTNERS[k] = { stage: b.stage, note: b.note, owner: b.owner, type: b.type, region: b.region, by: "pd", at: new Date().toISOString() }; body = { ok: true, partner: PARTNERS[k] }; } } else { const canEdit = isAdm || acc.partners === "rw"; const seeMoney = acc.money !== "none"; const relsOf = key => { const oid = ORGS.byKey[key]; return Object.values(REL.items).filter(x => x.party && x.party.kind === "org" && (x.party.key === key || (oid && x.party.id === oid))).map(x => ({ id: x.id, type: x.type, stage: x.stage, closed: !!x.closed, owner: x.owner || "" })); }; body = { rows: HUB.institutions.map(i => { const key = i.key || i.domain; const oid = ORGS.byKey[key]; return { key, domain: i.domain || "", kind: i.kind || "tenant", abbr: i.abbr || "", type: i.type || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, name: i.name || (i.domain === "kxc.edu" ? "Kids X Center" : ""), nameEn: i.nameEn || "", partner: PARTNERS[key] || null, orgId: oid || null, internal: !!(oid && ORGS.orgs[oid].internal), rels: relsOf(key), accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: i.orders, fySales: seeMoney ? i.spend : null }; }), fy: 2026, canEdit, stages: ["contact", "trial", "partner", "paused"], types: ptMod.TYPES, stageLabels: Object.fromEntries(Object.entries(ptMod.STAGES).map(([t, st]) => [t, Object.fromEntries(st.map(x => [x.k, [x.zh, x.en]]))])), generatedAt: HUB.generatedAt, access: acc }; } }
+      else if (p === "/api/crm/partners-seed") { const res = ptMod.seed({ institutions: HUB.institutions, people: HUB.people, publishers: [{ recId: "recPub1", name: "IEW" }], teachers: [], domainAdmins: { "xqzw.edu": ["enqi.bao@xqzw.edu"] }, oldPartners: PARTNERS }, { rels: REL, orgs: ORGS }, { exclude: ptMod.DEFAULT_EXCLUDE }, me.profile.upn, Date.now()); seeds.push(res); body = { ok: true, created: res.created, excluded: res.excluded, skipped: res.skipped.length, at: res.at }; }
       else if (p === "/api/crm/entry") { const b = JSON.parse(r.request().postData()); entries.push(b); body = { ok: true, orderId: "H-20261008-TEST", orderRec: "recNEWO", customerRec: b.customer.recId || "recNEWC", newCustomer: !!b.customer.new, lines: b.items.length, status: {} }; }
       else if (p === "/api/crm/received") { const b = JSON.parse(r.request().postData()); received.push(b); body = { ok: true }; }
       else if (p === "/api/crm/feed") body = { feed: [{ at: "2026-10-08T01:00:00Z", action: "crm.entry.order", by: "obadiah.sun@equipme.cloud", orderId: "H-20261008-AB12", newCustomer: true }, { at: "2026-10-07T20:00:00Z", action: "crm.order.status", by: "obadiah.sun@equipme.cloud", orderId: "FC-20261002-KXC-002", from: "submitted", to: "confirmed" }, { at: "2026-10-07T17:05:00Z", action: "crm.equip.sync", actor: "scheduler", counts: { orders: 520 } }], access: acc };
@@ -540,14 +541,22 @@ const EQUIP = [
     const kxcRows = await p.$$eval("#itable tbody tr", rs => rs.filter(r => /Kids X Center/.test(r.innerText)).length); if (kxcRows !== 1) throw new Error("KXC should be one joined row, got " + kxcRows);
     await p.click('#itable tbody tr[data-key="hive:GCU"]'); await p.waitForTimeout(400);
     if (!/蜂巢工作区/.test(await p.$eval("#panel", e => e.innerText))) throw new Error("university panel lacks the workspace line");
-    await p.selectOption("#ipStage", "contact"); await p.click("#ipSave"); await p.waitForTimeout(600);
-    if (!PARTNERS["hive:GCU"] || PARTNERS["hive:GCU"].stage !== "contact") throw new Error("university partner stage not saved: " + JSON.stringify(PARTNERS));
-    await p.click('#itable tbody tr[data-key="xqzw.edu"]'); await p.waitForTimeout(400);
-    await p.selectOption("#ipStage", "trial"); await p.fill("#ipNote", "试用两个月"); await p.click("#ipSave"); await p.waitForTimeout(600);
-    if (!PARTNERS["xqzw.edu"] || PARTNERS["xqzw.edu"].stage !== "trial") throw new Error("partner not saved: " + JSON.stringify(PARTNERS));
-    if (!/试用/.test(await p.$eval('#itable tbody tr[data-key="xqzw.edu"]', e => e.innerText))) throw new Error("stage tag not shown in the row");
+    // 合作伙伴 v2: 自动填入 creates the starting relationships from what the hub knows; the
+    // rows show them as badges; our own entities are marked internal and get none.
+    PARTNERS["xqzw.edu"] = { stage: "trial", note: "试用两个月", owner: "", type: "school", region: "cn" };
+    await p.click("#panel .x"); await p.click("#iSeed"); await p.waitForTimeout(800);
+    const seeded = seeds[0]; if (!seeded || !seeded.created.some(c => c.type === "it") || !seeded.created.some(c => c.type === "university") || !seeded.created.some(c => c.type === "publisher")) throw new Error("seed result: " + JSON.stringify(seeded));
+    const xq = await p.$eval('#itable tbody tr[data-key="xqzw.edu"]', e => e.innerText); if (!/IT 服务 · 方案/.test(xq)) throw new Error("the old 试用 stage folds into the IT relationship: " + xq);
+    const gcu = await p.$eval('#itable tbody tr[data-key="hive:GCU"]', e => e.innerText); if (!/大学 · 线索/.test(gcu)) throw new Error("university relationship badge: " + gcu);
+    const xqRel = Object.values(REL.items).find(x => x.party.key === "xqzw.edu" && x.type === "it"); if (!xqRel || !xqRel.contacts.length || xqRel.contacts[0].role !== "学校/机构代表") throw new Error("domain admin seeded as the contact: " + JSON.stringify(xqRel && xqRel.contacts));
+    if (!xqRel.log.some(l => l.migrated)) throw new Error("the old note was not carried into the log");
+    await p.click('#itable tbody tr[data-key="hive:GCU"]'); await p.waitForTimeout(400);
+    if (!/大学/.test(await p.$eval("#panel .olist", e => e.innerText))) throw new Error("panel lists the relationship");
+    await p.click("#ipInternal"); await p.waitForTimeout(500);
+    if (!ORGS.orgs[ORGS.byKey["hive:GCU"]].internal) throw new Error("internal flag not saved");
+    if (!/内部/.test(await p.$eval('#itable tbody tr[data-key="hive:GCU"]', e => e.innerText))) throw new Error("internal badge not shown");
     await p.click('#nav a[href="#/dashboard"]'); await p.waitForTimeout(900);
-    const dp = await p.$eval("#dPartners", e => e.innerText); if (!/Kids X Center/.test(dp) || !/试用/.test(dp) || !/全部机构/.test(dp)) throw new Error("partners panel: " + dp.slice(0, 300));
+    const dp = await p.$eval("#dPartners", e => e.innerText); if (!/Kids X Center/.test(dp) || !/IT 服务/.test(dp) || !/全部机构/.test(dp)) throw new Error("partners panel: " + dp.slice(0, 300));
   });
   // 录入 (phase 4): the order manager enters an order for an existing customer, then marks cash received; the feed reads in words.
   await shot("entry", 1280, 900, "#/ops/orders", "zh", SALES, async p => {
@@ -700,6 +709,7 @@ const EQUIP = [
     const tabs = await p.$$eval("#ptTabs .ptab", es => es.map(e => e.textContent)); assert.strictEqual(tabs.length, 7, "seven type tabs for the partnership director: " + tabs);
     assert.ok(await p.$("#title .info"), "description behind ⓘ");
     const cols = await p.$$(".board .bcol"); assert.strictEqual(cols.length, 8, "eight IT stages on the board");
+    const before = (await p.$$(".board .bcard")).length; // the seeded ones (family-institutions ran first)
     await p.click("#ptNew"); await p.waitForTimeout(300);
     await p.fill("#nrOq", "kxc"); await p.waitForTimeout(500);
     await p.click('#nrOres .pr[data-key]'); await p.waitForTimeout(200);
@@ -709,7 +719,7 @@ const EQUIP = [
     const cr = ptPosts.find(b => b.op === "create"); assert.ok(cr && cr.party.key === "kxc.edu" && cr.type === "it", "create posted: " + JSON.stringify(cr));
     assert.ok(await p.$("#panel svg.track"), "the relationship panel shows the stage track");
     const nowLab = await p.$eval("#panel svg.track g.node.now text", e => e.textContent); assert.strictEqual(nowLab, "线索");
-    const cards = await p.$$(".board .bcard"); assert.strictEqual(cards.length, 1, "one card on the board");
+    const cards = await p.$$(".board .bcard"); assert.strictEqual(cards.length, before + 1, "one more card on the board");
     // forward one stage
     await p.click('#panel button[data-act="move"]'); await p.waitForTimeout(200);
     await p.selectOption("#mvTo", "assess"); await p.click("#mvForm button[type=submit]"); await p.waitForTimeout(700);
@@ -749,13 +759,13 @@ const EQUIP = [
     assert.ok(await p.$eval('#panel2 .mrow2', e => e.classList.contains("done")), "first milestone ticked");
     await p.selectOption("#pjStatus", "active"); await p.waitForTimeout(700);
     const h3 = await p.$eval("#panel2 .ph", e => e.innerText); assert.ok(/进行中/.test(h3), "project active: " + h3);
-    const lg = Object.values(REL.items)[0].log.map(l => l.kind); assert.ok(lg.includes("stage") && lg.includes("contacts") && lg.includes("project"), "everything logged: " + lg);
+    const lg = Object.values(REL.items).find(x => x.source === "manual").log.map(l => l.kind); assert.ok(lg.includes("stage") && lg.includes("contacts") && lg.includes("project"), "everything logged: " + lg);
   });
   await shot("partners-table", 1280, 700, "#/ops/partners/it", "en", ["staff:partnership"], async p => {
     await p.waitForSelector(".board");
     await p.click('#ptRight [data-view="table"]'); await p.waitForTimeout(300);
-    const rows = await p.$$("#pttable tbody tr[data-rel]"); assert.strictEqual(rows.length, 1, "one row in the table");
-    const row = await p.$eval("#pttable tbody tr[data-rel]", e => e.innerText); assert.ok(/Kids X Center/.test(row) && /Signed/.test(row), "row: " + row);
+    const rows = await p.$$eval("#pttable tbody tr[data-rel]", rs => rs.map(r => r.innerText)); assert.ok(rows.length >= 1, "rows in the table");
+    const row = rows.find(x => /Kids X Center/.test(x) && /Signed/.test(x)); assert.ok(row, "the signed KXC row: " + rows.join(" | "));
     await p.click("#pttable tbody tr[data-rel]"); await p.waitForTimeout(500);
     assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "panel opens from the table");
     await p.click("#ptKpi"); await p.waitForTimeout(200);

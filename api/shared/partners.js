@@ -106,7 +106,8 @@ const updateConfig = (mutate) => store.update(CFG_BLOB, EMPTY_CFG, mutate);
 const norm = (s) => String(s || "").toLowerCase().replace(/[\s·.,，、_\-]+/g, "");
 function isExcluded(cfg, candidate) {
   const names = ((cfg && cfg.exclude) || DEFAULT_EXCLUDE).map(norm).filter(Boolean);
-  const mine = [candidate.key, candidate.name, candidate.nameEn, candidate.abbr, candidate.domain].map(norm).filter(Boolean);
+  const bare = String(candidate.key || "").replace(/^(hive|equip|new):/i, ""); // the prefix is ours, not the partner's name
+  const mine = [bare, candidate.name, candidate.nameEn, candidate.abbr, candidate.domain].map(norm).filter(Boolean);
   return mine.some((m) => names.some((n) => m === n || (n.length >= 4 && m.includes(n))));
 }
 
@@ -279,6 +280,103 @@ function orgIdFor(orgDoc, key, info) {
   return id;
 }
 
+// ---- auto-seeding (design v2 §13) -------------------------------------------
+// Relationships are created from what the CRM already knows — once each, never
+// overwriting a relationship someone has touched, never for our own entities:
+//   tenant domains (hub institutions with a domain)      → it · operating · seed:tenant
+//   Hive-workspace universities                           → university · lead / explore · seed:hive
+//   Hive-workspace rows that deliver courses               → course · listed · seed:hive
+//   Teachers table rows matched to a person                → course · listed · seed:teacher
+//   Equip Curriculums publishers                           → publisher · onsale · seed:equip
+//   the old crm/partners.json (stage, note, owner, type)   → folded into the above
+// `src` = { institutions, people, publishers:[{recId,name}], teachers:[{name,email,teamsAccount}],
+//           domainAdmins:{domain:[upn]}, oldPartners:{key:{stage,note,owner,type,region}} }
+const COUNTRY_REGION = [[/中国|china|台湾|taiwan|香港|hong kong|澳门|macau/i, "cn"], [/美国|usa|united states|加拿大|canada|墨西哥|mexico/i, "na"], [/新加坡|singapore|马来西亚|malaysia|泰国|thailand|印尼|indonesia|菲律宾|philippines|越南|vietnam|柬埔寨|cambodia/i, "sea"], [/日本|japan/i, "jp"], [/巴西|brazil|阿根廷|argentina|智利|chile|秘鲁|peru|哥伦比亚|colombia/i, "sa"], [/非洲|africa|肯尼亚|kenya|南非|south africa|尼日利亚|nigeria|乌干达|uganda|埃塞|ethiopia/i, "af"]];
+function regionOf(row) {
+  if (REGIONS.includes(row.region)) return row.region;
+  const legacy = { cn: "cn", "intl-cn": "cn", africa: "af", "south-america": "sa" }[row.region];
+  if (legacy) return legacy;
+  const hint = [row.country, row.city].filter(Boolean).join(" ");
+  for (const [re, r] of COUNTRY_REGION) if (re.test(hint)) return r;
+  if (row.domain && /\.cn$/.test(row.domain)) return "cn";
+  return "other";
+}
+const OLD_STAGE = { it: { contact: "lead", trial: "proposal", partner: "operating", paused: "ended" }, publisher: { contact: "approach", trial: "evaluate", partner: "onsale", paused: "selloff" }, course: { contact: "apply", trial: "design", partner: "listed", paused: "paused" }, university: { contact: "lead", trial: "explore", partner: "running", paused: "ended" } };
+
+function seed(src, docs, cfg, by, now) {
+  const rels = docs.rels, orgs = docs.orgs, at = new Date(+now || Date.now()).toISOString();
+  const created = [], excluded = [], skipped = [];
+  const peopleByKey = new Map();
+  for (const p of src.people || []) for (const k of p.keys || []) peopleByKey.set(String(k).toLowerCase(), p);
+  const has = (partyId, type) => Object.values(rels.items).some((r) => r.party && r.party.id === partyId && r.type === type);
+  const mk = (type, party, stage, source, extra) => {
+    if (has(party.id, type)) { skipped.push(party.id + ":" + type); return null; }
+    const id = pad(rels.next++);
+    const rel = newRelationship(Object.assign({ type, party, stage, source }, extra || {}), by || "system", id);
+    rel.stageAt = at; rel.createdAt = at; rel.updatedAt = at; rel.log[0].at = at;
+    rels.items[id] = rel; created.push({ id, type, party: party.name || party.id, source });
+    return rel;
+  };
+  const admins = src.domainAdmins || {};
+  const contactsOf = (domain) => (admins[domain] || []).map((upn) => peopleByKey.get(String(upn).toLowerCase())).filter(Boolean).map((p) => ({ person: p.crmId, name: p.name, role: "学校/机构代表", primary: false }));
+  const old = src.oldPartners || {};
+  const fold = (rel, key) => { const o = old[key]; if (!rel || !o) return; const map = OLD_STAGE[rel.type] || {}; if (o.stage && map[o.stage] && stageOf(rel.type, map[o.stage])) { rel.stage = map[o.stage]; if (stageOf(rel.type, rel.stage).closed) rel.closed = { at, reason: "paused", by: by || "system", stage: rel.stage }; } if (o.owner) rel.owner = String(o.owner).slice(0, 120); if (o.region) rel.region = regionOf({ region: o.region }); rel.currency = currencyOf(rel.region); rel.lang = langOf(rel.region); if (o.note) rel.log.push(logEntry(o.by || by || "system", "note", "[旧合作伙伴记录] " + o.note, { migrated: true })); };
+  for (const i of src.institutions || []) {
+    const key = i.key || i.domain;
+    const cand = { key, name: i.name, nameEn: i.nameEn, abbr: i.abbr, domain: i.domain };
+    const orgId = orgIdFor(orgs, key, { name: i.name || i.nameEn || "", nameEn: i.nameEn || "", region: regionOf(i) });
+    if (isExcluded(cfg, cand)) { orgs.orgs[orgId].internal = true; excluded.push(key); continue; }
+    const party = { id: orgId, key, name: i.name || i.nameEn || key };
+    const region = regionOf(i);
+    if (i.domain) fold(mk("it", party, "operating", "seed:tenant", { region, terms: { domain: i.domain, unitPriceYear: 5, discountSeats: 0, seatsTotal: i.accounts || 0 }, contacts: contactsOf(i.domain), note: "" }), key);
+    const type = String(i.type || "");
+    if (/大学|university|college|学院/i.test(type)) fold(mk("university", party, i.courses ? "explore" : "lead", "seed:hive", { region }), key);
+    else if (i.courses > 0 || (old[key] && old[key].type === "hive")) fold(mk("course", party, "listed", "seed:hive", { region, terms: i.hiveKey ? { hiveKey: "hive:" + i.hiveKey } : {} }), key);
+    if (old[key] && old[key].type === "publisher" && !has(orgId, "publisher")) fold(mk("publisher", party, "onsale", "seed:equip", { region }), key);
+  }
+  for (const t of src.teachers || []) {
+    const p = peopleByKey.get(String(t.teamsAccount || "").toLowerCase()) || peopleByKey.get(String(t.email || "").toLowerCase());
+    if (!p) { skipped.push("teacher:" + (t.name || "?")); continue; }
+    mk("course", { id: p.crmId, name: p.name || t.name }, "listed", "seed:teacher", { region: "cn", terms: { hiveKey: t.id || "" } });
+  }
+  for (const pub of src.publishers || []) {
+    if (!pub.recId && !pub.name) continue;
+    const key = pub.recId ? "equip:" + pub.recId : "equip:" + norm(pub.name);
+    if (isExcluded(cfg, { key, name: pub.name })) { excluded.push(key); continue; }
+    const orgId = orgIdFor(orgs, key, { name: pub.name || "", orgType: "publisher", region: "na" });
+    fold(mk("publisher", { id: orgId, key, name: pub.name || key }, "onsale", "seed:equip", { region: "na", terms: { publisherKey: key } }), key);
+  }
+  return { created, excluded, skipped, at };
+}
+
+// Gather the sources and seed; called after every hub rebuild and from 自动填入.
+// Idempotent: a second run creates nothing. The run is logged (crm/partner-seed-log.json).
+const SEED_LOG_BLOB = "crm/partner-seed-log.json";
+async function runSeed(opts) {
+  const o = opts || {}, log = o.log || (() => {}), by = o.by || "system", now = Date.now();
+  const hub = require("./hub");
+  const [h, cfg, equipData, snap, rolesDoc, old] = await Promise.all([
+    hub.readHub(), readConfig(), require("./equip").readEquip().catch(() => null), require("./blob").readSnapshot().catch(() => null),
+    require("./roles").readRoles().catch(() => ({ entries: [] })), hub.readPartners().catch(() => ({ partners: {} })),
+  ]);
+  if (!h) return { created: [], excluded: [], skipped: [], at: new Date(now).toISOString(), note: "no hub yet" };
+  const domainAdmins = {};
+  for (const e of (rolesDoc && rolesDoc.entries) || []) for (const r of e.roles || []) { const m = /^domain_(?:it|admin):(.+)$/.exec(r); if (m) { (domainAdmins[m[1]] = domainAdmins[m[1]] || []).push(e.user); } }
+  const pubs = new Map();
+  for (const c of (equipData && equipData.curriculums) || []) { const k = c.publisherRec || c.publisher; if (!k || pubs.has(k)) continue; pubs.set(k, { recId: c.publisherRec || "", name: c.publisher || "" }); }
+  const src = { institutions: h.institutions || [], people: h.people || [], publishers: Array.from(pubs.values()), teachers: (snap && snap.private && snap.private.teachers) || [], domainAdmins, oldPartners: (old && old.partners) || {} };
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+  const relsNow = await readRels();
+  let result = null, orgsSaved = null;
+  await updateOrgs((od) => { result = seed(src, { rels: clone(relsNow), orgs: od }, cfg, by, now); orgsSaved = clone(od); return true; });
+  await updateRels((d) => { result = seed(src, { rels: d, orgs: clone(orgsSaved) }, cfg, by, now); return result.created.length > 0; });
+  const entry = { at: result.at, by, created: result.created.length, excluded: result.excluded.length, skipped: result.skipped.length, sample: result.created.slice(0, 20) };
+  await store.update(SEED_LOG_BLOB, { runs: [] }, (l) => { l.runs = [entry].concat(l.runs || []).slice(0, 30); });
+  log(`partners: seeded ${result.created.length} relationship(s), ${result.excluded.length} excluded, ${result.skipped.length} already there`);
+  return result;
+}
+const readSeedLog = () => store.read(SEED_LOG_BLOB, { runs: [] });
+
 // Which of the stored relationships a reader may see: funder relationships only
 // for those who may see money or hold the partnership function (design §14).
 function visibleTypes(opts) {
@@ -290,5 +388,5 @@ module.exports = {
   REL_BLOB, PRJ_BLOB, ORG_BLOB, CFG_BLOB, TYPES, TYPE_KEYS, STAGES, REGIONS, REGION_LABELS, CONTACT_ROLES, PROJECT_KINDS, DEFAULT_EXCLUDE,
   currencyOf, langOf, readRels, readProjects, readOrgs, readConfig, updateRels, updateProjects, updateOrgs, updateConfig,
   stageOf, stageIndex, health, moveCheck, logEntry, cleanParty, cleanContacts, cleanNext, cleanAgreement, cleanTerms, newRelationship, newProject,
-  listByType, summary, autoTransitions, orgIdFor, isExcluded, visibleTypes, pad, padP, padO,
+  listByType, summary, autoTransitions, orgIdFor, isExcluded, visibleTypes, pad, padP, padO, seed, regionOf, runSeed, readSeedLog, SEED_LOG_BLOB,
 };

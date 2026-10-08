@@ -21,7 +21,7 @@ const crm = require("../shared/crm");
 const { normUser, isAdmin, staffFunctions } = require("../shared/roles");
 const { audit } = require("../shared/audit");
 
-const ACTIONS = new Set(["partners", "partner", "project", "people-search", "org-search", "contact", "partner-config"]);
+const ACTIONS = new Set(["partners", "partner", "project", "people-search", "org-search", "contact", "partner-config", "partners-seed"]);
 
 function seeConfidential(roles) { const f = staffFunctions(roles); return isAdmin(roles) || crm.atLeast(roles, "money", "rw") || f.includes("ceo") || f.includes("partnership"); }
 function canEditType(roles, type) {
@@ -73,6 +73,16 @@ async function handle(context, req, ctx) {
     });
     await audit(context, { action: "crm.partner.config", by });
     ok(context, { ok: true, config: doc });
+    return true;
+  }
+
+  // 自动填入 (design v2 §13): run the seeding now; GET shows the last runs.
+  if (action === "partners-seed") {
+    if (!(isAdmin(roles) || crm.atLeast(roles, "partners", "rw"))) { fail(context, 403, "no_access"); return true; }
+    if (method === "GET") { ok(context, { runs: (await P.readSeedLog()).runs || [] }); return true; }
+    const r = await P.runSeed({ by, log: (m) => context.log(m) });
+    await audit(context, { action: "crm.partner.seed", by, created: r.created.length, excluded: r.excluded.length });
+    ok(context, { ok: true, created: r.created, excluded: r.excluded, skipped: r.skipped.length, at: r.at });
     return true;
   }
 
