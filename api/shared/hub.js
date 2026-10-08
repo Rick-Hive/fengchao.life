@@ -323,15 +323,25 @@ async function rebuild(opts) {
       domains.push({ domain: d.domain, users });
     } catch { /* a school without a cache yet */ }
   }
-  // The Hive workspace's institutions (website snapshot): every school / hive / university row, plus courses per hive.
+  // The Hive workspace's institutions: every school / hive / university row of its
+  // Schools or Institutions table, read directly from Airtable (one call), so the
+  // 机构 page never waits for a website sync; the website snapshot is the fallback
+  // and supplies courses per hive.
   let hiveInstitutions = [], schoolRouting = {}, institutionNames = {};
+  let snap = null;
+  try { snap = await require("./blob").readSnapshot(); } catch (err) { log(`hub: website snapshot not read (${err.message})`); }
   try {
-    const snap = await require("./blob").readSnapshot();
+    const live = await require("./hiveSchools").readSchools();
+    hiveInstitutions = live.institutions; schoolRouting = live.routing;
+    log(`hub: ${hiveInstitutions.length} institutions from the Hive workspace (live)`);
+  } catch (err) {
+    log(`hub: Hive workspace Schools table not read (${err.message}); using the website snapshot`);
     hiveInstitutions = (snap && snap.institutions) || [];
     schoolRouting = (snap && snap.private && snap.private.schoolRouting) || {};
-    const perHive = {}; for (const c of (snap && snap.courses) || []) { const k = hiveKeyOf(c.school && (c.school.abbr || c.school.name)); if (k) perHive[k] = (perHive[k] || 0) + 1; }
-    hiveInstitutions = hiveInstitutions.map((h) => Object.assign({}, h, { courses: perHive[hiveKeyOf(h.abbr || h.name)] || 0 }));
-  } catch (err) { log(`hub: website snapshot not read (${err.message}); institutions from the tenant only`); }
+  }
+  if (!Object.keys(schoolRouting).length && snap && snap.private && snap.private.schoolRouting) schoolRouting = snap.private.schoolRouting;
+  const perHive = {}; for (const c of (snap && snap.courses) || []) { const k = hiveKeyOf(c.school && (c.school.abbr || c.school.name)); if (k) perHive[k] = (perHive[k] || 0) + 1; }
+  hiveInstitutions = hiveInstitutions.map((h) => Object.assign({}, h, { courses: perHive[hiveKeyOf(h.abbr || h.name)] || 0 }));
   try { institutionNames = (await peopleMod.readInstitutions()).institutions || {}; } catch { /* names optional */ }
   const hub = build({ equip: equipData, domains, hiveOrders, prev, decisions, hiveInstitutions, schoolRouting, institutionNames });
   await writeJson(PEOPLE_BLOB, hub);

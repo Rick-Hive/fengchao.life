@@ -207,7 +207,12 @@ async function handler(context, req) {
     // A people.json built by an older version has no institutions (Rick, 2026-10-08:
     // 「为什么机构里还是空的？」— the hub is rebuilt after a sync, and none had run since
     // the deploy). Rebuild once here instead of showing an empty page.
-    if (method === "GET" && h && h.people && h.people.length && !Array.isArray(h.institutions)) {
+    // Also when the stored rows predate the Hive-workspace join (no `kind`), and on
+    // 刷新 with ?rebuild=1 (anyone who may edit partnerships): the rows are rebuilt from
+    // the tenant's directories and the Schools table before they are returned.
+    const wantRebuild = method === "GET" && String((req.query && req.query.rebuild) || "") === "1" && canEdit;
+    const stale = method === "GET" && h && h.people && h.people.length && (!Array.isArray(h.institutions) || !h.institutions.some((i) => i.kind));
+    if (wantRebuild || stale) {
       try { h = await hub.rebuild({ log: (m) => context.log(m) }); } catch (err) { context.log.error("crm: hub rebuild for institutions failed: " + ((err && err.stack) || err)); }
     }
     if (method === "POST") {
@@ -238,7 +243,7 @@ async function handler(context, req) {
       const fySum = (i.customerIds || []).reduce((a, id) => a + (fySales.get(id) || 0), 0), fyN = (i.customerIds || []).reduce((a, id) => a + (fyOrders.get(id) || 0), 0);
       return { key, domain: i.domain || "", kind: i.kind || "tenant", name: n.name || i.name || "", nameEn: n.nameEn || i.nameEn || "", abbr: i.abbr || "", type: i.type || "", region: i.region || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, partner: pt, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null };
     });
-    ok(context, { rows, fy, canEdit, stages: hub.PARTNER_STAGES, generatedAt: h && h.generatedAt, access: acc });
+    ok(context, { rows, fy, canEdit, stages: hub.PARTNER_STAGES, generatedAt: h && h.generatedAt, hiveRows: rows.filter((r) => r.kind !== "tenant").length, rebuilt: !!(wantRebuild || stale), access: acc });
     return;
   }
   // 待替换邮箱 marks: POST { crmId, status: "notified" | "replaced" | "" , note } (identity rw or sysadmin).
