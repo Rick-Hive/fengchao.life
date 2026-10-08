@@ -68,13 +68,19 @@ function isNumeric(f) {
   if (f.type === "formula" || f.type === "rollup" || f.type === "multipleLookupValues") { const r = f.options && f.options.result; return !!(r && NUMERIC_TYPES.includes(r.type)); }
   return false;
 }
+// Field types that can never be a name (so a formula or lookup that yields text can).
+const NOT_NAME_TYPES = ["multipleAttachments", "multipleRecordLinks", "checkbox", "date", "dateTime", "createdTime", "lastModifiedTime", "button", "barcode", "multipleCollaborators", "singleCollaborator", "createdBy", "lastModifiedBy", "externalSyncSource", "aiText"];
+function nameable(f) { return !isNumeric(f) && !NOT_NAME_TYPES.includes(f.type); }
 function displayFields(table) {
   const fields = table.fields || [];
   const prim = fields.find((f) => f.id === table.primaryFieldId);
   if (!prim) return [];
   if (!isNumeric(prim)) return [prim.name];
-  const texts = fields.filter((f) => TEXT_TYPES.includes(f.type));
-  const named = texts.find((f) => /name|名称|名字|title|标题|publisher|出版社|supplier|供应商/i.test(f.name)) || texts[0];
+  // The name column may be a formula or a lookup, not only a text field (Rick,
+  // 2026-10-09: 同步后出版社仍是数字 — a Publishers table whose "Name" is a formula).
+  const NAME_RE = /name|名称|名字|title|标题|publisher|出版社|supplier|供应商/i;
+  const cands = fields.filter((f) => f.id !== prim.id && nameable(f));
+  const named = cands.find((f) => TEXT_TYPES.includes(f.type) && NAME_RE.test(f.name)) || cands.find((f) => NAME_RE.test(f.name)) || cands.find((f) => TEXT_TYPES.includes(f.type)) || cands[0];
   return named ? [named.name, prim.name] : [prim.name];
 }
 function displayOf(rec, disp) { for (const n of disp) { const v = s(rec.fields[n]); if (v) return v; } return ""; }
@@ -418,4 +424,4 @@ async function setReceived(orderRec, received, opts) {
   return true;
 }
 
-module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, syncEquip, readEquip, writeEquip, status, writeBackCrmIds, createCustomer, createOrder, setReceived };
+module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, displayFields, syncEquip, readEquip, writeEquip, status, writeBackCrmIds, createCustomer, createOrder, setReceived };

@@ -352,15 +352,48 @@ function seed(src, docs, cfg, by, now) {
     const party = { id: orgId, key, name: i.name || i.nameEn || key };
     const region = regionOf(i);
     if (i.domain) fold(mk("it", party, "operating", "seed:tenant", { region, terms: { domain: i.domain, unitPriceYear: 5, discountSeats: 0, seatsTotal: i.accounts || 0 }, contacts: contactsOf(i.domain), note: "" }), key);
-    const type = String(i.type || "");
-    if (/大学|university|college|学院/i.test(type)) fold(mk("university", party, i.courses ? "explore" : "lead", "seed:hive", { region }), key);
+    // A university: the Schools row's Type column when the table has one; else the
+    // name itself, or the old partners.json (Rick, 2026-10-09: 大学没有从hive workspace
+    // 中同步过来 — the live rows carried no Type, so nothing matched).
+    const UNI = /大学|university|universit|college|学院|seminary|神学院|institute of/i;
+    const isUni = UNI.test(String(i.type || "")) || (!String(i.type || "") && UNI.test([i.name, i.nameEn, i.abbr].filter(Boolean).join(" "))) || (old[key] && old[key].type === "university");
+    if (isUni) fold(mk("university", party, i.courses ? "explore" : "lead", "seed:hive", { region }), key);
     else if (i.courses > 0 || (old[key] && old[key].type === "hive")) fold(mk("course", party, "listed", "seed:hive", { region, terms: i.hiveKey ? { hiveKey: "hive:" + i.hiveKey } : {} }), key);
     if (old[key] && old[key].type === "publisher" && !has(orgId, "publisher")) fold(mk("publisher", party, "onsale", "seed:equip", { region }), key);
   }
+  // Teachers: one who belongs to an institution — the Teachers table's Organization,
+  // else the tenant domain of their Teams account — is filed under that institution's
+  // course relationship as a 授课教师 contact; only a teacher with no institution is a
+  // course provider in their own right (Rick, 2026-10-09: 吴老师、尹老师都属于心桥中文…
+  // 只有没有机构的独立老师，才在这里被列出来). A person-level relationship seeded
+  // earlier for such a teacher, untouched since, is folded into the institution's.
+  const instByName = new Map(), instByDomain = new Map(), excludedKeys = new Set(excluded);
+  for (const i of src.institutions || []) {
+    for (const n of [i.name, i.nameEn, i.abbr, i.hiveKey]) if (n) instByName.set(norm(n), i);
+    if (i.domain) instByDomain.set(String(i.domain).toLowerCase(), i);
+  }
+  const instOfTeacher = (t, p) => {
+    for (const o of String(t.organization || "").split(/[,，;；]/)) { const i = instByName.get(norm(o)); if (i) return i; }
+    for (const acct of [t.teamsAccount, t.email].concat((p && p.keys) || [])) { const dom = String(acct || "").split("@")[1]; const i = dom && instByDomain.get(dom.toLowerCase()); if (i) return i; }
+    return null;
+  };
+  const filed = [];
   for (const t of src.teachers || []) {
     const p = peopleByKey.get(String(t.teamsAccount || "").toLowerCase()) || peopleByKey.get(String(t.email || "").toLowerCase());
     if (!p) { skipped.push("teacher:" + (t.name || "?")); continue; }
-    mk("course", { id: p.crmId, name: p.name || t.name }, "listed", "seed:teacher", { region: "cn", terms: { hiveKey: t.id || "" } });
+    const inst = instOfTeacher(t, p);
+    if (!inst) { mk("course", { id: p.crmId, name: p.name || t.name }, "listed", "seed:teacher", { region: "cn", terms: { hiveKey: t.id || "" } }); continue; }
+    const ikey = inst.key || inst.domain;
+    if (excludedKeys.has(ikey)) { skipped.push("teacher:" + (t.name || "?") + ":ours"); continue; }
+    const orgId = orgIdFor(orgs, ikey, { name: inst.name || inst.nameEn || "", nameEn: inst.nameEn || "", region: regionOf(inst) });
+    let rel = Object.values(rels.items).find((r) => r.party && r.party.id === orgId && r.type === "course");
+    if (!rel) rel = fold(mk("course", { id: orgId, key: ikey, name: inst.name || inst.nameEn || ikey }, "listed", "seed:hive", { region: regionOf(inst), terms: inst.hiveKey ? { hiveKey: "hive:" + inst.hiveKey } : {} }), ikey) || Object.values(rels.items).find((r) => r.party && r.party.id === orgId && r.type === "course");
+    if (!rel) continue;
+    rel.contacts = rel.contacts || [];
+    if (!rel.contacts.some((c) => c.person === p.crmId)) { rel.contacts.push({ person: p.crmId, name: p.name || t.name, role: "授课教师", primary: false }); rel.updatedAt = at; filed.push({ teacher: p.crmId, under: rel.id }); }
+    for (const [id, r] of Object.entries(rels.items)) {
+      if (r.source === "seed:teacher" && r.party && r.party.id === p.crmId && r.confirmed === false && (r.log || []).length <= 1) { delete rels.items[id]; filed.push({ teacher: p.crmId, under: rel.id, removed: id }); }
+    }
   }
   for (const pub of src.publishers || []) {
     if (!pub.recId && !pub.name) continue;
@@ -373,7 +406,7 @@ function seed(src, docs, cfg, by, now) {
     refresh(orgId, pub.name);
     fold(mk("publisher", { id: orgId, key, name: pub.name }, "onsale", "seed:equip", { region: "na", terms: { publisherKey: key } }), key);
   }
-  return { created, excluded, skipped, renamed, at };
+  return { created, excluded, skipped, renamed, filed, at };
 }
 
 // Gather the sources and seed; called after every hub rebuild and from 自动填入.
@@ -396,8 +429,8 @@ async function runSeed(opts) {
   const relsNow = await readRels();
   let result = null, orgsSaved = null;
   await updateOrgs((od) => { result = seed(src, { rels: clone(relsNow), orgs: od }, cfg, by, now); orgsSaved = clone(od); return true; });
-  await updateRels((d) => { result = seed(src, { rels: d, orgs: clone(orgsSaved) }, cfg, by, now); return result.created.length > 0 || result.renamed.length > 0; });
-  const entry = { at: result.at, by, created: result.created.length, excluded: result.excluded.length, skipped: result.skipped.length, renamed: result.renamed.length, sample: result.created.slice(0, 20) };
+  await updateRels((d) => { result = seed(src, { rels: d, orgs: clone(orgsSaved) }, cfg, by, now); return result.created.length > 0 || result.renamed.length > 0 || result.filed.length > 0; });
+  const entry = { at: result.at, by, created: result.created.length, excluded: result.excluded.length, skipped: result.skipped.length, renamed: result.renamed.length, filed: result.filed.length, sample: result.created.slice(0, 20) };
   await store.update(SEED_LOG_BLOB, { runs: [] }, (l) => { l.runs = [entry].concat(l.runs || []).slice(0, 30); });
   log(`partners: seeded ${result.created.length} relationship(s), ${result.excluded.length} excluded, ${result.skipped.length} already there`);
   return result;

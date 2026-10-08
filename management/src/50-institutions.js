@@ -28,7 +28,8 @@
       post("crm/partners-seed", "POST", {}).then(function (r) {
         restoreButton(b);
         if (!r.ok) { flash(esc(errText(r)), 10000); return; }
-        flashOk(esc(t("自动填入：新建 ", "Seeded: ") + r.body.created.length + t(" 条关系，排除 ", " relationships, excluded ") + r.body.excluded.length + t(" 个内部机构，已有 ", " internal, already there ") + r.body.skipped), 8000);
+        var b = r.body, extra = (b.renamed ? t("，改名 ", ", renamed ") + b.renamed : "") + (b.filed ? t("，教师归档 ", ", teachers filed ") + b.filed : "") + (b.unnamed ? t("；", "; ") + b.unnamed + t(" 家出版社在 Equip 副本里仍只有编号，未建关系（先同步 Equip）", " publishers still numbered in the Equip copy, not created (sync Equip first)") : "");
+        flashOk(esc(t("自动填入：新建 ", "Seeded: ") + b.created.length + t(" 条关系，排除 ", " relationships, excluded ") + b.excluded.length + t(" 个内部机构，已有 ", " internal, already there ") + (b.skipped - (b.unnamed || 0)) + extra), b.unnamed ? 15000 : 8000);
         loadInstitutionsCrm(true).then(renderInstitutionsCrm);
       });
     });
