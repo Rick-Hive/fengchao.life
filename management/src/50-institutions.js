@@ -13,33 +13,45 @@
   function viewInstitutionsCrm() {
     setTitle(t("经营 › 机构", "Operations › Institutions"), t("机构", "Institutions"), '<button class="btn secondary sm" id="iReload">' + t("刷新", "Refresh") + "</button>",
       { info: t("每所学校 / 蜂巢一行：合作阶段、账号数与活跃、其中的 Equip 客户与本学年购买、讲座线索、家庭数。合作阶段和备注由合作发展总监维护；数字来自人员库，每次同步后更新。", "One row per school or hive: partnership stage, accounts and active ones, the Equip customers among them and this school year's purchases, seminar leads, families. The partnership director keeps the stage and note; the numbers come from the people hub after each sync.") });
-    $("content").innerHTML = '<div class="toolbar"><div class="search">' + ICON.search + '<input type="search" id="iq" value="' + esc(instState.q) + '" placeholder="' + t("搜索机构、域名…", "Search institution, domain…") + '" /></div></div><div class="kpis" id="ikpi"></div><div class="tbl-wrap"><table class="data fixed" id="itable"><colgroup><col style="width:24%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:9%"><col style="width:9%"><col style="width:8%"></colgroup><thead><tr><th>' + t("机构", "Institution") + "</th><th>" + t("合作阶段", "Stage") + '</th><th class="num">' + t("账号", "Accounts") + '</th><th class="num">' + t("活跃", "Active") + '</th><th class="num">' + t("客户", "Customers") + '</th><th class="num">' + t("本学年销售", "SY sales") + '</th><th class="num">' + t("讲座线索", "Leads") + '</th><th class="num">' + t("家庭", "Families") + '</th><th class="num">' + t("课程订单", "Course orders") + '</th></tr></thead><tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + '</td></tr></tbody></table></div><p class="muted" id="ifoot" style="font-size:.8rem"></p>';
+    $("content").innerHTML = '<div class="toolbar"><div class="search">' + ICON.search + '<input type="search" id="iq" value="' + esc(instState.q) + '" placeholder="' + t("搜索机构、域名…", "Search institution, domain…") + '" /></div></div><div class="kpis compact" id="ikpi"></div><div class="tbl-wrap"><table class="data fixed" id="itable"><colgroup><col style="width:24%"><col style="width:10%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:9%"><col style="width:9%"><col style="width:8%"></colgroup><thead><tr><th>' + t("机构", "Institution") + "</th><th>" + t("合作阶段", "Stage") + '</th><th class="num">' + t("账号", "Accounts") + '</th><th class="num">' + t("活跃", "Active") + '</th><th class="num">' + t("客户", "Customers") + '</th><th class="num">' + t("本学年销售", "SY sales") + '</th><th class="num">' + t("讲座线索", "Leads") + '</th><th class="num">' + t("家庭", "Families") + '</th><th class="num">' + t("课程订单", "Course orders") + '</th></tr></thead><tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + '</td></tr></tbody></table></div><p class="muted" id="ifoot" style="font-size:.8rem"></p>';
     $("iq").addEventListener("input", debounce(function () { instState.q = $("iq").value.trim(); renderInstitutionsCrm(); }, 120));
     $("iReload").addEventListener("click", function () { loadInstitutionsCrm(true).then(renderInstitutionsCrm); });
-    $("itable").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-domain]"); if (!tr) return; document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); }); tr.classList.add("sel"); openInstitutionPanel(tr.getAttribute("data-domain")); });
+    $("itable").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-key]"); if (!tr) return; document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); }); tr.classList.add("sel"); openInstitutionPanel(tr.getAttribute("data-key")); });
     loadInstitutionsCrm(false).then(renderInstitutionsCrm).catch(function (r) { $("itable").tBodies[0].innerHTML = '<tr><td colspan="9" class="loading">' + esc(errText(r)) + "</td></tr>"; });
   }
   function loadInstitutionsCrm(force) { if (instState.data && !force) return Promise.resolve(instState.data); return api("crm/institutions").then(function (r) { if (!r.ok) throw r; instState.data = r.body; return r.body; }); }
   function instName(row) { return (EN ? (row.nameEn || row.name) : (row.name || row.nameEn)) || row.domain; }
   function renderInstitutionsCrm() {
     var d = instState.data; if (!d || !$("itable")) return;
-    var q = instState.q.toLowerCase(), rows = d.rows.filter(function (r) { return !q || (r.domain + " " + r.name + " " + r.nameEn).toLowerCase().indexOf(q) >= 0; });
+    var q = instState.q.toLowerCase(), rows = d.rows.filter(function (r) { return !q || (r.domain + " " + r.name + " " + r.nameEn + " " + (r.abbr || "") + " " + (r.type || "") + " " + (r.country || "") + " " + (r.city || "")).toLowerCase().indexOf(q) >= 0; });
     var seeMoney = crmLevel("money") !== "none";
     var byStage = {}; d.rows.forEach(function (r) { var st = r.partner && r.partner.stage; if (st) byStage[st] = (byStage[st] || 0) + 1; });
-    $("ikpi").innerHTML = statTile(t("机构", "Institutions"), fmtNum(d.rows.length), { sub: Object.keys(STAGES_P).map(function (k) { return t(STAGES_P[k][0], STAGES_P[k][1]) + " " + (byStage[k] || 0); }).join(" · ") }) +
+    var kinds = { tenant: 0, hive: 0, both: 0 }; d.rows.forEach(function (r) { kinds[r.kind || "tenant"] = (kinds[r.kind || "tenant"] || 0) + 1; });
+    $("ikpi").innerHTML = statTile(t("机构", "Institutions"), fmtNum(d.rows.length), { sub: t("租户 ", "tenant ") + (kinds.tenant + kinds.both) + t(" · 蜂巢工作区 ", " · Hive workspace ") + (kinds.hive + kinds.both) + " · " + Object.keys(STAGES_P).map(function (k) { return t(STAGES_P[k][0], STAGES_P[k][1]) + " " + (byStage[k] || 0); }).join(" · ") }) +
       statTile(t("账号", "Accounts"), fmtNum(d.rows.reduce(function (a, r) { return a + r.accounts; }, 0)), { sub: t("90 天内活跃 ", "active in 90 days ") + fmtNum(d.rows.reduce(function (a, r) { return a + r.active; }, 0)) }) +
       statTile(t("Equip 客户", "Equip customers"), fmtNum(d.rows.reduce(function (a, r) { return a + r.customers; }, 0)), { sub: t("本学年购买 ", "bought this SY ") + fmtNum(d.rows.reduce(function (a, r) { return a + r.fyOrders; }, 0)) + t(" 单", " orders") }) +
       (seeMoney ? statTile(fyLabel(d.fy) + " · " + t("教材销售", "textbook sales"), fmtMoney(d.rows.reduce(function (a, r) { return a + (r.fySales || 0); }, 0)), { sub: t("有 Teams 账号的客户的订单", "orders by customers with a Teams account") }) : "");
     $("itable").tBodies[0].innerHTML = rows.length ? rows.map(function (r) {
-      return '<tr class="pick" data-domain="' + esc(r.domain) + '"><td class="ell"><b>' + esc(instName(r)) + '</b><span class="sub">' + esc(r.domain) + "</span></td><td>" + pstTag(r.partner && r.partner.stage) + '</td><td class="num">' + fmtNum(r.accounts) + '</td><td class="num">' + fmtNum(r.active) + '</td><td class="num">' + fmtNum(r.customers) + '</td><td class="num">' + (seeMoney ? fmtMoney(r.fySales || 0) : fmtNum(r.fyOrders) + t(" 单", " orders")) + '</td><td class="num">' + fmtNum(r.leads) + '</td><td class="num">' + fmtNum(r.families) + '</td><td class="num">' + fmtNum(r.hiveOrders) + "</td></tr>";
+      return '<tr class="pick" data-key="' + esc(r.key || r.domain) + '"><td class="ell"><b>' + esc(instName(r)) + '</b><span class="sub">' + esc(instSub(r)) + "</span></td><td>" + pstTag(r.partner && r.partner.stage) + '</td><td class="num">' + fmtNum(r.accounts) + '</td><td class="num">' + fmtNum(r.active) + '</td><td class="num">' + fmtNum(r.customers) + '</td><td class="num">' + (seeMoney ? fmtMoney(r.fySales || 0) : fmtNum(r.fyOrders) + t(" 单", " orders")) + '</td><td class="num">' + fmtNum(r.leads) + '</td><td class="num">' + fmtNum(r.families) + '</td><td class="num">' + fmtNum(r.hiveOrders) + "</td></tr>";
     }).join("") : '<tr><td colspan="9" class="empty">' + t("没有机构。机构来自人员库：各学校的目录缓存要先同步（本域管理 › 用户 › 同步），然后在人员库点「重新匹配」或在这里点「刷新」。", "No institutions. They come from the people hub: sync each school's directory first (My domain › Users › Sync), then Rebuild in the People Hub or Refresh here.") + "</td></tr>";
     $("ifoot").textContent = (d.generatedAt ? t("数据来自人员库，匹配于 ", "From the people hub, matched ") + when(d.generatedAt) : "") + (seeMoney ? "" : " · " + t("金额按角色隐藏", "Amounts hidden for this role"));
   }
-  function openInstitutionPanel(domain) {
-    var d = instState.data, r = d && d.rows.filter(function (x) { return x.domain === domain; })[0]; if (!r) return;
+  // Under the name: the tenant domain, and / or where the Hive workspace row says it is and what it is.
+  function instSub(r) {
+    var bits = [];
+    if (r.domain) bits.push(r.domain);
+    if (r.type) bits.push(r.type);
+    if (r.country || r.city) bits.push([r.city, r.country].filter(Boolean).join(", "));
+    if (r.kind === "hive") bits.push(t("蜂巢工作区", "Hive workspace"));
+    return bits.join(" · ");
+  }
+  function openInstitutionPanel(key) {
+    var d = instState.data, r = d && d.rows.filter(function (x) { return (x.key || x.domain) === key; })[0]; if (!r) return;
+    var domain = key;
     var pt = r.partner || {}, seeMoney = crmLevel("money") !== "none";
     panelOpen('<div class="ph"><span class="tav" style="background:' + hue(domain) + '">' + esc(initials(instName(r))) + "</span><h3>" + esc(instName(r)) + "</h3>" + pstTag(pt.stage) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
-      '<div class="kv"><span class="k">' + t("域名", "Domain") + "</span><span>" + esc(r.domain) + "</span>" +
+      '<div class="kv">' + (r.domain ? '<span class="k">' + t("域名", "Domain") + "</span><span>" + esc(r.domain) + "</span>" : "") +
+        (r.kind !== "tenant" ? '<span class="k">' + t("蜂巢工作区", "Hive workspace") + "</span><span>" + esc([r.abbr, r.type, [r.city, r.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || t("已登记", "listed")) + (r.website ? ' · <a href="' + esc(/^https?:/.test(r.website) ? r.website : "https://" + r.website) + '" target="_blank" rel="noopener">' + t("网站 ↗", "website ↗") + "</a>" : "") + (r.courses ? " · " + fmtNum(r.courses) + t(" 门课程", " courses") : "") + "</span>" : "") +
         '<span class="k">' + t("账号", "Accounts") + "</span><span>" + fmtNum(r.accounts) + t(" · 活跃 ", " · active ") + fmtNum(r.active) + "</span>" +
         '<span class="k">' + t("客户", "Customers") + "</span><span>" + fmtNum(r.customers) + t(" · 买过 ", " · bought ") + fmtNum(r.buyers) + t(" · 家庭 ", " · families ") + fmtNum(r.families) + "</span>" +
         '<span class="k">' + fyLabel(d.fy) + "</span><span>" + fmtNum(r.fyOrders) + t(" 单", " orders") + (seeMoney ? " · " + fmtMoney(r.fySales || 0) : "") + "</span>" +
@@ -52,7 +64,7 @@
     var f = $("ipf");
     if (f) f.addEventListener("submit", function (e) {
       e.preventDefault(); var b = $("ipSave"); savingButton(b);
-      post("crm/institutions", "POST", { domain: domain, stage: $("ipStage").value, owner: $("ipOwner").value.trim(), note: $("ipNote").value.trim(), type: $("ipType").value, region: $("ipRegion").value }).then(function (res) {
+      post("crm/institutions", "POST", { key: domain, stage: $("ipStage").value, owner: $("ipOwner").value.trim(), note: $("ipNote").value.trim(), type: $("ipType").value, region: $("ipRegion").value }).then(function (res) {
         restoreButton(b);
         if (!res.ok) { $("ipMsg").innerHTML = '<div class="msg err">' + esc(errText(res)) + "</div>"; return; }
         r.partner = res.body.partner; renderInstitutionsCrm(); savedAndClose(null, t("已保存 ", "Saved ") + "<b>" + esc(instName(r)) + "</b>" + t(" 的合作信息。", "'s partnership."));

@@ -237,6 +237,17 @@ module.exports = {
   schoolFields: {
     name: /^Name\//i,
     abbr: /Abbreviation$/i,
+    // Public-safe descriptors of a school / hive / university, when the table has
+    // them (the 机构 page lists every row of this table — Rick, 2026-10-08: 「机构里
+    // 还是不全面，没有hive里的大学，学校」). Any of these columns may be absent.
+    type: /^(Type|类型|Kind|Category|机构类型)/i,
+    region: /^(Region|地区|区域)/i,
+    country: /^(Country|国家)/i,
+    city: /^(City|城市)/i,
+    website: /^(Website|网站|网址|URL)/i,
+    // PRIVATE like the two below: the tenant domain this institution's accounts use
+    // (joins the row to the directory's institution in the hub). Never served.
+    domain: /^(Domain|域名|Tenant\s*Domain)/i,
     // Where this hive's orders are delivered. BOTH ARE PRIVATE: they are synced
     // into snapshot.private, which /api/data strips before serving the public
     // site. Never move them into the course objects.

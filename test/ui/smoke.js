@@ -105,6 +105,8 @@ const EQUIP = [
   const errs = [];
   const hubMod = require(path.join(ROOT, "api", "shared", "hub.js"));
   const HUB_SRC = {
+    hiveInstitutions: [{ id: "recS1", key: "KXC", name: "Kids X Center", abbr: "KXC", type: "蜂巢", country: "中国", city: "南京", website: "kxc.edu", courses: 3 }, { id: "recS2", key: "GCU", name: "Grace Christian University", abbr: "GCU", type: "大学", country: "美国", city: "Dallas", website: "https://gcu.example.edu", courses: 0 }],
+    institutionNames: { "kxc.edu": { name: "Kids X Center", nameEn: "Kids X Center" } },
     equip: { syncedAt: "2026-10-06T17:05:00Z", customers: [
       { recId: "recC1", email: "mama@qq.com", teams: "mama@equipme.cloud", name: "Mei Wang", crmId: "", city: "南京", active: true, createdTime: "2026-01-01T00:00:00Z" },
       { recId: "recC2", email: "dad@gmail.com", teams: "", name: "Zhang San", crmId: "", city: "", active: true, createdTime: "2026-02-01T00:00:00Z" },
@@ -149,7 +151,7 @@ const EQUIP = [
       else if (p === "/api/crm/queue") { const b = JSON.parse(r.request().postData()); verdicts.push(b); HUB_SRC.decisions.pairs[b.key] = { verdict: b.verdict }; HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, stats: HUB.stats, queue: HUB.queue }; }
       else if (p === "/api/crm/writeback") { const b = JSON.parse(r.request().postData() || "{}"); writebacks.push(b); const pairs = HUB.people.flatMap(x => x.writeBack.map(id => ({ crmId: x.crmId, name: x.name, recId: id }))); if (b.dryRun) body = { ok: true, dryRun: true, count: pairs.length, preview: pairs }; else { pairs.forEach(pr => { const c = HUB_SRC.equip.customers.find(c => c.recId === pr.recId); if (c) c.crmId = pr.crmId; }); HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, written: pairs.length, already: 0, conflicts: [], missing: 0, stats: HUB.stats }; } }
       else if (p === "/api/crm/digest") { if (r.request().method() === "POST") { digests.push(1); body = { ok: true, sent: true, to: ["obadiah.sun@equipme.cloud"], status: 202, total: 3 }; } else body = { summary: { total: 3 }, to: ["obadiah.sun@equipme.cloud"], text: "x", subject: "s", last: null, configured: true, channel: true }; }
-      else if (p === "/api/crm/institutions") { if (r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); PARTNERS[b.domain] = { stage: b.stage, note: b.note, owner: b.owner, by: "pd", at: new Date().toISOString() }; body = { ok: true, partner: PARTNERS[b.domain] }; } else { const canEdit = isAdm || acc.partners === "rw"; const seeMoney = acc.money !== "none"; body = { rows: HUB.institutions.map(i => ({ domain: i.domain, name: i.domain === "kxc.edu" ? "Kids X Center" : "", nameEn: "", partner: PARTNERS[i.domain] || null, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: i.orders, fySales: seeMoney ? i.spend : null })), fy: 2026, canEdit, stages: ["contact", "trial", "partner", "paused"], generatedAt: HUB.generatedAt, access: acc }; } }
+      else if (p === "/api/crm/institutions") { if (r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); const k = b.key || b.domain; PARTNERS[k] = { stage: b.stage, note: b.note, owner: b.owner, type: b.type, region: b.region, by: "pd", at: new Date().toISOString() }; body = { ok: true, partner: PARTNERS[k] }; } else { const canEdit = isAdm || acc.partners === "rw"; const seeMoney = acc.money !== "none"; body = { rows: HUB.institutions.map(i => ({ key: i.key || i.domain, domain: i.domain || "", kind: i.kind || "tenant", abbr: i.abbr || "", type: i.type || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, name: i.name || (i.domain === "kxc.edu" ? "Kids X Center" : ""), nameEn: i.nameEn || "", partner: PARTNERS[i.key || i.domain] || null, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: i.orders, fySales: seeMoney ? i.spend : null })), fy: 2026, canEdit, stages: ["contact", "trial", "partner", "paused"], generatedAt: HUB.generatedAt, access: acc }; } }
       else if (p === "/api/crm/entry") { const b = JSON.parse(r.request().postData()); entries.push(b); body = { ok: true, orderId: "H-20261008-TEST", orderRec: "recNEWO", customerRec: b.customer.recId || "recNEWC", newCustomer: !!b.customer.new, lines: b.items.length, status: {} }; }
       else if (p === "/api/crm/received") { const b = JSON.parse(r.request().postData()); received.push(b); body = { ok: true }; }
       else if (p === "/api/crm/feed") body = { feed: [{ at: "2026-10-08T01:00:00Z", action: "crm.entry.order", by: "obadiah.sun@equipme.cloud", orderId: "H-20261008-AB12", newCustomer: true }, { at: "2026-10-07T20:00:00Z", action: "crm.order.status", by: "obadiah.sun@equipme.cloud", orderId: "FC-20261002-KXC-002", from: "submitted", to: "confirmed" }, { at: "2026-10-07T17:05:00Z", action: "crm.equip.sync", actor: "scheduler", counts: { orders: 520 } }], access: acc };
@@ -179,7 +181,7 @@ const EQUIP = [
     await ctx.close();
   }
   const SALES = ["staff:sales"];
-  await shot("orders-zh", 1280, 900, "#/ops/orders", "zh", SALES, async p => {
+  await shot("orders-zh", 1280, 900, "#/ops/orders/hive", "zh", SALES, async p => {
     const nav = await p.$eval("#nav", e => e.innerText); if (!/经营[\s\S]*订单/.test(nav)) throw new Error("no 经营›订单 nav: " + nav);
     if (/系统/.test(nav)) throw new Error("order manager sees System group");
     const rows = await p.$$("#otable tbody tr[data-id]"); if (rows.length !== 8) throw new Error("rows " + rows.length);
@@ -199,7 +201,7 @@ const EQUIP = [
     if (!/标记已付款/.test(pb2) || !/提供方已接单/.test(pb2)) throw new Error("panel after confirm: " + pb2.slice(0, 300));
     const row = await p.$eval('#otable tbody tr[data-id="FC-20261002-KXC-002"]', e => e.innerText); if (!/已确认/.test(row)) throw new Error("row not updated: " + row);
   });
-  await shot("orders-en-finance", 1280, 900, "#/ops/orders", "en", ["staff:finance"], async p => {
+  await shot("orders-en-finance", 1280, 900, "#/ops/orders/hive", "en", ["staff:finance"], async p => {
     const title = await p.$eval("#title", e => e.innerText); if (!/Orders/.test(title)) throw new Error("title " + title);
     const cell = await p.$eval('#otable tbody tr[data-id="FC-20261001-KXC-001"]', e => e.innerText);
     if (!/…@gmail\.com/.test(cell)) throw new Error("finance should see a masked email: " + cell);
@@ -209,13 +211,13 @@ const EQUIP = [
     if (/Confirm|Cancel order/.test(pb)) throw new Error("finance must not get status buttons");
     if (!/Fulfilment record/i.test(pb) || !/Grade 7 Mathematics/.test(pb)) throw new Error("panel en: " + pb.slice(0, 200));
   });
-  await shot("orders-curriculum", 1280, 900, "#/ops/orders", "zh", ["staff:curriculum"], async p => {
+  await shot("orders-curriculum", 1280, 900, "#/ops/orders/hive", "zh", ["staff:curriculum"], async p => {
     const kpi = await p.$eval("#okpi", e => e.innerText); if (/本月成交额/.test(kpi)) throw new Error("curriculum director must not see money KPI");
     const cell = await p.$eval('#otable tbody tr[data-id="FC-20261001-KXC-001"]', e => e.innerText); if (!/不可见/.test(cell)) throw new Error("amount should be hidden: " + cell);
   });
-  await shot("orders-none", 1280, 900, "#/ops/orders", "zh", ["domain_it:bes.qiaoliang.online"], async p => {
+  await shot("orders-none", 1280, 900, "#/ops/orders/hive", "zh", ["domain_it:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(300);
-    const h = await p.evaluate(() => location.hash); if (h === "#/ops/orders") throw new Error("domain admin reached the orders page");
+    const h = await p.evaluate(() => location.hash); if (/^#\/ops\/orders/.test(h)) throw new Error("domain admin reached the orders page");
     const nav = await p.$eval("#nav", e => e.innerText); if (/订单/.test(nav)) throw new Error("domain admin sees 订单 in nav");
   });
   await shot("roles-ceo", 1280, 900, "#/system/roles", "en", ["staff:ceo"], async p => {
@@ -237,10 +239,10 @@ const EQUIP = [
     const opts = await p.$$eval("#pid option", es => es.map(e => e.textContent)); if (opts.some(o => /家长|学生|老师|行政/.test(o))) throw new Error("identity options not translated: " + opts);
     if (!opts.some(o => /Parent/.test(o)) || !opts.some(o => /Education consultant/.test(o))) throw new Error("identity options: " + opts);
   });
-  await shot("orders-tabs-equip", 1280, 900, "#/ops/orders/equip", "zh", ["admin", "staff:sysadmin"], async p => {
+  await shot("orders-tabs-equip", 1280, 900, "#/ops/orders", "zh", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(400);
     const tabs = await p.$$eval(".pagetabs .ptab", es => es.map(e => [e.textContent.trim().slice(0, 4), e.classList.contains("on")]));
-    if (tabs.length !== 2 || !tabs[1][1] || tabs[0][1]) throw new Error("tabs: " + JSON.stringify(tabs));
+    if (tabs.length !== 2 || !tabs[0][1] || tabs[1][1] || !/Equi/.test(tabs[0][0])) throw new Error("tabs (Equip first and active): " + JSON.stringify(tabs));
     if (await p.$("#otable") || await p.$("#etable")) throw new Error("an order table on the textbook tab");
     const empty = await p.$eval("#evgrid", e => e.innerText); if (!/AIRTABLE_EQUIP_PAT/.test(empty)) throw new Error("empty state: " + empty.slice(0, 100));
     const open = await p.$eval("#eOpen", e => [e.getAttribute("href"), e.getAttribute("target")]); if (open[0] !== "https://airtable.com/appae5kpY1qXn6XLq" || open[1] !== "_blank") throw new Error("Airtable link: " + open);
@@ -264,12 +266,14 @@ const EQUIP = [
     const fl = await p.$eval("#flash", e => e.innerText); if (!/同步完成/.test(fl) || !/人员库 \d+ 人/.test(fl)) throw new Error("sync notice: " + fl);
     const foot = await p.$eval("#efoot", e => e.innerText); if (!/同步提示 1 条/.test(foot)) throw new Error("footer: " + foot);
     await p.click("#nav a[href='#/ops/orders']"); await p.waitForTimeout(500);
+    if (!(await p.$("#ekpi"))) throw new Error("the orders page opens on the Equip tab (Rick, 2026-10-08)");
+    await p.click(".pagetabs a[href='#/ops/orders/hive']"); await p.waitForTimeout(500);
     if (!(await p.$("#otable"))) throw new Error("course tab did not open");
     if (!(await p.$eval("#flash", e => e.hidden))) throw new Error("sync notice survived the page change");
     const title = await p.$eval("#title", e => e.innerText); if (!/蜂巢课程订单/.test(title)) throw new Error("title " + title);
   });
-  await shot("orders-equip-tall", 1280, 1700, "#/ops/orders/equip", "zh", ["admin", "staff:sysadmin"], async p => { await p.waitForTimeout(500); });
-  await shot("orders-equip-card", 1280, 900, "#/ops/orders/equip", "zh", ["admin", "staff:sysadmin"], async p => { await p.waitForTimeout(400); });
+  await shot("orders-equip-tall", 1280, 1700, "#/ops/orders", "zh", ["admin", "staff:sysadmin"], async p => { await p.waitForTimeout(500); });
+  await shot("orders-equip-card", 1280, 900, "#/ops/orders", "zh", ["admin", "staff:sysadmin"], async p => { await p.waitForTimeout(400); });
   await shot("people-queue", 1280, 900, "#/ops/people", "zh", SALES, async p => { await p.waitForTimeout(400); await p.click('#pbar .chip[data-f="queue"]'); await p.waitForTimeout(300); });
   // 人员库: the order manager sees everyone, answers a merge suggestion, and the queue empties.
   await shot("people-hub", 1280, 900, "#/ops/people", "zh", SALES, async p => {
@@ -361,7 +365,7 @@ const EQUIP = [
     const stage = await p.$eval("#ptable tbody tr:first-child td:last-child", e => e.innerText.trim()); if (!stage) throw new Error("stage cell empty");
   });
   await shot("people-phone", 390, 800, "#/ops/people", "zh", SALES, async p => { await p.waitForTimeout(300); });
-  await shot("orders-import", 1280, 900, "#/ops/orders", "en", ["admin", "staff:sysadmin"], async p => {
+  await shot("orders-import", 1280, 900, "#/ops/orders/hive", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(400);
     if (!(await p.$("#oImport"))) throw new Error("no import button for sysadmin");
     p.on("dialog", d => d.accept());
@@ -370,7 +374,7 @@ const EQUIP = [
     if (imported.length !== 2 || imported[0].dryRun !== true || imported[1].dryRun) throw new Error("import calls: " + JSON.stringify(imported.map(i => i.dryRun)));
     if (imported[1].messages.length !== 2) throw new Error("messages not forwarded");
   });
-  await shot("orders-teams-read", 1280, 900, "#/ops/orders", "zh", ["admin", "staff:sysadmin"], async p => {
+  await shot("orders-teams-read", 1280, 900, "#/ops/orders/hive", "zh", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(400);
     await p.click("#oTeams"); await p.waitForTimeout(500);
     const pb = await p.$eval("#panel .pb", e => e.innerText); if (!/hive-crm-teams-app.zip/.test(pb) || !/资源级许可/.test(pb)) throw new Error("setup panel: " + pb.slice(0, 120));
@@ -386,7 +390,7 @@ const EQUIP = [
     if (!names.some(n => n === "Hive · 蜂巢")) throw new Error("slash name not shown bilingually: " + names.join(" | "));
     if (await p.$("#gFill")) throw new Error("the auto-fill button should be gone");
   });
-  await shot("orders-equip-finance", 1280, 700, "#/ops/orders/equip", "en", ["staff:curriculum"], async p => {
+  await shot("orders-equip-finance", 1280, 700, "#/ops/orders", "en", ["staff:curriculum"], async p => {
     await p.waitForTimeout(400);
     if (await p.$("#eSync")) throw new Error("curriculum director must not sync");
     const k = await p.$eval("#ekpi", e => e.innerText); if (/sales|¥/.test(k) || !/This month units/.test(k)) throw new Error("money KPI shown to curriculum director: " + k);
@@ -408,7 +412,7 @@ const EQUIP = [
     await p.fill("#gnEn", "Grade 5 English"); await p.click("#gnSave"); await p.waitForTimeout(500);
     if (groupNamed.length !== 1 || groupNamed[0].en !== "Grade 5 English" || groupNamed[0].id !== "g1") throw new Error("groupname call: " + JSON.stringify(groupNamed));
   });
-  await shot("orders-phone", 390, 800, "#/ops/orders", "zh", SALES, async p => { await p.waitForTimeout(300); });
+  await shot("orders-phone", 390, 800, "#/ops/orders/hive", "zh", SALES, async p => { await p.waitForTimeout(300); });
   // Sticky headings (Rick 2026-10-06): scroll the users list and the column headings stay at the top of the pane.
   // 删除账号 (Rick, 2026-10-07: 「verify if it works after deleting a user」): the typed
   // confirmation, the row, the tiles, the footer, the notice, the group member lists.
@@ -455,7 +459,7 @@ const EQUIP = [
     const h = await p.evaluate(() => location.hash); if (h !== "#/dashboard" && h !== "") throw new Error("staff should land on the dashboard: " + h);
     const title = await p.$eval("#title", e => e.innerText); if (!/仪表盘/.test(title)) throw new Error("title: " + title);
     const nav = await p.$eval("#nav", e => e.innerText); if (!/仪表盘/.test(nav)) throw new Error("nav: " + nav);
-    const k = await p.$eval("#dkpi", e => e.innerText); if (!/本月 · 教材销售额\n¥1,296/.test(k) || !/本月 · 课程订单\n\d/.test(k) || !/人员库\n\d/.test(k) || !/待处理\n\d/.test(k)) throw new Error("tiles: " + k);
+    const k = await p.$eval("#dkpi", e => e.innerText); if (!/本月 · 教材销售额\s*¥1,296/.test(k) || !/本月 · 课程订单\s*\d/.test(k) || !/人员库\s*\d/.test(k) || !/待处理\s*\d/.test(k)) throw new Error("tiles: " + k);
     const ids = await p.$$eval("#dgrid .card", es => es.map(e => e.id || e.className)); if (ids.indexOf("dTrend") < 0 || ids.indexOf("dFunnel") < 0 || ids.indexOf("dPub") < 0 || ids.indexOf("dTop") < 0 || ids.indexOf("dSchools") < 0 || ids.indexOf("dSeminar") < 0 || ids.indexOf("dTodo") < 0) throw new Error("panels: " + ids);
     if ((await p.$$("#dgrid svg.viz-svg")).length < 6) throw new Error("charts drawn: " + (await p.$$("#dgrid svg.viz-svg")).length);
     const todo = await p.$eval("#dTodo", e => e.innerText); if (!/超期订单/.test(todo) || !/待合并的人员/.test(todo) || !/待替换邮箱/.test(todo)) throw new Error("todo: " + todo);
@@ -523,15 +527,22 @@ const EQUIP = [
     await p.click("#panel .x");
     await p.click('#nav a[href="#/ops/institutions"]'); await p.waitForTimeout(600);
     const it = await p.$eval("#itable", e => e.innerText); if (!/Kids X Center/.test(it) || !/xqzw\.edu/.test(it)) throw new Error("institutions table: " + it.slice(0, 300));
-    await p.click('#itable tbody tr[data-domain="xqzw.edu"]'); await p.waitForTimeout(400);
+    // The Hive workspace's rows are there too (Rick, 2026-10-08): the university without a tenant domain has its own row; the hive that is also a tenant domain is one row.
+    if (!/Grace Christian University/.test(it) || !/大学/.test(it)) throw new Error("university from the Hive workspace missing: " + it.slice(0, 400));
+    const kxcRows = await p.$$eval("#itable tbody tr", rs => rs.filter(r => /Kids X Center/.test(r.innerText)).length); if (kxcRows !== 1) throw new Error("KXC should be one joined row, got " + kxcRows);
+    await p.click('#itable tbody tr[data-key="hive:GCU"]'); await p.waitForTimeout(400);
+    if (!/蜂巢工作区/.test(await p.$eval("#panel", e => e.innerText))) throw new Error("university panel lacks the workspace line");
+    await p.selectOption("#ipStage", "contact"); await p.click("#ipSave"); await p.waitForTimeout(600);
+    if (!PARTNERS["hive:GCU"] || PARTNERS["hive:GCU"].stage !== "contact") throw new Error("university partner stage not saved: " + JSON.stringify(PARTNERS));
+    await p.click('#itable tbody tr[data-key="xqzw.edu"]'); await p.waitForTimeout(400);
     await p.selectOption("#ipStage", "trial"); await p.fill("#ipNote", "试用两个月"); await p.click("#ipSave"); await p.waitForTimeout(600);
     if (!PARTNERS["xqzw.edu"] || PARTNERS["xqzw.edu"].stage !== "trial") throw new Error("partner not saved: " + JSON.stringify(PARTNERS));
-    if (!/试用/.test(await p.$eval('#itable tbody tr[data-domain="xqzw.edu"]', e => e.innerText))) throw new Error("stage tag not shown in the row");
+    if (!/试用/.test(await p.$eval('#itable tbody tr[data-key="xqzw.edu"]', e => e.innerText))) throw new Error("stage tag not shown in the row");
     await p.click('#nav a[href="#/dashboard"]'); await p.waitForTimeout(900);
     const dp = await p.$eval("#dPartners", e => e.innerText); if (!/Kids X Center/.test(dp) || !/试用/.test(dp) || !/全部机构/.test(dp)) throw new Error("partners panel: " + dp.slice(0, 300));
   });
   // 录入 (phase 4): the order manager enters an order for an existing customer, then marks cash received; the feed reads in words.
-  await shot("entry", 1280, 900, "#/ops/orders/equip", "zh", SALES, async p => {
+  await shot("entry", 1280, 900, "#/ops/orders", "zh", SALES, async p => {
     await p.waitForTimeout(600);
     if (!(await p.$("#eEntry"))) throw new Error("no 录入 button for the order manager");
     await p.click("#eEntry"); await p.waitForTimeout(600);

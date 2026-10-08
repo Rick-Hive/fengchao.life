@@ -213,8 +213,9 @@ async function handler(context, req) {
     if (method === "POST") {
       if (!canEdit) { fail(context, 403, "no_access"); return; }
       const body = req.body && typeof req.body === "object" ? req.body : {};
-      const domain = String(body.domain || "").trim().toLowerCase(), stage = String(body.stage || "");
-      if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain) || (stage && !hub.PARTNER_STAGES.includes(stage))) { fail(context, 400, "bad_request"); return; }
+      const rawKey = String(body.key || body.domain || "").trim();
+      const domain = /^hive:/i.test(rawKey) ? "hive:" + rawKey.slice(5).toUpperCase() : rawKey.toLowerCase(), stage = String(body.stage || "");
+      if (!(/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain) || /^hive:[A-Z0-9\u4e00-\u9fff]{1,12}$/.test(domain)) || (stage && !hub.PARTNER_STAGES.includes(stage))) { fail(context, 400, "bad_request"); return; }
       const type = String(body.type || ""), region = String(body.region || "");
       if ((type && !licenses.INST_TYPES.includes(type)) || (region && !licenses.REGIONS.includes(region))) { fail(context, 400, "bad_request"); return; }
       const saved = await hub.updatePartners((d) => {
@@ -230,10 +231,12 @@ async function handler(context, req) {
     const custPerson = new Map(); for (const p of (h && h.people) || []) for (const c of p.facets.customers || []) custPerson.set(c.recId, p.crmId);
     const fySales = new Map(), fyOrders = new Map();
     for (const o of (data && data.orders) || []) { if (String(o.date || "").slice(0, 7) < fyStart) continue; const id = custPerson.get(o.customerRec); if (!id) continue; fySales.set(id, (fySales.get(id) || 0) + (o.amount || 0)); fyOrders.set(id, (fyOrders.get(id) || 0) + 1); }
+    // A row's key is its tenant domain, or "hive:<abbr>" for a Hive-workspace institution without one.
     const rows = ((h && h.institutions) || []).map((i) => {
-      const n = inst.institutions[i.domain] || {}, pt = partners.partners[i.domain] || null;
+      const key = i.key || i.domain;
+      const n = (i.domain && inst.institutions[i.domain]) || {}, pt = partners.partners[key] || null;
       const fySum = (i.customerIds || []).reduce((a, id) => a + (fySales.get(id) || 0), 0), fyN = (i.customerIds || []).reduce((a, id) => a + (fyOrders.get(id) || 0), 0);
-      return { domain: i.domain, name: n.name || "", nameEn: n.nameEn || "", partner: pt, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null };
+      return { key, domain: i.domain || "", kind: i.kind || "tenant", name: n.name || i.name || "", nameEn: n.nameEn || i.nameEn || "", abbr: i.abbr || "", type: i.type || "", region: i.region || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, partner: pt, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null };
     });
     ok(context, { rows, fy, canEdit, stages: hub.PARTNER_STAGES, generatedAt: h && h.generatedAt, access: acc });
     return;

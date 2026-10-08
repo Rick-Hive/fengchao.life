@@ -369,6 +369,9 @@ async function handler(context, req) {
     // those are public (see /api/data), and a Teams channel id plus an internal
     // notification address are not. This map is written to snapshot.private.
     const schoolRouting = {};
+    // Every row of the Schools or Institutions table, public descriptors only — the
+    // 机构 page joins them with the tenant's directories (the hub).
+    const institutions = [];
     for (const r of schoolRecs) {
       const name = String(f(r.fields, sf.name) || "").trim();
       const abbr = String(f(r.fields, sf.abbr) || "").trim();
@@ -376,9 +379,11 @@ async function handler(context, req) {
 
       const channelId = String(asText(f(r.fields, sf.teamsChannelId)) || "").trim();
       const notifyEmail = String(asText(f(r.fields, sf.notifyEmail)) || "").trim();
+      const domain = String(asText(f(r.fields, sf.domain)) || "").trim().toLowerCase();
       const key = hiveKey(abbr || name);
       if (!key) continue;
-      schoolRouting[key] = { name, abbr, teamsChannelId: channelId, notifyEmail };
+      institutions.push({ id: r.id, key, name, abbr, type: String(asText(f(r.fields, sf.type)) || "").trim(), region: String(asText(f(r.fields, sf.region)) || "").trim(), country: String(asText(f(r.fields, sf.country)) || "").trim(), city: String(asText(f(r.fields, sf.city)) || "").trim(), website: String(asText(f(r.fields, sf.website)) || "").trim() });
+      schoolRouting[key] = { name, abbr, teamsChannelId: channelId, notifyEmail, domain };
       // Warn per missing destination rather than only when both are missing: a
       // blank Teams Channel ID is the one that used to break the flow's post
       // outright, and it is invisible from the order side until an order for
@@ -939,6 +944,7 @@ async function handler(context, req) {
       curriculumMap,
       // PRIVATE — stripped by /api/data before the snapshot reaches a browser.
       // Anything secret or internal belongs under this key and nowhere else.
+      institutions,
       private: { schoolRouting, teachers: teacherContacts },
     };
 
