@@ -21,6 +21,18 @@
   function ptHealthTag(rel) { var h = rel.health || {}; if (rel.closed) return '<span class="tag muted">' + t("已关闭", "closed") + "</span>"; if (h.stalled) return '<span class="tag warn" title="' + esc(ptHealthText(rel)) + '">' + t("停滞", "stalled") + (h.severe ? " !" : "") + "</span>"; if (rel.confirmed === false) return '<span class="tag">' + t("待确认", "to confirm") + "</span>"; return ""; }
   function ptHealthText(rel) { var h = rel.health || {}, bits = []; if ((h.reasons || []).indexOf("stage") >= 0) bits.push(t("在本阶段已 ", "in stage for ") + h.days + t(" 天，阈值 ", " days, threshold ") + h.limit); if (h.nextOverdue) bits.push(t("下一步逾期 ", "next step overdue by ") + h.nextOverdue + t(" 天", " days")); if ((h.reasons || []).indexOf("noNext") >= 0) bits.push(t("没有下一步", "no next step")); return bits.join(" · "); }
   function ptOwner(o) { return o ? esc(String(o).split("@")[0]) : '<span class="muted">' + t("待分配", "unassigned") + "</span>"; }
+  // 我方负责人 is one of us (roles.json: admins, staff functions, partners rw); the
+  // partner's own people are contacts. The list is a datalist, so a UPN not yet in
+  // roles.json can still be typed.
+  function ptOwnerForm() {
+    var d = ptState.rel, rel = d.relationship, host = $("rpForm"); if (!host) { ptState.tab = "overview"; renderRelTab(); host = $("rpForm"); }
+    host.innerHTML = '<form id="owForm" class="pform"><h4>' + t("我方负责人", "Our owner") + '</h4><p class="hint">' + t("蜂巢这边跟进这段关系的同事；对方的人在「联系人」页。", "The colleague on our side who follows this relationship; the partner's own people are on the Contacts tab.") + '</p><label class="f">' + t("负责人", "Owner") + '<input type="text" id="owAcct" value="' + esc(rel.owner || "") + '" placeholder="' + t("搜索人员库，或留空表示待分配", "Search the people hub, or leave empty for unassigned") + '" autocomplete="off" /></label><label class="f">' + t("交接说明（可选）", "Handover note (optional)") + '<input type="text" id="owNote" maxlength="500" /></label><div class="actions"><button type="submit" class="btn sm">' + t("保存", "Save") + '</button><button type="button" class="btn sm secondary" id="owCancel">' + t("取消", "Cancel") + "</button></div></form>";
+    ptBindPeople(["owAcct"], { staff: d.owners || [], org: rel.partyName, lang: rel.lang });
+    $("owCancel").addEventListener("click", function () { host.innerHTML = ""; });
+    $("owForm").addEventListener("submit", function (e) { e.preventDefault(); ptPost("partner", { op: "update", id: rel.id, fields: { owner: $("owAcct").value.trim(), handoverNote: $("owNote").value.trim() } }); });
+    host.scrollIntoView({ block: "nearest" });
+    $("owAcct").focus();
+  }
   function ptPartyLink(rel) { return '<b>' + esc(rel.partyName || (rel.party && rel.party.name) || "") + "</b>" + (rel.party && rel.party.kind === "person" ? ' <span class="tag">' + t("个人", "person") + "</span>" : ""); }
 
   function viewPartners() {
@@ -118,11 +130,11 @@
     return fmtNum(m.customers) + t(" 客户", " customers");
   }
   function renderPartnerTable(rows) {
-    $("ptList").innerHTML = '<div class="tbl-wrap"><table class="data" id="pttable"><thead><tr><th>' + t("一方", "Party") + "</th><th>" + t("地区", "Region") + "</th><th>" + t("阶段", "Stage") + "</th><th>" + t("负责人", "Owner") + "</th><th>" + t("下一步", "Next step") + "</th><th>" + t("到期", "Due") + "</th><th>" + t("协议到期", "Agreement ends") + '</th><th class="num">' + t("项目", "Projects") + "</th><th>" + t("指标", "Metrics") + "</th></tr></thead><tbody>" +
+    $("ptList").innerHTML = '<div class="tbl-wrap"><table class="data" id="pttable"><thead><tr><th>' + t("一方", "Party") + "</th><th>" + t("地区", "Region") + "</th><th>" + t("阶段", "Stage") + "</th><th>" + t("我方负责人", "Our owner") + "</th><th>" + t("主要联系人", "Primary contact") + "</th><th>" + t("下一步", "Next step") + "</th><th>" + t("到期", "Due") + "</th><th>" + t("协议到期", "Agreement ends") + '</th><th class="num">' + t("项目", "Projects") + "</th><th>" + t("指标", "Metrics") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (r) {
         var h = r.health || {}, due = r.next && r.next.due;
-        return '<tr class="pick" data-rel="' + r.id + '"><td>' + ptPartyLink(r) + '<span class="sub">' + esc(r.id + (r.party && r.party.key ? " · " + r.party.key : "")) + "</span></td><td>" + esc(ptRegion(r.region)) + "</td><td>" + ptStageTag(r) + (h.days != null && !r.closed ? ' <span class="muted">' + h.days + t(" 天", " d") + "</span>" : "") + " " + ptHealthTag(r) + "</td><td>" + ptOwner(r.owner) + "</td><td>" + esc(r.next && r.next.action || "—") + '</td><td class="' + (due && due < today() ? "bad" : "") + '">' + esc(due || "—") + "</td><td>" + esc(r.agreement && r.agreement.endAt || "—") + '</td><td class="num">' + (r.projects || 0) + (r.activeProjects ? ' <span class="muted">(' + r.activeProjects + ")</span>" : "") + '</td><td class="muted">' + (r.metrics ? ptMetricsLine(r) : "—") + "</td></tr>";
-      }).join("") : '<tr><td colspan="9" class="empty">' + t("没有关系。点「新建关系」，或等自动填入。", "No relationships. Create one, or wait for auto-seeding.") + "</td></tr>") + "</tbody></table></div>";
+        return '<tr class="pick" data-rel="' + r.id + '"><td>' + ptPartyLink(r) + '<span class="sub">' + esc(r.id + (r.party && r.party.key ? " · " + r.party.key : "")) + "</span></td><td>" + esc(ptRegion(r.region)) + "</td><td>" + ptStageTag(r) + (h.days != null && !r.closed ? ' <span class="muted">' + h.days + t(" 天", " d") + "</span>" : "") + " " + ptHealthTag(r) + "</td><td>" + ptOwner(r.owner) + "</td><td>" + (r.contactName ? esc(r.contactName) + (r.contactCount > 1 ? ' <span class="muted">+' + (r.contactCount - 1) + "</span>" : "") : '<span class="muted">—</span>') + "</td><td>" + esc(r.next && r.next.action || "—") + '</td><td class="' + (due && due < today() ? "bad" : "") + '">' + esc(due || "—") + "</td><td>" + esc(r.agreement && r.agreement.endAt || "—") + '</td><td class="num">' + (r.projects || 0) + (r.activeProjects ? ' <span class="muted">(' + r.activeProjects + ")</span>" : "") + '</td><td class="muted">' + (r.metrics ? ptMetricsLine(r) : "—") + "</td></tr>";
+      }).join("") : '<tr><td colspan="10" class="empty">' + t("没有关系。点「新建关系」，或等自动填入。", "No relationships. Create one, or wait for auto-seeding.") + "</td></tr>") + "</tbody></table></div>";
   }
   function today() { return new Date().toISOString().slice(0, 10); }
   // Board drag: a card dropped on another column = a stage move, confirmed in the panel.
@@ -216,7 +228,8 @@
     var terms = Object.keys(rel.terms || {}).map(function (k) { return esc(k) + ": " + esc(Array.isArray(rel.terms[k]) ? rel.terms[k].join(", ") : rel.terms[k]); }).join(" · ");
     return '<div class="kv">' + ptKv(t("编号", "Id"), "<b>" + esc(rel.id) + "</b>" + (rel.party ? ' · <span class="muted">' + esc(rel.party.id) + (rel.party.key ? " · " + esc(rel.party.key) : "") + "</span>" : "")) +
       ptKv(t("地区 · 币种 · 语言", "Region · currency · language"), esc(ptRegion(rel.region)) + " · " + esc(rel.currency) + " · " + (rel.lang === "en" ? "English" : "中文")) +
-      ptKv(t("负责人", "Owner"), ptOwner(rel.owner) + (rel.sponsor ? ' · <span class="muted">' + t("发起人 ", "sponsor ") + esc(rel.sponsor) + "</span>" : "")) +
+      ptKv(t("我方负责人", "Our owner"), ptOwner(rel.owner) + (rel.sponsor ? ' · <span class="muted">' + t("发起人 ", "sponsor ") + esc(rel.sponsor) + "</span>" : "") + (canEdit && !rel.closed ? ' <button type="button" class="btn xs secondary" data-act="owner">' + (rel.owner ? t("更换…", "Change…") : t("指定…", "Assign…")) + "</button>" : "")) +
+      ptKv(t("对方联系人", "Their contact"), rel.contactName ? esc(rel.contactName) + ((rel.contacts || []).length > 1 ? ' <span class="muted">+' + ((rel.contacts || []).length - 1) + "</span>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
       ptKv(t("阶段", "Stage"), ptStageTag(rel) + ' <span class="muted">' + esc(t("自 ", "since ") + day(rel.stageAt) + (rel.stageBy ? " · " + rel.stageBy.split("@")[0] : "")) + "</span>" + (rel.health && rel.health.stalled ? '<br><span class="bad">' + esc(ptHealthText(rel)) + "</span>" : "")) +
       ptKv(t("下一步", "Next step"), nx.action ? esc(nx.action) + (nx.due ? ' <span class="' + (nx.due < today() ? "bad" : "muted") + '">' + esc(nx.due) + "</span>" : "") + (nx.owner ? ' <span class="muted">' + esc(nx.owner.split("@")[0]) + "</span>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
       ptKv(t("协议", "Agreement"), ag.signedAt || ag.endAt ? esc([ag.kind, ag.signedAt ? t("签于 ", "signed ") + ag.signedAt : "", ag.startAt || ag.endAt ? (ag.startAt || "?") + " → " + (ag.endAt || "?") : "", ag.renewal === "auto" ? t("自动续约", "auto-renews") : ""].filter(Boolean).join(" · ")) + (ag.fileRef ? ' · <a href="' + esc(ag.fileRef) + '" target="_blank" rel="noopener">' + t("文件 ↗", "file ↗") + "</a>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
@@ -262,7 +275,7 @@
   }
   // Forms inside the panel (move, edit, close, new project) and their submits.
   function ptBindTab(el) {
-    el.querySelectorAll("button[data-act]").forEach(function (b) { b.addEventListener("click", function () { var a = b.getAttribute("data-act"); if (a === "move") ptMoveForm(""); else if (a === "edit") ptEditForm(); else if (a === "close") ptCloseForm(); else if (a === "reopen") ptPost("partner", { op: "reopen", id: ptState.rel.relationship.id }); else if (a === "newproject") ptNewProjectForm(); }); });
+    el.querySelectorAll("button[data-act]").forEach(function (b) { b.addEventListener("click", function () { var a = b.getAttribute("data-act"); if (a === "move") ptMoveForm(""); else if (a === "edit") ptEditForm(); else if (a === "close") ptCloseForm(); else if (a === "reopen") ptPost("partner", { op: "reopen", id: ptState.rel.relationship.id }); else if (a === "newproject") ptNewProjectForm(); else if (a === "owner") ptOwnerForm(); }); });
     var lf = el.querySelector("form.lnew");
     if (lf) lf.addEventListener("submit", function (e) { e.preventDefault(); var txt = $("lnText").value.trim(); if (!txt) return; ptPost("partner", { op: "note", id: ptState.rel.relationship.id, text: txt, via: $("lnVia").value }); });
     el.querySelectorAll("button[data-rmcontact]").forEach(function (b) { b.addEventListener("click", function () { var rel = ptState.rel.relationship, cs = rel.contacts.slice(); cs.splice(Number(b.getAttribute("data-rmcontact")), 1); ptPost("partner", { op: "update", id: rel.id, fields: { contacts: cs } }); }); });
@@ -289,9 +302,10 @@
     var d = ptState.rel, rel = d.relationship, host = $("rpForm"); if (!host) { ptState.tab = "overview"; renderRelTab(); host = $("rpForm"); }
     var cur = d.stages.map(function (s) { return s.k; }).indexOf(rel.stage);
     var opts = d.stages.filter(function (s, i) { return i !== cur; }).map(function (s, i) { return '<option value="' + s.k + '"' + (s.k === to || (!to && d.stages.indexOf(s) === cur + 1) ? " selected" : "") + ">" + esc(t(s.zh, s.en)) + (d.stages.indexOf(s) < cur ? " ←" : "") + "</option>"; }).join("");
-    host.innerHTML = '<form id="mvForm" class="pform"><h4>' + t("推进阶段", "Move stage") + '</h4><label class="f">' + t("到", "To") + '<select id="mvTo">' + opts + '</select></label><div id="mvNeeds"></div><label class="f">' + t("负责人（交接时必填）", "Owner (required at a handover)") + '<input type="text" id="mvOwner" value="' + esc(rel.owner || "") + '" placeholder="name@equipme.cloud" /></label><label class="f">' + t("原因 / 说明（回退、关闭时必填）", "Reason / note (required for a step back or closing)") + '<input type="text" id="mvReason" maxlength="500" /></label><label class="f">' + t("下一步", "Next step") + '<input type="text" id="mvNext" maxlength="300" placeholder="' + t("做什么", "what") + '" /></label><div class="grid2"><label class="f">' + t("到期", "Due") + '<input type="date" id="mvDue" /></label><label class="f">' + t("谁做", "Who") + '<input type="text" id="mvNextOwner" value="' + esc(rel.owner || "") + '" /></label></div><div class="actions"><button class="btn sm" type="submit">' + t("推进", "Move") + '</button><button class="btn sm secondary" type="button" id="mvCancel">' + t("取消", "Cancel") + "</button></div></form>";
+    host.innerHTML = '<form id="mvForm" class="pform"><h4>' + t("推进阶段", "Move stage") + '</h4><label class="f">' + t("到", "To") + '<select id="mvTo">' + opts + '</select></label><div id="mvNeeds"></div><label class="f">' + t("负责人（交接时必填）", "Owner (required at a handover)") + '<input type="text" id="mvOwner" value="' + esc(rel.owner || "") + '" placeholder="' + t("搜索人员库…", "Search the people hub…") + '" autocomplete="off" /></label><label class="f">' + t("原因 / 说明（回退、关闭时必填）", "Reason / note (required for a step back or closing)") + '<input type="text" id="mvReason" maxlength="500" /></label><label class="f">' + t("下一步", "Next step") + '<input type="text" id="mvNext" maxlength="300" placeholder="' + t("做什么", "what") + '" /></label><div class="grid2"><label class="f">' + t("到期", "Due") + '<input type="date" id="mvDue" /></label><label class="f">' + t("谁做", "Who") + '<input type="text" id="mvNextOwner" value="' + esc(rel.owner || "") + '" /></label></div><div class="actions"><button class="btn sm" type="submit">' + t("推进", "Move") + '</button><button class="btn sm secondary" type="button" id="mvCancel">' + t("取消", "Cancel") + "</button></div></form>";
     function needs() { var st = d.stages.filter(function (s) { return s.k === $("mvTo").value; })[0] || {}; var ns = []; if (st.needsAgreement) ns.push(t("协议已签署（概览里填签署日期）", "agreement signed (date on the overview)")); if (st.needsContact) ns.push(t("至少一位联系人", "at least one contact")); if (st.needsProject) ns.push(t("至少一个进行中的项目", "an active project")); if (st.handover) ns.push(t("指定新负责人", "a new owner")); if (st.closed) ns.push(t("关闭原因", "a reason")); $("mvNeeds").innerHTML = ns.length ? '<p class="hint">' + t("进入条件：", "Entry criteria: ") + esc(ns.join("；")) + "</p>" : ""; }
     $("mvTo").addEventListener("change", needs); needs();
+    ptBindPeople(["mvOwner", "mvNextOwner"], { staff: d.owners || [], org: rel.partyName, lang: rel.lang });
     $("mvCancel").addEventListener("click", function () { host.innerHTML = ""; });
     $("mvForm").addEventListener("submit", function (e) { e.preventDefault(); ptPost("partner", { op: "move", id: rel.id, to: $("mvTo").value, owner: $("mvOwner").value.trim(), reason: $("mvReason").value.trim(), next: $("mvNext").value.trim() ? { action: $("mvNext").value.trim(), due: $("mvDue").value, owner: $("mvNextOwner").value.trim() } : null }); });
     host.scrollIntoView({ block: "nearest" });
@@ -299,12 +313,13 @@
   function ptEditForm() {
     var d = ptState.rel, rel = d.relationship, host = $("rpForm"), ag = rel.agreement || {}, nx = rel.next || {};
     var termKeys = { it: ["domain", "unitPriceYear", "discountSeats", "seatsStudent", "seatsFaculty", "licence"], publisher: ["publisherKey", "royaltyRate", "basis", "territory", "formats", "currency", "paymentTerms"], university: ["accreditation", "agreementKinds", "tuitionDiscount", "referralFee"], intl_school: ["accreditation", "commissionRate", "commissionBasis", "acceptsHiveTranscript", "openCourseShare"], course: ["hiveKey", "revenueShare", "payoutCycle", "subjects"], funder: ["donorType", "designation", "restricted"], developer: ["skills", "subjects", "rateCard", "availability"] }[rel.type] || [];
-    host.innerHTML = '<form id="edForm" class="pform"><h4>' + t("编辑", "Edit") + '</h4><div class="grid2"><label class="f">' + t("地区", "Region") + '<select id="edRegion">' + Object.keys(ptState.data && ptState.data.regions || { cn: 1, na: 1, sea: 1, jp: 1, sa: 1, af: 1, other: 1 }).map(function (k) { return '<option value="' + k + '"' + (rel.region === k ? " selected" : "") + ">" + esc(ptRegion(k)) + "</option>"; }).join("") + '</select></label><label class="f">' + t("币种", "Currency") + '<select id="edCur"><option value="CNY"' + (rel.currency === "CNY" ? " selected" : "") + '>CNY</option><option value="USD"' + (rel.currency === "USD" ? " selected" : "") + '>USD</option></select></label><label class="f">' + t("语言", "Language") + '<select id="edLang"><option value="zh"' + (rel.lang === "zh" ? " selected" : "") + '>中文</option><option value="en"' + (rel.lang === "en" ? " selected" : "") + '>English</option></select></label><label class="f">' + t("负责人", "Owner") + '<input type="text" id="edOwner" value="' + esc(rel.owner || "") + '" /></label></div>' +
+    host.innerHTML = '<form id="edForm" class="pform"><h4>' + t("编辑", "Edit") + '</h4><div class="grid2"><label class="f">' + t("地区", "Region") + '<select id="edRegion">' + Object.keys(ptState.data && ptState.data.regions || { cn: 1, na: 1, sea: 1, jp: 1, sa: 1, af: 1, other: 1 }).map(function (k) { return '<option value="' + k + '"' + (rel.region === k ? " selected" : "") + ">" + esc(ptRegion(k)) + "</option>"; }).join("") + '</select></label><label class="f">' + t("币种", "Currency") + '<select id="edCur"><option value="CNY"' + (rel.currency === "CNY" ? " selected" : "") + '>CNY</option><option value="USD"' + (rel.currency === "USD" ? " selected" : "") + '>USD</option></select></label><label class="f">' + t("语言", "Language") + '<select id="edLang"><option value="zh"' + (rel.lang === "zh" ? " selected" : "") + '>中文</option><option value="en"' + (rel.lang === "en" ? " selected" : "") + '>English</option></select></label><label class="f">' + t("负责人", "Owner") + '<input type="text" id="edOwner" value="' + esc(rel.owner || "") + '" autocomplete="off" /></label></div>' +
       '<label class="f">' + t("下一步", "Next step") + '<input type="text" id="edNext" value="' + esc(nx.action || "") + '" maxlength="300" /></label><div class="grid2"><label class="f">' + t("到期", "Due") + '<input type="date" id="edDue" value="' + esc(nx.due || "") + '" /></label><label class="f">' + t("谁做", "Who") + '<input type="text" id="edNextOwner" value="' + esc(nx.owner || rel.owner || "") + '" /></label></div>' +
       "<h4>" + t("协议", "Agreement") + '</h4><div class="grid2"><label class="f">' + t("种类", "Kind") + '<input type="text" id="agKind" value="' + esc(ag.kind || "") + '" /></label><label class="f">' + t("签署日期", "Signed") + '<input type="date" id="agSigned" value="' + esc(ag.signedAt || "") + '" /></label><label class="f">' + t("开始", "Start") + '<input type="date" id="agStart" value="' + esc(ag.startAt || "") + '" /></label><label class="f">' + t("结束", "End") + '<input type="date" id="agEnd" value="' + esc(ag.endAt || "") + '" /></label><label class="f">' + t("续约", "Renewal") + '<select id="agRenew"><option value="manual"' + (ag.renewal !== "auto" && ag.renewal !== "none" ? " selected" : "") + ">" + t("人工", "manual") + '</option><option value="auto"' + (ag.renewal === "auto" ? " selected" : "") + ">" + t("自动", "auto") + '</option><option value="none"' + (ag.renewal === "none" ? " selected" : "") + ">" + t("无", "none") + '</option></select></label><label class="f">' + t("文件链接", "File link") + '<input type="url" id="agFile" value="' + esc(ag.fileRef || "") + '" /></label></div>' +
       (termKeys.length ? "<h4>" + t("条款", "Terms") + '</h4><div class="grid2">' + termKeys.map(function (k) { var v = (rel.terms || {})[k]; return '<label class="f">' + esc(k) + '<input type="text" data-term="' + k + '" value="' + esc(Array.isArray(v) ? v.join(", ") : (v == null ? "" : v)) + '" /></label>'; }).join("") + "</div>" : "") +
       '<div class="actions"><button class="btn sm" type="submit">' + t("保存", "Save") + '</button><button class="btn sm secondary" type="button" id="edCancel">' + t("取消", "Cancel") + "</button></div></form>";
     $("edCancel").addEventListener("click", function () { host.innerHTML = ""; });
+    ptBindPeople(["edOwner", "edNextOwner"], { staff: d.owners || [], org: rel.partyName, lang: rel.lang });
     $("edForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var terms = {}; host.querySelectorAll("input[data-term]").forEach(function (i) { var v = i.value.trim(); if (!v) return; var k = i.getAttribute("data-term"); terms[k] = /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : (v.indexOf(",") >= 0 && /^(territory|formats|subjects|skills|accreditation|agreementKinds)$/.test(k) ? v.split(",").map(function (x) { return x.trim(); }).filter(Boolean) : v); });
@@ -324,6 +339,7 @@
     function showMs() { var k = kinds[$("npKind").value]; $("npMs").textContent = k ? t("里程碑模板：", "Milestone template: ") + k.ms.map(function (m) { return t(m.zh, m.en); }).join(" → ") : ""; if (!$("npName").value) $("npName").placeholder = k ? t(k.zh, k.en) : ""; }
     $("npKind").addEventListener("change", showMs); showMs();
     $("npCancel").addEventListener("click", function () { host.innerHTML = ""; });
+    ptBindPeople(["npOwner"], { staff: d.owners || [], org: rel.partyName, lang: rel.lang });
     $("npForm").addEventListener("submit", function (e) { e.preventDefault(); ptPost("project", { op: "create", relationship: rel.id, kind: $("npKind").value, name: $("npName").value.trim(), startAt: $("npStart").value, endAt: $("npEnd").value, owner: $("npOwner").value.trim() }, function (b) { openRelationship(rel.id, { tab: "projects" }); if (b && b.project) openProjectPanel(b.project.id, b.project); }); });
   }
 
@@ -362,11 +378,65 @@
   function ptProjectEditForm(p) {
     var host = $("pjForm");
     host.innerHTML = '<form id="pjEf" class="pform"><label class="f">' + t("名称", "Name") + '<input type="text" id="pjName" value="' + esc(p.name) + '" maxlength="200" /></label><div class="grid2"><label class="f">' + t("开始", "Start") + '<input type="date" id="pjStart" value="' + esc(p.startAt || "") + '" /></label><label class="f">' + t("结束", "End") + '<input type="date" id="pjEnd" value="' + esc(p.endAt || "") + '" /></label></div><label class="f">' + t("负责人", "Owner") + '<input type="text" id="pjOwner" value="' + esc(p.owner || "") + '" /></label><div class="actions"><button class="btn sm" type="submit">' + t("保存", "Save") + "</button></div></form>";
+    ptBindPeople(["pjOwner"], { staff: (ptState.rel && ptState.rel.owners) || [], org: rel.partyName, lang: rel.lang });
     $("pjEf").addEventListener("submit", function (e) { e.preventDefault(); ptPost("project", { op: "update", id: p.id, fields: { name: $("pjName").value.trim(), startAt: $("pjStart").value, endAt: $("pjEnd").value, owner: $("pjOwner").value.trim() } }, function () { ptReloadProject(p.id); }); });
   }
 
   // ---- the people picker (design v2 §11): search the hub by name / email / Teams
   // account / CRM ID; nothing found → a new person inline (name + email → the hub).
+
+  // Every field that names a person searches the people hub (Rick, 2026-10-08: 所有需要
+  // 输入people的地方，都应该可以检索人员库). Typing shows hub matches (and, for an
+  // empty field, our staff from roles.json); choosing one fills the account — the
+  // Teams UPN, else the email, else the CRM id, which the API resolves — and a
+  // person the hub does not know can be created in place. Free text still works.
+  function ptPeopleAuto(input, opts) {
+    if (!input || input._pauto) return; input._pauto = true; opts = opts || {};
+    var wrap = input.closest("label") || input.parentNode; wrap.classList.add("pfield");
+    var res = document.createElement("div"); res.className = "pres pauto"; res.hidden = true; wrap.appendChild(res);
+    var staff = opts.staff || [];
+    function row(p) { var acct = p.upn || (p.email && p.email.indexOf("…") !== 0 ? p.email : "") || p.crmId; return '<button type="button" class="pr" data-v="' + esc(acct) + '" data-name="' + esc(p.name) + '"><b>' + esc(p.name) + '</b><span class="sub">' + esc([p.upn || p.email, p.identity, p.org, p.crmId].filter(Boolean).join(" · ")) + "</span></button>"; }
+    function show(html) { res.innerHTML = html; res.hidden = !html; }
+    var search = debounce(function () {
+      var q = input.value.trim();
+      if (q.length < 2) { show(staff.length && !q ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + staff.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(o.split("@")[0]) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : ""); return; }
+      api("crm/people-search?q=" + encodeURIComponent(q)).then(function (r) {
+        if (!r.ok || input.value.trim() !== q) return;
+        var ps = r.body.people || [], mine = staff.filter(function (o) { return o.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+        show((mine.length ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + mine.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(o.split("@")[0]) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : "") +
+          (ps.length ? '<div class="phead">' + t("人员库", "People hub") + "</div>" + ps.map(row).join("") : "") +
+          '<button type="button" class="pr new" data-new="1">+ ' + t("新建人员", "New person") + " “" + esc(q) + "”</button>");
+      });
+    }, 180);
+    input.addEventListener("input", search); input.addEventListener("focus", search);
+    input.addEventListener("blur", function () { setTimeout(function () { if (!res.contains(document.activeElement)) res.hidden = true; }, 150); });
+    input.addEventListener("keydown", function (e) { if (e.key === "Escape") res.hidden = true; });
+    res.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    res.addEventListener("click", function (e) {
+      var b = e.target.closest(".pr"); if (!b) return;
+      if (b.getAttribute("data-new")) { res.hidden = true; ptNewPersonInline(wrap, input.value.trim(), opts, function (person) { input.value = person.upn || person.email || person.crmId; input.setAttribute("data-name", person.name); }); return; }
+      input.value = b.getAttribute("data-v"); input.setAttribute("data-name", b.getAttribute("data-name") || ""); res.hidden = true; input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+  function ptNewPersonInline(after, seed, opts, onCreated) {
+    var old = after.parentNode.querySelector(".pnew.inline"); if (old) old.remove();
+    var form = document.createElement("form"); form.className = "pnew inline";
+    form.innerHTML = '<div class="grid2"><label class="f">' + t("姓名", "Name") + '<input type="text" class="nname" maxlength="120" required /></label><label class="f">' + t("邮箱", "Email") + '<input type="email" class="nemail" required /></label><label class="f">' + t("所属机构", "Organization") + '<input type="text" class="norg" value="' + esc(opts.org || "") + '" maxlength="200" /></label><label class="f">' + t("语言", "Language") + '<select class="nlang"><option value="zh"' + (opts.lang !== "en" ? " selected" : "") + '>中文</option><option value="en"' + (opts.lang === "en" ? " selected" : "") + '>English</option></select></label></div><div class="actions"><button class="btn sm" type="submit">' + t("新建人员并选中", "Create and select") + '</button><button class="btn sm secondary pncancel" type="button">' + t("取消", "Cancel") + "</button></div>";
+    after.insertAdjacentElement("afterend", form);
+    if (seed.indexOf("@") > 0) form.querySelector(".nemail").value = seed; else form.querySelector(".nname").value = seed;
+    form.querySelector(seed.indexOf("@") > 0 ? ".nname" : ".nemail").focus();
+    form.querySelector(".pncancel").addEventListener("click", function () { form.remove(); });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault(); e.stopPropagation(); var b = form.querySelector("button[type=submit]"); savingButton(b, t("创建中…", "Creating…"));
+      post("crm/contact", "POST", { name: form.querySelector(".nname").value.trim(), email: form.querySelector(".nemail").value.trim(), org: form.querySelector(".norg").value.trim(), lang: form.querySelector(".nlang").value }).then(function (r) {
+        restoreButton(b); if (!r.ok) { flash(esc(errText(r)), 6000); return; }
+        var person = r.body.person || {}; form.remove(); onCreated({ crmId: person.crmId, name: person.name, email: form.querySelector(".nemail").value.trim(), upn: person.upn || "" });
+        flashOk(esc(person.existing ? t("已有记录，已选中。", "Existing person selected.") : t("已新建并选中。", "Created and selected.")), 2500);
+      });
+    });
+  }
+  // All the person fields of a form at once.
+  function ptBindPeople(ids, opts) { ids.forEach(function (id) { ptPeopleAuto($(id), opts); }); }
   function ptPickerHtml(id, opts) {
     opts = opts || {};
     var roles = (opts.roles || []).map(function (r) { return '<option value="' + esc(r) + '">' + esc(r) + "</option>"; }).join("") + '<option value="">' + t("其它（自填）", "Other (type)") + "</option>";
@@ -423,6 +493,7 @@
     }, 180));
     $("nrOres").addEventListener("click", function (e) { var b = e.target.closest(".pr[data-key]"); if (!b) return; org = ($("nrOres")._orgs || []).filter(function (o) { return o.key === b.getAttribute("data-key"); })[0]; $("nrOres").hidden = true; $("nrOch").hidden = false; $("nrOch").querySelector(".who").innerHTML = "<b>" + esc(org.name) + "</b> <span class='muted'>" + esc(org.key) + "</span>"; if (org.region && $("nrRegion").querySelector('option[value="' + org.region + '"]')) $("nrRegion").value = org.region; $("nrOname").value = ""; });
     ptBindPicker($("nrPick"), function (p) { person = p; $("nrPick").querySelector(".pq").value = p.name; flashOk(esc(t("已选 ", "Selected ") + p.name), 2000); });
+    ptBindPeople(["nrOwner"], { staff: d.owners || [] });
     $("nrForm").addEventListener("submit", function (e) {
       e.preventDefault();
       var party = null;

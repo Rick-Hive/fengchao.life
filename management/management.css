@@ -808,3 +808,14 @@ svg.tline .ms.late { fill: #fff; stroke: var(--bad); stroke-width: 2; }
 .panel .olist button.orow.link { font-size: 13px; text-decoration: none; color: inherit; padding: var(--s2) var(--s3); }
 .pchosen[hidden], .pnew[hidden], .picker .pres[hidden], #nrOres[hidden], #nrPerson[hidden], #nrOrg[hidden] { display: none; }
 .pagetabs .ptab.inline { flex-direction: row; align-items: baseline; gap: 5px; white-space: nowrap; } .pagetabs .ptab .cnt { font-weight: 400; color: var(--faint); font-size: 12px; } .pagetabs { flex-wrap: wrap; }
+/* 合作伙伴: the inline 指定… / 更换… next to 我方负责人 (Rick, 2026-10-08) */
+.btn.xs { height: 22px; padding: 0 8px; font-size: 11px; line-height: 20px; margin-left: 6px; vertical-align: middle; }
+/* people-hub autocomplete on any person field */
+.pform .f.pfield, label.f.pfield { position: relative; }
+.pres.pauto { position: absolute; left: 0; right: 0; top: 100%; z-index: 6; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: 0 10px 24px -12px rgba(15, 32, 60, 0.35); max-height: 260px; overflow: auto; font-weight: 400; }
+.pres.pauto .pr { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.pres.pauto .pr:hover { background: var(--accent-soft); }
+.pres.pauto .pr .sub { display: block; font-size: 11.5px; color: var(--faint); }
+.pres.pauto .pr.new { color: var(--accent-dark); font-weight: 600; }
+.pres.pauto .phead { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+.pnew.inline { margin: var(--s2) 0; padding: var(--s3); background: var(--bg); border: 1px dashed var(--line-strong); border-radius: var(--r); }

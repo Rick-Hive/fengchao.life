@@ -719,6 +719,7 @@ const EQUIP = [
     const cr = ptPosts.find(b => b.op === "create"); assert.ok(cr && cr.party.key === "kxc.edu" && cr.type === "it", "create posted: " + JSON.stringify(cr));
     assert.ok(await p.$("#panel svg.track"), "the relationship panel shows the stage track");
     const nowLab = await p.$eval("#panel svg.track g.node.now text", e => e.textContent); assert.strictEqual(nowLab, "线索");
+    assert.ok(/主要联系人/.test(await p.$eval("#ptBody", e => e.innerText)) || await p.$(".board"), "table has a 主要联系人 column (board view otherwise)");
     const cards = await p.$$(".board .bcard"); assert.strictEqual(cards.length, before + 1, "one more card on the board");
     // forward one stage
     await p.click('#panel button[data-act="move"]'); await p.waitForTimeout(200);
@@ -741,6 +742,18 @@ const EQUIP = [
     assert.strictEqual(CONTACTS.length, 1, "contact created"); assert.strictEqual(CONTACTS[0].name, "Dean");
     await p.selectOption("#rpPick .prole", ""); await p.fill("#rpPick .prole2", "IT 联系人"); await p.click("#rpPick .padd"); await p.waitForTimeout(700);
     const cl2 = await p.$eval("#rpBody .olist", e => e.innerText); assert.ok(/Dean/.test(cl2) && /IT 联系人/.test(cl2), "new person added as contact: " + cl2);
+    // 我方负责人 from the people hub (Rick, 2026-10-08): the overview's 指定… opens a
+    // person field that searches the hub; a staff account is picked and saved.
+    await p.click('#panel button[data-ptab="overview"]'); await p.waitForTimeout(200);
+    assert.ok(/我方负责人/.test(await p.$eval("#rpBody .kv", e => e.innerText)), "overview says 我方负责人");
+    await p.click('#panel button[data-act="owner"]'); await p.waitForTimeout(200);
+    await p.fill("#owAcct", "mei"); await p.waitForTimeout(600);
+    assert.ok(await p.$("#owForm .pres.pauto .pr[data-v]"), "hub matches under the owner field");
+    await p.click('#owForm .pres.pauto .pr[data-v]'); await p.waitForTimeout(100);
+    const ownerVal = await p.$eval("#owAcct", e => e.value); assert.ok(/mei/i.test(ownerVal), "picked account: " + ownerVal);
+    await p.click("#owForm button[type=submit]"); await p.waitForTimeout(700);
+    const upd = ptPosts.filter(b => b.op === "update").pop(); assert.ok(upd && upd.fields && /mei/i.test(upd.fields.owner), "owner posted: " + JSON.stringify(upd));
+    assert.ok(!/待分配/.test(await p.$eval("#rpBody .kv", e => e.innerText)), "owner shown on the overview");
     // the agreement, then 签约
     await p.click('#panel button[data-ptab="overview"]'); await p.waitForTimeout(200);
     await p.click('#panel button[data-act="edit"]'); await p.waitForTimeout(200);

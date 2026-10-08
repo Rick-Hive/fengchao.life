@@ -51,9 +51,38 @@ function partyName(rel, idx) {
   const p = idx.people.find((x) => x.crmId === rel.party.id);
   return (p && p.name) || rel.party.name || rel.party.id;
 }
+// Who can be 我方负责人: our staff — admins, staff:<function> holders and anyone with
+// partners rw — from roles.json (Rick, 2026-10-08: the 出版社 row had a primary contact
+// but 负责人 still 待分配 — the two are different people: ours and theirs).
+async function ownerCandidates() {
+  const doc = await require("../shared/roles").readRoles().catch(() => ({ entries: [] }));
+  const out = new Set();
+  for (const e of (doc && doc.entries) || []) {
+    const rs = e.roles || [];
+    if (rs.some((r) => r === "admin" || /^staff:/.test(r)) || crm.atLeast(rs, "partners", "rw")) out.add(normUser(e.user));
+  }
+  return Array.from(out).filter(Boolean).sort();
+}
+// A person field may arrive as a CRM id (the people-hub picker, for a viewer who may
+// not see accounts): it is stored as the person's account — Teams UPN, else email,
+// else the name — so owner fields stay plain strings a digest can address.
+async function resolvePeople(body) {
+  const paths = [["owner"], ["fields", "owner"], ["fields", "sponsor"], ["next", "owner"], ["fields", "next", "owner"]];
+  const ids = [];
+  const at = (o, p) => p.slice(0, -1).reduce((x, k) => (x && typeof x === "object" ? x[k] : undefined), o);
+  for (const p of paths) { const o = at(body, p); const v = o && o[p[p.length - 1]]; if (typeof v === "string" && /^HC-\d+$/i.test(v.trim())) ids.push([o, p[p.length - 1], v.trim().toUpperCase()]); }
+  if (!ids.length) return;
+  const h = await hub.readHub();
+  const byId = new Map(((h && h.people) || []).map((x) => [x.crmId, x]));
+  for (const [o, k, id] of ids) {
+    const x = byId.get(id); if (!x) continue;
+    o[k] = (x.facets.accounts || []).map((a) => a.upn).find(Boolean) || x.primaryEmail || x.name || id;
+  }
+}
 function rowOf(rel, idx, projects) {
   const mine = projects.filter((p) => p.relationship === rel.id);
-  return Object.assign({}, rel, { partyName: partyName(rel, idx), metrics: metricsFor(rel, idx), projects: mine.length, activeProjects: mine.filter((p) => p.status === "active").length, overdueMilestones: mine.reduce((a, p) => a + (p.milestones || []).filter((m) => !m.doneAt && m.due && m.due < new Date().toISOString().slice(0, 10)).length, 0) });
+  const primary = (rel.contacts || []).find((c) => c.primary) || (rel.contacts || [])[0] || null;
+  return Object.assign({}, rel, { partyName: partyName(rel, idx), contactName: primary ? primary.name || primary.person : "", contactCount: (rel.contacts || []).length, metrics: metricsFor(rel, idx), projects: mine.length, activeProjects: mine.filter((p) => p.status === "active").length, overdueMilestones: mine.reduce((a, p) => a + (p.milestones || []).filter((m) => !m.doneAt && m.due && m.due < new Date().toISOString().slice(0, 10)).length, 0) });
 }
 
 async function handle(context, req, ctx) {
@@ -82,7 +111,7 @@ async function handle(context, req, ctx) {
     if (method === "GET") { ok(context, { runs: (await P.readSeedLog()).runs || [] }); return true; }
     const r = await P.runSeed({ by, log: (m) => context.log(m) });
     await audit(context, { action: "crm.partner.seed", by, created: r.created.length, excluded: r.excluded.length });
-    ok(context, { ok: true, created: r.created, excluded: r.excluded, skipped: r.skipped.length, at: r.at });
+    ok(context, { ok: true, created: r.created, excluded: r.excluded, skipped: r.skipped.length, renamed: r.renamed.length, filed: r.filed.length, unnamed: r.skipped.filter((k) => /:unnamed$/.test(k)).length, at: r.at });
     return true;
   }
 
@@ -133,12 +162,12 @@ async function handle(context, req, ctx) {
       const r = await P.updateRels((d) => { const ch = P.autoTransitions(d, now, cfg); return ch.length > 0; });
       doc = r.doc;
     }
-    const [idx, prj] = await Promise.all([orgIndex(), P.readProjects()]);
+    const [idx, prj, owners] = await Promise.all([orgIndex(), P.readProjects(), ownerCandidates()]);
     const projects = Object.values(prj.items || {});
     const rels = P.listByType(doc, type, cfg, now, String(q.all || "") === "1").map((r) => rowOf(r, idx, projects));
     const counts = {};
     for (const t of P.visibleTypes({ seeConfidential: seeConfidential(roles) })) counts[t] = Object.values(doc.items || {}).filter((r) => r.type === t && !r.closed).length;
-    ok(context, { type, rows: rels, summary: P.summary(rels, now), stages: P.STAGES[type].map((s) => Object.assign({}, s, { days: (cfg.thresholds && cfg.thresholds[type + "." + s.k]) || s.days })), kinds: P.PROJECT_KINDS[type] || {}, contactRoles: P.CONTACT_ROLES[type] || [], regions: P.REGION_LABELS, types: P.TYPES, counts, canEdit: canEditType(roles, type), access: acc });
+    ok(context, { type, rows: rels, summary: P.summary(rels, now), stages: P.STAGES[type].map((s) => Object.assign({}, s, { days: (cfg.thresholds && cfg.thresholds[type + "." + s.k]) || s.days })), kinds: P.PROJECT_KINDS[type] || {}, contactRoles: P.CONTACT_ROLES[type] || [], regions: P.REGION_LABELS, types: P.TYPES, counts, owners, canEdit: canEditType(roles, type), access: acc });
     return true;
   }
 
@@ -147,15 +176,16 @@ async function handle(context, req, ctx) {
     const doc = await P.readRels();
     const rel = doc.items[id];
     if (!rel || !canSeeType(roles, rel.type)) { fail(context, 404, "not_found"); return true; }
-    const [idx, prj, cfg] = await Promise.all([orgIndex(), P.readProjects(), P.readConfig()]);
+    const [idx, prj, cfg, owners] = await Promise.all([orgIndex(), P.readProjects(), P.readConfig(), ownerCandidates()]);
     const projects = Object.values(prj.items || {}).filter((p) => p.relationship === id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const row = rowOf(Object.assign({}, rel, { health: P.health(rel, Date.now(), cfg) }), idx, projects);
-    ok(context, { relationship: row, projects, stages: P.STAGES[rel.type], kinds: P.PROJECT_KINDS[rel.type] || {}, contactRoles: P.CONTACT_ROLES[rel.type] || [], canEdit: canEditType(roles, rel.type), access: acc });
+    ok(context, { relationship: row, projects, stages: P.STAGES[rel.type], kinds: P.PROJECT_KINDS[rel.type] || {}, contactRoles: P.CONTACT_ROLES[rel.type] || [], owners, canEdit: canEditType(roles, rel.type), access: acc });
     return true;
   }
 
   if (method === "POST" && action === "partner") {
     const op = String(body.op || "");
+    await resolvePeople(body);
     if (op === "create") {
       const type = String(body.type || "");
       if (!P.TYPES[type]) { fail(context, 400, "bad_type"); return true; }
@@ -234,6 +264,7 @@ async function handle(context, req, ctx) {
 
   if (method === "POST" && action === "project") {
     const op = String(body.op || "");
+    await resolvePeople(body);
     if (op === "create") {
       const relId = String(body.relationship || "").toUpperCase();
       const rel = (await P.readRels()).items[relId];
