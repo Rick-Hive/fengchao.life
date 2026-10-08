@@ -11,9 +11,9 @@
 //   POST crm/contact {name,email,org,lang} a person entered by hand → the people hub
 //   GET/POST crm/partner-config          exclusions and thresholds (system administrator)
 //
-// Who may do what (design §14): everyone with partners ≥ read sees the pages; funder
-// relationships only with money rw, the CEO or the partnership function. Moves and
-// edits: partners rw, the system administrator, the CEO, or the type's owning
+// Who may do what (design §14): everyone with partners ≥ read sees the pages (the
+// fundraising type, the one confidential type, left for Zoohu — Rick, 2026-10-09).
+// Moves and edits: partners rw, the system administrator, the CEO, or the type's owning
 // function (community for course providers, curriculum for curriculum developers).
 const P = require("../shared/partners");
 const hub = require("../shared/hub");
@@ -23,14 +23,13 @@ const { audit } = require("../shared/audit");
 
 const ACTIONS = new Set(["partners", "partner", "project", "people-search", "org-search", "contact", "partner-config", "partners-seed"]);
 
-function seeConfidential(roles) { const f = staffFunctions(roles); return isAdmin(roles) || crm.atLeast(roles, "money", "rw") || f.includes("ceo") || f.includes("partnership"); }
 function canEditType(roles, type) {
   const f = staffFunctions(roles);
   if (isAdmin(roles) || crm.atLeast(roles, "partners", "rw") || f.includes("ceo")) return true;
   const owner = P.TYPES[type] && P.TYPES[type].owner;
-  return !!(owner && f.includes(owner)) || (type === "publisher" && f.includes("curriculum")) || (type === "funder" && crm.atLeast(roles, "money", "rw"));
+  return !!(owner && f.includes(owner)) || (type === "publisher" && f.includes("curriculum"));
 }
-function canSeeType(roles, type) { return P.TYPES[type] && (!P.TYPES[type].confidential || seeConfidential(roles)); }
+function canSeeType(roles, type) { return !!P.TYPES[type]; }
 
 // The institution rows of the hub, by key, for party names and metrics.
 async function orgIndex() {
@@ -141,7 +140,7 @@ async function handle(context, req, ctx) {
   }
 
   if (method === "POST" && action === "contact") {
-    const canCreate = isAdmin(roles) || crm.atLeast(roles, "partners", "rw") || crm.atLeast(roles, "identity", "rw") || staffFunctions(roles).some((f) => ["community", "curriculum", "partnership", "ceo", "finance"].includes(f));
+    const canCreate = isAdmin(roles) || crm.atLeast(roles, "partners", "rw") || crm.atLeast(roles, "identity", "rw") || staffFunctions(roles).some((f) => ["community", "curriculum", "partnership", "ceo"].includes(f));
     if (!canCreate) { fail(context, 403, "no_access"); return true; }
     try {
       const r = await hub.addContact(body, by);
@@ -166,7 +165,7 @@ async function handle(context, req, ctx) {
     const projects = Object.values(prj.items || {});
     const rels = P.listByType(doc, type, cfg, now, String(q.all || "") === "1").map((r) => rowOf(r, idx, projects));
     const counts = {};
-    for (const t of P.visibleTypes({ seeConfidential: seeConfidential(roles) })) counts[t] = Object.values(doc.items || {}).filter((r) => r.type === t && !r.closed).length;
+    for (const t of P.visibleTypes()) counts[t] = Object.values(doc.items || {}).filter((r) => r.type === t && !r.closed).length;
     ok(context, { type, rows: rels, summary: P.summary(rels, now), stages: P.STAGES[type].map((s) => Object.assign({}, s, { days: (cfg.thresholds && cfg.thresholds[type + "." + s.k]) || s.days })), kinds: P.PROJECT_KINDS[type] || {}, contactRoles: P.CONTACT_ROLES[type] || [], regions: P.REGION_LABELS, types: P.TYPES, counts, owners, canEdit: canEditType(roles, type), access: acc });
     return true;
   }
@@ -340,4 +339,4 @@ async function handle(context, req, ctx) {
   return true;
 }
 
-module.exports = { handle, canEditType, canSeeType, seeConfidential };
+module.exports = { handle, canEditType, canSeeType };

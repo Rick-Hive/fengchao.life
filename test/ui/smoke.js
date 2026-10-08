@@ -172,7 +172,7 @@ const EQUIP = [
       else if (p === "/api/domain/groupname") { groupNamed.push(JSON.parse(r.request().postData())); body = { ok: true }; }
       else if (p === "/api/crm/order" && r.request().method() === "GET") { const o = ORDERS.find(x => x.orderId === u.searchParams.get("id")); body = { order: Object.assign(crm.mask(o, acc), { overdue: crm.overdue(o) }), next: acc.orders === "rw" ? crm.nextStatuses(o.status, rolesList) : [] }; }
       else if (p === "/api/crm/order" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); patched.push(b); const i = ORDERS.findIndex(x => x.orderId === b.orderId); ORDERS[i] = crm.transition(ORDERS[i], b.status, me.profile.upn, b.note, rolesList); body = { ok: true, order: Object.assign(crm.mask(ORDERS[i], acc), { overdue: crm.overdue(ORDERS[i]) }), next: crm.nextStatuses(ORDERS[i].status, rolesList) }; }
-      else if (p === "/api/crm/partners") { const type = u.searchParams.get("type") || "it"; const canEdit = isAdm || acc.partners === "rw"; const seeC = isAdm || acc.money === "rw" || rolesList.includes("staff:ceo") || rolesList.includes("staff:partnership"); if (type === "funder" && !seeC) { status = 403; body = { error: "no_access" }; } else { const projects = Object.values(PRJ.items); const rows = ptMod.listByType(REL, type, {}, Date.now(), u.searchParams.get("all") === "1").map(x => ptRow(x, projects)); const counts = {}; for (const t of ptMod.visibleTypes({ seeConfidential: seeC })) counts[t] = Object.values(REL.items).filter(x => x.type === t && !x.closed).length; body = { type, rows, summary: ptMod.summary(rows, Date.now()), stages: ptMod.STAGES[type], kinds: ptMod.PROJECT_KINDS[type], contactRoles: ptMod.CONTACT_ROLES[type], regions: ptMod.REGION_LABELS, types: ptMod.TYPES, counts, canEdit, access: acc }; } }
+      else if (p === "/api/crm/partners") { const type = u.searchParams.get("type") || "it"; const canEdit = isAdm || acc.partners === "rw"; if (!ptMod.TYPES[type]) { status = 400; body = { error: "bad_type" }; } else { const projects = Object.values(PRJ.items); const rows = ptMod.listByType(REL, type, {}, Date.now(), u.searchParams.get("all") === "1").map(x => ptRow(x, projects)); const counts = {}; for (const t of ptMod.visibleTypes()) counts[t] = Object.values(REL.items).filter(x => x.type === t && !x.closed).length; body = { type, rows, summary: ptMod.summary(rows, Date.now()), stages: ptMod.STAGES[type], kinds: ptMod.PROJECT_KINDS[type], contactRoles: ptMod.CONTACT_ROLES[type], regions: ptMod.REGION_LABELS, types: ptMod.TYPES, counts, canEdit, access: acc }; } }
       else if (p === "/api/crm/partner" && r.request().method() === "GET") { const rel = REL.items[u.searchParams.get("id")]; if (!rel) { status = 404; body = { error: "not_found" }; } else { const projects = Object.values(PRJ.items).filter(x => x.relationship === rel.id); body = { relationship: ptRow(Object.assign({}, rel, { health: ptMod.health(rel, Date.now(), {}) }), projects), projects, stages: ptMod.STAGES[rel.type], kinds: ptMod.PROJECT_KINDS[rel.type], contactRoles: ptMod.CONTACT_ROLES[rel.type], canEdit: isAdm || acc.partners === "rw", access: acc }; } }
       else if (p === "/api/crm/partner") { const b = JSON.parse(r.request().postData()); ptPosts.push(b); if (b.op === "create") { let party = null; if (b.party && b.party.key) { const i = ptOrgIdx().get(b.party.key); ptMod.orgIdFor(ORGS, b.party.key, { name: i ? i.name : b.party.name }); party = { id: ORGS.byKey[b.party.key], key: b.party.key, name: i ? i.name : b.party.name }; } else if (b.party && b.party.id) { const pe = HUB.people.find(x => x.crmId === b.party.id); party = pe ? { id: pe.crmId, name: pe.name } : null; } try { const id = ptMod.pad(REL.next++); REL.items[id] = ptMod.newRelationship(Object.assign({}, b, { party }), me.profile.upn, id); body = { ok: true, relationship: REL.items[id] }; } catch (e) { status = 400; body = { error: e.code || "bad" }; } }
         else { const rel = REL.items[b.id]; const now = new Date().toISOString(); if (!rel) { status = 404; body = { error: "not_found" }; } else if (b.op === "move") { const chk = ptMod.moveCheck(rel, b.to, b, Object.values(PRJ.items)); if (!chk.ok) { status = 409; body = { error: chk.error, problems: chk.problems }; } else { if (b.contacts) rel.contacts = ptMod.cleanContacts(b.contacts); if (chk.stage.handover && b.owner) rel.owner = b.owner; rel.log.push(ptMod.logEntry(me.profile.upn, "stage", b.reason || "", { from: rel.stage, to: b.to, back: chk.backward || undefined })); rel.stage = b.to; rel.stageAt = now; rel.stageBy = me.profile.upn; if (chk.stage.closed) rel.closed = { at: now, reason: b.reason, by: me.profile.upn }; const nx = ptMod.cleanNext(b.next); if (nx) rel.next = nx; body = { ok: true, relationship: rel }; } }
@@ -702,11 +702,11 @@ const EQUIP = [
   });
   // 合作伙伴 v2 (Rick, 2026-10-08): the type pages, a relationship created from an
   // organization, moved along its cycle under the rules, a contact picked from the
-  // hub, a project with milestones; the funder type hidden from the order manager.
+  // hub, a project with milestones.
   await shot("partners-board", 1280, 900, "#/ops/partners/it", "zh", ["staff:partnership"], async p => {
     const nav = await p.$eval("#nav", e => e.innerText); assert.ok(/合作伙伴/.test(nav), "nav has 合作伙伴: " + nav);
     await p.waitForSelector("#ptTabs .ptab");
-    const tabs = await p.$$eval("#ptTabs .ptab", es => es.map(e => e.textContent)); assert.strictEqual(tabs.length, 7, "seven type tabs for the partnership director: " + tabs);
+    const tabs = await p.$$eval("#ptTabs .ptab", es => es.map(e => e.textContent)); assert.strictEqual(tabs.length, 6, "six type tabs for the partnership director: " + tabs);
     assert.ok(await p.$("#title .info"), "description behind ⓘ");
     const cols = await p.$$(".board .bcol"); assert.strictEqual(cols.length, 8, "eight IT stages on the board");
     const before = (await p.$$(".board .bcard")).length; // the seeded ones (family-institutions ran first)
@@ -785,10 +785,11 @@ const EQUIP = [
     assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "closes on an outside click");
     await p.click('#ptRight [data-view="board"]'); await p.waitForTimeout(200);
   });
-  await shot("partners-sales", 1280, 700, "#/ops/partners/funder", "zh", SALES, async p => {
+  // The fundraising type left for Zoohu (Rick, 2026-10-09): six tabs for everyone, no
+  // 募款 anywhere; a reader without partners rw gets no New button.
+  await shot("partners-sales", 1280, 700, "#/ops/partners/course", "zh", SALES, async p => {
     await p.waitForTimeout(500);
-    const tabs = await p.$$eval("#ptTabs .ptab", es => es.map(e => e.textContent)); assert.ok(!tabs.some(x => /募款/.test(x)), "the order manager does not see fundraising: " + tabs);
-    const body = await p.$eval("#ptBody", e => e.innerText); assert.ok(/no_access/.test(body), "funder page refused: " + body.slice(0, 80));
+    const tabs = await p.$$eval("#ptTabs .ptab", es => es.map(e => e.textContent)); assert.strictEqual(tabs.length, 6, "six type tabs: " + tabs); assert.ok(!tabs.some(x => /募款/.test(x)), "no fundraising tab: " + tabs);
     assert.ok(!(await p.$("#ptNew")), "no New button without partners rw");
   });
   await shot("partners-narrow", 1000, 700, "#/ops/partners/it", "zh", ["admin", "staff:sysadmin"], async p => {

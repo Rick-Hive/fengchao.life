@@ -23,7 +23,6 @@ const TYPES = {
   university: { zh: "大学", en: "Universities", owner: "partnership" },
   intl_school: { zh: "国际学校", en: "International schools", owner: "partnership" },
   course: { zh: "课程提供方", en: "Course providers", owner: "community" },
-  funder: { zh: "募款伙伴", en: "Fundraising partners", owner: "partnership", confidential: true },
   developer: { zh: "教材开发者", en: "Curriculum developers", owner: "curriculum" },
 };
 const TYPE_KEYS = Object.keys(TYPES);
@@ -39,7 +38,6 @@ const STAGES = {
   university: [S("lead", "线索", "Lead", 30), S("explore", "探索", "Exploration", 60), S("design", "项目设计", "Programme design", 90), S("agreement", "协议", "Agreement", 60, { needsAgreement: true, needsContact: true }), S("running", "项目运行中", "Programmes running", 0, { needsProject: true }), S("review", "年度评审 / 续约", "Annual review / renewal", 0, { renewal: true, before: 90 }), S("ended", "已终止", "Terminated", 0, { closed: true })],
   intl_school: [S("lead", "线索", "Lead", 30), S("explore", "探索", "Exploration", 60), S("terms", "条款与对照", "Terms and mapping", 90), S("agreement", "协议", "Agreement", 60, { needsAgreement: true, needsContact: true }), S("running", "运行中", "Running", 0), S("review", "年度评审 / 续约", "Annual review / renewal", 0, { renewal: true, before: 90 }), S("ended", "已终止", "Terminated", 0, { closed: true })],
   course: [S("apply", "申请 / 推荐", "Application / referral", 14), S("review", "审核", "Review", 30), S("design", "课程设计与上架", "Design and listing", 45), S("listed", "已上架", "Listed", 90), S("running", "开班中", "Classes running", 0, { needsProject: true }), S("termreview", "学期评估", "Term review", 30), S("paused", "暂停 / 已终止", "Paused / terminated", 0, { closed: true })],
-  funder: [S("identify", "识别", "Identification", 30), S("qualify", "评估", "Qualification", 45), S("cultivate", "培养", "Cultivation", 90), S("solicit", "请求", "Solicitation", 60), S("steward", "管家", "Stewardship", 0), S("lapsed", "流失", "Lapsed", 0), S("ended", "已结束", "Ended", 0, { closed: true })],
   developer: [S("approach", "接洽", "Approach", 14), S("pooled", "在库可用", "Available", 0, { needsContact: false }), S("active", "参与项目中", "On a project", 0), S("inactive", "不活跃", "Inactive", 0, { closed: true })],
 };
 const REGIONS = ["cn", "na", "sea", "jp", "sa", "af", "other"];
@@ -55,7 +53,6 @@ const CONTACT_ROLES = {
   university: ["项目负责人", "国际处", "招生办", "教务", "授课教师"],
   intl_school: ["校长", "招生主任", "教务", "国际处"],
   course: ["负责人", "授课教师", "教务"],
-  funder: ["捐赠人", "宣教委员会联系人", "基金会项目官员", "财务"],
   developer: ["作者", "学科审稿", "信仰审稿", "教学法审稿", "编辑", "文字编辑", "设计", "插画", "排版", "校对", "试教教师"],
 };
 
@@ -75,11 +72,6 @@ const PROJECT_KINDS = {
     course_offering: { zh: "开放课程到蜂巢", en: "Courses opened to Hive", ms: [M("上架", "Listed"), M("报名", "Enrolment"), M("开课", "Start", true), M("结课", "End"), M("结算", "Settlement")] },
   },
   course: { term_offering: { zh: "学期开班", en: "Course term", ms: [M("开课", "Start", true), M("期中反馈", "Mid-term feedback"), M("结课", "End", true), M("成绩录入", "Grades entered"), M("结算", "Settlement")] } },
-  funder: {
-    campaign: { zh: "募款活动", en: "Campaign", ms: [M("目标与材料", "Target and materials", true), M("发起", "Launched"), M("中期报告", "Mid-point report"), M("结束与致谢", "Closed and thanked", true)] },
-    pledge: { zh: "承诺", en: "Pledge", ms: [M("承诺确认", "Pledge confirmed", true), M("到账", "Received", true), M("报告", "Report sent")] },
-    grant: { zh: "资助申请", en: "Grant", ms: [M("意向书 LOI", "Letter of intent"), M("申请书提交", "Proposal submitted", true), M("答复", "Decision", true), M("到账", "Funds received"), M("报告", "Report due")] },
-  },
   developer: { textbook: { zh: "教材项目", en: "Textbook project", ms: [M("立项批准", "Proposal approved", true), M("大纲定稿", "Outline final", true), M("协议签署", "Agreements signed", true), M("全部单元初稿", "All units drafted", true), M("审稿意见全部处理", "Reviews resolved", true), M("稿件定稿", "Manuscript freeze", true), M("一校样", "First proofs", true), M("试教报告", "Pilot report", true), M("付印稿", "Final files", true), M("上架", "Listed", true), M("首期销售", "First-period sales"), M("下一版立项", "Next edition proposed")] } },
 };
 
@@ -437,12 +429,10 @@ async function runSeed(opts) {
 }
 const readSeedLog = () => store.read(SEED_LOG_BLOB, { runs: [] });
 
-// Which of the stored relationships a reader may see: funder relationships only
-// for those who may see money or hold the partnership function (design §14).
-function visibleTypes(opts) {
-  const o = opts || {};
-  return TYPE_KEYS.filter((t) => !TYPES[t].confidential || o.seeConfidential);
-}
+// Which of the stored relationships a reader may see. Every type, since the
+// fundraising type left for Zoohu (Rick, 2026-10-09: 「We have decided to use Zoohu to
+// manage our donors」); kept as the one place a confidential type would be filtered.
+function visibleTypes() { return TYPE_KEYS.slice(); }
 
 module.exports = {
   REL_BLOB, PRJ_BLOB, ORG_BLOB, CFG_BLOB, TYPES, TYPE_KEYS, STAGES, REGIONS, REGION_LABELS, CONTACT_ROLES, PROJECT_KINDS, DEFAULT_EXCLUDE,

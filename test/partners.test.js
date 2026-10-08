@@ -116,8 +116,9 @@ assert.strictEqual(tb.milestones.filter((m) => m.kind === "gate").length, 10);
 assert.deepStrictEqual(P.cleanTerms({ unitPriceYear: 5, discountSeats: 2, domain: "kxc.edu", bad: { x: 1 }, "we ird": 1, list: ["a", 2] }), { unitPriceYear: 5, discountSeats: 2, domain: "kxc.edu", list: ["a", "2"] });
 assert.deepStrictEqual(P.cleanContacts([{ person: "hc-000001", name: "A", role: "校长", primary: 1 }, { person: "nobody" }]), [{ person: "HC-000001", name: "A", role: "校长", primary: true }]);
 assert.strictEqual(P.cleanNext({ action: "  " }), null); assert.deepStrictEqual(P.cleanNext({ action: "call", due: "bad" }), { action: "call", due: "", owner: "" });
-assert.deepStrictEqual(P.visibleTypes({ seeConfidential: false }).includes("funder"), false);
-assert.deepStrictEqual(P.visibleTypes({ seeConfidential: true }).length, 7);
+// Six types since the fundraising type left for Zoohu (Rick, 2026-10-09).
+assert.deepStrictEqual(P.visibleTypes(), ["it", "publisher", "university", "intl_school", "course", "developer"]);
+assert.ok(!P.TYPES.funder && !P.STAGES.funder && !P.CONTACT_ROLES.funder && !P.PROJECT_KINDS.funder, "no trace of the funder type");
 
 // Seeding (design v2 §13): one starting relationship per source row, our own entities
 // excluded and flagged internal, the old partners.json folded in, a second run idle.
