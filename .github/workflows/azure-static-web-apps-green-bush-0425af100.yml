@@ -39,10 +39,14 @@ jobs:
           node-version: 20
       - name: Install API dependencies
         run: cd api && npm install --omit=dev --no-audit --no-fund
+      # jsdom (for test/grade-filter.test.js) lives outside the checkout, so nothing
+      # extra is uploaded with the site; NODE_PATH lets the test find it.
+      - name: Install jsdom for the page-driven test
+        run: npm install --prefix "$RUNNER_TEMP/jsdom" --no-audit --no-fund jsdom@24
       - name: Build the management centre script from its parts
         run: node scripts/build-management.js
       - name: Run the unit tests
-        run: bash scripts/test.sh
+        run: NODE_PATH="$RUNNER_TEMP/jsdom/node_modules" bash scripts/test.sh
       # Serve compact files without keeping minified copies in the repository:
       # the sources are minified in place here, just before upload (scripts/minify.sh).
       - name: Minify JS and CSS
