@@ -157,6 +157,18 @@ const pub = all.find((r) => r.type === "publisher");
 assert.strictEqual(pub.party.key, "equip:recPub1"); assert.strictEqual(pub.stage, "onsale"); assert.strictEqual(pub.party.name, "IEW");
 const again = P.seed(src, docs, { exclude: P.DEFAULT_EXCLUDE }, "system", now);
 assert.strictEqual(again.created.length, 0, "a second run creates nothing"); assert.strictEqual(Object.keys(docs.rels.items).length, 6);
+// A publisher the Equip copy knows only by number (Rick, 2026-10-08: 出版社是乱码) is
+// not seeded; one seeded that way earlier is renamed when the name arrives.
+const numbered = { publishers: [{ recId: "recPub2", name: "13" }, { recId: "recPub3", name: "1 (207)" }] };
+const r3 = P.seed(numbered, docs, { exclude: P.DEFAULT_EXCLUDE }, "system", now);
+assert.strictEqual(r3.created.length, 0, "no relationship for a number"); assert.ok(r3.skipped.includes("equip:recPub2:unnamed"));
+docs.rels.items["REL-000099"] = P.newRelationship({ type: "publisher", party: { id: docs.orgs.byKey["equip:recPub1"], key: "equip:recPub1", name: "9" }, stage: "onsale", source: "seed:equip" }, "system", "REL-000099");
+docs.orgs.orgs[docs.orgs.byKey["equip:recPub1"]].name = "9";
+const r4 = P.seed({ publishers: [{ recId: "recPub1", name: "IEW" }] }, docs, { exclude: P.DEFAULT_EXCLUDE }, "system", now);
+assert.strictEqual(r4.created.length, 0); assert.deepStrictEqual(r4.renamed, [{ id: "REL-000099", name: "IEW" }], "the numbered party gets its name");
+assert.strictEqual(docs.rels.items["REL-000099"].party.name, "IEW"); assert.strictEqual(docs.orgs.orgs[docs.orgs.byKey["equip:recPub1"]].name, "IEW");
+assert.strictEqual(pub.party.name, "IEW", "a party already named is left alone");
+delete docs.rels.items["REL-000099"];
 assert.strictEqual(P.regionOf({ country: "Singapore" }), "sea"); assert.strictEqual(P.regionOf({ region: "intl-cn" }), "cn"); assert.strictEqual(P.regionOf({ domain: "abc.cn" }), "cn"); assert.strictEqual(P.regionOf({}), "other");
 
 console.log("partners: all assertions passed");

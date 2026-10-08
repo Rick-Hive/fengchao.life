@@ -270,10 +270,21 @@ function autoTransitions(doc, now, cfg) {
 }
 
 // An ORG id for an institution key (domain or hive:ABBR), minted on first use.
+// A name a person would recognise. A bare number ("13", "1 (207)") is an Airtable
+// autonumber that came through an unresolved lookup, a record id is a key, not a
+// name (Rick, 2026-10-08: 出版社是乱码 — the 出版社 tab listed "1", "13", "9").
+function goodName(name) {
+  const s = String(name || "").trim();
+  if (!s) return false;
+  if (/^\d+(\s*\(\d+\))?$/.test(s)) return false;
+  if (/^(hive|equip|new):/i.test(s) || /^rec[A-Za-z0-9]{14}$/.test(s)) return false;
+  return true;
+}
+
 function orgIdFor(orgDoc, key, info) {
   const k = String(key || "").trim();
   if (!k) return null;
-  if (orgDoc.byKey[k]) { const o = orgDoc.orgs[orgDoc.byKey[k]]; if (o && info) { if (info.name && !o.name) o.name = info.name; if (info.nameEn && !o.nameEn) o.nameEn = info.nameEn; } return orgDoc.byKey[k]; }
+  if (orgDoc.byKey[k]) { const o = orgDoc.orgs[orgDoc.byKey[k]]; if (o && info) { if (goodName(info.name) && !goodName(o.name)) o.name = info.name; if (info.nameEn && !o.nameEn) o.nameEn = info.nameEn; } return orgDoc.byKey[k]; }
   const id = padO(orgDoc.next++);
   orgDoc.byKey[k] = id;
   orgDoc.orgs[id] = { id, keys: [k], name: (info && info.name) || "", nameEn: (info && info.nameEn) || "", region: (info && info.region) || "", orgType: (info && info.orgType) || "", internal: !!(info && info.internal), contacts: [], createdAt: new Date().toISOString() };
@@ -305,7 +316,18 @@ const OLD_STAGE = { it: { contact: "lead", trial: "proposal", partner: "operatin
 
 function seed(src, docs, cfg, by, now) {
   const rels = docs.rels, orgs = docs.orgs, at = new Date(+now || Date.now()).toISOString();
-  const created = [], excluded = [], skipped = [];
+  const created = [], excluded = [], skipped = [], renamed = [];
+  // A party seeded while its source only knew a number keeps its id and history;
+  // the name is refreshed once the source knows it. Never a name someone typed.
+  const refresh = (partyId, name) => {
+    if (!goodName(name)) return;
+    const o = orgs.orgs[partyId];
+    if (o && !goodName(o.name)) o.name = name;
+    for (const r of Object.values(rels.items)) {
+      if (!r.party || r.party.id !== partyId || goodName(r.party.name) || r.party.name === name) continue;
+      r.party.name = name; r.updatedAt = at; renamed.push({ id: r.id, name });
+    }
+  };
   const peopleByKey = new Map();
   for (const p of src.people || []) for (const k of p.keys || []) peopleByKey.set(String(k).toLowerCase(), p);
   const has = (partyId, type) => Object.values(rels.items).some((r) => r.party && r.party.id === partyId && r.type === type);
@@ -326,6 +348,7 @@ function seed(src, docs, cfg, by, now) {
     const cand = { key, name: i.name, nameEn: i.nameEn, abbr: i.abbr, domain: i.domain };
     const orgId = orgIdFor(orgs, key, { name: i.name || i.nameEn || "", nameEn: i.nameEn || "", region: regionOf(i) });
     if (isExcluded(cfg, cand)) { orgs.orgs[orgId].internal = true; excluded.push(key); continue; }
+    refresh(orgId, i.name || i.nameEn);
     const party = { id: orgId, key, name: i.name || i.nameEn || key };
     const region = regionOf(i);
     if (i.domain) fold(mk("it", party, "operating", "seed:tenant", { region, terms: { domain: i.domain, unitPriceYear: 5, discountSeats: 0, seatsTotal: i.accounts || 0 }, contacts: contactsOf(i.domain), note: "" }), key);
@@ -343,10 +366,14 @@ function seed(src, docs, cfg, by, now) {
     if (!pub.recId && !pub.name) continue;
     const key = pub.recId ? "equip:" + pub.recId : "equip:" + norm(pub.name);
     if (isExcluded(cfg, { key, name: pub.name })) { excluded.push(key); continue; }
-    const orgId = orgIdFor(orgs, key, { name: pub.name || "", orgType: "publisher", region: "na" });
-    fold(mk("publisher", { id: orgId, key, name: pub.name || key }, "onsale", "seed:equip", { region: "na", terms: { publisherKey: key } }), key);
+    // Known so far only by number (the Equip copy predates the lookup fix, or the
+    // sync has not run since): refresh what exists, create nothing until it has a name.
+    if (!goodName(pub.name)) { if (orgs.byKey[key]) refresh(orgs.byKey[key], pub.name); skipped.push(key + ":unnamed"); continue; }
+    const orgId = orgIdFor(orgs, key, { name: pub.name, orgType: "publisher", region: "na" });
+    refresh(orgId, pub.name);
+    fold(mk("publisher", { id: orgId, key, name: pub.name }, "onsale", "seed:equip", { region: "na", terms: { publisherKey: key } }), key);
   }
-  return { created, excluded, skipped, at };
+  return { created, excluded, skipped, renamed, at };
 }
 
 // Gather the sources and seed; called after every hub rebuild and from 自动填入.
@@ -369,8 +396,8 @@ async function runSeed(opts) {
   const relsNow = await readRels();
   let result = null, orgsSaved = null;
   await updateOrgs((od) => { result = seed(src, { rels: clone(relsNow), orgs: od }, cfg, by, now); orgsSaved = clone(od); return true; });
-  await updateRels((d) => { result = seed(src, { rels: d, orgs: clone(orgsSaved) }, cfg, by, now); return result.created.length > 0; });
-  const entry = { at: result.at, by, created: result.created.length, excluded: result.excluded.length, skipped: result.skipped.length, sample: result.created.slice(0, 20) };
+  await updateRels((d) => { result = seed(src, { rels: d, orgs: clone(orgsSaved) }, cfg, by, now); return result.created.length > 0 || result.renamed.length > 0; });
+  const entry = { at: result.at, by, created: result.created.length, excluded: result.excluded.length, skipped: result.skipped.length, renamed: result.renamed.length, sample: result.created.slice(0, 20) };
   await store.update(SEED_LOG_BLOB, { runs: [] }, (l) => { l.runs = [entry].concat(l.runs || []).slice(0, 30); });
   log(`partners: seeded ${result.created.length} relationship(s), ${result.excluded.length} excluded, ${result.skipped.length} already there`);
   return result;
