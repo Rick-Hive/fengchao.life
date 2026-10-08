@@ -106,7 +106,7 @@
         { hash: "#/dashboard", icon: "chart", zh: "仪表盘", en: "Dashboard" },
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
         { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People Hub" },
-      ].concat(crmLevel("partners") !== "none" ? [{ hash: "#/ops/institutions", icon: "tree", zh: "机构", en: "Institutions" }] : []).concat(crmLevel("drm") !== "none" ? [{ hash: "#/ops/licenses", icon: "key", zh: "许可", en: "Licences" }] : []).concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
+      ].concat(crmLevel("partners") !== "none" ? [{ hash: "#/ops/partners", icon: "tree", zh: "合作伙伴", en: "Partners" }, { hash: "#/ops/institutions", icon: "tree", zh: "机构", en: "Institutions" }] : []).concat(crmLevel("drm") !== "none" ? [{ hash: "#/ops/licenses", icon: "key", zh: "许可", en: "Licences" }] : []).concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
     }
     if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [

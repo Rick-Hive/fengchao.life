@@ -120,15 +120,21 @@ const EQUIP = [
       { domain: "xqzw.edu", users: ["enqi", "enya"].map(n => ({ upn: n + ".bao@xqzw.edu", displayName: n[0].toUpperCase() + n.slice(1) + " Bao", safeEmail: "mum@gmail.com", lastSignIn: "2026-10-05T00:00:00Z", enabled: true, created: "2025-09-10T00:00:00Z", identity: "学生" })) }],
     hiveOrders: [{ orderId: "FC-20261001-KXC-001", email: "lead@gmail.com", teamsAccount: "", totalPrice: 1200, status: "paid", submittedAt: "2026-10-01T02:00:00Z", hives: [{ abbr: "KXC" }] }],
     decisions: { pairs: {} }, now: Date.parse("2026-10-07T00:00:00Z") };
+  const ptPosts = [];
   let HUB = hubMod.build(HUB_SRC); const MARKS = { marks: {} }; const ROY_PAID = {}; const PARTNERS = {}; const entries = []; const received = [];
   const royaltyMod = require(path.join(ROOT, "api", "shared", "royalty.js"));
+  // 合作伙伴: the real rules (api/shared/partners.js) over in-memory documents.
+  const ptMod = require(path.join(ROOT, "api", "shared", "partners.js"));
+  const REL = { next: 1, items: {} }, PRJ = { next: 1, items: {} }, ORGS = { next: 1, byKey: {}, orgs: {} }, CONTACTS = [];
+  function ptOrgIdx() { const m = new Map(); for (const i of HUB.institutions) m.set(i.key || i.domain, i); return m; }
+  function ptRow(rel, projects) { const idx = ptOrgIdx(); const i = rel.party && rel.party.kind === "org" ? idx.get(rel.party.key) : null; const mine = projects.filter(x => x.relationship === rel.id); const pn = rel.party ? (rel.party.kind === "org" ? ((i && (i.name || i.nameEn)) || rel.party.name || rel.party.key) : ((HUB.people.find(x => x.crmId === rel.party.id) || {}).name || rel.party.name)) : ""; return Object.assign({}, rel, { partyName: pn, metrics: i ? { accounts: i.accounts || 0, active: i.active || 0, customers: i.customers || 0, courses: i.courses || 0, hiveOrders: i.hiveOrders || 0 } : null, projects: mine.length, activeProjects: mine.filter(x => x.status === "active").length, overdueMilestones: 0 }); }
   const licMod = require(path.join(ROOT, "api", "shared", "licenses.js")); const LIC = { pools: [], allocations: [], nextPool: 1, nextAlloc: 1 };
   const verdicts = []; let rebuilds = 0; const deleted = []; const writebacks = []; const digests = [];
   async function shot(name, w, h, hash, lang, rolesList, act) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
     page.on("pageerror", e => errs.push(name + ": " + e.message));
-    page.on("console", m => { if (m.type() === "error" && !/status of 403/.test(m.text())) errs.push(name + " console: " + m.text()); });
+    page.on("console", m => { if (m.type() === "error" && !/status of (403|409)/.test(m.text())) errs.push(name + " console: " + m.text()); });
     const acc = crm.accessMap(rolesList);
     const me = Object.assign({}, summary, { roles: rolesList, crm: acc });
     const isAdm = rolesList.indexOf("admin") >= 0;
@@ -165,6 +171,20 @@ const EQUIP = [
       else if (p === "/api/domain/groupname") { groupNamed.push(JSON.parse(r.request().postData())); body = { ok: true }; }
       else if (p === "/api/crm/order" && r.request().method() === "GET") { const o = ORDERS.find(x => x.orderId === u.searchParams.get("id")); body = { order: Object.assign(crm.mask(o, acc), { overdue: crm.overdue(o) }), next: acc.orders === "rw" ? crm.nextStatuses(o.status, rolesList) : [] }; }
       else if (p === "/api/crm/order" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); patched.push(b); const i = ORDERS.findIndex(x => x.orderId === b.orderId); ORDERS[i] = crm.transition(ORDERS[i], b.status, me.profile.upn, b.note, rolesList); body = { ok: true, order: Object.assign(crm.mask(ORDERS[i], acc), { overdue: crm.overdue(ORDERS[i]) }), next: crm.nextStatuses(ORDERS[i].status, rolesList) }; }
+      else if (p === "/api/crm/partners") { const type = u.searchParams.get("type") || "it"; const canEdit = isAdm || acc.partners === "rw"; const seeC = isAdm || acc.money === "rw" || rolesList.includes("staff:ceo") || rolesList.includes("staff:partnership"); if (type === "funder" && !seeC) { status = 403; body = { error: "no_access" }; } else { const projects = Object.values(PRJ.items); const rows = ptMod.listByType(REL, type, {}, Date.now(), u.searchParams.get("all") === "1").map(x => ptRow(x, projects)); const counts = {}; for (const t of ptMod.visibleTypes({ seeConfidential: seeC })) counts[t] = Object.values(REL.items).filter(x => x.type === t && !x.closed).length; body = { type, rows, summary: ptMod.summary(rows, Date.now()), stages: ptMod.STAGES[type], kinds: ptMod.PROJECT_KINDS[type], contactRoles: ptMod.CONTACT_ROLES[type], regions: ptMod.REGION_LABELS, types: ptMod.TYPES, counts, canEdit, access: acc }; } }
+      else if (p === "/api/crm/partner" && r.request().method() === "GET") { const rel = REL.items[u.searchParams.get("id")]; if (!rel) { status = 404; body = { error: "not_found" }; } else { const projects = Object.values(PRJ.items).filter(x => x.relationship === rel.id); body = { relationship: ptRow(Object.assign({}, rel, { health: ptMod.health(rel, Date.now(), {}) }), projects), projects, stages: ptMod.STAGES[rel.type], kinds: ptMod.PROJECT_KINDS[rel.type], contactRoles: ptMod.CONTACT_ROLES[rel.type], canEdit: isAdm || acc.partners === "rw", access: acc }; } }
+      else if (p === "/api/crm/partner") { const b = JSON.parse(r.request().postData()); ptPosts.push(b); if (b.op === "create") { let party = null; if (b.party && b.party.key) { const i = ptOrgIdx().get(b.party.key); ptMod.orgIdFor(ORGS, b.party.key, { name: i ? i.name : b.party.name }); party = { id: ORGS.byKey[b.party.key], key: b.party.key, name: i ? i.name : b.party.name }; } else if (b.party && b.party.id) { const pe = HUB.people.find(x => x.crmId === b.party.id); party = pe ? { id: pe.crmId, name: pe.name } : null; } try { const id = ptMod.pad(REL.next++); REL.items[id] = ptMod.newRelationship(Object.assign({}, b, { party }), me.profile.upn, id); body = { ok: true, relationship: REL.items[id] }; } catch (e) { status = 400; body = { error: e.code || "bad" }; } }
+        else { const rel = REL.items[b.id]; const now = new Date().toISOString(); if (!rel) { status = 404; body = { error: "not_found" }; } else if (b.op === "move") { const chk = ptMod.moveCheck(rel, b.to, b, Object.values(PRJ.items)); if (!chk.ok) { status = 409; body = { error: chk.error, problems: chk.problems }; } else { if (b.contacts) rel.contacts = ptMod.cleanContacts(b.contacts); if (chk.stage.handover && b.owner) rel.owner = b.owner; rel.log.push(ptMod.logEntry(me.profile.upn, "stage", b.reason || "", { from: rel.stage, to: b.to, back: chk.backward || undefined })); rel.stage = b.to; rel.stageAt = now; rel.stageBy = me.profile.upn; if (chk.stage.closed) rel.closed = { at: now, reason: b.reason, by: me.profile.upn }; const nx = ptMod.cleanNext(b.next); if (nx) rel.next = nx; body = { ok: true, relationship: rel }; } }
+        else if (b.op === "update") { const f = b.fields || {}; if (f.region) rel.region = f.region; if (f.currency) rel.currency = f.currency; if (f.lang) rel.lang = f.lang; if (typeof f.owner === "string") rel.owner = f.owner; if ("next" in f) rel.next = ptMod.cleanNext(f.next); if ("agreement" in f) rel.agreement = ptMod.cleanAgreement(f.agreement); if ("terms" in f) rel.terms = ptMod.cleanTerms(f.terms); if ("contacts" in f) { rel.contacts = ptMod.cleanContacts(f.contacts); rel.log.push(ptMod.logEntry(me.profile.upn, "contacts", rel.contacts.map(c => c.name).join(", "))); } body = { ok: true, relationship: rel }; }
+        else if (b.op === "note") { rel.log.push(ptMod.logEntry(me.profile.upn, "note", b.text, { via: b.via })); body = { ok: true, relationship: rel }; }
+        else if (b.op === "close") { rel.closed = { at: now, reason: b.reason, by: me.profile.upn, stage: rel.stage }; rel.log.push(ptMod.logEntry(me.profile.upn, "closed", b.note || "", { reason: b.reason })); body = { ok: true, relationship: rel }; }
+        else if (b.op === "reopen") { rel.stage = rel.closed.stage || rel.stage; rel.closed = null; rel.stageAt = now; body = { ok: true, relationship: rel }; }
+        else { status = 400; body = { error: "bad_op" }; } } }
+      else if (p === "/api/crm/project") { const b = JSON.parse(r.request().postData()); ptPosts.push(b); if (b.op === "create") { const rel = REL.items[b.relationship]; const id = ptMod.padP(PRJ.next++); PRJ.items[id] = ptMod.newProject(rel, b, me.profile.upn, id); rel.log.push(ptMod.logEntry(me.profile.upn, "project", PRJ.items[id].name, { project: id })); body = { ok: true, project: PRJ.items[id] }; }
+        else { const pj = PRJ.items[b.id]; if (!pj) { status = 404; body = { error: "not_found" }; } else { if (b.op === "status") { if (b.status === "completed" && pj.milestones.some(m => m.kind === "gate" && !m.doneAt)) { status = 409; body = { error: "gates_open" }; } else { pj.log.push(ptMod.logEntry(me.profile.upn, "status", "", { from: pj.status, to: b.status })); pj.status = b.status; body = { ok: true, project: pj }; } } else if (b.op === "milestone") { const m = pj.milestones.find(x => x.id === b.mid); if ("done" in b) m.doneAt = b.done ? new Date().toISOString().slice(0, 10) : ""; if ("due" in b) m.due = b.due; body = { ok: true, project: pj }; } else if (b.op === "addMilestone") { pj.milestones.push({ id: "m" + (pj.milestones.length + 1), name: b.name, nameEn: b.name, kind: "deliverable", due: b.due || "", doneAt: "", owner: "", note: "" }); body = { ok: true, project: pj }; } else if (b.op === "removeMilestone") { pj.milestones = pj.milestones.filter(x => x.id !== b.mid); body = { ok: true, project: pj }; } else if (b.op === "update") { Object.assign(pj, b.fields.participants ? { participants: ptMod.cleanContacts(b.fields.participants) } : {}, b.fields.name ? { name: b.fields.name } : {}); body = { ok: true, project: pj }; } else if (b.op === "note") { pj.log.push(ptMod.logEntry(me.profile.upn, "note", b.text)); body = { ok: true, project: pj }; } else { status = 400; body = { error: "bad_op" }; } } } }
+      else if (p === "/api/crm/people-search") { const q = (u.searchParams.get("q") || "").toLowerCase(); body = { people: HUB.people.filter(x => [x.name, x.crmId].concat(x.keys).some(k => String(k || "").toLowerCase().includes(q))).slice(0, 12).map(x => ({ crmId: x.crmId, name: x.name, email: x.primaryEmail, upn: (x.facets.accounts[0] || {}).upn || "", identity: (x.facets.accounts[0] || {}).identity || (x.sources.contact ? "外部" : ""), org: (x.facets.accounts[0] || {}).domain || "", stage: x.stage })) }; }
+      else if (p === "/api/crm/org-search") { const q = (u.searchParams.get("q") || "").toLowerCase(); body = { orgs: HUB.institutions.filter(i => !q || [i.key, i.domain, i.name, i.nameEn, i.abbr].some(k => String(k || "").toLowerCase().includes(q))).slice(0, 15).map(i => ({ key: i.key || i.domain, name: i.name || i.nameEn || i.key, nameEn: i.nameEn || "", domain: i.domain || "", kind: i.kind, type: i.type || "", region: i.region || "", country: i.country || "", orgId: ORGS.byKey[i.key || i.domain] || null })) }; }
+      else if (p === "/api/crm/contact") { const b = JSON.parse(r.request().postData()); CONTACTS.push(b); const email = String(b.email || "").toLowerCase(); let pe = HUB.people.find(x => x.keys.includes(email)); if (!pe) { const id = "HC-" + String(HUB.nextId++).padStart(6, "0"); pe = { crmId: id, name: b.name, keys: [email], emails: [{ email, tier: "safe", upn: false }], primaryEmail: email, primaryTier: "safe", stage: "lead", orders: 0, spend: 0, hiveOrders: 0, hiveTotal: 0, sources: { contact: true }, facets: { customers: [], accounts: [], leads: [], hive: [], contacts: [{ email, name: b.name, org: b.org }] }, writeBack: [] }; HUB.people.push(pe); body = { ok: true, person: { crmId: id, existing: false, name: b.name, email } }; } else body = { ok: true, person: { crmId: pe.crmId, existing: true, name: pe.name, email } }; }
       else if (p === "/api/me/photo") return r.fulfill({ status: 204, body: "" });
       else if (p === "/api/data") body = { generatedAt: new Date().toISOString(), counts: { products: 12, posts: 8 } };
       else status = 404;
@@ -670,6 +690,88 @@ const EQUIP = [
     assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "a click on another row only closes the panel — it does not open the next person (Rick)");
     await rows[1].click({ position: { x: 40, y: 10 } }); await p.waitForTimeout(300);
     assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "the next click opens that row");
+  });
+  // 合作伙伴 v2 (Rick, 2026-10-08): the type pages, a relationship created from an
+  // organization, moved along its cycle under the rules, a contact picked from the
+  // hub, a project with milestones; the funder type hidden from the order manager.
+  await shot("partners-board", 1280, 900, "#/ops/partners/it", "zh", ["staff:partnership"], async p => {
+    const nav = await p.$eval("#nav", e => e.innerText); assert.ok(/合作伙伴/.test(nav), "nav has 合作伙伴: " + nav);
+    await p.waitForSelector("#ptTabs .ptab");
+    const tabs = await p.$$eval("#ptTabs .ptab", es => es.map(e => e.textContent)); assert.strictEqual(tabs.length, 7, "seven type tabs for the partnership director: " + tabs);
+    assert.ok(await p.$("#title .info"), "description behind ⓘ");
+    const cols = await p.$$(".board .bcol"); assert.strictEqual(cols.length, 8, "eight IT stages on the board");
+    await p.click("#ptNew"); await p.waitForTimeout(300);
+    await p.fill("#nrOq", "kxc"); await p.waitForTimeout(500);
+    await p.click('#nrOres .pr[data-key]'); await p.waitForTimeout(200);
+    const who = await p.$eval("#nrOch .who", e => e.innerText); assert.ok(/Kids X Center/.test(who), "organization picked: " + who);
+    await p.fill("#nrNext", "打电话给校长"); await p.fill("#nrDue", "2026-12-01");
+    await p.click("#nrSave"); await p.waitForTimeout(700);
+    const cr = ptPosts.find(b => b.op === "create"); assert.ok(cr && cr.party.key === "kxc.edu" && cr.type === "it", "create posted: " + JSON.stringify(cr));
+    assert.ok(await p.$("#panel svg.track"), "the relationship panel shows the stage track");
+    const nowLab = await p.$eval("#panel svg.track g.node.now text", e => e.textContent); assert.strictEqual(nowLab, "线索");
+    const cards = await p.$$(".board .bcard"); assert.strictEqual(cards.length, 1, "one card on the board");
+    // forward one stage
+    await p.click('#panel button[data-act="move"]'); await p.waitForTimeout(200);
+    await p.selectOption("#mvTo", "assess"); await p.click("#mvForm button[type=submit]"); await p.waitForTimeout(700);
+    assert.strictEqual(await p.$eval("#panel svg.track g.node.now text", e => e.textContent), "评估", "moved to 评估");
+    // 签约 needs an agreement and a contact: blocked
+    await p.click('#panel button[data-act="move"]'); await p.waitForTimeout(200);
+    await p.selectOption("#mvTo", "signed"); await p.click("#mvForm button[type=submit]"); await p.waitForTimeout(600);
+    const fl = await p.$eval("#flash", e => e.innerText); assert.ok(/move_blocked/.test(fl) && /协议/.test(fl) && /联系人/.test(fl), "blocked with reasons: " + fl);
+    // a contact from the people hub
+    await p.click('#panel button[data-ptab="contacts"]'); await p.waitForTimeout(200);
+    await p.fill("#rpPick .pq", "mei"); await p.waitForTimeout(600);
+    await p.click('#rpPick .pres .pr[data-id]'); await p.waitForTimeout(200);
+    await p.selectOption("#rpPick .prole", "校长"); await p.click("#rpPick .padd"); await p.waitForTimeout(700);
+    const cl = await p.$eval("#rpBody .olist", e => e.innerText); assert.ok(/Mei Wang/.test(cl) && /校长/.test(cl), "contact added: " + cl);
+    // a new person entered inline
+    await p.fill("#rpPick .pq", "Dean"); await p.waitForTimeout(600);
+    await p.click("#rpPick .pres .pr.new"); await p.waitForTimeout(200);
+    await p.fill("#rpPick .nemail", "dean@kxc.edu"); await p.click("#rpPick .pnew button[type=submit]"); await p.waitForTimeout(500);
+    assert.strictEqual(CONTACTS.length, 1, "contact created"); assert.strictEqual(CONTACTS[0].name, "Dean");
+    await p.selectOption("#rpPick .prole", ""); await p.fill("#rpPick .prole2", "IT 联系人"); await p.click("#rpPick .padd"); await p.waitForTimeout(700);
+    const cl2 = await p.$eval("#rpBody .olist", e => e.innerText); assert.ok(/Dean/.test(cl2) && /IT 联系人/.test(cl2), "new person added as contact: " + cl2);
+    // the agreement, then 签约
+    await p.click('#panel button[data-ptab="overview"]'); await p.waitForTimeout(200);
+    await p.click('#panel button[data-act="edit"]'); await p.waitForTimeout(200);
+    await p.fill("#agSigned", "2026-10-01"); await p.fill("#agEnd", "2027-09-30"); await p.click("#edForm button[type=submit]"); await p.waitForTimeout(700);
+    await p.click('#panel button[data-act="move"]'); await p.waitForTimeout(200);
+    await p.selectOption("#mvTo", "signed"); await p.click("#mvForm button[type=submit]"); await p.waitForTimeout(700);
+    assert.strictEqual(await p.$eval("#panel svg.track g.node.now text", e => e.textContent), "签约");
+    assert.ok(await p.$("#panel svg.tline"), "the agreement gives the timeline a row");
+    // a project with milestones
+    await p.click('#panel button[data-ptab="projects"]'); await p.waitForTimeout(200);
+    await p.click('#panel button[data-act="newproject"]'); await p.waitForTimeout(200);
+    await p.fill("#npName", "KXC 开通"); await p.fill("#npStart", "2026-10-15"); await p.click("#npForm button[type=submit]"); await p.waitForTimeout(800);
+    assert.ok(await p.$eval("#panel2", e => e.classList.contains("open")), "the project opens in the second panel");
+    const ms = await p.$$("#panel2 .mrow2"); assert.strictEqual(ms.length, 3, "rollout template has three milestones");
+    await p.click('#panel2 input[data-ms="m1"]'); await p.waitForTimeout(700);
+    assert.ok(await p.$eval('#panel2 .mrow2', e => e.classList.contains("done")), "first milestone ticked");
+    await p.selectOption("#pjStatus", "active"); await p.waitForTimeout(700);
+    const h3 = await p.$eval("#panel2 .ph", e => e.innerText); assert.ok(/进行中/.test(h3), "project active: " + h3);
+    const lg = Object.values(REL.items)[0].log.map(l => l.kind); assert.ok(lg.includes("stage") && lg.includes("contacts") && lg.includes("project"), "everything logged: " + lg);
+  });
+  await shot("partners-table", 1280, 700, "#/ops/partners/it", "en", ["staff:partnership"], async p => {
+    await p.waitForSelector(".board");
+    await p.click('#ptRight [data-view="table"]'); await p.waitForTimeout(300);
+    const rows = await p.$$("#pttable tbody tr[data-rel]"); assert.strictEqual(rows.length, 1, "one row in the table");
+    const row = await p.$eval("#pttable tbody tr[data-rel]", e => e.innerText); assert.ok(/Kids X Center/.test(row) && /Signed/.test(row), "row: " + row);
+    await p.click("#pttable tbody tr[data-rel]"); await p.waitForTimeout(500);
+    assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "panel opens from the table");
+    await p.click("#ptKpi"); await p.waitForTimeout(200);
+    assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "closes on an outside click");
+    await p.click('#ptRight [data-view="board"]'); await p.waitForTimeout(200);
+  });
+  await shot("partners-sales", 1280, 700, "#/ops/partners/funder", "zh", SALES, async p => {
+    await p.waitForTimeout(500);
+    const tabs = await p.$$eval("#ptTabs .ptab", es => es.map(e => e.textContent)); assert.ok(!tabs.some(x => /募款/.test(x)), "the order manager does not see fundraising: " + tabs);
+    const body = await p.$eval("#ptBody", e => e.innerText); assert.ok(/no_access/.test(body), "funder page refused: " + body.slice(0, 80));
+    assert.ok(!(await p.$("#ptNew")), "no New button without partners rw");
+  });
+  await shot("partners-narrow", 1000, 700, "#/ops/partners/it", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector(".board");
+    const over = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(over <= 0, "the board scrolls inside the page, not the page: " + over);
   });
   console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "all orders/roles checks passed");
   await browser.close(); srv.close();

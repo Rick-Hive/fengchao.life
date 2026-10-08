@@ -42,6 +42,7 @@
     }
     if (h.indexOf("#/ops") === 0) {
       if (!canSeeOrders()) { location.hash = "#/account"; return; }
+      if (h.indexOf("#/ops/partners") === 0) return crmLevel("partners") !== "none" ? viewPartners() : viewOrders();
       return h.indexOf("#/ops/people") === 0 ? viewPeople() : h.indexOf("#/ops/royalty") === 0 ? (canSeeRoyalty() ? viewRoyalty() : viewOrders()) : h.indexOf("#/ops/institutions") === 0 ? (crmLevel("partners") !== "none" ? viewInstitutionsCrm() : viewOrders()) : h.indexOf("#/ops/licenses") === 0 ? (crmLevel("drm") !== "none" ? viewLicenses() : viewOrders()) : viewOrders();
     }
     if (h.indexOf("#/system") === 0) {
