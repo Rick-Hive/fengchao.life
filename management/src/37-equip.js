@@ -16,7 +16,9 @@
       (canSync ? '<button class="btn secondary sm" id="eSync">' + t("从 Airtable 同步", "Sync from Airtable") + "</button> " : "") +
       '<a class="btn secondary sm" id="eOpen" href="' + AIRTABLE_EQUIP_URL + '" target="_blank" rel="noopener">' + t("在 Airtable 中打开", "Open in Airtable") + ' ↗</a>',
       { info: t("EquipMe 教材的销售情况：所选月、本学年与上学年、出版社、教材、学科、年级段、新老客户。逐单查看与录入在 Airtable；管理中心每夜同步一份只读副本。", "How EquipMe textbooks are selling: the chosen month, this school year against the last, publishers, titles, subjects, grade bands, new and returning customers. Individual orders are viewed and entered in Airtable; the management centre syncs a read-only copy nightly.") });
-    $("opsBody").innerHTML = '<div class="toolbar tight" id="ebar"><label class="inline">' + t("月份", "Month") + ' <select id="emonth" title="' + esc(t("指标与图表都以所选月为准；学年按所选月所在学年", "Tiles and charts follow the chosen month; the school year is the one it falls in")) + '"></select></label></div><div class="kpis compact" id="ekpi"></div><div class="vgrid" id="evgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="efoot" style="font-size:.8rem"></p>';
+    // The month picker sits in the tab row's right slot — no row of its own (Rick, 2026-10-08).
+    var tr = $("tabsRight"); if (tr) tr.innerHTML = '<label class="inline">' + t("月份", "Month") + ' <select id="emonth" title="' + esc(t("指标与图表都以所选月为准；学年按所选月所在学年", "Tiles and charts follow the chosen month; the school year is the one it falls in")) + '"></select></label>';
+    $("opsBody").innerHTML = (tr ? "" : '<div class="toolbar tight" id="ebar"><label class="inline">' + t("月份", "Month") + ' <select id="emonth"></select></label></div>') + '<div class="kpis strip" id="ekpi"></div><div class="vgrid" id="evgrid"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><p class="muted" id="efoot" style="font-size:.8rem"></p>';
     $("emonth").addEventListener("change", function () { equipState.month = this.value; renderEquip(); });
     var sb = $("eSync");
     if (sb) sb.addEventListener("click", function () {

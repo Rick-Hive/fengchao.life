@@ -272,6 +272,8 @@
   // with all headings」; earlier the same for the People Hub's long description).
   function setTitle(crumb, title, actionsHtml, desc) {
     var info = desc && typeof desc === "object" ? desc.info : (desc || "");
+    // Crumb and title now share a line; a crumb that already ends with the title ("经营 › 人员库" + 人员库) loses that tail.
+    if (crumb && title) { var tail = " › " + title; if (crumb === title) crumb = ""; else if (crumb.slice(-tail.length) === tail) crumb = crumb.slice(0, -tail.length); }
     $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + (info ? ' <span class="info big" tabindex="0" data-tip="' + esc(info) + '">i</span>' : "") + "</span>" : "") + "";
     $("topActions").innerHTML = actionsHtml || "";
     document.querySelector(".topbar").classList.toggle("bare", !title && !crumb && !actionsHtml);

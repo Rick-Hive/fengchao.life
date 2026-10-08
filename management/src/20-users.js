@@ -185,17 +185,14 @@
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
     // school, or across all schools with 所有学校 in the picker.
     var ROLE_OPTS = [["", t("全部角色", "All roles")]].concat(IDENTITIES.map(function (i) { return ["id:" + i, vl(i)]; })).concat([
-      ["role:teacher", t("蜂巢课程教师（教师表 + 身份为老师）", "Hive course teachers (Teachers table + identity Teacher)")], ["role:it", t("域管理员（IT）", "Domain administrator (IT)")], ["role:hive", t("域蜂巢管理员", "Domain Hive administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
+      ["role:teacher", t("蜂巢课程教师", "Hive course teachers")], ["role:it", t("域管理员（IT）", "Domain administrator (IT)")], ["role:hive", t("域蜂巢管理员", "Domain Hive administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel", canAll) +
         '<select id="urole" aria-label="' + t("按角色筛选", "Filter by role") + '">' + ROLE_OPTS.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (state.userRole === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>" +
-        '<button class="chip" data-f="all" aria-pressed="' + (state.userFilter === "all") + '">' + t("全部", "All") + "</button>" +
-        '<button class="chip" data-f="noauth" aria-pressed="' + (state.userFilter === "noauth") + '">' + t("未登记验证器", "No authenticator") + "</button>" +
-        '<button class="chip" data-f="noid" aria-pressed="' + (state.userFilter === "noid") + '">' + t("身份未填", "No identity") + "</button>" +
-        '<button class="chip" data-f="never" aria-pressed="' + (state.userFilter === "never") + '">' + t("从未登录", "Never signed in") + "</button>" +
-        '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="uq" value="' + esc(state.userQ) + '" placeholder="' + t("搜索账号、姓名、群组…", "Search account, name, group…") + '" /></div>' +
+        // The status filters are the stat strip's tiles (账号 / 从未登录 / 未登记验证器 / 身份未填 / 异常): no second row of chips.
+        '<div class="search">' + ICON.search + '<input type="search" id="uq" value="' + esc(state.userQ) + '" placeholder="' + t("搜索账号、姓名、群组…", "Search account, name, group…") + '" /></div>' +
       "</div>" +
-      '<div class="kpis compact" id="ukpi"></div>' +
+      '<div class="kpis strip" id="ukpi"></div>' +
       '<div class="tbl-wrap"><table class="data" id="utable"><thead><tr>' +
         "<th>" + t("账号", "Account name") + "</th><th>" + t("显示名", "Display name") + "</th><th>" + t("验证", "Authentication") + "</th><th>" + t("验证设备", "Authentication device") + "</th><th>" + t("Teams 群组", "Teams groups") + "</th><th>" + t("身份", "Identity") + "</th><th>" + t("关联账号", "Linked account") + "</th>" +
         '</tr></thead><tbody><tr><td colspan="7" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +

@@ -48,7 +48,7 @@
     var hiveTab = location.hash.indexOf("#/ops/orders/hive") === 0;
     $("content").innerHTML = '<div class="pagetabs compact" role="tablist">' +
       '<a class="ptab' + (hiveTab ? "" : " on") + '" role="tab" aria-selected="' + !hiveTab + '" href="#/ops/orders" title="EquipMe · Airtable">' + t("Equip教材订单", "Equip textbook orders") + "</a>" +
-      '<a class="ptab' + (hiveTab ? " on" : "") + '" role="tab" aria-selected="' + hiveTab + '" href="#/ops/orders/hive" title="fengchao.life">' + t("蜂巢课程订单", "Hive course orders") + "</a></div><div id=\"opsBody\"></div>";
+      '<a class="ptab' + (hiveTab ? " on" : "") + '" role="tab" aria-selected="' + hiveTab + '" href="#/ops/orders/hive" title="fengchao.life">' + t("蜂巢课程订单", "Hive course orders") + '</a><div class="tabsRight" id="tabsRight"></div></div><div id="opsBody"></div>';
     if (hiveTab) viewCourseOrders(); else viewEquipOrders();
   }
   function viewCourseOrders() {
@@ -59,7 +59,7 @@
     $("opsBody").innerHTML =
       '<div class="toolbar" id="obar">' + ORDER_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (ordersState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
         '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="oq" value="' + esc(ordersState.q) + '" placeholder="' + t("搜索订单号、邮箱、蜂巢、课程…", "Search order no., email, hive, course…") + '" /></div></div>' +
-      '<div class="kpis compact" id="okpi"></div>' +
+      '<div class="kpis strip" id="okpi"></div>' +
       '<div class="tbl-wrap"><table class="data" id="otable"><thead><tr><th>' + t("订单号", "Order no.") + "</th><th>" + t("日期", "Date") + "</th><th>" + t("下单人", "Ordered by") + "</th><th>" + t("蜂巢", "Hive") + "</th><th>" + t("课程", "Courses") + "</th><th>" + t("金额", "Amount") + "</th><th>" + t("状态", "Status") + "</th><th>" + t("提醒", "Flags") + "</th></tr></thead>" +
         '<tbody><tr><td colspan="8" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
       '<p class="muted" id="ofoot" style="font-size:.8rem"></p>';

@@ -56,6 +56,7 @@
       // page title (the title row has it), the 「打开管理中心」 button.
       ["mast-top", "cta"].forEach(function (c) { Array.prototype.forEach.call(wrap.querySelectorAll("." + c), function (el) { el.remove(); }); });
       var h1 = wrap.querySelector("h1"); if (h1) h1.remove();
+      var intro = wrap.querySelector("p.sub"); if (intro) intro.remove(); // the ⓘ beside the title carries it
       if (EN) {
         Array.prototype.forEach.call(wrap.querySelectorAll("[data-en]"), function (el) { el.innerHTML = el.getAttribute("data-en"); });
         Array.prototype.forEach.call(wrap.querySelectorAll("[data-en-label]"), function (el) { el.setAttribute("aria-label", el.getAttribute("data-en-label")); });
@@ -333,7 +334,7 @@
     setTitle(t("系统", "System"), t("数据同步", "Data sync"), "", t("把 Airtable 里的课程数据发布到网站。", "Publish the course data from Airtable to the site."));
     $("content").innerHTML =
       '<div class="card"><h2>' + t("课程数据同步", "Course data sync") + '</h2><p class="sub">' + t("网站数据不会自动更新。点击按钮从 Airtable 拉取最新的毕业路径与课程数据并发布到网站。", "Site data does not update automatically. Pull the latest tracks and courses from Airtable and publish them.") + "</p>" +
-        '<div class="kpis compact"><div class="kpi"><div class="l">' + t("上次同步", "Last synced") + '</div><div class="v" style="font-size:1rem" id="sLast">—</div></div><div class="kpi"><div class="l">' + t("毕业路径", "Tracks") + '</div><div class="v" id="sT">—</div></div><div class="kpi"><div class="l">' + t("课程", "Courses") + '</div><div class="v" id="sC">—</div></div><div class="kpi"><div class="l">' + t("学科", "Subjects") + '</div><div class="v" id="sS">—</div></div></div>' +
+        '<div class="kpis strip"><div class="kpi"><div class="l">' + t("上次同步", "Last synced") + '</div><div class="v" style="font-size:1rem" id="sLast">—</div></div><div class="kpi"><div class="l">' + t("毕业路径", "Tracks") + '</div><div class="v" id="sT">—</div></div><div class="kpi"><div class="l">' + t("课程", "Courses") + '</div><div class="v" id="sC">—</div></div><div class="kpi"><div class="l">' + t("学科", "Subjects") + '</div><div class="v" id="sS">—</div></div></div>' +
         '<div class="actions"><button class="btn" id="syncBtn" type="button">' + t("立即从 Airtable 同步", "Sync from Airtable now") + '</button><a class="btn secondary" href="/" target="_blank" rel="noopener">' + t("查看网站 ↗", "View site ↗") + '</a></div><div id="sMsg"></div></div>';
     function status() {
       fetch("/api/data").then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
