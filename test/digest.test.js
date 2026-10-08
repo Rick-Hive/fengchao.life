@@ -53,7 +53,7 @@ hub.readHub = async () => ({ people: [{ primaryTier: "replace", orders: 2 }, { p
   assert.ok(/超期订单 2 单/.test(m.text) && /FC-20260901-KXC-003 · 已付款 \/ paid · 37 天/.test(m.text), m.text);
   assert.ok(/通知失败 1 单/.test(m.text) && /HTTP 502/.test(m.text));
   assert.ok(/待合并的人员配对 2 对/.test(m.text) && /待替换邮箱 2 人（其中有订单 1 人）；待回写 CRM ID 5/.test(m.text));
-  assert.ok(/fengchao\.life\/management\/#\/ops\/orders/.test(m.text));
+  assert.ok(/fengchao\.life\/management\/#\/ops\/orders\/hive/.test(m.text));
   assert.ok(!/<script/.test(m.html) && /<div>/.test(m.html));
 
   assert.deepStrictEqual(await D.recipients(), ["obadiah.sun@equipme.cloud"], "the staff:sales account(s), not the sysadmin");

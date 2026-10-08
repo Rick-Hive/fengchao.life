@@ -43,11 +43,13 @@
   // 订单 has two pages shown one at a time (Rick, 2026-10-06): 课程订单 — the website's
   // course orders — and 教材订单 — the Equip textbook orders read from Airtable.
   function viewOrders() {
-    var equipTab = location.hash.indexOf("#/ops/orders/equip") === 0;
-    $("content").innerHTML = '<div class="pagetabs" role="tablist">' +
-      '<a class="ptab' + (equipTab ? "" : " on") + '" role="tab" aria-selected="' + !equipTab + '" href="#/ops/orders">' + t("蜂巢课程订单", "Hive course orders") + '<small>' + t("蜂巢网站", "fengchao.life") + "</small></a>" +
-      '<a class="ptab' + (equipTab ? " on" : "") + '" role="tab" aria-selected="' + equipTab + '" href="#/ops/orders/equip">' + t("Equip教材订单", "Equip textbook orders") + '<small>EquipMe · Airtable</small></a></div><div id="opsBody"></div>';
-    if (equipTab) viewEquipOrders(); else viewCourseOrders();
+    // Equip textbook orders first and by default (Rick, 2026-10-08); the website's
+    // course orders at #/ops/orders/hive. One compact tab row: name only, no subtitle.
+    var hiveTab = location.hash.indexOf("#/ops/orders/hive") === 0;
+    $("content").innerHTML = '<div class="pagetabs compact" role="tablist">' +
+      '<a class="ptab' + (hiveTab ? "" : " on") + '" role="tab" aria-selected="' + !hiveTab + '" href="#/ops/orders" title="EquipMe · Airtable">' + t("Equip教材订单", "Equip textbook orders") + "</a>" +
+      '<a class="ptab' + (hiveTab ? " on" : "") + '" role="tab" aria-selected="' + hiveTab + '" href="#/ops/orders/hive" title="fengchao.life">' + t("蜂巢课程订单", "Hive course orders") + "</a></div><div id=\"opsBody\"></div>";
+    if (hiveTab) viewCourseOrders(); else viewEquipOrders();
   }
   function viewCourseOrders() {
     setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>" + (isAdmin() ? ' <button class="btn sm" id="oTeams">' + t("从 Teams 读取订单", "Read orders from Teams") + '</button> <button class="btn secondary sm" id="oImport">' + t("导入 Teams 导出…", "Import Teams export…") + '</button><input type="file" id="oImportFile" accept=".json,application/json" hidden />' : ""),

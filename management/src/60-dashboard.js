@@ -80,9 +80,9 @@
       statTile(P.label + " · " + (seeMoney ? t("教材销售额", "Textbook sales") : t("教材件数", "Textbook units")), fmt(sum(eNow, val)), { delta: pct(sum(eNow, val), sum(ePrev, val)), vs: P.vs, spark: byM(equip, val, function (o) { return ym(o.date); }), attr: ' data-go="#/ops/orders/equip"', cls: "go" }) +
       (seeMoney ? statTile(P.label + " · " + t("教材实收", "Textbook received"), fmtMoney(sum(eNow, function (o) { return o.received || 0; })), { sub: sum(eNow, val) ? Math.round(sum(eNow, function (o) { return o.received || 0; }) / sum(eNow, val) * 100) + "%" + t(" 已收", " received") : "" }) : "") +
       statTile(P.label + " · " + t("教材订单", "Textbook orders"), fmtNum(eNow.length), { delta: pct(eNow.length, ePrev.length), vs: P.vs, sub: t("购买客户 ", "buyers ") + (nNew + nOld) + t("（新 ", " (new ") + nNew + ")" }) +
-      (canSeeOrders() ? statTile(P.label + " · " + t("课程订单", "Course orders"), fmtNum(hNow.length) + (seeMoney ? ' <span class="unit">' + fmtMoney(hSum(hNow)) + "</span>" : ""), { delta: pct(hNow.length, hPrev.length), vs: P.vs, sub: t("蜂巢网站 · 不与教材合计", "fengchao.life · never summed with textbooks"), attr: ' data-go="#/ops/orders"', cls: "go" }) : "") +
+      (canSeeOrders() ? statTile(P.label + " · " + t("课程订单", "Course orders"), fmtNum(hNow.length) + (seeMoney ? ' <span class="unit">' + fmtMoney(hSum(hNow)) + "</span>" : ""), { delta: pct(hNow.length, hPrev.length), vs: P.vs, sub: t("蜂巢网站 · 不与教材合计", "fengchao.life · never summed with textbooks"), attr: ' data-go="#/ops/orders/hive"', cls: "go" }) : "") +
       (hub ? statTile(t("人员库", "People"), fmtNum(stats.people || 0), { sub: t("活跃 ", "active ") + ((stats.stages || {}).active || 0) + t(" · 潜在 ", " · leads ") + ((stats.stages || {}).lead || 0) + t(" · 家庭 ", " · families ") + (stats.families || 0), attr: ' data-go="#/ops/people"', cls: "go" }) : "") +
-      (canSeeOrders() ? statTile(t("待处理", "To do"), fmtNum(todo), { cls: "go", warn: todo > 0, sub: t("超期 ", "overdue ") + (counts.overdue || 0) + t(" · 通知失败 ", " · notify failed ") + (counts.notifyFailed || 0) + (hub && hub.canMerge ? t(" · 待合并 ", " · to merge ") + (hub.queue || []).length : ""), attr: ' data-go="#/ops/orders"' }) : "");
+      (canSeeOrders() ? statTile(t("待处理", "To do"), fmtNum(todo), { cls: "go", warn: todo > 0, sub: t("超期 ", "overdue ") + (counts.overdue || 0) + t(" · 通知失败 ", " · notify failed ") + (counts.notifyFailed || 0) + (hub && hub.canMerge ? t(" · 待合并 ", " · to merge ") + (hub.queue || []).length : ""), attr: ' data-go="#/ops/orders/hive"' }) : "");
 
     // ---- panels ----
     vizDraws = [];
@@ -134,9 +134,9 @@
     if (canSeeOrders()) {
       var replaceAll = stats.replace || 0, replaceWithOrders = people.filter(function (p) { return p.primaryTier === "replace" && (p.orders || 0) > 0; }).length;
       var rows = [
-        [t("超期订单", "Overdue orders"), counts.overdue || 0, "#/ops/orders", "overdue"],
-        [t("通知失败的订单", "Orders whose notification failed"), counts.notifyFailed || 0, "#/ops/orders", "notifyFailed"],
-        [t("待确认的订单", "Orders awaiting confirmation"), counts.submitted || 0, "#/ops/orders", "submitted"],
+        [t("超期订单", "Overdue orders"), counts.overdue || 0, "#/ops/orders/hive", "overdue"],
+        [t("通知失败的订单", "Orders whose notification failed"), counts.notifyFailed || 0, "#/ops/orders/hive", "notifyFailed"],
+        [t("待确认的订单", "Orders awaiting confirmation"), counts.submitted || 0, "#/ops/orders/hive", "submitted"],
       ].concat(hub ? [
         [t("待合并的人员", "People to merge"), hub.canMerge ? (hub.queue || []).length : null, "#/ops/people", "queue"],
         [t("待替换邮箱（有订单 " + replaceWithOrders + " · 本月已替换 " + (stats.replacedThisMonth || 0) + "）", "Emails to replace (" + replaceWithOrders + " with orders · " + (stats.replacedThisMonth || 0) + " replaced this month)"), replaceAll, "#/ops/people", "replace"],

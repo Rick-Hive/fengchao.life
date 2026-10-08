@@ -95,7 +95,7 @@ function fmtMoney(v) { return typeof v === "number" ? "¥" + Math.round(v).toLoc
 
 // The message, bilingual in one body (the order manager reads both).
 function compose(d, date) {
-  const link = `${SITE}/management/#/ops/orders`;
+  const link = `${SITE}/management/#/ops/orders/hive`;
   const plink = `${SITE}/management/#/ops/people`;
   const lines = [];
   const push = (zh, en) => lines.push(zh, en);
