@@ -60,6 +60,7 @@ const MARKS_BLOB = "crm/email-replace.json";
 // { partners: { "<domain>": { stage, note, owner, by, at } } }. Stages: contact → trial → partner → paused.
 const PARTNERS_BLOB = "crm/partners.json";
 const PARTNER_STAGES = ["contact", "trial", "partner", "paused"];
+const hiveKeyOf = (raw) => String(raw || "").toUpperCase().replace(/[^A-Z0-9一-鿿]/g, "").slice(0, 12); // = hiveKey in ./hive.js
 const readPartners = () => readJson(PARTNERS_BLOB, { partners: {} });
 const writePartners = (d) => writeJson(PARTNERS_BLOB, d);
 const updatePartners = (mutate) => store.update(PARTNERS_BLOB, { partners: {} }, mutate);
@@ -184,7 +185,7 @@ function build(src) {
         customers: customers.map((c) => ({ recId: c.id, name: c.name, teams: c.teams, crmId: c.crmId, city: c.city, orders: c.orders, spend: c.spend, received: c.received, firstOrder: c.firstOrder, lastOrder: c.lastOrder })),
         accounts: accounts.map((a) => ({ upn: a.upn, domain: a.domain, name: a.name, identity: a.identity, safeEmail: a.safeEmail, lastSignIn: a.lastSignIn, enabled: a.enabled, verified: a.verified, jobTitle: a.jobTitle })),
         leads: leads.map((l) => ({ recId: l.id, name: l.name, session: l.session, at: l.createdTime })),
-        hive: hive.map((h) => ({ orderId: h.orderId, status: h.status, total: h.total, at: h.at, hives: h.hives })),
+        hive: hive.map((h) => ({ orderId: h.orderId, status: h.status, total: h.total, at: h.at, hives: h.hives, keys: h.keys })),
       },
       writeBack: customers.filter((c) => !c.crmId).map((c) => c.id), // customers Airtable does not yet tag with this id
     });
@@ -262,13 +263,35 @@ function build(src) {
   // ---- 机构 (phase 3): one row per school domain — accounts, active, customers among
   // them, leads, and the buyers' orders. Sales are summed here from the customers'
   // Equip facets (total, not by period; the period view is computed by the reader).
-  const institutions = (src.domains || []).map((d) => {
+  // 机构: one row per institution — the tenant's domains (accounts, people, customers)
+  // AND every row of the Hive workspace's Schools or Institutions table (schools,
+  // hives, universities …), joined when they are the same place (Rick, 2026-10-08:
+  // 「机构里还是不全面，没有hive里的大学，学校」). A row's `key` is its domain when it
+  // has one, else "hive:<abbr>"; `kind` says where it came from: tenant, hive, both.
+  // Joining: the Schools row's private Domain column; else the same name as the
+  // directory institution (institutions.json) or as the domain's label.
+  const instNames = src.institutionNames || {}; // domain → { name, nameEn }
+  const hiveRows = (src.hiveInstitutions || []).map((h) => Object.assign({}, h, { key: hiveKeyOf(h.abbr || h.name) }));
+  const routing = src.schoolRouting || {}; // hiveKey → { domain, … } (private)
+  const domainRows = (src.domains || []).map((d) => {
     const users = d.users || [];
     const persons = new Set(); users.forEach((u) => { const p = personOfFacet.get("account:" + normalizeEmail(u.upn)); if (p) persons.add(p); });
     const ps = Array.from(persons);
     const active = users.filter((u) => u.lastSignIn && now - Date.parse(u.lastSignIn) <= 90 * DAY).length;
-    return { domain: d.domain, accounts: users.length, active, people: ps.length, customers: ps.filter((p) => p.sources.customer).length, leads: ps.filter((p) => p.sources.lead).length, buyers: ps.filter((p) => (p.orders || 0) > 0).length, orders: ps.reduce((a, p) => a + (p.orders || 0), 0), spend: ps.reduce((a, p) => a + (p.spend || 0), 0), hiveOrders: ps.reduce((a, p) => a + (p.hiveOrders || 0), 0), families: new Set(ps.map((p) => p.familyId).filter(Boolean)).size, customerIds: ps.filter((p) => p.sources.customer).map((p) => p.crmId) };
-  }).sort((a, b) => b.spend - a.spend || b.accounts - a.accounts);
+    const names = instNames[d.domain] || {};
+    return { key: d.domain, domain: d.domain, kind: "tenant", name: names.name || "", nameEn: names.nameEn || "", accounts: users.length, active, people: ps.length, customers: ps.filter((p) => p.sources.customer).length, leads: ps.filter((p) => p.sources.lead).length, buyers: ps.filter((p) => (p.orders || 0) > 0).length, orders: ps.reduce((a, p) => a + (p.orders || 0), 0), spend: ps.reduce((a, p) => a + (p.spend || 0), 0), hiveOrders: ps.reduce((a, p) => a + (p.hiveOrders || 0), 0), families: new Set(ps.map((p) => p.familyId).filter(Boolean)).size, customerIds: ps.filter((p) => p.sources.customer).map((p) => p.crmId) };
+  });
+  const byDomain = new Map(domainRows.map((r) => [r.domain, r]));
+  const taken = new Set();
+  for (const h of hiveRows) {
+    const r = routing[h.key] || {};
+    let row = r.domain ? byDomain.get(r.domain) : null;
+    if (!row) row = domainRows.find((d) => !taken.has(d.domain) && [d.name, d.nameEn, d.domain.split(".")[0]].some((n) => n && (normName(n) === normName(h.name) || normName(n) === normName(h.abbr)))) || null;
+    const hiveFields = { hiveId: h.id, hiveKey: h.key, abbr: h.abbr || "", type: h.type || "", region: h.region || "", country: h.country || "", city: h.city || "", website: h.website || "", courses: h.courses || 0 };
+    if (row) { Object.assign(row, hiveFields, { kind: "both", name: row.name || h.name, nameEn: row.nameEn || "" }); taken.add(row.domain); }
+    else domainRows.push(Object.assign({ key: "hive:" + h.key, domain: "", kind: "hive", name: h.name || h.abbr, nameEn: "", accounts: 0, active: 0, people: 0, customers: 0, leads: 0, buyers: 0, orders: 0, spend: 0, hiveOrders: 0, families: 0, customerIds: [] }, hiveFields));
+  }
+  const institutions = domainRows.sort((a, b) => b.spend - a.spend || b.accounts - a.accounts || String(a.name).localeCompare(String(b.name)));
 
   const stats = {
     people: people.length, customers: people.filter((p) => p.sources.customer).length, accounts: people.filter((p) => p.sources.account).length,
@@ -300,7 +323,17 @@ async function rebuild(opts) {
       domains.push({ domain: d.domain, users });
     } catch { /* a school without a cache yet */ }
   }
-  const hub = build({ equip: equipData, domains, hiveOrders, prev, decisions });
+  // The Hive workspace's institutions (website snapshot): every school / hive / university row, plus courses per hive.
+  let hiveInstitutions = [], schoolRouting = {}, institutionNames = {};
+  try {
+    const snap = await require("./blob").readSnapshot();
+    hiveInstitutions = (snap && snap.institutions) || [];
+    schoolRouting = (snap && snap.private && snap.private.schoolRouting) || {};
+    const perHive = {}; for (const c of (snap && snap.courses) || []) { const k = hiveKeyOf(c.school && (c.school.abbr || c.school.name)); if (k) perHive[k] = (perHive[k] || 0) + 1; }
+    hiveInstitutions = hiveInstitutions.map((h) => Object.assign({}, h, { courses: perHive[hiveKeyOf(h.abbr || h.name)] || 0 }));
+  } catch (err) { log(`hub: website snapshot not read (${err.message}); institutions from the tenant only`); }
+  try { institutionNames = (await peopleMod.readInstitutions()).institutions || {}; } catch { /* names optional */ }
+  const hub = build({ equip: equipData, domains, hiveOrders, prev, decisions, hiveInstitutions, schoolRouting, institutionNames });
   await writeJson(PEOPLE_BLOB, hub);
   log(`hub: ${hub.stats.people} people from ${hub.stats.facets} facets; queue ${hub.stats.queue}`);
   return hub;
@@ -316,7 +349,7 @@ function maskPerson(p, acc) {
     o.primaryEmail = dom(p.primaryEmail);
     o.emails = (p.emails || []).map((e) => Object.assign({}, e, { email: dom(e.email) }));
     o.keys = [];
-    o.facets = Object.assign({}, p.facets, { customers: (p.facets.customers || []).map((c) => Object.assign({}, c, { teams: dom(c.teams), city: "" })) });
+    o.facets = Object.assign({}, p.facets, { customers: (p.facets.customers || []).map((c) => Object.assign({}, c, { teams: dom(c.teams), city: "" })), hive: (p.facets.hive || []).map((h) => Object.assign({}, h, { keys: (h.keys || []).map(dom) })) });
   }
   if (!seeMoney) { o.spend = null; o.hiveTotal = null; o.facets = Object.assign({}, o.facets, { customers: (o.facets.customers || []).map((c) => Object.assign({}, c, { spend: null, received: null })), hive: (o.facets.hive || []).map((h) => Object.assign({}, h, { total: null })) }); }
   if (!seeAcc) o.facets = Object.assign({}, o.facets, { accounts: (o.facets.accounts || []).map((a) => ({ domain: a.domain, identity: a.identity, verified: a.verified })) });

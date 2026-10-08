@@ -35,6 +35,17 @@
     if (accTxt) return '<span class="cell-ell" title="' + esc(accTxt) + '">' + esc(accTxt) + "</span>" + authTag(acc) + (personal ? '<span class="sub"><span class="cell-ell" title="' + esc(personal) + '">' + esc(personal) + "</span>" + warn + "</span>" : (p.primaryTier === "replace" ? '<span class="sub">' + warn + "</span>" : ""));
     return '<span class="cell-ell" title="' + esc(p.primaryEmail) + '">' + esc(p.primaryEmail || "—") + "</span>" + warn;
   }
+  function hiveCustomerHtml(p, f) {
+    var hv = f.hive || [];
+    if (!hv.length) return '<div class="orow muted">' + t("不是蜂巢课程客户。", "Not a Hive course customer.") + "</div>";
+    var contacts = []; hv.forEach(function (o) { (o.keys || [o.email, o.teamsAccount]).forEach(function (k) { if (k && contacts.indexOf(k) < 0) contacts.push(k); }); });
+    var hives = []; hv.forEach(function (o) { (o.hives || []).forEach(function (h) { if (hives.indexOf(h) < 0) hives.push(h); }); });
+    var first = hv.map(function (o) { return o.at; }).filter(Boolean).sort()[0], last = hv.map(function (o) { return o.at; }).filter(Boolean).sort().slice(-1)[0];
+    var total = hv.reduce(function (a, o) { return a + (o.total || 0); }, 0);
+    return '<div class="orow"><div class="omain"><b>' + esc(contacts[0] || p.primaryEmail || p.crmId) + "</b>" + (contacts.length > 1 ? '<span class="sub">' + esc(contacts.slice(1).join(" · ")) + "</span>" : "") +
+      '<span class="sub">' + esc((hives.length ? hives.join(", ") + " · " : "") + t("首单 ", "first ") + (day(first) || "—") + (last && last !== first ? t(" · 最近 ", " · last ") + day(last) : "")) + "</span></div>" +
+      '<div class="oprice">' + hv.length + t(" 单", " orders") + (crmLevel("money") === "none" ? "" : "<br><b>" + money(total, "CNY") + "</b>") + "</div></div>";
+  }
   function personTabs(p) { var tb = ["all"]; if (p.primaryTier === "replace") tb.push("replace"); if (p.primaryTier === "missing") tb.push("missing"); if (p.viaTeams) tb.push("viaTeams"); return tb; }
   function viewPeople() {
     var canMerge = isAdmin() || crmLevel("orders") === "rw";
@@ -177,7 +188,7 @@
         '<span class="muted" style="font-size:12px">' + esc(t("有订单的 " + all.filter(function (p) { return (p.orders || 0) > 0; }).length + " 人优先 · 本月已替换 " + (s.replacedThisMonth || 0), all.filter(function (p) { return (p.orders || 0) > 0; }).length + " with orders first · replaced this month " + (s.replacedThisMonth || 0))) + "</span></div>";
     }
     var th = function (key, label) { var on = peopleState.sort.key === key; return '<th class="sortable' + (on ? " on" : "") + '" data-sort="' + key + '" aria-sort="' + (on ? (peopleState.sort.dir > 0 ? "ascending" : "descending") : "none") + '">' + label + '<span class="sortind">' + (on ? (peopleState.sort.dir > 0 ? "▲" : "▼") : "") + "</span></th>"; };
-    var html = '<div class="tbl-wrap"><table class="data fixed" id="ptable"><colgroup><col style="width:11%"><col style="width:17%"><col style="width:32%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:8%"></colgroup><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("accounts", t("账号 / 邮箱", "Account / email")) + th("sources", t("来源", "Sources")) + th("orders", t("订单 / 消费", "Orders / spend")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
+    var html = '<div class="tbl-wrap"><table class="data fixed" id="ptable"><colgroup><col style="width:11%"><col style="width:17%"><col style="width:32%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:8%"></colgroup><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("accounts", t("账号 / 邮箱", "Account / email")) + th("sources", t("来源", "Sources")) + th("orders", t("订单 / 金额", "Orders / Amount")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
     if (!list.length) html += '<tr><td colspan="7" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
     else if (!rows.length) html += '<tr><td colspan="7" class="empty">' + t("没有符合条件的人。", "Nobody matches.") + "</td></tr>";
     else html += rows.map(function (p) {
@@ -253,7 +264,7 @@
   }
   function exportPeopleCsv() {
     var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    var head = ["CRM ID", t("姓名", "Name"), t("主邮箱", "Primary email"), t("邮箱状态", "Email status"), t("来源", "Sources"), t("账号", "Accounts"), t("订单", "Orders"), t("消费", "Spend"), t("最近活动", "Last active"), t("阶段", "Stage")].join(",");
+    var head = ["CRM ID", t("姓名", "Name"), t("主邮箱", "Primary email"), t("邮箱状态", "Email status"), t("来源", "Sources"), t("账号", "Accounts"), t("订单", "Orders"), t("金额", "Amount"), t("最近活动", "Last active"), t("阶段", "Stage")].join(",");
     var lines = peopleNow().map(function (p) {
       var s = p.sources || {};
       return [p.crmId, p.name, p.primaryEmail, p.primaryTier, [s.customer && "Equip", s.account && "Teams", s.lead && t("讲座", "Seminar"), s.hive && t("蜂巢", "Hive")].filter(Boolean).join("; "), ((p.facets || {}).accounts || []).map(function (a) { return a.upn || a.domain; }).join("; "), (p.orders || 0) + (p.hiveOrders || 0), p.spend == null ? "" : p.spend, lastActive(p), t(STAGES[p.stage] ? STAGES[p.stage][0] : p.stage, STAGES[p.stage] ? STAGES[p.stage][1] : p.stage)].map(cell).join(",");
@@ -333,6 +344,9 @@
       (p.viaTeams ? '<p class="hint">' + t("主邮箱用的是 Teams 账号：原邮箱是境内邮箱，不用它联系。", "The Teams account serves as the primary email: the original is a mainland mailbox and is not used for contact.") + "</p>" : "") +
       "<h4>" + t("Teams 账号", "Teams accounts") + " · " + (f.accounts || []).length + '</h4><div class="olist">' + (accounts || '<div class="orow muted">' + t("没有匹配到账号。", "No account matched.") + "</div>") + "</div>" +
       "<h4>" + t("Equip 客户", "Equip customer") + " · " + (f.customers || []).length + '</h4><div class="olist">' + (customers || '<div class="orow muted">' + t("不是 Equip 客户。", "Not an Equip customer.") + "</div>") + "</div>" +
+      // Hive 客户 (Rick, 2026-10-08: 「Hive 客户 — 在Equip客户后」): the person as a customer of the
+      // website's courses — the contact used at checkout, how many orders, the hives, the total.
+      (crmLevel("orders") === "none" ? "" : "<h4>" + t("Hive 客户", "Hive customer") + " · " + ((f.hive || []).length ? 1 : 0) + '</h4><div class="olist">' + hiveCustomerHtml(p, f) + "</div>") +
       '<h4 id="pOrdersH">' + t("教材订单", "Textbook orders") + " · " + (p.orders || 0) + '</h4><div class="olist" id="pEquipOrders">' + (equipState.list ? equipOrdersHtml() : '<div class="orow muted">' + t("载入中…", "Loading…") + "</div>") + "</div>" +
       (crmLevel("orders") === "none" ? "" : "<h4>" + t("蜂巢课程订单", "Hive course orders") + " · " + (f.hive || []).length + '</h4><div class="olist">' + (hive || '<div class="orow muted">' + t("没有课程订单。", "No course orders.") + "</div>") + "</div>") +
       (crmLevel("leads") === "none" ? "" : "<h4>" + t("讲座名单", "Seminar list") + " · " + (f.leads || []).length + '</h4><div class="olist">' + (leads || '<div class="orow muted">' + t("没有讲座报名。", "No seminar sign-up.") + "</div>") + "</div>") +
