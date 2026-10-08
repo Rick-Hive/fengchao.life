@@ -21,6 +21,8 @@
 //                                     (needs the Hive CRM Teams app installed in that team — see teams-app);
 //                                     403 teams_forbidden until then
 //   GET    crm/teams-app              the Teams app package (zip) that grants that read, for upload in Teams
+//   crm/partners, partner, project, people-search, org-search, contact, partner-config
+//                                     the 合作伙伴 module — see ./partners.js
 //
 // Access is the matrix in ../shared/crm.js: orders need at least `masked`
 // to read and `rw` to change. Masking happens here, before the reply.
@@ -36,6 +38,7 @@ const licenses = require("../shared/licenses");
 const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
+const partnersApi = require("./partners");
 
 // What a reader gets of an Equip order: contact details by `identity`, amounts by `money`,
 // the royalty bag only for finance (money rw) or the CEO.
@@ -77,6 +80,9 @@ async function handler(context, req) {
   const acc = crm.accessMap(roles);
 
   if (method === "GET" && action === "access") { ok(context, { access: acc }); return; }
+
+  // 合作伙伴 (api/crm/partners.js): partners ≥ read, not tied to orders.
+  if (await partnersApi.handle(context, req, { action, method, user, roles, acc, ok, fail })) return;
 
   if (!crm.atLeast(roles, "orders", "masked")) { fail(context, 403, "no_access"); return; }
 

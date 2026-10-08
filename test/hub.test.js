@@ -170,4 +170,13 @@ assert.strictEqual(cur.spend, null);
 assert.strictEqual(cur.facets.accounts[0].upn, "mama@equipme.cloud", "the curriculum director reads accounts");
 const sales = H.maskPerson(mei, C.accessMap(["staff:sales"]));
 assert.strictEqual(sales.primaryEmail, "mama@equipme.cloud");
+// 合作伙伴联系人 entered by hand (crm/contacts.json) are a source like the others: the
+// person keeps the id the picker handed out, and merges with a customer on the same email.
+const ctc = H.build({ equip: { customers: [{ recId: "recQ", email: "dean@gcu.edu", teams: "", name: "Dean Smith", crmId: "", createdTime: "2026-01-01T00:00:00Z" }], orders: [], seminar: [] }, domains: [], hiveOrders: [], prev: null, decisions: { pairs: {} }, now,
+  contacts: { "dean@gcu.edu": { crmId: "HC-000042", name: "Dean Smith", email: "dean@gcu.edu", org: "Grace Christian University", lang: "en", at: "2026-10-08T00:00:00Z" }, "editor@press.com": { crmId: "HC-000043", name: "Ann Editor", email: "editor@press.com", org: "Press", lang: "en", at: "2026-10-08T00:00:00Z" } } });
+assert.strictEqual(ctc.people.length, 2);
+const dean = ctc.people.find((p) => p.name === "Dean Smith"), ann = ctc.people.find((p) => p.name === "Ann Editor");
+assert.strictEqual(dean.crmId, "HC-000042", "the contact's id wins over a fresh one"); assert.ok(dean.sources.customer && dean.sources.contact, "merged with the customer on the same email");
+assert.strictEqual(dean.facets.contacts[0].org, "Grace Christian University");
+assert.strictEqual(ann.crmId, "HC-000043"); assert.ok(ann.sources.contact && !ann.sources.customer); assert.strictEqual(ann.stage, "lead");
 console.log("hub: all assertions passed");

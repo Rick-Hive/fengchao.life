@@ -67,6 +67,13 @@ const updatePartners = (mutate) => store.update(PARTNERS_BLOB, { partners: {} },
 const readMarks = () => readJson(MARKS_BLOB, { marks: {} });
 const writeMarks = (d) => writeJson(MARKS_BLOB, d);
 const updateMarks = (mutate) => store.update(MARKS_BLOB, { marks: {} }, mutate);
+// 合作伙伴联系人 created by hand from the people picker (design v2 §3: every person on a
+// partner's side is a record here first). crm/contacts.json { people: { "<email>": { crmId,
+// name, email, org, lang, by, at } } } — a source of the build like the others, so the
+// person survives rebuilds under the same id.
+const CONTACTS_BLOB = "crm/contacts.json";
+const readContacts = () => readJson(CONTACTS_BLOB, { people: {} });
+const updateContacts = (mutate) => store.update(CONTACTS_BLOB, { people: {} }, mutate);
 // The mainland address a person is still on (the one the mark is kept by).
 function replaceEmailOf(p) { const e = (p.emails || []).find((x) => x.tier === "replace"); return e ? e.email : ""; }
 // People with their mark attached, plus the month's counts for the dashboard.
@@ -123,6 +130,7 @@ function build(src) {
     add({ kind: "account", id: u.upn, keys: [u.upn], name: u.displayName, domain: d.domain, upn: u.upn, safeEmail: normalizeEmail(u.safeEmail), identity: u.identity || "", lastSignIn: u.lastSignIn || null, enabled: u.enabled !== false, verified: typeof u.verified === "boolean" ? u.verified : null, created: u.created || null, jobTitle: u.jobTitle || "", linked: (u.linked || []).map(normalizeEmail).filter(Boolean) });
   }
   for (const l of equip.seminar || []) add({ kind: "lead", id: l.recId, keys: [l.email], name: l.name, session: l.session, createdTime: l.createdTime });
+  for (const m of Object.values(src.contacts || {})) add({ kind: "contact", id: m.crmId, keys: [m.email], name: m.name, crmId: m.crmId, org: m.org || "", lang: m.lang || "", createdTime: m.at || null });
   for (const o of src.hiveOrders || []) add({ kind: "hive", id: o.orderId, keys: [o.email, o.teamsAccount], name: "", orderId: o.orderId, status: o.status, total: o.totalPrice, at: o.submittedAt, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean) });
 
   // Levels 1 and 2: any shared key (email or UPN) joins facets. Level 0: a customer's
@@ -133,7 +141,7 @@ function build(src) {
   const prevIdByKey = new Map();
   for (const p of (src.prev && src.prev.people) || []) for (const k of p.keys || []) prevIdByKey.set(k, p.crmId);
   const byCrm = new Map();
-  facets.forEach((f, i) => { const id = f.kind === "customer" && f.crmId ? f.crmId : f.keys.map((k) => prevIdByKey.get(k)).find(Boolean); if (id) { if (byCrm.has(id)) union(byCrm.get(id), i); else byCrm.set(id, i); } });
+  facets.forEach((f, i) => { const id = (f.kind === "customer" || f.kind === "contact") && f.crmId ? f.crmId : f.keys.map((k) => prevIdByKey.get(k)).find(Boolean); if (id) { if (byCrm.has(id)) union(byCrm.get(id), i); else byCrm.set(id, i); } });
   // Decisions: 是同一个人 joins; 不是 is remembered so the pair is not suggested again.
   const facetIndex = new Map(facets.map((f, i) => [f.kind + ":" + f.id, i]));
   for (const [k, v] of Object.entries(decisions)) {
@@ -152,11 +160,11 @@ function build(src) {
   const people = [];
   for (const fs of groups.values()) {
     const keys = Array.from(new Set(fs.flatMap((f) => f.keys)));
-    let crmId = fs.map((f) => (f.kind === "customer" ? f.crmId : "")).find(Boolean) || keys.map((k) => prevIdByKey.get(k)).find((id) => id && !used.has(id)) || "";
+    let crmId = fs.map((f) => (f.kind === "customer" || f.kind === "contact" ? f.crmId : "")).find((id) => id && !used.has(id)) || keys.map((k) => prevIdByKey.get(k)).find((id) => id && !used.has(id)) || "";
     if (!crmId) crmId = "HC-" + String(next++).padStart(6, "0");
     used.add(crmId);
-    const customers = fs.filter((f) => f.kind === "customer"), accounts = fs.filter((f) => f.kind === "account"), leads = fs.filter((f) => f.kind === "lead"), hive = fs.filter((f) => f.kind === "hive");
-    const name = (customers.map((c) => c.name).find(Boolean)) || (accounts.map((a) => a.name).find(Boolean)) || (leads.map((l) => l.name).find(Boolean)) || (keys[0] || "").split("@")[0];
+    const customers = fs.filter((f) => f.kind === "customer"), accounts = fs.filter((f) => f.kind === "account"), leads = fs.filter((f) => f.kind === "lead"), hive = fs.filter((f) => f.kind === "hive"), contacts = fs.filter((f) => f.kind === "contact");
+    const name = (customers.map((c) => c.name).find(Boolean)) || (accounts.map((a) => a.name).find(Boolean)) || (contacts.map((c) => c.name).find(Boolean)) || (leads.map((l) => l.name).find(Boolean)) || (keys[0] || "").split("@")[0];
     // Emails: everything known, classed; the primary by the rule of §3.
     const upns = accounts.map((a) => a.upn).filter(Boolean);
     const personal = keys.filter((k) => !upns.includes(k));
@@ -176,16 +184,17 @@ function build(src) {
       const recentSignIn = lastSignIn && now - Date.parse(lastSignIn) < 90 * DAY;
       stage = recentOrder || recentHive || recentSignIn ? "active" : "dormant";
     } else if (accounts.length) stage = "registered";
-    const firstSeen = [...customers.map((c) => c.createdTime), ...accounts.map((a) => a.created), ...leads.map((l) => l.createdTime), ...hive.map((h) => h.at)].filter(Boolean).sort()[0] || null;
+    const firstSeen = [...customers.map((c) => c.createdTime), ...accounts.map((a) => a.created), ...leads.map((l) => l.createdTime), ...hive.map((h) => h.at), ...contacts.map((c) => c.createdTime)].filter(Boolean).sort()[0] || null;
     people.push({
       crmId, name, keys, emails, primaryEmail: prim.email, primaryTier: prim.tier, viaTeams: prim.viaTeams,
       stage, firstSeen, lastOrder: lastOrder || null, lastSignIn, orders, spend, hiveOrders: hive.length, hiveTotal,
-      sources: { customer: customers.length > 0, account: accounts.length > 0, lead: leads.length > 0, hive: hive.length > 0 },
+      sources: { customer: customers.length > 0, account: accounts.length > 0, lead: leads.length > 0, hive: hive.length > 0, contact: contacts.length > 0 },
       facets: {
         customers: customers.map((c) => ({ recId: c.id, name: c.name, teams: c.teams, crmId: c.crmId, city: c.city, orders: c.orders, spend: c.spend, received: c.received, firstOrder: c.firstOrder, lastOrder: c.lastOrder })),
         accounts: accounts.map((a) => ({ upn: a.upn, domain: a.domain, name: a.name, identity: a.identity, safeEmail: a.safeEmail, lastSignIn: a.lastSignIn, enabled: a.enabled, verified: a.verified, jobTitle: a.jobTitle })),
         leads: leads.map((l) => ({ recId: l.id, name: l.name, session: l.session, at: l.createdTime })),
         hive: hive.map((h) => ({ orderId: h.orderId, status: h.status, total: h.total, at: h.at, hives: h.hives, keys: h.keys })),
+        contacts: contacts.map((c) => ({ email: c.keys[0] || "", name: c.name, org: c.org, lang: c.lang, at: c.createdTime })),
       },
       writeBack: customers.filter((c) => !c.crmId).map((c) => c.id), // customers Airtable does not yet tag with this id
     });
@@ -311,7 +320,7 @@ async function rebuild(opts) {
   const dir = require("./directory");
   const crm = require("./crm");
   const peopleMod = require("./people");
-  const [equipData, prev, decisions, hiveOrders, peopleDoc] = await Promise.all([equip.readEquip(), readHub(), readDecisions(), crm.listOrders().catch(() => []), peopleMod.readPeople().catch(() => ({ people: {} }))]);
+  const [equipData, prev, decisions, hiveOrders, peopleDoc, contactsDoc] = await Promise.all([equip.readEquip(), readHub(), readDecisions(), crm.listOrders().catch(() => []), peopleMod.readPeople().catch(() => ({ people: {} })), readContacts().catch(() => ({ people: {} }))]);
   let domainsList = [];
   try { domainsList = await dir.verifiedDomains(); } catch (err) { log(`hub: domains not listed (${err.message}); using cached schools only`); }
   if (!domainsList.length) { try { domainsList = await dir.cachedDomains(); } catch (err) { log(`hub: cached schools not listed (${err.message})`); } }
@@ -343,10 +352,34 @@ async function rebuild(opts) {
   const perHive = {}; for (const c of (snap && snap.courses) || []) { const k = hiveKeyOf(c.school && (c.school.abbr || c.school.name)); if (k) perHive[k] = (perHive[k] || 0) + 1; }
   hiveInstitutions = hiveInstitutions.map((h) => Object.assign({}, h, { courses: perHive[hiveKeyOf(h.abbr || h.name)] || 0 }));
   try { institutionNames = (await peopleMod.readInstitutions()).institutions || {}; } catch { /* names optional */ }
-  const hub = build({ equip: equipData, domains, hiveOrders, prev, decisions, hiveInstitutions, schoolRouting, institutionNames });
+  const hub = build({ equip: equipData, domains, hiveOrders, prev, decisions, hiveInstitutions, schoolRouting, institutionNames, contacts: contactsDoc.people });
   await writeJson(PEOPLE_BLOB, hub);
   log(`hub: ${hub.stats.people} people from ${hub.stats.facets} facets; queue ${hub.stats.queue}`);
   return hub;
+}
+
+// A partner contact entered by hand ({ name, email, org, lang }, by): recorded in
+// crm/contacts.json and put into the hub at once under a new id (or the id of the
+// person who already has that email), so the picker can use it without a rebuild.
+async function addContact(input, by) {
+  const email = normalizeEmail(input.email || "");
+  const name = String(input.name || "").trim().slice(0, 120);
+  if (!email.includes("@") || !name) throw Object.assign(new Error("name and email required"), { code: "bad_contact" });
+  const at = new Date().toISOString();
+  const entry = { name, email, org: String(input.org || "").slice(0, 200), lang: input.lang === "en" ? "en" : "zh", by: by || "", at };
+  let crmId = "", existing = false;
+  await store.update(PEOPLE_BLOB, () => ({ generatedAt: at, nextId: 1, nextFamily: 1, people: [], queue: [], families: [], institutions: [], stats: {}, sources: {} }), (h) => {
+    const found = (h.people || []).find((p) => (p.keys || []).includes(email));
+    if (found) { crmId = found.crmId; existing = true; if (!found.sources.contact) { found.sources.contact = true; found.facets.contacts = (found.facets.contacts || []).concat([{ email, name, org: entry.org, lang: entry.lang, at }]); return true; } return false; }
+    crmId = "HC-" + String(h.nextId || 1).padStart(6, "0"); h.nextId = (h.nextId || 1) + 1;
+    const t = tier(email);
+    h.people.push({ crmId, name, keys: [email], emails: [{ email, tier: t, upn: false }], primaryEmail: email, primaryTier: t, viaTeams: false, stage: "lead", firstSeen: at, lastOrder: null, lastSignIn: null, orders: 0, spend: 0, hiveOrders: 0, hiveTotal: 0,
+      sources: { customer: false, account: false, lead: false, hive: false, contact: true }, facets: { customers: [], accounts: [], leads: [], hive: [], contacts: [{ email, name, org: entry.org, lang: entry.lang, at }] }, writeBack: [] });
+    if (h.stats) h.stats.people = h.people.length;
+    return true;
+  });
+  await updateContacts((d) => { d.people[email] = Object.assign({ crmId }, entry); });
+  return { crmId, existing, name, email };
 }
 
 // What a reader receives of a person, by the access map (api/shared/crm.js).
@@ -369,4 +402,4 @@ function maskPerson(p, acc) {
   return o;
 }
 
-module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, MARKS_BLOB, PARTNERS_BLOB, PARTNER_STAGES, readPartners, writePartners, build, rebuild, readHub, readDecisions, writeDecisions, readMarks, writeMarks, withMarks, markStats, replaceEmailOf, maskPerson, normName, pairKey, updateDecisions, updatePartners, updateMarks };
+module.exports = { PEOPLE_BLOB, DECISIONS_BLOB, MARKS_BLOB, PARTNERS_BLOB, CONTACTS_BLOB, PARTNER_STAGES, readPartners, writePartners, build, rebuild, readHub, readDecisions, writeDecisions, readMarks, writeMarks, withMarks, markStats, replaceEmailOf, maskPerson, normName, pairKey, updateDecisions, updatePartners, updateMarks, readContacts, updateContacts, addContact };
