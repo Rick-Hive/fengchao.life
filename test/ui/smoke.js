@@ -365,22 +365,10 @@ const EQUIP = [
     const stage = await p.$eval("#ptable tbody tr:first-child td:last-child", e => e.innerText.trim()); if (!stage) throw new Error("stage cell empty");
   });
   await shot("people-phone", 390, 800, "#/ops/people", "zh", SALES, async p => { await p.waitForTimeout(300); });
-  await shot("orders-import", 1280, 900, "#/ops/orders/hive", "en", ["admin", "staff:sysadmin"], async p => {
+  // The Teams import buttons are gone from the course orders page (Rick, 2026-10-08): no "从 Teams 读取订单", no "导入 Teams 导出…".
+  await shot("orders-no-teams-import", 1280, 900, "#/ops/orders/hive", "zh", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(400);
-    if (!(await p.$("#oImport"))) throw new Error("no import button for sysadmin");
-    p.on("dialog", d => d.accept());
-    await p.setInputFiles("#oImportFile", { name: "export.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ value: [{ id: "a", body: { content: "x" } }, { id: "b", body: { content: "y" } }] })) });
-    await p.waitForTimeout(900);
-    if (imported.length !== 2 || imported[0].dryRun !== true || imported[1].dryRun) throw new Error("import calls: " + JSON.stringify(imported.map(i => i.dryRun)));
-    if (imported[1].messages.length !== 2) throw new Error("messages not forwarded");
-  });
-  await shot("orders-teams-read", 1280, 900, "#/ops/orders/hive", "zh", ["admin", "staff:sysadmin"], async p => {
-    await p.waitForTimeout(400);
-    await p.click("#oTeams"); await p.waitForTimeout(500);
-    const pb = await p.$eval("#panel .pb", e => e.innerText); if (!/hive-crm-teams-app.zip/.test(pb) || !/资源级许可/.test(pb)) throw new Error("setup panel: " + pb.slice(0, 120));
-    TEAMS_OK = true; p.on("dialog", d => d.accept());
-    await p.click("#panel .x"); await p.click("#oTeams"); await p.waitForTimeout(900);
-    if (teamsCalls.length !== 3 || teamsCalls[1].dryRun !== true || teamsCalls[2].dryRun) throw new Error("teams calls: " + JSON.stringify(teamsCalls));
+    if (await p.$("#oTeams") || await p.$("#oImport")) throw new Error("Teams import buttons should be gone");
   });
   await shot("groups-fill", 1280, 900, "#/domain/groups", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(800);

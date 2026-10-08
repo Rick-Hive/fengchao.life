@@ -52,7 +52,9 @@
     if (hiveTab) viewCourseOrders(); else viewEquipOrders();
   }
   function viewCourseOrders() {
-    setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>" + (isAdmin() ? ' <button class="btn sm" id="oTeams">' + t("从 Teams 读取订单", "Read orders from Teams") + '</button> <button class="btn secondary sm" id="oImport">' + t("导入 Teams 导出…", "Import Teams export…") + '</button><input type="file" id="oImportFile" accept=".json,application/json" hidden />' : ""),
+    setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>",
+      // The Teams import buttons are gone (Rick, 2026-10-08: 「不需要有"从Teams中读取订单"选项」; the
+      // Hive Orders history is test data, decision of 2026-10-08). The endpoints stay; the handlers below are inert without the buttons.
       t("网站下单的课程订单，下单即记录；状态由订单经理维护，每一步都留有记录。超期未推进的单会标出。", "Course orders from the website, recorded at checkout; the order manager maintains the status and every step is kept. Orders that stall are flagged."));
     $("opsBody").innerHTML =
       '<div class="toolbar" id="obar">' + ORDER_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (ordersState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
