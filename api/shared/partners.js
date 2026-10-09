@@ -349,7 +349,21 @@ function seed(src, docs, cfg, by, now) {
     // 中同步过来 — the live rows carried no Type, so nothing matched).
     const UNI = /大学|university|universit|college|学院|seminary|神学院|institute of/i;
     const isUni = UNI.test(String(i.type || "")) || (!String(i.type || "") && UNI.test([i.name, i.nameEn, i.abbr].filter(Boolean).join(" "))) || (old[key] && old[key].type === "university");
-    if (isUni) fold(mk("university", party, i.courses ? "explore" : "lead", "seed:hive", { region }), key);
+    if (isUni) {
+      // A College/University row (Rick, 2026-10-09): its Partnership column sets the
+      // starting stage, Program Offered the terms, and the row's contact becomes the
+      // primary 项目负责人 (the person was added to the hub by runSeed).
+      const partnership = String(i.partnership || "").toLowerCase();
+      const stage = i.college ? ({ partner: "running", working: "explore", prospect: "lead" }[partnership] || "lead") : (i.courses ? "explore" : "lead");
+      const extra = { region: i.college && region === "other" ? "na" : region };
+      if (i.college) {
+        extra.terms = { programs: i.programs || [] };
+        if (i.partnership) extra.note = "Partnership: " + i.partnership;
+        const c = i.contact, cp = c && c.email && peopleByKey.get(String(c.email).toLowerCase());
+        if (cp) extra.contacts = [{ person: cp.crmId, name: cp.name || c.name, role: c.title || "项目负责人", primary: true }];
+      }
+      fold(mk("university", party, stage, "seed:hive", extra), key);
+    }
     else if (i.courses > 0 || (old[key] && old[key].type === "hive")) fold(mk("course", party, "listed", "seed:hive", { region, terms: i.hiveKey ? { hiveKey: "hive:" + i.hiveKey } : {} }), key);
     if (old[key] && old[key].type === "publisher" && !has(orgId, "publisher")) fold(mk("publisher", party, "onsale", "seed:equip", { region }), key);
   }
@@ -407,11 +421,20 @@ const SEED_LOG_BLOB = "crm/partner-seed-log.json";
 async function runSeed(opts) {
   const o = opts || {}, log = o.log || (() => {}), by = o.by || "system", now = Date.now();
   const hub = require("./hub");
-  const [h, cfg, equipData, snap, rolesDoc, old] = await Promise.all([
+  let h; let cfg, equipData, snap, rolesDoc, old; [h, cfg, equipData, snap, rolesDoc, old] = await Promise.all([
     hub.readHub(), readConfig(), require("./equip").readEquip().catch(() => null), require("./blob").readSnapshot().catch(() => null),
     require("./roles").readRoles().catch(() => ({ entries: [] })), hub.readPartners().catch(() => ({ partners: {} })),
   ]);
   if (!h) return { created: [], excluded: [], skipped: [], at: new Date(now).toISOString(), note: "no hub yet" };
+  // The contact a College/University row names becomes a people-hub person first,
+  // so the relationship can reference it (PER only, never a copied email).
+  let addedPeople = 0;
+  for (const i of h.institutions || []) {
+    const c = i.college && i.contact;
+    if (!c || !c.email || (h.people || []).some((p) => (p.keys || []).includes(String(c.email).toLowerCase()))) continue;
+    try { await hub.addContact({ name: c.name || c.email, email: c.email, org: i.name || "", lang: "en" }, by); addedPeople++; } catch (err) { log(`partners: contact for ${i.name} not added (${err.message})`); }
+  }
+  if (addedPeople) { h = await hub.readHub(); log(`partners: ${addedPeople} college contacts added to the people hub`); }
   const domainAdmins = {};
   for (const e of (rolesDoc && rolesDoc.entries) || []) for (const r of e.roles || []) { const m = /^domain_(?:it|admin):(.+)$/.exec(r); if (m) { (domainAdmins[m[1]] = domainAdmins[m[1]] || []).push(e.user); } }
   const pubs = new Map();

@@ -297,6 +297,7 @@ function build(src) {
     let row = r.domain ? byDomain.get(r.domain) : null;
     if (!row) row = domainRows.find((d) => !taken.has(d.domain) && [d.name, d.nameEn, d.domain.split(".")[0]].some((n) => n && (normName(n) === normName(h.name) || normName(n) === normName(h.abbr)))) || null;
     const hiveFields = { hiveId: h.id, hiveKey: h.key, abbr: h.abbr || "", type: h.type || "", region: h.region || "", country: h.country || "", city: h.city || "", website: h.website || "", courses: h.courses || 0 };
+    if (h.college) Object.assign(hiveFields, { college: true, partnership: h.partnership || "", programs: h.programs || [], intro: h.intro || "", contact: h.contact || null });
     if (row) { Object.assign(row, hiveFields, { kind: "both", name: row.name || h.name, nameEn: row.nameEn || "" }); taken.add(row.domain); }
     else domainRows.push(Object.assign({ key: "hive:" + h.key, domain: "", kind: "hive", name: h.name || h.abbr, nameEn: "", accounts: 0, active: 0, people: 0, customers: 0, leads: 0, buyers: 0, orders: 0, spend: 0, hiveOrders: 0, families: 0, customerIds: [] }, hiveFields));
   }
@@ -343,6 +344,14 @@ async function rebuild(opts) {
     const live = await require("./hiveSchools").readSchools();
     hiveInstitutions = live.institutions; schoolRouting = live.routing;
     log(`hub: ${hiveInstitutions.length} institutions from the Hive workspace (live)`);
+    // The College/University table too (Rick, 2026-10-09): universities in 机构 and
+    // as university relationships; a failure here costs only the colleges.
+    try {
+      const col = await require("./hiveSchools").readColleges();
+      const have = new Set(hiveInstitutions.map((h) => h.key));
+      for (const c of col.institutions) if (!have.has(c.key)) hiveInstitutions.push(c);
+      log(`hub: ${col.institutions.length} colleges / universities from the Hive workspace (live)`);
+    } catch (err) { log(`hub: College/University table not read (${err.message})`); }
   } catch (err) {
     log(`hub: Hive workspace Schools table not read (${err.message}); using the website snapshot`);
     hiveInstitutions = (snap && snap.institutions) || [];

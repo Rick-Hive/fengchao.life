@@ -130,8 +130,10 @@ const src = {
     { key: "hive:EQUIP", domain: "", kind: "hive", name: "Equip 教育社区", abbr: "EQUIP", type: "蜂巢", courses: 5, hiveKey: "EQUIP" },
     { key: "equipme.cloud", domain: "equipme.cloud", kind: "tenant", name: "桥梁教育服务 EQUIP", accounts: 9 },
     { key: "hive:CCU", domain: "", kind: "hive", name: "Colorado Christian University", abbr: "CCU", type: "", courses: 0, hiveKey: "CCU" },
+    // a College/University table row (Rick, 2026-10-09): Partnership → stage, programs → terms, its contact → primary 项目负责人
+    { key: "hive:COVENANT", domain: "", kind: "hive", name: "Covenant College", abbr: "", type: "大学 / University", courses: 0, hiveKey: "COVENANT", college: true, partnership: "Partner", programs: ["Transcript Certification"], contact: { name: "Dr. Smith", email: "smith@covenant.edu", title: "Registrar" } },
   ],
-  people: [{ crmId: "HC-000010", name: "Enqi Bao", keys: ["enqi.bao@xqzw.edu"] }, { crmId: "HC-000011", name: "Li Teacher", keys: ["li@gmail.com"] }, { crmId: "HC-000012", name: "吴老师", keys: ["wu@xqzw.edu"] }, { crmId: "HC-000013", name: "尹老师", keys: ["yin@xqzw.edu"] }],
+  people: [{ crmId: "HC-000010", name: "Enqi Bao", keys: ["enqi.bao@xqzw.edu"] }, { crmId: "HC-000011", name: "Li Teacher", keys: ["li@gmail.com"] }, { crmId: "HC-000012", name: "吴老师", keys: ["wu@xqzw.edu"] }, { crmId: "HC-000013", name: "尹老师", keys: ["yin@xqzw.edu"] }, { crmId: "HC-000014", name: "Dr. Smith", keys: ["smith@covenant.edu"] }],
   publishers: [{ recId: "recPub1", name: "IEW" }, { recId: "", name: "" }],
   teachers: [{ id: "recT1", name: "Li Teacher", email: "li@gmail.com", teamsAccount: "" }, { id: "recT2", name: "Nobody", email: "no@x.com", teamsAccount: "" }, { id: "recT3", name: "吴老师", email: "", teamsAccount: "wu@xqzw.edu", organization: "心桥中文" }, { id: "recT4", name: "尹老师", email: "", teamsAccount: "yin@xqzw.edu", organization: "" }],
   domainAdmins: { "xqzw.edu": ["enqi.bao@xqzw.edu", "ghost@xqzw.edu"] },
@@ -140,12 +142,17 @@ const src = {
 const docs = { rels: { next: 1, items: {} }, orgs: { next: 1, byKey: {}, orgs: {} } };
 const res = P.seed(src, docs, { exclude: P.DEFAULT_EXCLUDE }, "system", now);
 const types = res.created.map((c) => c.type).sort();
-assert.deepStrictEqual(types, ["course", "course", "course", "it", "it", "publisher", "university", "university"], "one relationship per source row (a university without a Type column is known by its name; 心桥's teachers give 心桥 a course relationship, not themselves): " + JSON.stringify(res.created));
+assert.deepStrictEqual(types, ["course", "course", "course", "it", "it", "publisher", "university", "university", "university"], "one relationship per source row (a university without a Type column is known by its name; 心桥's teachers give 心桥 a course relationship, not themselves): " + JSON.stringify(res.created));
 const xqCourse = Object.values(docs.rels.items).find((r) => r.party.key === "xqzw.edu" && r.type === "course");
 assert.ok(xqCourse, "心桥中文 has a course relationship for its teachers");
 assert.deepStrictEqual(xqCourse.contacts.map((c) => c.person + ":" + c.role).sort(), ["HC-000012:授课教师", "HC-000013:授课教师"], "吴老师 (by Organization) and 尹老师 (by the xqzw.edu account) are filed under 心桥中文");
 assert.ok(!Object.values(docs.rels.items).some((r) => r.party.id === "HC-000012" || r.party.id === "HC-000013"), "no person-level relationship for an institution's teacher");
 assert.strictEqual(res.filed.length, 2);
+const cov = Object.values(docs.rels.items).find((r) => r.party.key === "hive:COVENANT");
+assert.strictEqual(cov.type, "university"); assert.strictEqual(cov.stage, "running", "Partnership: Partner starts at 项目运行中"); assert.strictEqual(cov.region, "na");
+assert.deepStrictEqual(cov.terms.programs, ["Transcript Certification"]);
+assert.deepStrictEqual(cov.contacts, [{ person: "HC-000014", name: "Dr. Smith", role: "Registrar", primary: true }], "the row's contact is the primary contact, by PER reference");
+assert.ok(cov.log[0].text.includes("Partnership: Partner"));
 assert.deepStrictEqual(res.excluded.sort(), ["equipme.cloud", "hive:EQUIP"], "ourselves excluded");
 assert.ok(docs.orgs.orgs[docs.orgs.byKey["hive:EQUIP"]].internal && docs.orgs.orgs[docs.orgs.byKey["equipme.cloud"]].internal, "excluded rows are flagged internal");
 const all = Object.values(docs.rels.items);
@@ -164,7 +171,7 @@ assert.ok(res.skipped.includes("teacher:Nobody"), "a teacher nobody matches is s
 const pub = all.find((r) => r.type === "publisher");
 assert.strictEqual(pub.party.key, "equip:recPub1"); assert.strictEqual(pub.stage, "onsale"); assert.strictEqual(pub.party.name, "IEW");
 const again = P.seed(src, docs, { exclude: P.DEFAULT_EXCLUDE }, "system", now);
-assert.strictEqual(again.created.length, 0, "a second run creates nothing"); assert.strictEqual(Object.keys(docs.rels.items).length, 8); assert.strictEqual(again.filed.length, 0, "teachers already filed are not filed again");
+assert.strictEqual(again.created.length, 0, "a second run creates nothing"); assert.strictEqual(Object.keys(docs.rels.items).length, 9); assert.strictEqual(again.filed.length, 0, "teachers already filed are not filed again");
 // A teacher seeded as her own provider before her institution was known is folded in.
 docs.rels.items["REL-000098"] = P.newRelationship({ type: "course", party: { id: "HC-000013", kind: "person", name: "尹老师" }, stage: "listed", source: "seed:teacher" }, "system", "REL-000098");
 docs.rels.items["REL-000098"].confirmed = false;

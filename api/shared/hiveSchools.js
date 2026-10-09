@@ -38,4 +38,43 @@ async function readSchools() {
   return { institutions, routing, readAt: new Date().toISOString() };
 }
 
-module.exports = { readSchools };
+// The College/University table (Rick, 2026-10-09: 「Why these colleges/universities
+// are not in university?」 — Grove City, Covenant, Biola … live in their own table,
+// not in Schools or Institutions). Public descriptors plus the one contact the row
+// names; the contact's email is kept server-side (it becomes a people-hub person
+// when the partner relationship is seeded). Column names are tolerant.
+const COLLEGE_FIELDS = {
+  name: /^Name/i, intro: /^Program Introduction/i, programs: /^Program(s)? Offered/i,
+  contactName: /^Contact Name/i, contactEmail: /^Contact Email/i, contactTitle: /^Contact Title/i,
+  partnership: /^Partnership/i, website: /^(Website|网站|网址|URL)/i, country: /^(Country|国家)/i, city: /^(City|城市)/i, region: /^(Region|地区|区域)/i,
+};
+async function readColleges() {
+  const pat = process.env.AIRTABLE_PAT;
+  if (!pat) throw Object.assign(new Error("AIRTABLE_PAT app setting is not configured"), { code: "no_pat" });
+  const base = new AirtableBase(cfg.baseId, pat);
+  // By table NAME first (the Airtable API takes a name in place of an id, and the
+  // website PAT may lack the schema scope); the schema lookup is the fallback.
+  const NAMES = ["College/University", "Colleges/Universities", "College", "University", "大学"];
+  let recs = null, lastErr = null;
+  for (const n of NAMES) { try { recs = await base.list(encodeURIComponent(n)); break; } catch (err) { lastErr = err; } }
+  if (!recs) { const table = await base.table(NAMES).catch(() => null); if (!table) throw lastErr || new Error("College/University table not found"); recs = await base.list(table.id); }
+  const institutions = [], contacts = {};
+  for (const r of recs) {
+    const f = r.fields || {};
+    const name = text(pick(f, COLLEGE_FIELDS.name));
+    const key = hiveKey(name);
+    if (!key) continue;
+    const programs = pick(f, COLLEGE_FIELDS.programs);
+    institutions.push({
+      id: r.id, key, name, abbr: "", type: "大学 / University", region: text(pick(f, COLLEGE_FIELDS.region)), country: text(pick(f, COLLEGE_FIELDS.country)), city: text(pick(f, COLLEGE_FIELDS.city)), website: text(pick(f, COLLEGE_FIELDS.website)),
+      college: true, partnership: text(pick(f, COLLEGE_FIELDS.partnership)), programs: Array.isArray(programs) ? programs.map(text).filter(Boolean) : text(programs) ? [text(programs)] : [], intro: text(pick(f, COLLEGE_FIELDS.intro)).slice(0, 2000),
+      contact: null,
+    });
+    const email = text(pick(f, COLLEGE_FIELDS.contactEmail)).toLowerCase();
+    const cname = text(pick(f, COLLEGE_FIELDS.contactName));
+    if (email.includes("@") || cname) { contacts[key] = { name: cname, email: email.includes("@") ? email : "", title: text(pick(f, COLLEGE_FIELDS.contactTitle)) }; institutions[institutions.length - 1].contact = contacts[key]; }
+  }
+  return { institutions, contacts, readAt: new Date().toISOString() };
+}
+
+module.exports = { readSchools, readColleges, COLLEGE_FIELDS };
