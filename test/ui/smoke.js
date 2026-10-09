@@ -550,6 +550,8 @@ const EQUIP = [
     const gcu = await p.$eval('#itable tbody tr[data-key="hive:GCU"]', e => e.innerText); if (!/大学 · 线索/.test(gcu)) throw new Error("university relationship badge: " + gcu);
     const xqRel = Object.values(REL.items).find(x => x.party.key === "xqzw.edu" && x.type === "it"); if (!xqRel || !xqRel.contacts.length || xqRel.contacts[0].role !== "学校/机构代表") throw new Error("domain admin seeded as the contact: " + JSON.stringify(xqRel && xqRel.contacts));
     if (!xqRel.log.some(l => l.migrated)) throw new Error("the old note was not carried into the log");
+    // the button comes back after the run (Rick, 2026-10-09: 点击后就冻住了 — a shadowed `var b`)
+    const seedBtn = await p.$eval("#iSeed", e => ({ disabled: e.disabled, text: e.innerText })); if (seedBtn.disabled || /填入中/.test(seedBtn.text)) throw new Error("自动填入 button stuck: " + JSON.stringify(seedBtn));
     await p.click('#itable tbody tr[data-key="hive:GCU"]'); await p.waitForTimeout(400);
     if (!/大学/.test(await p.$eval("#panel .olist", e => e.innerText))) throw new Error("panel lists the relationship");
     await p.click("#ipInternal"); await p.waitForTimeout(500);

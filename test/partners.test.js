@@ -185,3 +185,15 @@ delete docs.rels.items["REL-000099"];
 assert.strictEqual(P.regionOf({ country: "Singapore" }), "sea"); assert.strictEqual(P.regionOf({ region: "intl-cn" }), "cn"); assert.strictEqual(P.regionOf({ domain: "abc.cn" }), "cn"); assert.strictEqual(P.regionOf({}), "other");
 
 console.log("partners: all assertions passed");
+
+// Every partnersApi.<fn> the CRM entry point calls is exported (2026-10-09: 机构 showed
+// "partnersApi.seeConfidential is not a function" after the fundraising type left).
+{
+  const fs = require("fs"), path = require("path");
+  const api = require("../api/crm/partners");
+  const src = fs.readFileSync(path.join(__dirname, "..", "api", "crm", "index.js"), "utf8");
+  const used = Array.from(new Set(Array.from(src.matchAll(/partnersApi\.(\w+)/g)).map((m) => m[1])));
+  for (const fn of used) assert.strictEqual(typeof api[fn], "function", "crm/index.js calls partnersApi." + fn + " — not exported");
+  assert.ok(used.includes("handle"));
+}
+console.log("partners: entry-point wiring ok");

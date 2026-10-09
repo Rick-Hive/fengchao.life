@@ -208,7 +208,6 @@ async function handler(context, req) {
     if (!crm.atLeast(roles, "partners", "read")) { fail(context, 403, "no_access"); return; }
     const canEdit = isAdmin(roles) || crm.atLeast(roles, "partners", "rw");
     const seeMoney = ["read", "rw"].includes(acc.money);
-    const seeConfidential = partnersApi.seeConfidential(roles);
     const peopleMod = require("../shared/people");
     const P = require("../shared/partners");
     let [h, inst, partners, data, relsDoc, orgsDoc] = await Promise.all([hub.readHub(), peopleMod.readInstitutions().catch(() => ({ institutions: {} })), hub.readPartners().catch(() => ({ partners: {} })), equip.readEquip().catch(() => null), P.readRels().catch(() => ({ items: {} })), P.readOrgs().catch(() => ({ byKey: {}, orgs: {} }))]);
@@ -260,7 +259,7 @@ async function handler(context, req) {
       const n = (i.domain && inst.institutions[i.domain]) || {}, pt = partners.partners[key] || null;
       const fySum = (i.customerIds || []).reduce((a, id) => a + (fySales.get(id) || 0), 0), fyN = (i.customerIds || []).reduce((a, id) => a + (fyOrders.get(id) || 0), 0);
       const orgId = orgsDoc.byKey[key] || null, org = orgId ? orgsDoc.orgs[orgId] : null;
-      const rels = Object.values(relsDoc.items || {}).filter((r) => r.party && r.party.kind === "org" && (r.party.key === key || (orgId && r.party.id === orgId)) && (!P.TYPES[r.type].confidential || seeConfidential)).map((r) => ({ id: r.id, type: r.type, stage: r.stage, closed: !!r.closed, owner: r.owner || "" }));
+      const rels = Object.values(relsDoc.items || {}).filter((r) => r.party && r.party.kind === "org" && (r.party.key === key || (orgId && r.party.id === orgId)) && P.TYPES[r.type]).map((r) => ({ id: r.id, type: r.type, stage: r.stage, closed: !!r.closed, owner: r.owner || "" }));
       return { key, domain: i.domain || "", kind: i.kind || "tenant", name: n.name || i.name || "", nameEn: n.nameEn || i.nameEn || "", abbr: i.abbr || "", type: i.type || "", region: i.region || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, partner: pt, orgId, internal: !!(org && org.internal), rels, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null };
     });
     ok(context, { rows, fy, canEdit, stages: hub.PARTNER_STAGES, types: P.TYPES, stageLabels: Object.fromEntries(Object.entries(P.STAGES).map(([t, st]) => [t, Object.fromEntries(st.map((x) => [x.k, [x.zh, x.en]]))])), generatedAt: h && h.generatedAt, hiveRows: rows.filter((r) => r.kind !== "tenant").length, rebuilt: !!(wantRebuild || stale), access: acc });
