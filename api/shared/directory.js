@@ -386,6 +386,14 @@ async function syncSlice(domain, mode, opts) {
         await distributeChanges(changes, byDomain);
         await store.write(DELTA, { deltaLink, at: new Date().toISOString() });
         log(`directory: ${changes.length} change(s) in the tenant since the last token, ${mine.length} for ${domain}`);
+        // The other domains' small shares are read now, within this call's budget,
+        // rather than sitting as "同步进行中：还剩 5 个账号" on every page until that
+        // domain's own sync or the nightly run (Rick, 2026-10-09). A big share waits.
+        for (const [dom, list] of Object.entries(byDomain)) {
+          if (dom === domain || !list.some((c) => !c.removed) || list.length > PER_BATCH) continue;
+          if (Date.now() - t0 > budget * 0.6) break;
+          try { await syncSlice(dom, "changes", { by: o.by, scope: "domain", log, budgetMs: Math.max(5000, budget - (Date.now() - t0)) }); } catch (err) { log(`directory ${dom}: share of the tenant's changes not read now: ${err.message}`); }
+        }
       }
       doc = await readDomain(domain);
       if (!doc.run) { // nothing queued for this domain: it is up to date as of now
@@ -496,6 +504,7 @@ function status(doc, added, removed) {
     mode: doc.run ? doc.run.mode : (doc.lastRun && doc.lastRun.mode) || null,
     total: doc.run ? doc.run.total : doc.users.length,
     remaining: (doc.pending || []).length,
+    queuedBy: doc.run ? doc.run.by || "" : "", // "delta": the tenant's changes handed to this domain, not a sync someone started
     users: doc.users.length,
     syncedAt: doc.syncedAt,
     fullAt: doc.fullAt,

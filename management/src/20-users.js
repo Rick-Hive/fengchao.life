@@ -148,7 +148,9 @@
   function syncLine(sync) {
     if (!sync) return "";
     var s = sync.syncedAt ? t("数据同步于 ", "Synced ") + when(sync.syncedAt) : t("尚未同步 — 点「同步变动」读取本域账号。", "Not synced yet — press “Sync changes” to read the domain's accounts.");
-    if (!sync.done) s += " · " + t("同步进行中：还剩 ", "Sync under way: ") + sync.remaining + t(" 个账号", " accounts left");
+    // A queue the tenant's delta handed to this domain is not a sync someone started: say so
+    // (Rick, 2026-10-09: 为什么每个 domain 都显示还剩账号没同步完).
+    if (!sync.done) s += " · " + (sync.queuedBy === "delta" ? t("有 ", "") + sync.remaining + t(" 个账号有变动待读取（点同步，或今夜自动）", " changed account(s) to read (sync, or tonight)") : t("同步进行中：还剩 ", "Sync under way: ") + sync.remaining + t(" 个账号", " accounts left"));
     if (sync.error) s += " · " + t("上次出错：", "Last error: ") + sync.error.message;
     return s;
   }
