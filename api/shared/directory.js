@@ -389,6 +389,10 @@ async function syncSlice(domain, mode, opts) {
       }
       doc = await readDomain(domain);
       if (!doc.run) { // nothing queued for this domain: it is up to date as of now
+        // Owners are read at the end of a run; a domain with no changes since the
+        // owners step was added would otherwise never get them (Rick, 2026-10-09:
+        // 做了完整同步，giwas 还是 28 个).
+        if (!doc.groupOwners) await fetchGroupOwners(doc, log);
         doc.syncedAt = new Date().toISOString();
         doc.lastRun = { mode: "changes", startedAt: doc.syncedAt, finishedAt: doc.syncedAt, added: 0, removed, by: o.by || "" };
         await store.write(`${domain}.json`, doc);
