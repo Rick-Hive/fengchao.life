@@ -237,11 +237,12 @@ function listByType(doc, type, cfg, now, all) {
 function summary(rels, now) {
   const t = +now || Date.now(), ym = isoDay(t).slice(0, 7), year = isoDay(t).slice(0, 4);
   const byStage = {};
-  for (const r of rels) byStage[r.stage] = (byStage[r.stage] || 0) + 1;
+  const open = rels.filter((r) => !r.closed);
+  for (const r of open) byStage[r.stage] = (byStage[r.stage] || 0) + 1;
   return {
-    open: rels.filter((r) => !r.closed).length, stalled: rels.filter((r) => r.health && r.health.stalled).length,
-    dueThisMonth: rels.filter((r) => r.next && r.next.due && r.next.due.slice(0, 7) === ym).length, newThisYear: rels.filter((r) => String(r.createdAt).slice(0, 4) === year).length,
-    unassigned: rels.filter((r) => !r.closed && !r.owner).length, unconfirmed: rels.filter((r) => !r.closed && r.confirmed === false).length, byStage,
+    open: open.length, closed: rels.length - open.length, stalled: open.filter((r) => r.health && r.health.stalled).length,
+    dueThisMonth: open.filter((r) => r.next && r.next.due && r.next.due.slice(0, 7) === ym).length, newThisYear: open.filter((r) => String(r.createdAt).slice(0, 4) === year).length,
+    unassigned: open.filter((r) => !r.owner).length, unconfirmed: open.filter((r) => r.confirmed === false).length, byStage,
   };
 }
 

@@ -721,7 +721,7 @@ const EQUIP = [
     const cr = ptPosts.find(b => b.op === "create"); assert.ok(cr && cr.party.key === "kxc.edu" && cr.type === "it", "create posted: " + JSON.stringify(cr));
     assert.ok(await p.$("#panel svg.track"), "the relationship panel shows the stage track");
     const nowLab = await p.$eval("#panel svg.track g.node.now text", e => e.textContent); assert.strictEqual(nowLab, "线索");
-    assert.ok(/主要联系人/.test(await p.$eval("#ptBody", e => e.innerText)) || await p.$(".board"), "table has a 主要联系人 column (board view otherwise)");
+    assert.ok(/伙伴联系人/.test(await p.$eval("#ptBody", e => e.innerText)) || await p.$(".board"), "table has a 主要联系人 column (board view otherwise)");
     const cards = await p.$$(".board .bcard"); assert.strictEqual(cards.length, before + 1, "one more card on the board");
     // forward one stage
     await p.click('#panel button[data-act="move"]'); await p.waitForTimeout(200);
@@ -747,7 +747,7 @@ const EQUIP = [
     // 我方负责人 from the people hub (Rick, 2026-10-08): the overview's 指定… opens a
     // person field that searches the hub; a staff account is picked and saved.
     await p.click('#panel button[data-ptab="overview"]'); await p.waitForTimeout(200);
-    assert.ok(/我方负责人/.test(await p.$eval("#rpBody .kv", e => e.innerText)), "overview says 我方负责人");
+    assert.ok(/项目经理/.test(await p.$eval("#rpBody .kv", e => e.innerText)), "overview says 项目经理");
     await p.click('#panel button[data-act="owner"]'); await p.waitForTimeout(200);
     await p.fill("#owAcct", "mei"); await p.waitForTimeout(600);
     assert.ok(await p.$("#owForm .pres.pauto .pr[data-v]"), "hub matches under the owner field");
