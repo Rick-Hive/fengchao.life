@@ -284,7 +284,7 @@ async function handle(context, req, ctx) {
     if (!cur) { fail(context, 404, "not_found"); return true; }
     const rel = (await P.readRels()).items[cur.relationship];
     if (!rel || !canEditType(roles, rel.type)) { fail(context, 403, "no_access"); return true; }
-    let problem = null;
+    let problem = null, removed = null;
     const { doc } = await P.updateProjects((d) => {
       const p = d.items[id]; if (!p) { problem = { status: 404, error: "not_found" }; return false; }
       const now = new Date().toISOString();
@@ -327,11 +327,21 @@ async function handle(context, req, ctx) {
       }
       if (op === "removeMilestone") { const i = p.milestones.findIndex((x) => x.id === String(body.mid || "")); if (i < 0) { problem = { status: 404, error: "no_milestone" }; return false; } p.log.push(P.logEntry(by, "milestone", p.milestones[i].name, { removed: true })); p.milestones.splice(i, 1); p.updatedAt = now; return true; }
       if (op === "note") { const text = String(body.text || "").trim(); if (!text) { problem = { status: 400, error: "empty" }; return false; } p.log.push(P.logEntry(by, "note", text)); p.updatedAt = now; return true; }
+      // A project that never went anywhere may be deleted (Rick, 2026-10-09: 「How to
+      // delete a project in a partnership?」); one with a milestone done or already
+      // completed is history and is cancelled instead, so the record stays.
+      if (op === "delete") {
+        if (p.status === "completed" || p.milestones.some((m) => m.doneAt)) { problem = { status: 409, error: "has_progress" }; return false; }
+        removed = p; delete d.items[id]; return true;
+      }
       problem = { status: 400, error: "bad_op" }; return false;
     });
     if (problem) { fail(context, problem.status, problem.error); return true; }
+    if (removed) {
+      await P.updateRels((d) => { const r = d.items[removed.relationship]; if (!r) return false; r.log.push(P.logEntry(by, "project", removed.name + " " + (removed.nameEn && removed.nameEn !== removed.name ? "/ " + removed.nameEn + " " : "") + "(" + id + ")", { deleted: true })); r.updatedAt = new Date().toISOString(); return true; });
+    }
     await audit(context, { action: "crm.project." + op, by, id });
-    ok(context, { ok: true, project: doc.items[id] });
+    ok(context, { ok: true, project: doc.items[id] || null, deleted: !!removed });
     return true;
   }
 

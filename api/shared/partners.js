@@ -222,7 +222,9 @@ function newProject(rel, body, by, id) {
   const tpl = kinds[kind].ms || [];
   const milestones = (Array.isArray(body.milestones) && body.milestones.length ? body.milestones : tpl).map((m, i) => ({ id: "m" + (i + 1), name: String(m.zh || m.name || "").slice(0, 120), nameEn: String(m.en || m.nameEn || m.name || "").slice(0, 120), kind: m.kind === "gate" ? "gate" : "deliverable", due: d(m.due), doneAt: "", owner: String(m.owner || "").slice(0, 120), note: "" }));
   return {
-    id, relationship: rel.id, kind, name: String(body.name || kinds[kind].zh).slice(0, 200), nameEn: String(body.nameEn || kinds[kind].en).slice(0, 200),
+    // A typed name is the name in both languages unless an English one is given; the
+    // kind's labels only when nothing was typed (Rick, 2026-10-09: bilingual pages).
+    id, relationship: rel.id, kind, name: String(body.name || kinds[kind].zh).slice(0, 200), nameEn: String(body.nameEn || body.name || kinds[kind].en).slice(0, 200),
     status: ["planning", "active", "on_hold", "completed", "cancelled"].includes(body.status) ? body.status : "planning",
     startAt: d(body.startAt), endAt: d(body.endAt), owner: String(body.owner || rel.owner || "").slice(0, 120), terms: cleanTerms(body.terms), participants: cleanContacts(body.participants), milestones,
     public: { listed: false, slug: "", summary: "" }, createdAt: now, createdBy: by, updatedAt: now, log: [logEntry(by, "created", "", { to: "planning" })],

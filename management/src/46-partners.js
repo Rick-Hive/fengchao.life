@@ -194,7 +194,7 @@
   function ptTimelineSvg(rel, projects) {
     var rows = [];
     if (rel.agreement && (rel.agreement.startAt || rel.agreement.endAt)) rows.push({ name: t("协议期", "Agreement"), start: rel.agreement.startAt || rel.agreement.signedAt || "", end: rel.agreement.endAt || "", ms: [], agreement: true });
-    (projects || []).forEach(function (p) { if (p.status === "cancelled") return; rows.push({ name: p.name, start: p.startAt, end: p.endAt, ms: p.milestones || [], id: p.id, status: p.status }); });
+    (projects || []).forEach(function (p) { if (p.status === "cancelled") return; rows.push({ name: ptName(p), start: p.startAt, end: p.endAt, ms: p.milestones || [], id: p.id, status: p.status }); });
     if (!rows.length) return "";
     var now = Date.now(), DAY = 86400000, from = now - 365 * DAY, to = now + 183 * DAY, W = 400, L = 110, R = 16, y0 = 24, rh = 22;
     var X = function (d) { var tm = Date.parse(d); if (isNaN(tm)) return null; return Math.max(L, Math.min(W - R, L + (tm - from) / (to - from) * (W - L - R))); };
@@ -207,7 +207,7 @@
       var y = y0 + i * rh + rh / 2, xs = r.start ? X(r.start) : null, xe = r.end ? X(r.end) : null;
       out.push('<text class="lab" x="4" y="' + (y + 4) + '">' + esc(String(r.name).slice(0, EN ? 16 : 9)) + "</text>");
       if (xs != null || xe != null) { var a = xs != null ? xs : L, b = xe != null ? xe : (r.agreement ? W - R : Math.max(a + 6, xt)); out.push('<rect class="bar' + (r.agreement ? " agr" : "") + '" x="' + Math.min(a, b) + '" y="' + (y - 5) + '" width="' + Math.max(6, Math.abs(b - a)) + '" height="10" rx="5"' + (r.id ? ' data-project="' + r.id + '"' : "") + "><title>" + esc(r.name + " " + (r.start || "?") + " → " + (r.end || "?")) + "</title></rect>"); }
-      r.ms.forEach(function (m) { if (!m.due && !m.doneAt) return; var x = X(m.doneAt || m.due); if (x == null) return; var st = m.doneAt ? "done" : (m.due < today() ? "late" : "open"); out.push('<path class="ms ' + st + '" d="M' + x + " " + (y - 6) + "l6 6l-6 6l-6 -6z\"" + (r.id ? ' data-project="' + r.id + '"' : "") + "><title>" + esc(m.name + " · " + (m.doneAt ? t("完成 ", "done ") + m.doneAt : t("到期 ", "due ") + m.due)) + "</title></path>"); });
+      r.ms.forEach(function (m) { if (!m.due && !m.doneAt) return; var x = X(m.doneAt || m.due); if (x == null) return; var st = m.doneAt ? "done" : (m.due < today() ? "late" : "open"); out.push('<path class="ms ' + st + '" d="M' + x + " " + (y - 6) + "l6 6l-6 6l-6 -6z\"" + (r.id ? ' data-project="' + r.id + '"' : "") + "><title>" + esc(ptName(m) + " · " + (m.doneAt ? t("完成 ", "done ") + m.doneAt : t("到期 ", "due ") + m.due)) + "</title></path>"); });
     });
     out.push("</svg>");
     return out.join("");
@@ -227,6 +227,9 @@
     else el.innerHTML = ptMetricsHtml(d);
     ptBindTab(el);
   }
+  // Template milestones and project kinds carry both names; the page shows the
+  // reader's language (Rick, 2026-10-09: 「Should be bilingual」 — 样书评估 in the English UI).
+  function ptName(o) { if (!o) return ""; return EN ? (o.nameEn || o.name || "") : (o.name || o.nameEn || ""); }
   function ptKv(k, v) { return '<span class="k">' + k + "</span><span>" + v + "</span>"; }
   function ptOverviewHtml(d) {
     var rel = d.relationship, ag = rel.agreement || {}, nx = rel.next || {}, canEdit = d.canEdit;
@@ -250,7 +253,7 @@
     var list = d.projects.length ? d.projects.map(function (p) {
       var ms = p.milestones || [], done = ms.filter(function (m) { return m.doneAt; }).length, late = ms.filter(function (m) { return !m.doneAt && m.due && m.due < today(); }).length;
       var nextM = ms.filter(function (m) { return !m.doneAt; })[0];
-      return '<button type="button" class="orow link" data-project="' + p.id + '"><div class="omain"><b>' + esc(p.name) + '</b><span class="sub">' + esc([kinds[p.kind] ? t(kinds[p.kind].zh, kinds[p.kind].en) : p.kind, p.startAt || p.endAt ? (p.startAt || "?") + " → " + (p.endAt || "?") : "", nextM ? t("下一里程碑 ", "next ") + nextM.name + (nextM.due ? " " + nextM.due : "") : ""].filter(Boolean).join(" · ")) + '</span></div><div class="oprice">' + ptStatusTag(p.status) + "<br><b>" + done + "/" + ms.length + "</b>" + (late ? ' <span class="bad">' + late + t(" 逾期", " late") + "</span>" : "") + "</div></button>";
+      return '<button type="button" class="orow link" data-project="' + p.id + '"><div class="omain"><b>' + esc(ptName(p)) + '</b><span class="sub">' + esc([kinds[p.kind] ? t(kinds[p.kind].zh, kinds[p.kind].en) : p.kind, p.startAt || p.endAt ? (p.startAt || "?") + " → " + (p.endAt || "?") : "", nextM ? t("下一里程碑 ", "next ") + ptName(nextM) + (nextM.due ? " " + nextM.due : "") : ""].filter(Boolean).join(" · ")) + '</span></div><div class="oprice">' + ptStatusTag(p.status) + "<br><b>" + done + "/" + ms.length + "</b>" + (late ? ' <span class="bad">' + late + t(" 逾期", " late") + "</span>" : "") + "</div></button>";
     }).join("") : '<div class="orow muted">' + t("没有项目。", "No projects.") + "</div>";
     return '<div class="olist">' + list + "</div>" + (d.canEdit && !rel.closed && Object.keys(kinds).length ? '<div class="actions"><button type="button" class="btn sm" data-act="newproject">' + t("新建项目…", "New project…") + '</button></div><div id="rpForm"></div>' : "");
   }
@@ -303,7 +306,7 @@
       return r;
     });
   }
-  function ptProblem(p) { return { reason: t("需要填写原因", "a reason is required"), agreement: t("需要先填协议签署日期", "the agreement's signing date is required"), contact: t("需要至少一位联系人", "at least one contact is required"), project: t("需要一个进行中的项目", "an active project is required"), owner: t("需要指定项目经理", "a project manager is required") }[p] || p; }
+  function ptProblem(p) { return { has_progress: t("项目已有进度，不能删除；请改为「已取消」", "the project has progress and cannot be deleted; set it to cancelled"), reason: t("需要填写原因", "a reason is required"), agreement: t("需要先填协议签署日期", "the agreement's signing date is required"), contact: t("需要至少一位联系人", "at least one contact is required"), project: t("需要一个进行中的项目", "an active project is required"), owner: t("需要指定项目经理", "a project manager is required") }[p] || p; }
   function ptMoveForm(to) {
     var d = ptState.rel, rel = d.relationship, host = $("rpForm"); if (!host) { ptState.tab = "overview"; renderRelTab(); host = $("rpForm"); }
     var cur = d.stages.map(function (s) { return s.k; }).indexOf(rel.stage);
@@ -356,12 +359,12 @@
     var kinds = d.kinds || {}, canEdit = d.canEdit, rel = d.relationship;
     var ms = (p.milestones || []).map(function (m) {
       var late = !m.doneAt && m.due && m.due < today();
-      return '<div class="mrow2' + (m.doneAt ? " done" : late ? " late" : "") + '">' + (canEdit ? '<input type="checkbox" data-ms="' + m.id + '"' + (m.doneAt ? " checked" : "") + ' title="' + t("完成", "done") + '" />' : '<span class="mk">' + (m.doneAt ? "✓" : "○") + "</span>") + '<div class="mmain"><b>' + esc(m.name) + "</b>" + (m.kind === "gate" ? ' <span class="tag">' + t("门", "gate") + "</span>" : "") + '<span class="sub">' + esc(m.doneAt ? t("完成 ", "done ") + m.doneAt : m.due ? t("到期 ", "due ") + m.due : t("未定日期", "no date")) + (m.owner ? " · " + esc(m.owner.split("@")[0]) : "") + "</span></div>" + (canEdit ? '<input type="date" data-msdue="' + m.id + '" value="' + esc(m.due || "") + '" /><button type="button" class="btn sm secondary" data-msrm="' + m.id + '" title="' + t("删除", "remove") + '">×</button>' : "") + "</div>";
+      return '<div class="mrow2' + (m.doneAt ? " done" : late ? " late" : "") + '">' + (canEdit ? '<input type="checkbox" data-ms="' + m.id + '"' + (m.doneAt ? " checked" : "") + ' title="' + t("完成", "done") + '" />' : '<span class="mk">' + (m.doneAt ? "✓" : "○") + "</span>") + '<div class="mmain"><b>' + esc(ptName(m)) + "</b>" + (m.kind === "gate" ? ' <span class="tag">' + t("门", "gate") + "</span>" : "") + '<span class="sub">' + esc(m.doneAt ? t("完成 ", "done ") + m.doneAt : m.due ? t("到期 ", "due ") + m.due : t("未定日期", "no date")) + (m.owner ? " · " + esc(m.owner.split("@")[0]) : "") + "</span></div>" + (canEdit ? '<input type="date" data-msdue="' + m.id + '" value="' + esc(m.due || "") + '" /><button type="button" class="btn sm secondary" data-msrm="' + m.id + '" title="' + t("删除", "remove") + '">×</button>' : "") + "</div>";
     }).join("");
     var parts = (p.participants || []).map(function (c, i) { return '<div class="orow"><div class="omain"><button type="button" class="lnk" data-pperson="' + esc(c.person) + '"><b>' + esc(c.name || c.person) + '</b></button><span class="sub">' + esc(c.role || "") + "</span></div>" + (canEdit ? '<button type="button" class="btn sm secondary" data-rmpart="' + i + '">' + t("移除", "Remove") + "</button>" : "") + "</div>"; }).join("");
-    panelOpen('<div class="ph"><h3 title="' + esc(p.name) + '">' + esc(p.name) + "</h3>" + ptStatusTag(p.status) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+    panelOpen('<div class="ph"><h3 title="' + esc(ptName(p)) + '">' + esc(ptName(p)) + "</h3>" + ptStatusTag(p.status) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
       '<div class="kv">' + ptKv(t("编号", "Id"), "<b>" + esc(p.id) + "</b> · " + esc(kinds[p.kind] ? t(kinds[p.kind].zh, kinds[p.kind].en) : p.kind)) + ptKv(t("起止", "Span"), esc((p.startAt || "?") + " → " + (p.endAt || "?"))) + ptKv(t("项目经理", "Project manager"), ptOwner(p.owner)) + ptKv(t("所属关系", "Relationship"), esc(rel.partyName) + ' <span class="muted">' + esc(rel.id) + "</span>") + "</div>" +
-      (canEdit ? '<div class="actions"><select id="pjStatus">' + ["planning", "active", "on_hold", "completed", "cancelled"].map(function (s) { return '<option value="' + s + '"' + (p.status === s ? " selected" : "") + ">" + esc({ planning: t("规划中", "planning"), active: t("进行中", "active"), on_hold: t("暂停", "on hold"), completed: t("已完成", "completed"), cancelled: t("已取消", "cancelled") }[s]) + "</option>"; }).join("") + '</select><button type="button" class="btn sm secondary" id="pjEdit">' + t("改名称 / 日期…", "Edit name / dates…") + '</button></div><div id="pjForm"></div>' : "") +
+      (canEdit ? '<div class="actions"><select id="pjStatus">' + ["planning", "active", "on_hold", "completed", "cancelled"].map(function (s) { return '<option value="' + s + '"' + (p.status === s ? " selected" : "") + ">" + esc({ planning: t("规划中", "planning"), active: t("进行中", "active"), on_hold: t("暂停", "on hold"), completed: t("已完成", "completed"), cancelled: t("已取消", "cancelled") }[s]) + "</option>"; }).join("") + '</select><button type="button" class="btn sm secondary" id="pjEdit">' + t("改名称 / 日期…", "Edit name / dates…") + '</button>' + (p.status !== "completed" && !(p.milestones || []).some(function (m) { return m.doneAt; }) ? '<button type="button" class="btn sm secondary" id="pjDelete">' + t("删除…", "Delete…") + "</button>" : "") + '</div><div id="pjForm"></div>' : "") +
       "<h4>" + t("里程碑", "Milestones") + " · " + (p.milestones || []).filter(function (m) { return m.doneAt; }).length + "/" + (p.milestones || []).length + '</h4><div class="mlist">' + (ms || '<div class="muted">' + t("没有里程碑。", "No milestones.") + "</div>") + "</div>" +
       (canEdit ? '<form id="msAdd" class="lnew"><input type="text" id="msName" maxlength="120" placeholder="' + t("新里程碑…", "New milestone…") + '" /><input type="date" id="msDue" /><button class="btn sm" type="submit">' + t("添加", "Add") + "</button></form>" : "") +
       "<h4>" + t("参与者", "Participants") + " · " + (p.participants || []).length + '</h4><div class="olist">' + (parts || '<div class="orow muted">' + t("还没有参与者。", "No participants yet.") + "</div>") + "</div>" + (canEdit ? ptPickerHtml("pjPick", { roles: ["申请人", "学员", "授课教师", "负责人", "作者", "审稿人", "编辑"], org: rel.partyName, lang: rel.lang }) : "") +
@@ -376,6 +379,13 @@
     };
     p2.querySelectorAll("input[data-msdue]").forEach(function (i) { i.addEventListener("change", function () { ptPost("project", { op: "milestone", id: p.id, mid: i.getAttribute("data-msdue"), due: i.value }, function () { ptReloadProject(p.id); }); }); });
     var st = $("pjStatus"); if (st) st.addEventListener("change", function () { ptPost("project", { op: "status", id: p.id, status: st.value }, function () { ptReloadProject(p.id); }); });
+    // Delete: only a project with no milestone done and not completed (the API refuses
+    // otherwise); anything with history is set to 已取消 instead. Confirmed inline.
+    var del = $("pjDelete"); if (del) del.addEventListener("click", function () {
+      var host = $("pjForm"); host.innerHTML = '<form id="pjDel" class="pform"><h4>' + t("删除项目", "Delete the project") + '</h4><p class="hint">' + t("这个项目还没有任何进度，删除后不可恢复；关系的日志里会留一条记录。有进度的项目请改为「已取消」。", "This project has no progress yet; deleting cannot be undone, and the relationship's log keeps a line. A project with progress is set to cancelled instead.") + '</p><div class="actions"><button type="submit" class="btn sm">' + t("删除", "Delete") + '</button><button type="button" class="btn sm secondary" id="pjDelCancel">' + t("取消", "Cancel") + "</button></div></form>";
+      $("pjDelCancel").addEventListener("click", function () { host.innerHTML = ""; });
+      $("pjDel").addEventListener("submit", function (e) { e.preventDefault(); ptPost("project", { op: "delete", id: p.id }, function () { panel2Close(); if (ptState.rel) openRelationship(ptState.rel.relationship.id, { tab: "projects" }); }); });
+    });
     var ma = $("msAdd"); if (ma) ma.addEventListener("submit", function (e) { e.preventDefault(); if (!$("msName").value.trim()) return; ptPost("project", { op: "addMilestone", id: p.id, name: $("msName").value.trim(), due: $("msDue").value }, function () { ptReloadProject(p.id); }); });
     var lf = p2.querySelector("form.lnew[data-scope=project]"); if (lf) lf.addEventListener("submit", function (e) { e.preventDefault(); var txt = lf.querySelector("#lnText").value.trim(); if (!txt) return; ptPost("project", { op: "note", id: p.id, text: txt }, function () { ptReloadProject(p.id); }); });
     var pk = $("pjPick"); if (pk) ptBindPicker(pk, function (person, role) { var ps = (p.participants || []).filter(function (c) { return c.person !== person.crmId; }).concat([{ person: person.crmId, name: person.name, role: role }]); ptPost("project", { op: "update", id: p.id, fields: { participants: ps } }, function () { ptReloadProject(p.id); }); });
