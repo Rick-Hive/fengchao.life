@@ -196,19 +196,61 @@ async function markClassTeams(doc, log) {
   }
 }
 
+// Who owns each group the domain's accounts belong to, looked up once per group
+// when a sync finishes (20 per round trip) and kept on the doc as
+// groupOwners[id] = [upn…]. The owners decide which groups are the school's own
+// (Rick, 2026-10-09: 「仅按所有者显示本校的 teams group」 — a giwas.org teacher in a
+// Science Bug class does not make that class giwas.org's team).
+async function fetchGroupOwners(doc, log) {
+  const ids = new Set();
+  for (const r of doc.users) for (const g of r.groups || []) if (g && g.id) ids.add(g.id);
+  if (!ids.size) { doc.groupOwners = {}; return; }
+  try {
+    const res = await batch(Array.from(ids).map((id) => ({ id, url: `/groups/${id}/owners?$select=id,userPrincipalName&$top=100` })));
+    const owners = {};
+    let known = 0;
+    for (const id of ids) {
+      const r = res[id];
+      if (!r || r.status !== 200) continue; // keep what the last sync knew for this group
+      owners[id] = ((r.body && r.body.value) || []).map((o) => String(o.userPrincipalName || "").toLowerCase()).filter(Boolean);
+      known++;
+    }
+    doc.groupOwners = Object.assign({}, doc.groupOwners || {}, owners);
+    for (const id of Object.keys(doc.groupOwners)) if (!ids.has(id)) delete doc.groupOwners[id];
+    log(`directory ${doc.domain}: owners read for ${known} of ${ids.size} group(s)`);
+  } catch (err) {
+    log(`directory ${doc.domain}: group owners not read: ${err.message}`);
+  }
+}
+
 // Groups of the domain, derived from the rows (who of this domain is in which).
-function groupsOf(rows) {
+// Only the school's OWN groups are listed: one with an owner on this domain, or —
+// no owners at all (an orphan a teacher made and left) — with only this domain's
+// people in it as far as we can see. A group owned elsewhere that the domain's
+// people merely belong to is counted (`elsewhere`) but not listed.
+function groupsOf(rows, groupOwners, domain) {
+  const owners = groupOwners || {};
+  const dom = String(domain || "").toLowerCase();
   const groups = new Map();
   for (const r of rows) for (const grp of r.groups || []) {
     if (!groups.has(grp.id)) groups.set(grp.id, { group: grp, members: new Set() });
     groups.get(grp.id).members.add(r.upn);
   }
-  const out = Array.from(groups.values()).map(({ group, members }) => ({
-    id: group.id, name: group.name, description: group.description || "", mail: group.mail || "", kind: group.kind, visibility: group.visibility || "",
-    domainMembers: members.size, members: Array.from(members).sort(),
-  }));
+  const all = Array.from(groups.values()).map(({ group, members }) => {
+    const os = owners[group.id];
+    const here = (os || []).filter((u) => domainOf(u) === dom);
+    const ownedHere = here.length > 0, orphan = Array.isArray(os) && os.length === 0, unknown = !Array.isArray(os);
+    return {
+      id: group.id, name: group.name, description: group.description || "", mail: group.mail || "", kind: group.kind, visibility: group.visibility || "",
+      domainMembers: members.size, members: Array.from(members).sort(),
+      owners: here.sort(), ownerDomains: Array.from(new Set((os || []).map(domainOf).filter((d) => d && d !== dom))).sort(), ownedHere, orphan,
+      own: ownedHere || orphan || unknown, // unknown = owners never read (older copy): shown, as before
+    };
+  });
+  const out = all.filter((g) => g.own);
   const order = { class: 0, team: 1, m365: 2, security: 3, distribution: 4, other: 5 };
   out.sort((a, b) => order[a.kind] - order[b.kind] || b.domainMembers - a.domainMembers || a.name.localeCompare(b.name, "zh"));
+  out.elsewhere = all.filter((g) => !g.own).map((g) => ({ id: g.id, name: g.name, kind: g.kind, ownerDomains: g.ownerDomains, domainMembers: g.domainMembers }));
   return out;
 }
 
@@ -428,6 +470,7 @@ async function syncSlice(domain, mode, opts) {
   const done = doc.pending.length === 0;
   if (done) {
     await markClassTeams(doc, log);
+    await fetchGroupOwners(doc, log);
     doc.users.sort((a, b) => a.displayName.localeCompare(b.displayName, "zh") || a.upn.localeCompare(b.upn));
     doc.syncedAt = new Date().toISOString();
     if (doc.run && doc.run.mode === "full") doc.fullAt = doc.syncedAt;

@@ -201,7 +201,8 @@ async function handler(context, req) {
     }
     if (method === "GET" && action === "groups") {
       const [doc, names] = await Promise.all([dir.readDomain(domain), people.readGroupNames()]);
-      context.res = { status: 200, body: { domain, groups: await people.translateGroupNames(dir.groupsOf(doc.users), names, actor), sync: dir.status(doc) } };
+      const own = dir.groupsOf(doc.users, doc.groupOwners, domain);
+      context.res = { status: 200, body: { domain, groups: await people.translateGroupNames(own, names, actor), elsewhere: own.elsewhere, ownersKnown: !!doc.groupOwners, sync: dir.status(doc) } };
       return;
     }
 

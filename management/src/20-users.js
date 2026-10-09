@@ -650,7 +650,11 @@
     var d = state.domainGroups[domain]; if (!d) return;
     var q = ($("gq") && $("gq").value.trim()) || "";
     var rows = d.groups.filter(function (g) { return !q || (g.name + " " + (g.nameZh || "") + " " + (g.nameEn || "") + " " + g.description).toLowerCase().indexOf(q.toLowerCase()) >= 0; });
-    var n = $("gn-" + domain.replace(/\W/g, "_")); if (n) n.textContent = d.groups.length + t(" 个群组", " groups") + (q ? " · " + rows.length + t(" 个匹配", " match") : "") + " · " + syncLine(d.sync);
+    // Only the school's own groups are listed (owner on this domain, or no owner at
+    // all); the ones its people merely belong to are counted here, not listed
+    // (Rick, 2026-10-09: 仅按所有者显示本校的 teams group).
+    var elsewhere = (d.elsewhere || []).length;
+    var n = $("gn-" + domain.replace(/\W/g, "_")); if (n) n.textContent = d.groups.length + t(" 个本校群组", " own groups") + (q ? " · " + rows.length + t(" 个匹配", " match") : "") + (elsewhere ? " · " + t("另有 ", "plus ") + elsewhere + t(" 个本校成员参加的其它学校团队（不在此列）", " of other schools' teams with members from here (not listed)") : "") + " · " + syncLine(d.sync);
     var people = {}; ((state.domainUsers[domain] || {}).users || []).forEach(function (u) { people[u.upn] = u; });
     det.querySelector(".leaf").innerHTML = rows.length ? rows.map(function (g) {
       var k = GKIND[g.kind] || GKIND.other;
@@ -658,7 +662,7 @@
         var u = people[upn];
         return '<button class="mrow link" type="button" data-upn="' + esc(upn) + '" data-domain="' + esc(domain) + '"><span class="avatar sm" style="background:' + hue(upn) + '">' + esc(initials((u && u.displayName) || upn)) + '</span><span class="mname">' + esc((u && u.displayName) || "") + '</span><span class="mupn">' + esc(upn) + "</span>" + (u && u.identity ? '<span class="tag">' + esc(vl(u.identity)) + "</span>" : "<span></span>") + "</button>";
       }).join("");
-      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(gname(g))) + '</span><div class="tmain"><div class="tname">' + hl(gname(g), q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
+      return '<div class="trow"><span class="tav" style="background:' + hue(g.id) + '">' + esc(initials(gname(g))) + '</span><div class="tmain"><div class="tname">' + hl(gname(g), q) + '</div><div class="tmeta"><span>' + esc(k[EN ? 1 : 0]) + "</span>" + (g.visibility ? "<span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") + (g.orphan ? '<span class="tag warn">' + t("无所有者", "no owner") + "</span>" : (g.owners || []).length ? "<span>" + esc(t("所有者 ", "owners ") + g.owners.map(function (u) { var p = people[u]; return (p && p.displayName) || u.split("@")[0]; }).join("、")) + "</span>" : "") + "<span>" + g.domainMembers + t(" 位本域成员", " members from this domain") + "</span>" + (g.description ? '<span class="desc">' + hl(g.description, q) + "</span>" : "") + "</div>" +
         '<div class="members hidden">' + (members || '<div class="muted" style="font-size:.84rem">' + t("本域没有成员。", "No members from this domain.") + "</div>") + '<div class="muted" style="font-size:.78rem;margin-top:6px">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</div></div>" +
         '</div><div class="gact"><button class="btn secondary sm" type="button" data-members="1">' + t("查看成员", "View members") + "</button></div></div>";
     }).join("") : '<div class="empty">' + t("没有群组。", "No groups.") + "</div>";

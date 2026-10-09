@@ -45,8 +45,13 @@ const groupsOf = {
   "u-lei": [
     { id: "g1", displayName: "G5 English", description: "Fifth grade", groupTypes: ["Unified"], mailEnabled: true, securityEnabled: false, resourceProvisioningOptions: ["Team"], visibility: "Private" },
     { id: "g2", displayName: "All staff", groupTypes: [], mailEnabled: false, securityEnabled: true },
+    { id: "g3", displayName: "Science Bug Lab", groupTypes: ["Unified"], mailEnabled: true, securityEnabled: false, resourceProvisioningOptions: ["Team"], visibility: "Private" },
+    { id: "g4", displayName: "K4 (abandoned)", groupTypes: ["Unified"], mailEnabled: true, securityEnabled: false, resourceProvisioningOptions: ["Team"], visibility: "Private" },
   ],
 };
+// Owners per group (Rick, 2026-10-09: only groups OWNED here are the school's): g1 by lei,
+// g2 by no one and g4 by no one (orphans), g3 by a teacher at another school.
+const ownersOf = { g1: [{ id: "u-lei", userPrincipalName: "lei@" + DOMAIN }], g2: [], g3: [{ id: "u-x", userPrincipalName: "anna@sciencebug.net" }], g4: [] };
 const calls = [];
 const createdUsers = [], licenseCalls = [], deletedIds = [];
 global.fetch = async function (url, opts) {
@@ -81,6 +86,7 @@ global.fetch = async function (url, opts) {
     const reqs = JSON.parse(opts.body).requests;
     return json(200, { responses: reqs.map((r) => {
       if (r.url.startsWith("/teams/")) { const id = r.url.split("/")[2].split("?")[0]; return { id: r.id, status: 200, body: { id, specialization: id === "g1" ? "educationClass" : "educationStandard" } }; }
+      const ow = r.url.match(/^\/groups\/([^/]+)\/owners/); if (ow) return { id: r.id, status: 200, body: { value: ownersOf[ow[1]] || [] } };
       const m = r.url.match(/^\/users\/([^/]+)\/(authentication\/methods|memberOf)/);
       if (!m) {
         const b = r.url.match(/^\/users\/([^/?]+)\?/);
@@ -238,7 +244,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(lei.devices.length, 2);
   assert.strictEqual(lei.devices[0].name, "iPhone 13");
   assert.strictEqual(lei.lastSignIn, "2026-09-28T01:00:00Z");
-  assert.deepStrictEqual(lei.groups.map((g) => g.kind), ["class", "security"], "g1 is a class team (Teams specialization educationClass)");
+  assert.deepStrictEqual(lei.groups.map((g) => g.kind), ["class", "security", "team", "team"], "g1 is a class team (Teams specialization educationClass)");
   assert.strictEqual(lei.identity, "");
   assert.strictEqual(r.body.partial, false);
 
@@ -274,6 +280,13 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(g1.domainMembers, 2);
   assert.deepStrictEqual(g1.members, [`elaine@${DOMAIN}`, `lei@${DOMAIN}`]);
   assert.strictEqual(r.body.groups[0].kind, "class", "class teams listed first");
+  // Only the school's own groups: g1 (owned by lei), g2 and g4 (no owner at all); g3, owned
+  // at Science Bug, is counted under `elsewhere` but not listed (Rick, 2026-10-09).
+  assert.deepStrictEqual(r.body.groups.map((g) => g.id).sort(), ["g1", "g2", "g4"], "owned or orphan groups only: " + JSON.stringify(r.body.groups.map((g) => g.id)));
+  assert.deepStrictEqual(g1.owners, [`lei@${DOMAIN}`]); assert.strictEqual(g1.ownedHere, true); assert.strictEqual(g1.orphan, false);
+  assert.strictEqual(r.body.groups.find((g) => g.id === "g4").orphan, true, "an ownerless team is flagged");
+  assert.deepStrictEqual(r.body.elsewhere.map((g) => [g.id, g.ownerDomains]), [["g3", ["sciencebug.net"]]], "the other school's team is counted, with its owners' domain");
+  assert.strictEqual(r.body.ownersKnown, true);
 
   // 7. Identity edits: outside account refused; bad identity refused; a good one is accepted
   //    (it cannot be persisted without storage, so expect 200 or a 5xx that names storage — never a silent success for the bad ones).
