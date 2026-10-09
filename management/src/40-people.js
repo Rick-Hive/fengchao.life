@@ -24,6 +24,8 @@
     if (s.account) out.push('<span class="src"><i style="background:' + VIZ.cat[1] + '"></i>Teams</span>');
     if (s.lead) out.push('<span class="src"><i style="background:' + VIZ.cat[2] + '"></i>' + t("讲座", "Seminar") + "</span>");
     if (s.hive) out.push('<span class="src"><i style="background:' + VIZ.cat[3] + '"></i>' + t("蜂巢", "Hive") + "</span>");
+    // added by hand from the partner module's people picker or a College/University row (Rick, 2026-10-09: what does a source mean?)
+    if (s.contact) out.push('<span class="src"><i style="background:' + "#8a63d2" + '"></i>' + t("联系人", "Contact") + "</span>");
     return '<span class="srcs">' + out.join("") + "</span>";
   }
   // Authenticator state across a person's accounts: true if any is verified, false if all known ones are not, null when unknown.
@@ -264,7 +266,7 @@
   }
   function exportPeopleCsv() {
     var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-    var head = ["CRM ID", t("姓名", "Name"), t("主邮箱", "Primary email"), t("邮箱状态", "Email status"), t("来源", "Sources"), t("账号", "Accounts"), t("订单", "Orders"), t("金额", "Amount"), t("最近活动", "Last active"), t("阶段", "Stage")].join(",");
+    var head = ["CRM ID", t("姓名", "Name"), t("主邮箱", "Primary email"), t("邮箱状态", "Email status"), '<span title="' + esc(t("这个人是从哪些数据来源认识的：Equip = Equip 教材订单的客户表；Teams = 某校租户里的 Microsoft 365 账号；讲座 = 讲座报名；蜂巢 = 蜂巢课程订单；联系人 = 在合作伙伴模块里手工加入", "Where we know this person from: Equip = the Equip orders base's Customers table; Teams = a Microsoft 365 account in a school tenant; Seminar = a seminar sign-up; Hive = a Hive course order; Contact = added by hand in the partner module")) + '">' + t("来源", "Sources") + "</span>", t("账号", "Accounts"), t("订单", "Orders"), t("金额", "Amount"), t("最近活动", "Last active"), t("阶段", "Stage")].join(",");
     var lines = peopleNow().map(function (p) {
       var s = p.sources || {};
       return [p.crmId, p.name, p.primaryEmail, p.primaryTier, [s.customer && "Equip", s.account && "Teams", s.lead && t("讲座", "Seminar"), s.hive && t("蜂巢", "Hive")].filter(Boolean).join("; "), ((p.facets || {}).accounts || []).map(function (a) { return a.upn || a.domain; }).join("; "), (p.orders || 0) + (p.hiveOrders || 0), p.spend == null ? "" : p.spend, lastActive(p), t(STAGES[p.stage] ? STAGES[p.stage][0] : p.stage, STAGES[p.stage] ? STAGES[p.stage][1] : p.stage)].map(cell).join(",");
