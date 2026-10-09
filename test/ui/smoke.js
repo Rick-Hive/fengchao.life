@@ -749,10 +749,11 @@ const EQUIP = [
     await p.click('#panel button[data-act="owner"]'); await p.waitForTimeout(200);
     await p.fill("#owAcct", "mei"); await p.waitForTimeout(600);
     assert.ok(await p.$("#owForm .pres.pauto .pr[data-v]"), "hub matches under the owner field");
+    const pickName = await p.$eval('#owForm .pres.pauto .pr[data-v]', e => e.getAttribute("data-name") || e.innerText); assert.ok(/mei/i.test(pickName), "a hub match for mei: " + pickName);
     await p.click('#owForm .pres.pauto .pr[data-v]'); await p.waitForTimeout(100);
-    const ownerVal = await p.$eval("#owAcct", e => e.value); assert.ok(/mei/i.test(ownerVal), "picked account: " + ownerVal);
+    const ownerVal = await p.$eval("#owAcct", e => e.value); assert.ok(ownerVal && /@|^HC-/.test(ownerVal), "picked an account or CRM id: " + ownerVal);
     await p.click("#owForm button[type=submit]"); await p.waitForTimeout(700);
-    const upd = ptPosts.filter(b => b.op === "update").pop(); assert.ok(upd && upd.fields && /mei/i.test(upd.fields.owner), "owner posted: " + JSON.stringify(upd));
+    const upd = ptPosts.filter(b => b.op === "update").pop(); assert.ok(upd && upd.fields && upd.fields.owner === ownerVal, "owner posted: " + JSON.stringify(upd));
     assert.ok(!/待分配/.test(await p.$eval("#rpBody .kv", e => e.innerText)), "owner shown on the overview");
     // the agreement, then 签约
     await p.click('#panel button[data-ptab="overview"]'); await p.waitForTimeout(200);
@@ -781,6 +782,10 @@ const EQUIP = [
     const row = rows.find(x => /Kids X Center/.test(x) && /Signed/.test(x)); assert.ok(row, "the signed KXC row: " + rows.join(" | "));
     await p.click("#pttable tbody tr[data-rel]"); await p.waitForTimeout(500);
     assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "panel opens from the table");
+    // English stage labels wrap instead of colliding (Rick, 2026-10-09: English version mess)
+    const boxes = await p.$$eval("#panel svg.track g.node text:not(.days)", ts => ts.map(t => { const b = t.getBoundingClientRect(); return [b.left, b.right]; }));
+    for (let i = 1; i < boxes.length; i++) assert.ok(boxes[i][0] >= boxes[i - 1][1] - 1, "stage labels " + (i - 1) + "/" + i + " overlap: " + JSON.stringify(boxes));
+    await p.screenshot({ path: OUT + "/partners-track-en.png", clip: await p.$eval("#panel svg.track", e => { const b = e.getBoundingClientRect(); return { x: b.left, y: b.top, width: b.width, height: b.height }; }) });
     await p.click("#ptKpi"); await p.waitForTimeout(200);
     assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "closes on an outside click");
     await p.click('#ptRight [data-view="board"]'); await p.waitForTimeout(200);
@@ -798,5 +803,6 @@ const EQUIP = [
     assert.ok(over <= 0, "the board scrolls inside the page, not the page: " + over);
   });
   console.log(errs.length ? "ERRORS:\n" + errs.join("\n") : "all orders/roles checks passed");
+  if (errs.length) process.exitCode = 1; // a failed scenario fails the run (it used to exit 0 — 2026-10-09)
   await browser.close(); srv.close();
 })().catch(e => { console.error(e); process.exit(1); });

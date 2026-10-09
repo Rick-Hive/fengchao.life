@@ -170,15 +170,18 @@
   // The stage track: past stages filled, the current one highlighted (amber past the
   // threshold), future ones hollow; the handover point marked; a click moves (editors).
   function ptTrackSvg(rel, stages, canEdit) {
-    var n = stages.length, W = 400, left = 24, right = 24, step = (W - left - right) / Math.max(1, n - 1), y = 28;
+    // English labels are long ("Renewal window"): a wider box, a smaller face and up to
+    // two lines per node, so neighbours never overlap (Rick, 2026-10-09: English version mess).
+    var n = stages.length, W = EN ? 520 : 400, left = EN ? 34 : 24, right = EN ? 34 : 24, step = (W - left - right) / Math.max(1, n - 1), y = 28;
+    var lines = function (s) { if (!EN) return [t(s.zh, s.en).slice(0, 5)]; var words = String(s.en).split(/[\s/]+/), out = [], cur = ""; words.forEach(function (w) { if (cur && (cur + " " + w).length > 10) { out.push(cur); cur = w; } else cur = cur ? cur + " " + w : w; }); if (cur) out.push(cur); if (out.length > 2) out = [out[0], out.slice(1).join(" ")]; return out.map(function (l) { return l.length > 12 ? l.slice(0, 11) + "…" : l; }); };
     var cur = stages.map(function (s) { return s.k; }).indexOf(rel.stage), h = rel.health || {};
-    var parts = ['<svg class="track" viewBox="0 0 ' + W + ' 84" role="img" aria-label="' + esc(t("阶段轨道", "Stage track")) + '">'];
+    var parts = ['<svg class="track' + (EN ? " en" : "") + '" viewBox="0 0 ' + W + ' ' + (EN ? 92 : 84) + '" role="img" aria-label="' + esc(t("阶段轨道", "Stage track")) + '">'];
     parts.push('<line x1="' + left + '" x2="' + (W - right) + '" y1="' + y + '" y2="' + y + '" class="rail"/>');
     if (cur > 0) parts.push('<line x1="' + left + '" x2="' + (left + step * cur) + '" y1="' + y + '" y2="' + y + '" class="done"/>');
     stages.forEach(function (s, i) {
       var x = left + step * i, state = i < cur ? "past" : i === cur ? (h.stalled && !rel.closed ? "now late" : "now") : "next";
       if (s.handover && i > 0) parts.push('<path class="hand" d="M' + (x - step / 2) + ' ' + (y - 13) + 'l4 4l-4 4l-4 -4z"><title>' + esc(t("负责人交接", "owner handover")) + "</title></path>");
-      parts.push('<g class="node ' + state + (canEdit && !rel.closed && i !== cur ? " can" : "") + '" data-stage="' + s.k + '"><circle cx="' + x + '" cy="' + y + '" r="' + (i === cur ? 9 : 6.5) + '"/><text x="' + x + '" y="' + (y + 22) + '" text-anchor="middle">' + ptSvgText(t(s.zh, s.en).slice(0, EN ? 12 : 5)) + "</text>" + (i === cur && !rel.closed ? '<text class="days" x="' + x + '" y="' + (y + 36) + '" text-anchor="middle">' + esc(h.limit ? t("已 ", "day ") + h.days + " / " + h.limit : t("已 ", "day ") + h.days + t(" 天", "")) + "</text>" : "") + "<title>" + esc(t(s.zh, s.en) + (s.days ? " · " + t("阈值 ", "threshold ") + s.days + t(" 天", " days") : "")) + "</title></g>");
+      parts.push('<g class="node ' + state + (canEdit && !rel.closed && i !== cur ? " can" : "") + '" data-stage="' + s.k + '"><circle cx="' + x + '" cy="' + y + '" r="' + (i === cur ? 9 : 6.5) + '"/><text x="' + x + '" y="' + (y + 22) + '" text-anchor="middle">' + lines(s).map(function (l, li) { return '<tspan x="' + x + '"' + (li ? ' dy="11"' : "") + ">" + ptSvgText(l) + "</tspan>"; }).join("") + "</text>" + (i === cur && !rel.closed ? '<text class="days" x="' + x + '" y="' + (y + 22 + 11 * lines(s).length + 3) + '" text-anchor="middle">' + esc(h.limit ? t("已 ", "day ") + h.days + " / " + h.limit : t("已 ", "day ") + h.days + t(" 天", "")) + "</text>" : "") + "<title>" + esc(t(s.zh, s.en) + (s.days ? " · " + t("阈值 ", "threshold ") + s.days + t(" 天", " days") : "")) + "</title></g>");
     });
     parts.push("</svg>");
     return parts.join("");

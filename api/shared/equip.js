@@ -75,15 +75,25 @@ function displayFields(table) {
   const fields = table.fields || [];
   const prim = fields.find((f) => f.id === table.primaryFieldId);
   if (!prim) return [];
-  if (!isNumeric(prim)) return [prim.name];
-  // The name column may be a formula or a lookup, not only a text field (Rick,
-  // 2026-10-09: 同步后出版社仍是数字 — a Publishers table whose "Name" is a formula).
+  // The candidates, in order; displayOf() takes the first whose VALUE is not a bare
+  // number. The primary first — but a Publishers table whose primary "Publisher ID"
+  // is a text column holding "1", "13" (Rick, 2026-10-09: 「Use publisher's name not
+  // ID」) falls through to "Publisher Name"; so does an autonumber primary (2026-10-07).
   const NAME_RE = /name|名称|名字|title|标题|publisher|出版社|supplier|供应商/i;
   const cands = fields.filter((f) => f.id !== prim.id && nameable(f));
-  const named = cands.find((f) => TEXT_TYPES.includes(f.type) && NAME_RE.test(f.name)) || cands.find((f) => NAME_RE.test(f.name)) || cands.find((f) => TEXT_TYPES.includes(f.type)) || cands[0];
-  return named ? [named.name, prim.name] : [prim.name];
+  const order = [];
+  if (!isNumeric(prim)) order.push(prim);
+  order.push(...cands.filter((f) => TEXT_TYPES.includes(f.type) && NAME_RE.test(f.name)));
+  order.push(...cands.filter((f) => NAME_RE.test(f.name)));
+  order.push(...cands.filter((f) => TEXT_TYPES.includes(f.type)));
+  order.push(...cands);
+  order.push(prim);
+  const seen = new Set();
+  return order.filter((f) => !seen.has(f.id) && seen.add(f.id)).slice(0, 6).map((f) => f.name);
 }
-function displayOf(rec, disp) { for (const n of disp) { const v = s(rec.fields[n]); if (v) return v; } return ""; }
+const NUMERIC_TEXT = /^\d+(\s*\(\d+\))?$/;
+// The first candidate with a value that is not a bare number; the number itself last.
+function displayOf(rec, disp) { let fallback = ""; for (const n of disp) { const v = s(rec.fields[n]); if (!v) continue; if (!NUMERIC_TEXT.test(v)) return v; fallback = fallback || v; } return fallback; }
 
 async function syncEquip(opts) {
   const log = (opts && opts.log) || (() => {});
@@ -124,12 +134,25 @@ async function syncEquip(opts) {
   // its primary field only. A link to Customers resolves to the customer's email.
   const main = { customers: cu, orders: or, items: it, curriculums: cr, seminar: se };
   const names = new Map(); // tableId → Map(recId → display)
+  // tableId → { name, Map(autonumber as text → { id, name }) }: a value that reached
+  // us as "13" through a formula or rollup the API cannot follow is looked up by the
+  // number itself in the table named like the field (Rick, 2026-10-09: the publisher
+  // chart and the 出版社 tab still showed numbers after the sync).
+  const numbered = new Map();
+  const noteNumbers = (tbl, recs, m) => {
+    const prim = (tbl.fields || []).find((f) => f.id === tbl.primaryFieldId);
+    if (!prim) return;
+    const byNo = new Map();
+    for (const r of recs) { const v = s(r.fields[prim.name]); if (v && NUMERIC_TEXT.test(v) && !byNo.has(v)) byNo.set(v.replace(/\s*\(\d+\)$/, ""), { id: r.id, name: m.get(r.id) || v }); }
+    if (byNo.size) numbered.set(tbl.id, { name: tbl.name, byNo });
+  };
   for (const t of Object.values(main)) {
     if (!t.table) continue;
     const disp = displayFields(t.table);
     const m = new Map();
     for (const r of t.records) m.set(r.id, displayOf(r, disp));
     names.set(t.table.id, m);
+    noteNumbers(t.table, t.records, m);
   }
   if (cu.table && cu.map.email) { const m = new Map(); for (const r of cu.records) m.set(r.id, normalizeEmail(r.fields[cu.map.email]) || names.get(cu.table.id).get(r.id)); names.set(cu.table.id, m); }
   // Every other table of the base, names only: a lookup (Publisher on Curriculums
@@ -144,6 +167,7 @@ async function syncEquip(opts) {
     try {
       const recs = await base.list(tbl.id, { fields: disp });
       names.set(tbl.id, new Map(recs.map((r) => [r.id, displayOf(r, disp)])));
+      noteNumbers(tbl, recs, names.get(tbl.id));
       log(`equip: ${tbl.name}: ${recs.length} records (names only: ${disp.join(", ")})`);
     } catch (err) { warnings.push(`${tbl.name}: linked names not read (${String(err.message || err)})`); }
   }
@@ -169,11 +193,28 @@ async function syncEquip(opts) {
         if (linked.length) return linked.join(", ");
       }
     }
+    const hits = numbersOf(t, rec, key);
+    if (hits.length) return hits.map((h) => h.name).join(", ");
     if (Array.isArray(raw)) return raw.map((v) => (typeof v === "string" && /^rec[A-Za-z0-9]+$/.test(v) ? lookupName(v) : s(v))).filter(Boolean).join(", ");
     if (typeof raw === "string" && /^rec[A-Za-z0-9]+$/.test(raw)) return lookupName(raw);
     return s(raw);
   }
   function lookupName(id) { for (const m of names.values()) if (m.has(id)) return m.get(id); return id; }
+  // "13" in a field called Publisher → the Publishers row whose autonumber is 13.
+  const singular = (x) => String(x || "").toLowerCase().replace(/[\s_\-()]/g, "").replace(/(ie)?s$/, (m0, ie) => (ie ? "y" : ""));
+  function byNumber(fname, value) {
+    const v = s(value); if (!v || !NUMERIC_TEXT.test(v)) return null;
+    const key = v.replace(/\s*\(\d+\)$/, "");
+    const want = singular(fname);
+    const tables = Array.from(numbered.values()).sort((a, b) => (singular(a.name) === want ? 0 : 1) - (singular(b.name) === want ? 0 : 1));
+    for (const tb of tables) { if (singular(tb.name) !== want) continue; const hit = tb.byNo.get(key); if (hit) return hit; }
+    return null;
+  }
+  function numbersOf(t, rec, key) {
+    const fname = t.map[key]; if (!fname) return [];
+    const raw = rec.fields[fname];
+    return (Array.isArray(raw) ? raw : raw == null ? [] : [raw]).map((v) => byNumber(fname, v)).filter(Boolean);
+  }
   // The linked record ids behind a field: a link field's own ids, or the ids of the
   // link a lookup rides on. A stable key where the display name may change (a
   // publisher renamed, or shown by number before 2026-10-08).
@@ -185,7 +226,8 @@ async function syncEquip(opts) {
       const link = t.table.fields.find((x) => x.id === f.options.recordLinkFieldId);
       if (link && link.type === "multipleRecordLinks") return ids(rec.fields[link.name]);
     }
-    return ids(rec.fields[fname]).filter((v) => /^rec[A-Za-z0-9]+$/.test(v));
+    const direct = ids(rec.fields[fname]).filter((v) => /^rec[A-Za-z0-9]+$/.test(v));
+    return direct.length ? direct : numbersOf(t, rec, key).map((h) => h.id);
   }
 
   // Curriculums: SKU = the primary field.
@@ -424,4 +466,4 @@ async function setReceived(orderRec, received, opts) {
   return true;
 }
 
-module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, displayFields, syncEquip, readEquip, writeEquip, status, writeBackCrmIds, createCustomer, createOrder, setReceived };
+module.exports = { BASE_ID, BLOB, TABLES, FIELDS, pat, patSetting, displayFields, displayOf, syncEquip, readEquip, writeEquip, status, writeBackCrmIds, createCustomer, createOrder, setReceived };

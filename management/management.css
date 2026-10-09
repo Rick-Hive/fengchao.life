@@ -819,3 +819,4 @@ svg.tline .ms.late { fill: #fff; stroke: var(--bad); stroke-width: 2; }
 .pres.pauto .pr.new { color: var(--accent-dark); font-weight: 600; }
 .pres.pauto .phead { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.04em; }
 .pnew.inline { margin: var(--s2) 0; padding: var(--s3); background: var(--bg); border: 1px dashed var(--line-strong); border-radius: var(--r); }
+svg.track.en { font-size: 9.5px; }
