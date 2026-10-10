@@ -392,10 +392,12 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   // restore for the scheduler section
   users.splice(users.findIndex((x) => x.id === "u-new"), 1);
 
-  // 10b. Entra's department is kept empty (Rick, 2026-10-10): the school's name is
-  // never written, a sync clears any department it finds, an identity the
-  // department carried goes into Hive's record first, and an account Microsoft
-  // refuses (a privileged admin) is not tried again while its department is unchanged.
+  // 10b. Entra's department (Rick, 2026-10-10): the school's name is never written;
+  // each domain's departments are cleared once (「只要清空一次就可以」) — an identity
+  // the department carried goes into Hive's record first, an account Microsoft
+  // refuses (a privileged admin) is not tried again — and once the domain is
+  // recorded as done, a department set afterwards is left alone.
+  delete blobs["_departments.json"]; // earlier syncs here found nothing and recorded the domain as done
   institutions = { institutions: { [DOMAIN]: { name: "示例学校", by: ADMIN, at: "x" } } };
   users.find((x) => x.id === "u-elaine").department = "老师";
   users.find((x) => x.id === "u-lei").department = "示例学校";
@@ -417,6 +419,14 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   st = await dir.syncSlice(DOMAIN, "full", { budgetMs: 20000 });
   assert.strictEqual(st.done, true);
   assert.deepStrictEqual(deptPatches(), [], "the refused account is not tried again, the cleared one needs nothing");
+  const deptDone = JSON.parse(blobs["_departments.json"]).domains[DOMAIN];
+  assert.ok(deptDone && deptDone.at, "the domain is recorded as cleared once");
+  assert.deepStrictEqual(deptDone.refused, [`lei@${DOMAIN}`], "the refused account is listed for a manual fix");
+  users.find((x) => x.id === "u-elaine").department = "行政"; // the school sets one itself afterwards
+  calls.length = 0;
+  st = await dir.syncSlice(DOMAIN, "full", { budgetMs: 20000 });
+  assert.deepStrictEqual(deptPatches(), [], "cleared once: a later department stays");
+  assert.strictEqual(JSON.parse(blobs[`${DOMAIN}.json`]).users.find((x) => x.id === "u-elaine").department, "行政");
   refuseDept = null;
   institutions = { institutions: {} };
   delete users.find((x) => x.id === "u-elaine").department;

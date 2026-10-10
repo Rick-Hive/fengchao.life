@@ -77,14 +77,18 @@ async function cachedDomains() {
 const store = { read: readJson, write: writeJson, listDomains: cachedDomains };
 
 // ---- shapes -------------------------------------------------------------------------
-// Entra's `department` stays empty (Rick, 2026-10-10): schools do not want their
-// name — e.g. 智慧园书院 — on the Teams and Outlook profiles of their accounts.
-// Hive never writes it (it used to fill in the school's name, 2026-10-02), and a
-// sync clears any it finds, a slice at a time; the school is shown only in the
-// management centre, from crm/institutions. An identity the department carried
-// (学生 / 老师 …) goes into Hive's own record first, so nothing that relied on it
-// is lost. An account Microsoft will not let us change (a privileged admin) is
-// remembered with that value and not tried again until its department changes.
+// Entra's `department`: the school's name stays off the accounts (Rick, 2026-10-10):
+// schools do not want it — e.g. 智慧园书院 — on the Teams and Outlook profiles of
+// their accounts. Hive never writes it (it used to fill in the school's name,
+// 2026-10-02), and each domain's departments are cleared ONCE (Rick: 「只要清空一次
+// 就可以」): sync slices clear what they find until a finished sync leaves nothing
+// to clear, then the domain is recorded in directory/_departments.json and never
+// touched again — a department the school sets itself afterwards stays. The school
+// is shown only in the management centre, from crm/institutions. An identity the
+// department carried (学生 / 老师 …) goes into Hive's own record first, so nothing
+// that relied on it is lost. An account Microsoft will not let us change (a
+// privileged admin) is remembered and not tried again.
+const DEPT_DONE = "_departments.json";
 const CLEAR_PER_SLICE = 100;
 function identityInDepartment(dep) {
   const d = String(dep || "").trim();
@@ -511,9 +515,21 @@ async function syncSlice(domain, mode, opts) {
   // This slice went through: an error left by an earlier slice is history now (it
   // used to stay in the status and make every later call look failed).
   doc.error = null;
-  // Entra's department is kept empty (see clearDepartments), within this slice's budget.
-  if (Date.now() - t0 < budget) await clearDepartments(doc, domain, log, Date.now() - t0 < budget / 2 ? CLEAR_PER_SLICE : 20);
+  // Entra's department is cleared once per domain (see clearDepartments), within this slice's budget.
   const done = doc.pending.length === 0;
+  try {
+    const record = (await store.read(DEPT_DONE)) || { domains: {} };
+    if (!record.domains || typeof record.domains !== "object") record.domains = {};
+    if (!record.domains[domain]) {
+      if (Date.now() - t0 < budget) await clearDepartments(doc, domain, log, Date.now() - t0 < budget / 2 ? CLEAR_PER_SLICE : 20);
+      const left = doc.users.filter((r) => r.id && r.department && r.departmentRefused !== r.department).length;
+      if (done && !left) {
+        record.domains[domain] = { at: new Date().toISOString(), refused: doc.users.filter((r) => r.department && r.departmentRefused === r.department).map((r) => r.upn) };
+        await store.write(DEPT_DONE, record);
+        log(`directory ${domain}: departments cleared — done once, not touched again`);
+      }
+    }
+  } catch (err) { log(`directory ${domain}: department clearing skipped this time: ${err.message}`); }
   if (done) {
     await markClassTeams(doc, log);
     await fetchGroupOwners(doc, log);
