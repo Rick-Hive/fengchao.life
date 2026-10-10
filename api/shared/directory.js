@@ -33,7 +33,7 @@
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
 const { graph, list, batch, q } = require("./graph");
-const { readInstitutions } = require("./people");
+const { updatePeople, IDENTITIES } = require("./people");
 
 const DELTA = "_delta.json";
 
@@ -77,6 +77,48 @@ async function cachedDomains() {
 const store = { read: readJson, write: writeJson, listDomains: cachedDomains };
 
 // ---- shapes -------------------------------------------------------------------------
+// Entra's `department` stays empty (Rick, 2026-10-10): schools do not want their
+// name — e.g. 智慧园书院 — on the Teams and Outlook profiles of their accounts.
+// Hive never writes it (it used to fill in the school's name, 2026-10-02), and a
+// sync clears any it finds, a slice at a time; the school is shown only in the
+// management centre, from crm/institutions. An identity the department carried
+// (学生 / 老师 …) goes into Hive's own record first, so nothing that relied on it
+// is lost. An account Microsoft will not let us change (a privileged admin) is
+// remembered with that value and not tried again until its department changes.
+const CLEAR_PER_SLICE = 100;
+function identityInDepartment(dep) {
+  const d = String(dep || "").trim();
+  return IDENTITIES.find((i) => d === i || d.includes(i)) || "";
+}
+async function clearDepartments(doc, domain, log, limit) {
+  const rows = (doc.users || []).filter((r) => r.id && r.department && r.departmentRefused !== r.department).slice(0, limit);
+  if (!rows.length) return 0;
+  const keep = rows.map((r) => [String(r.upn || "").toLowerCase(), identityInDepartment(r.department)]).filter(([u, i]) => u && i);
+  if (keep.length) {
+    try {
+      const at = new Date().toISOString();
+      await updatePeople((d) => {
+        for (const [upn, identity] of keep) {
+          const rec = d.people[upn] || {};
+          if (!IDENTITIES.includes(rec.identity)) d.people[upn] = Object.assign({}, rec, { identity, updated: at, by: "entra-department" });
+        }
+      });
+    } catch (err) { log(`directory ${domain}: identities from departments not kept (${err.message}); departments left for the next sync`); return 0; }
+  }
+  let cleared = 0;
+  for (let i = 0; i < rows.length; i += 10) {
+    await Promise.all(rows.slice(i, i + 10).map((r) => graph("PATCH", `/users/${r.id}`, { department: null })
+      .then(() => { r.department = ""; delete r.departmentRefused; cleared++; })
+      .catch((err) => {
+        if (err.status === 404) { r.department = ""; return; }
+        if (err.status === 403 || err.status === 400) r.departmentRefused = r.department;
+        log(`directory ${domain}: department of ${r.upn} not cleared: ${err.message}`);
+      })));
+  }
+  if (cleared) log(`directory ${domain}: department cleared on ${cleared} account(s)`);
+  return cleared;
+}
+
 function domainOf(upn) { return String(upn || "").toLowerCase().split("@")[1] || ""; }
 function groupKind(g) {
   const types = g.groupTypes || [];
@@ -432,13 +474,6 @@ async function syncSlice(domain, mode, opts) {
     log(`directory ${domain}: ${mode} sync started, ${doc.pending.length} account(s) to read, ${added} new`);
   }
 
-  // The school's name goes into Entra's `department` for accounts that have none
-  // (Rick, 2026-10-02: 「自动将职务/部门更新成域名所对应的学校机构名称」). A department
-  // the school filled in itself is never overwritten.
-  let institution = "";
-  try { const inst = (await readInstitutions()).institutions; institution = (inst[domain] && (inst[domain].name || inst[domain].nameEn)) || ""; } catch { /* no names yet */ }
-
-  const departmentFills = [];
   // Work through the pending accounts while there is time.
   try {
     while (doc.pending.length && Date.now() - t0 < budget) {
@@ -458,11 +493,9 @@ async function syncSlice(domain, mode, opts) {
         if (fresh && fresh.status === 404) { doc.users = doc.users.filter((r) => r.id !== c.id); return; } // gone meanwhile
         if (fresh && fresh.status === 200 && fresh.body && fresh.body.userType === "Guest") return;
         const row = rowOf(basic, res[`m${i}`], res[`g${i}`], plans);
-        if (institution && !row.department && basic.id) {
-          departmentFills.push(graph("PATCH", `/users/${basic.id}`, { department: institution }).then(() => { row.department = institution; }).catch((err) => log(`directory ${domain}: department for ${row.upn} not set: ${err.message}`)));
-        }
         if (old && !row.lastSignIn) row.lastSignIn = old.lastSignIn; // delta re-reads skip signInActivity
         if (old) { if (!row.city) row.city = old.city || ""; if (!row.safeEmail) row.safeEmail = old.safeEmail || ""; }
+        if (old && old.departmentRefused && old.departmentRefused === row.department) row.departmentRefused = old.departmentRefused;
         const k = doc.users.findIndex((r) => r.id === row.id || r.upn === row.upn);
         if (k >= 0) doc.users[k] = row; else doc.users.push(row);
       });
@@ -478,7 +511,8 @@ async function syncSlice(domain, mode, opts) {
   // This slice went through: an error left by an earlier slice is history now (it
   // used to stay in the status and make every later call look failed).
   doc.error = null;
-  await Promise.all(departmentFills);
+  // Entra's department is kept empty (see clearDepartments), within this slice's budget.
+  if (Date.now() - t0 < budget) await clearDepartments(doc, domain, log, Date.now() - t0 < budget / 2 ? CLEAR_PER_SLICE : 20);
   const done = doc.pending.length === 0;
   if (done) {
     await markClassTeams(doc, log);

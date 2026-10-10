@@ -380,9 +380,7 @@ async function handler(context, req) {
       if (givenName) body.givenName = givenName;
       if (surname) body.surname = surname;
       if (jobTitle) body.jobTitle = jobTitle;
-      const inst = await people.readInstitutions();
-      const instName = inst.institutions && inst.institutions[domain] && (inst.institutions[domain].name || inst.institutions[domain].nameEn);
-      if (instName) body.department = instName;
+      // No department: the school's name is never written to the account (Rick, 2026-10-10).
       let created;
       try {
         created = await graph("POST", "/users", body);

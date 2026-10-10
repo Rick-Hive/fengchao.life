@@ -122,6 +122,7 @@ global.fetch = async function (url, opts) {
     const id = p.split("/")[2];
     return json(200, { value: id === "u-lei" || id === `lei@${DOMAIN}` ? leiMethods : [] });
   }
+  if (method === "PATCH" && /^\/users\/[^/]+$/.test(p) && refuseDept && p === `/users/${refuseDept}` && "department" in JSON.parse(opts.body || "{}")) return json(403, { error: { code: "Authorization_RequestDenied", message: "Insufficient privileges to complete the operation." } });
   if (method === "PATCH" && /^\/users\/[^/]+$/.test(p)) return { ok: true, status: 204, headers: { get: () => null }, text: async () => "" };
   if (method === "DELETE" && /\/authentication\/microsoftAuthenticatorMethods\//.test(p)) {
     const id = p.split("/").pop();
@@ -133,6 +134,7 @@ global.fetch = async function (url, opts) {
 
 const people = require(path.join(__dirname, "..", "api", "shared", "people.js"));
 let institutions = { institutions: {} };
+let refuseDept = null; // a user id whose department PATCH Microsoft refuses
 people.readInstitutions = async () => JSON.parse(JSON.stringify(institutions));
 people.writeInstitutions = async (doc) => { institutions = JSON.parse(JSON.stringify(doc)); };
 let peopleStore = { people: {} };
@@ -390,18 +392,35 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   // restore for the scheduler section
   users.splice(users.findIndex((x) => x.id === "u-new"), 1);
 
-  // 10b. With a school name set, a sync fills Entra's empty `department` with it (never overwriting one).
+  // 10b. Entra's department is kept empty (Rick, 2026-10-10): the school's name is
+  // never written, a sync clears any department it finds, an identity the
+  // department carried goes into Hive's record first, and an account Microsoft
+  // refuses (a privileged admin) is not tried again while its department is unchanged.
   institutions = { institutions: { [DOMAIN]: { name: "示例学校", by: ADMIN, at: "x" } } };
-  users.find((x) => x.id === "u-elaine").department = "行政";
+  users.find((x) => x.id === "u-elaine").department = "老师";
+  users.find((x) => x.id === "u-lei").department = "示例学校";
+  const elaineRec = peopleStore.people[`elaine@${DOMAIN}`];
+  if (elaineRec) delete elaineRec.identity;
+  refuseDept = "u-lei";
   calls.length = 0;
   blobs[`${DOMAIN}.json`] = undefined; delete blobs[`${DOMAIN}.json`];
   st = await dir.syncSlice(DOMAIN, "full", { budgetMs: 20000 });
   assert.strictEqual(st.done, true);
-  const deptPatches = calls.filter((c) => c.method === "PATCH" && /\/users\//.test(c.url)).map((c) => [c.url.split("/users/")[1], JSON.parse(c.body).department]);
-  assert.deepStrictEqual(deptPatches, [["u-lei", "示例学校"]], "only the account without a department is filled");
-  assert.strictEqual(JSON.parse(blobs[`${DOMAIN}.json`]).users.find((x) => x.id === "u-lei").department, "示例学校");
+  const deptPatches = () => calls.filter((c) => c.method === "PATCH" && /\/users\//.test(c.url) && "department" in JSON.parse(c.body)).map((c) => [c.url.split("/users/")[1], JSON.parse(c.body).department]).sort();
+  assert.deepStrictEqual(deptPatches(), [["u-elaine", null], ["u-lei", null]], "every department is cleared, nothing is written");
+  let cached = JSON.parse(blobs[`${DOMAIN}.json`]).users;
+  assert.strictEqual(cached.find((x) => x.id === "u-elaine").department, "", "cleared in the cache too");
+  assert.strictEqual(cached.find((x) => x.id === "u-lei").departmentRefused, "示例学校", "a refused account is remembered");
+  assert.strictEqual(peopleStore.people[`elaine@${DOMAIN}`].identity, "老师", "the identity the department carried is kept in Hive");
+  delete users.find((x) => x.id === "u-elaine").department; // Microsoft now has it empty
+  calls.length = 0;
+  st = await dir.syncSlice(DOMAIN, "full", { budgetMs: 20000 });
+  assert.strictEqual(st.done, true);
+  assert.deepStrictEqual(deptPatches(), [], "the refused account is not tried again, the cleared one needs nothing");
+  refuseDept = null;
   institutions = { institutions: {} };
   delete users.find((x) => x.id === "u-elaine").department;
+  delete users.find((x) => x.id === "u-lei").department;
 
   // 11. The scheduler endpoint: wrong key → 403; right key loops over every verified domain until done.
   let c = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
@@ -461,9 +480,12 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(r.status, 400, "students plan refused for a teacher"); assert.ok(r.body.problems.join().includes("学生 only"));
   r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { identity: "学生", plan: "faculty" }), user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 400, "faculty plan refused for a student");
+  institutions = { institutions: { [DOMAIN]: { name: "示例学校", by: ADMIN, at: "x" } } };
   r = await call({ action: "user", method: "POST", body: base, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.user, `li.ming@${DOMAIN}`);
+  institutions = { institutions: {} };
+  assert.ok(!("department" in createdUsers[createdUsers.length - 1]), "the school's name is not written to a new account");
   assert.strictEqual(r.body.displayName, "李明", "CJK display name = surname + given name, no space");
   assert.ok(/^[A-Za-z0-9!#%&*+=?@]{14}$/.test(r.body.password), "temporary password");
   assert.deepStrictEqual(r.body.licence, { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] });
