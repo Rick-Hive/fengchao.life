@@ -432,6 +432,26 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   delete users.find((x) => x.id === "u-elaine").department;
   delete users.find((x) => x.id === "u-lei").department;
 
+  // 10c. The clearing does not depend on time left over (2026-10-11: a night left
+  // 智慧园书院's accounts untouched). A slice with no time for it keeps the run
+  // open ("departments" phase) and the next call clears; a "changes" sync with
+  // nothing queued for the domain clears too.
+  const setCachedDept = (vals) => { const d = JSON.parse(blobs[`${DOMAIN}.json`]); for (const r of d.users) { if (vals[r.id] !== undefined) { r.department = vals[r.id]; delete r.departmentRefused; } } blobs[`${DOMAIN}.json`] = JSON.stringify(d); };
+  delete blobs["_departments.json"];
+  setCachedDept({ "u-elaine": "智慧园书院", "u-lei": "智慧园书院" });
+  deltaChanges = [];
+  calls.length = 0;
+  st = await dir.syncSlice(DOMAIN, "changes", { budgetMs: -1, scope: "tenant" }); // a slice whose time is already spent
+  assert.strictEqual(st.done, false, "no time this slice: the run stays open");
+  assert.strictEqual(st.phase, "departments");
+  assert.strictEqual(st.departmentsLeft, 2);
+  assert.deepStrictEqual(deptPatches(), [], "nothing tried without time");
+  st = await dir.syncSlice(DOMAIN, "changes", { budgetMs: 20000, scope: "tenant" });
+  assert.strictEqual(st.done, true, JSON.stringify(st));
+  assert.deepStrictEqual(deptPatches(), [["u-elaine", null], ["u-lei", null]], "the next call clears them all");
+  assert.ok(JSON.parse(blobs["_departments.json"]).domains[DOMAIN], "and records the domain");
+  assert.ok(JSON.parse(blobs[`${DOMAIN}.json`]).users.every((r) => !r.department), "cache cleared");
+
   // 11. The scheduler endpoint: wrong key → 403; right key loops over every verified domain until done.
   let c = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
   await schedFn(c, { method: "POST", headers: {}, body: { mode: "full", key: "nope" } });
