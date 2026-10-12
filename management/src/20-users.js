@@ -469,6 +469,33 @@
         renderUsers(); openUserPanel(u.upn, currentDomain, opts);
       });
     });
+    // Microsoft is asked again for this account while the panel is open (Rick, 2026-10-12:
+    // Linda H. had an authenticator in Entra, "No" here — registering one is not a change
+    // the directory sync's delta reports). If anything shown changed, the row and the
+    // panel are redrawn.
+    if (!opts.fresh) refreshUserRow(u.upn, currentDomain, opts);
+  }
+
+  function refreshUserRow(upn, domain, opts) {
+    var shownIn = opts.beside ? "panel2" : "panel";
+    $(shownIn).setAttribute("data-upn", upn);
+    api("domain/user?domain=" + encodeURIComponent(domain) + "&upn=" + encodeURIComponent(upn)).then(function (r) {
+      if (!r.ok || !r.body || !r.body.user) return;
+      var fresh = r.body.user, changed = false;
+      function sig(x) { return [x.verified, (x.devices || []).map(function (d) { return d.id; }).join(","), (x.groups || []).map(function (g) { return g.id; }).sort().join(","), x.displayName, x.enabled].join("|"); }
+      [state.domainUsers[domain], state.domainUsers["*"]].forEach(function (d) {
+        if (!d || !d.users) return;
+        d.users.forEach(function (x, i) {
+          if (x.upn !== upn || (x.domain && x.domain !== domain)) return;
+          if (sig(x) !== sig(fresh)) changed = true;
+          d.users[i] = Object.assign({}, fresh, x.domain ? { domain: x.domain } : {});
+        });
+      });
+      if (!changed) return;
+      renderUsers();
+      var p = $(shownIn);
+      if (p.classList.contains("open") && p.getAttribute("data-upn") === upn) openUserPanel(upn, domain, Object.assign({}, opts, { fresh: true }));
+    }).catch(function () { /* the cached row stays */ });
   }
 
   // 新建账号 (Rick, 2026-10-04): a 域管理员（IT）creates an account in their own school.

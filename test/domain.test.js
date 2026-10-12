@@ -93,7 +93,7 @@ global.fetch = async function (url, opts) {
         if (b) { const hit = users.find((x) => x.id === b[1]); return hit ? { id: r.id, status: 200, body: hit } : { id: r.id, status: 404, body: {} }; }
         return { id: r.id, status: 404, body: {} };
       }
-      if (m[2] === "authentication/methods") return { id: r.id, status: 200, body: { value: m[1] === "u-lei" ? leiMethods : [{ "@odata.type": "#microsoft.graph.passwordAuthenticationMethod", id: "pw" }] } };
+      if (m[2] === "authentication/methods") return { id: r.id, status: 200, body: { value: m[1] === "u-lei" ? leiMethods : [{ "@odata.type": "#microsoft.graph.passwordAuthenticationMethod", id: "pw" }].concat(m[1] === "u-elaine" ? elaineMethods : []) } };
       return { id: r.id, status: 200, body: { value: groupsOf[m[1]] || [] } };
     }) });
   }
@@ -120,7 +120,7 @@ global.fetch = async function (url, opts) {
   }
   if (method === "GET" && /^\/users\/[^/]+\/authentication\/methods$/.test(p)) {
     const id = p.split("/")[2];
-    return json(200, { value: id === "u-lei" || id === `lei@${DOMAIN}` ? leiMethods : [] });
+    return json(200, { value: id === "u-lei" || id === `lei@${DOMAIN}` ? leiMethods : id === "u-elaine" ? elaineMethods : [] });
   }
   if (method === "PATCH" && /^\/users\/[^/]+$/.test(p) && refuseDept && p === `/users/${refuseDept}` && "department" in JSON.parse(opts.body || "{}")) return json(403, { error: { code: "Authorization_RequestDenied", message: "Insufficient privileges to complete the operation." } });
   if (method === "PATCH" && /^\/users\/[^/]+$/.test(p)) return { ok: true, status: 204, headers: { get: () => null }, text: async () => "" };
@@ -134,7 +134,8 @@ global.fetch = async function (url, opts) {
 
 const people = require(path.join(__dirname, "..", "api", "shared", "people.js"));
 let institutions = { institutions: {} };
-let refuseDept = null; // a user id whose department PATCH Microsoft refuses
+let refuseDept = null;
+let elaineMethods = []; // Elaine registers an authenticator in 10d // a user id whose department PATCH Microsoft refuses
 people.readInstitutions = async () => JSON.parse(JSON.stringify(institutions));
 people.writeInstitutions = async (doc) => { institutions = JSON.parse(JSON.stringify(doc)); };
 let peopleStore = { people: {} };
@@ -441,16 +442,39 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   setCachedDept({ "u-elaine": "智慧园书院", "u-lei": "智慧园书院" });
   deltaChanges = [];
   calls.length = 0;
-  st = await dir.syncSlice(DOMAIN, "changes", { budgetMs: -1, scope: "tenant" }); // a slice whose time is already spent
+  st = await dir.syncSlice(DOMAIN, "changes", { budgetMs: -1, scope: "tenant", recheck: false }); // a slice whose time is already spent
   assert.strictEqual(st.done, false, "no time this slice: the run stays open");
   assert.strictEqual(st.phase, "departments");
   assert.strictEqual(st.departmentsLeft, 2);
   assert.deepStrictEqual(deptPatches(), [], "nothing tried without time");
-  st = await dir.syncSlice(DOMAIN, "changes", { budgetMs: 20000, scope: "tenant" });
+  st = await dir.syncSlice(DOMAIN, "changes", { budgetMs: 20000, scope: "tenant", recheck: false });
   assert.strictEqual(st.done, true, JSON.stringify(st));
   assert.deepStrictEqual(deptPatches(), [["u-elaine", null], ["u-lei", null]], "the next call clears them all");
   assert.ok(JSON.parse(blobs["_departments.json"]).domains[DOMAIN], "and records the domain");
   assert.ok(JSON.parse(blobs[`${DOMAIN}.json`]).users.every((r) => !r.department), "cache cleared");
+
+  // 10d. An authenticator registered in Entra shows without waiting for the nightly
+  // full read (Rick, 2026-10-12: Linda H.): /users/delta does not report it, so
+  // (a) the person panel's GET domain/user reads the account live, and (b) a
+  // "changes" sync re-reads every account without an authenticator.
+  let cachedRow = (id) => JSON.parse(blobs[`${DOMAIN}.json`]).users.find((x) => x.id === id);
+  assert.strictEqual(cachedRow("u-elaine").verified, false, "Elaine has none yet");
+  elaineMethods = [{ "@odata.type": "#microsoft.graph.microsoftAuthenticatorAuthenticationMethod", id: "ma-e1", displayName: "iPhone 13", createdDateTime: "2026-10-12T01:00:00Z" }];
+  r = await call({ action: "user", query: { domain: DOMAIN, upn: `elaine@${DOMAIN}` }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(r.body.user.verified, true, "read live");
+  assert.deepStrictEqual(r.body.user.devices.map((x) => x.name), ["iPhone 13"]);
+  assert.strictEqual(cachedRow("u-elaine").verified, true, "and written into the cache");
+  r = await call({ action: "user", query: { domain: DOMAIN, upn: "someone@other.example.edu" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "only an account of this domain");
+  // (b) back to "none" in the cache; Entra has one; a changes sync with nothing in the delta finds it.
+  { const d = JSON.parse(blobs[`${DOMAIN}.json`]); const e = d.users.find((x) => x.id === "u-elaine"); e.verified = false; e.devices = []; blobs[`${DOMAIN}.json`] = JSON.stringify(d); }
+  deltaChanges = [];
+  let guard10d = 0;
+  do { st = await dir.syncSlice(DOMAIN, "changes", { budgetMs: 20000, scope: "tenant" }); } while (!st.done && ++guard10d < 5);
+  assert.strictEqual(st.done, true);
+  assert.strictEqual(cachedRow("u-elaine").verified, true, "the changes sync re-read the account without an authenticator");
+  elaineMethods = [];
 
   // 11. The scheduler endpoint: wrong key → 403; right key loops over every verified domain until done.
   let c = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };

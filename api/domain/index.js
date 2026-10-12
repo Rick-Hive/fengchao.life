@@ -199,6 +199,17 @@ async function handler(context, req) {
       context.res = { status: 200, body: Object.assign({ domain, users, partial: users.some((u) => u.partial) }, { sync: dir.status(doc) }) };
       return;
     }
+    // One account read live from Microsoft and written into the cache (the person panel
+    // calls it when it opens, 2026-10-12): an authenticator registered since the last
+    // full sync, or a new Teams group, shows at once.
+    if (method === "GET" && action === "user") {
+      const upn = String((req.query && req.query.upn) || "").trim().toLowerCase();
+      if (!upn || domainOf(upn) !== domain) return fail(context, 400, "upn must be an account of this domain");
+      const row = await dir.refreshUser(domain, upn);
+      const view = row ? (await usersView(domain)).users.find((u) => u.upn === upn) || null : null;
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain, user: view, gone: !row } };
+      return;
+    }
     if (method === "GET" && action === "groups") {
       const [doc, names] = await Promise.all([dir.readDomain(domain), people.readGroupNames()]);
       const own = dir.groupsOf(doc.users, doc.groupOwners, domain);

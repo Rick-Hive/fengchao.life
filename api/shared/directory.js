@@ -419,6 +419,48 @@ async function distributeChanges(changes, byDomain) {
   }
 }
 
+// One account read live and written into the cache (Rick, 2026-10-12: Linda H. had
+// registered Microsoft Authenticator in Entra while the management centre still said
+// "No"). Registering a method is not a change /users/delta reports, so until the next
+// full read the cache cannot know; the person panel calls this when it opens.
+// What Graph could not read this time (methods or groups) keeps its cached value.
+async function refreshUser(domain, upn) {
+  const doc = await readDomain(domain);
+  const want = String(upn || "").toLowerCase();
+  const old = doc.users.find((r) => r.upn === want);
+  const key = encodeURIComponent(old ? old.id : want);
+  const plans = await loadSkuPlans();
+  const res = await batch([
+    { id: "b", url: `/users/${key}?$select=${USER_SELECT.replace(",signInActivity", "")}` },
+    { id: "m", url: `/users/${key}/authentication/methods` },
+    { id: "g", url: `/users/${key}/memberOf/microsoft.graph.group?$select=id,displayName,description,mail,groupTypes,mailEnabled,securityEnabled,resourceProvisioningOptions,visibility&$top=200` },
+    { id: "s", url: `/users/${key}?$select=id,signInActivity` }, // its own request: refused without Entra ID P1
+  ]);
+  const b = res.b || {};
+  if (b.status === 404) {
+    if (old) { doc.users = doc.users.filter((r) => r !== old); await store.write(`${domain}.json`, doc); }
+    return null;
+  }
+  if (b.status !== 200 || !b.body || b.body.userType === "Guest") return old || null;
+  const row = rowOf(b.body, res.m, res.g, plans);
+  if (old) {
+    if (!(res.m && res.m.status === 200)) { row.verified = old.verified; row.devices = old.devices || []; row.otherMethods = old.otherMethods || []; }
+    if (!(res.g && res.g.status === 200)) row.groups = old.groups || [];
+    else { const kinds = new Map((old.groups || []).map((g) => [g.id, g.kind])); for (const g of row.groups) if (g.kind === "team" && kinds.get(g.id) === "class") g.kind = "class"; }
+    row.lastSignIn = old.lastSignIn || row.lastSignIn;
+    if (!row.city) row.city = old.city || "";
+    if (!row.safeEmail) row.safeEmail = old.safeEmail || "";
+    if (old.departmentRefused && old.departmentRefused === row.department) row.departmentRefused = old.departmentRefused;
+    row.partial = !!(old.partial && row.partial);
+  }
+  const sia = res.s && res.s.status === 200 && res.s.body && res.s.body.signInActivity;
+  if (sia) row.lastSignIn = sia.lastSignInDateTime || sia.lastNonInteractiveSignInDateTime || row.lastSignIn;
+  const k = doc.users.findIndex((r) => r.id === row.id || r.upn === row.upn);
+  if (k >= 0) doc.users[k] = row; else doc.users.push(row);
+  await store.write(`${domain}.json`, doc);
+  return row;
+}
+
 // One budgeted slice of a sync. Returns the document's status:
 // { done, domain, mode, total, remaining, syncedAt, fullAt, added }.
 // opts.scope = "domain" (a 域管理员 IT's own sync) keeps the "changes" intake to this
@@ -474,10 +516,25 @@ async function syncSlice(domain, mode, opts) {
         for (const [dom, list] of Object.entries(byDomain)) {
           if (dom === domain || !list.some((c) => !c.removed) || list.length > PER_BATCH) continue;
           if (Date.now() - t0 > budget * 0.6) break;
-          try { await syncSlice(dom, "changes", { by: o.by, scope: "domain", log, budgetMs: Math.max(5000, budget - (Date.now() - t0)) }); } catch (err) { log(`directory ${dom}: share of the tenant's changes not read now: ${err.message}`); }
+          try { await syncSlice(dom, "changes", { by: o.by, scope: "domain", recheck: false, log, budgetMs: Math.max(5000, budget - (Date.now() - t0)) }); } catch (err) { log(`directory ${dom}: share of the tenant's changes not read now: ${err.message}`); }
         }
       }
       doc = await readDomain(domain);
+      // Registering an authenticator is not a change /users/delta reports (2026-10-12),
+      // so a sync of this domain's changes also re-reads every account that has none yet.
+      if (o.recheck !== false) {
+        const pend = new Set(doc.pending || []);
+        const queued = new Set(Array.from(pend).map((x) => { try { return JSON.parse(x).id; } catch { return ""; } }));
+        let n = 0;
+        for (const r of doc.users) if (r.id && r.verified !== true && r.enabled !== false && !queued.has(r.id)) { pend.add(JSON.stringify({ id: r.id, upn: r.upn, b: 1 })); n++; }
+        if (n) {
+          doc.pending = Array.from(pend);
+          if (!doc.run) doc.run = { mode: "changes", startedAt: new Date().toISOString(), total: doc.pending.length, by: o.by || "" };
+          else doc.run.total = (doc.run.total || 0) + n;
+          await store.write(`${domain}.json`, doc);
+          log(`directory ${domain}: ${n} account(s) without an authenticator re-read`);
+        }
+      }
       if (!doc.run && await departmentStep(doc, domain, log, t0 + budget, true)) {
         // Nothing queued, but departments still to clear: open a run so the caller calls again.
         doc.run = { mode: "changes", startedAt: new Date().toISOString(), total: 0, by: o.by || "", phase: "departments", departmentsLeft: departmentsToClear(doc).length };
@@ -616,4 +673,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, refreshUser, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
