@@ -75,8 +75,15 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   let st = await S.generate(D, "2026-09", { discount: 1, note: "first" }, "fin@x");
   assert.strictEqual(st.id, "STM-000001"); assert.strictEqual(st.status, "draft"); assert.strictEqual(st.discount, 1); assert.strictEqual(st.unitPriceYear, 6);
   assert.strictEqual(st.amount, Math.round(3 * 6 / 12 * 100) / 100);
-  st = await S.generate(D, "2026-09", { discount: 2 }, "fin@x");
+  // Finance's three figures (Rick, 2026-10-13): price per account per year, free accounts, percentage off.
+  st = await S.generate(D, "2026-09", { discount: 2, unitPriceYear: 8, discountPct: 25 }, "fin@x");
   assert.strictEqual(st.id, "STM-000001", "a draft keeps its id"); assert.strictEqual(st.discount, 2); assert.strictEqual(st.history.length, 2);
+  assert.strictEqual(st.unitPriceYear, 8); assert.strictEqual(st.discountPct, 25);
+  assert.strictEqual(st.subtotal, Math.round(2 * 8 / 12 * 100) / 100); assert.strictEqual(st.amount, Math.round(st.subtotal * 0.75 * 100) / 100);
+  c = await S.compute(D, "2026-09", { discountPct: 150, discount: 99, unitPriceYear: -3 });
+  assert.deepStrictEqual([c.discountPct, c.discount, c.unitPriceYear, c.amount], [100, 4, 0, 0], "figures are clamped: 0–100 %, at most the billable accounts, price ≥ 0");
+  c = await S.compute(D, "2026-09", { unitPriceYear: 0 });
+  assert.strictEqual(c.unitPriceYear, 0, "an explicit 0 price is 0, not the default");
   st = await S.setStatus(D, "2026-09", "sent", "fin@x", "");
   assert.strictEqual(st.status, "sent"); assert.ok(st.sentAt);
   await assert.rejects(() => S.generate(D, "2026-09", { discount: 0 }, "fin@x"), (e) => e.code === "not_draft");
@@ -95,7 +102,8 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   assert.strictEqual(list.rows[0].name, "示例学校"); assert.strictEqual(list.rows[0].status, "paid");
   assert.strictEqual(list.totals.billable, 4, "only schools with an IT relationship count");
   list = await S.listMonth("2026-10", [D], {});
-  assert.strictEqual(list.rows[0].saved, false); assert.strictEqual(list.rows[0].discount, 2, "a preview defaults to last month's discount");
+  assert.strictEqual(list.rows[0].saved, false); assert.deepStrictEqual([list.rows[0].discount, list.rows[0].unitPriceYear, list.rows[0].discountPct], [2, 8, 25], "a preview defaults to last month's figures");
+  assert.deepStrictEqual(S.prevOpts(null), {});
 
   // 6. The directory side: a full sync snapshots the month once and ledgers what it drops.
   const calls = [];

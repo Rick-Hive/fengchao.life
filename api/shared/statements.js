@@ -8,9 +8,15 @@
 // snapshots (taken by the first sync on or after the 1st); a day without a snapshot is
 // reconstructed from the current rows, their created dates and the removal ledger, and
 // the statement says so. Billable = the licensed accounts (an A1 plan) on the school's
-// own domain on the last day (decision 1); amount = (billable − discount) × price ÷ 12.
-// The price per account per year and the currency come from the school's IT
-// relationship (terms.unitPriceYear, default 5; terms.currency, default USD).
+// own domain on the last day (decision 1). Finance sets three figures before generating
+// (Rick, 2026-10-13: 「让我输入服务年费，折扣和免费账户数，然后再生成账单」):
+//   unitPriceYear — the price per account per year (服务年费)
+//   discount      — free accounts, not billed (免费账号数; the field keeps its first name)
+//   discountPct   — a percentage off the subtotal (折扣)
+// amount = (billable − discount) × unitPriceYear ÷ 12 × (1 − discountPct ÷ 100).
+// Defaults: last month's statement of the school, else the IT relationship's terms
+// (terms.unitPriceYear, terms.discountSeats, terms.discountPct; terms.currency), else
+// 5 USD, 0, 0.
 //
 // Storage: crm/statements/<domain>/<YYYY-MM>.json, ids STM-nnnnnn minted in
 // crm/statements/_index.json, which also keeps the listing's summary per statement.
@@ -76,17 +82,21 @@ async function compute(domain, month, opts) {
   const removed = a0.accounts.filter((r) => !endSet.has(r.upn)).map((r) => Object.assign({}, r, { removedAt: removedAt.get(r.upn) || r.removedAt || null })).sort((x, y) => String(x.removedAt || "").localeCompare(String(y.removedAt || "")) || x.upn.localeCompare(y.upn));
   const rel = itRelationshipOf(rels, domain);
   const terms = (rel && rel.terms) || {};
-  const unitPriceYear = Number(o.unitPriceYear != null ? o.unitPriceYear : terms.unitPriceYear) || DEFAULT_PRICE;
+  const pick = (v, fallback) => (v === undefined || v === null || v === "" ? fallback : v);
+  const rawPrice = pick(o.unitPriceYear, terms.unitPriceYear);
+  const unitPriceYear = rawPrice === undefined ? DEFAULT_PRICE : Math.max(0, Number(rawPrice) || 0);
   const currency = String(o.currency || terms.currency || DEFAULT_CURRENCY).toUpperCase();
   const billable = a1.accounts.filter(licensed).length;
-  const discount = Math.max(0, Math.min(billable, Math.round(Number(o.discount != null ? o.discount : terms.discountSeats) || 0)));
-  const amount = Math.round(((billable - discount) * unitPriceYear) / 12 * 100) / 100;
+  const discount = Math.max(0, Math.min(billable, Math.round(Number(pick(o.discount, terms.discountSeats)) || 0)));
+  const discountPct = Math.max(0, Math.min(100, Math.round((Number(pick(o.discountPct, terms.discountPct)) || 0) * 100) / 100));
+  const subtotal = Math.round(((billable - discount) * unitPriceYear) / 12 * 100) / 100;
+  const amount = Math.round(subtotal * (1 - discountPct / 100) * 100) / 100;
   const count = (list) => ({ total: list.length, licensed: list.filter(licensed).length, student: list.filter((r) => r.plan === "student").length, faculty: list.filter((r) => r.plan === "faculty").length, disabled: list.filter((r) => r.enabled === false).length });
   return {
     domain, month, period: { start: `${month}-01`, end: `${end}-01` },
     relationship: rel ? rel.id : null,
     counts: { start: count(a0.accounts), end: count(a1.accounts), added: added.length, removed: removed.length },
-    billable, discount, unitPriceYear, currency, amount,
+    billable, discount, discountPct, unitPriceYear, currency, subtotal, amount,
     added, removed,
     snapshots: { start: a0.at, end: a1.at },
     reconstructed: { start: a0.reconstructed, end: a1.reconstructed },
@@ -95,6 +105,8 @@ async function compute(domain, month, opts) {
 }
 
 async function readIndex() { return store.read(INDEX, EMPTY_INDEX()); }
+// The figures to carry over from a school's previous statement (index summary or full doc).
+function prevOpts(prev) { return prev ? { discount: prev.discount, discountPct: prev.discountPct, unitPriceYear: prev.unitPriceYear } : {}; }
 async function readStatement(domain, month) { return store.read(blobOf(domain, month), null); }
 
 // Save a computed statement as a draft (a draft is replaced; sent / paid are kept).
@@ -104,11 +116,11 @@ async function generate(domain, month, opts, by) {
   const c = await compute(domain, month, opts);
   const at = new Date().toISOString();
   let id = existing && existing.id;
-  const summary = (st) => ({ id: st.id, domain, month, status: st.status, amount: st.amount, currency: st.currency, billable: st.billable, discount: st.discount, generatedAt: st.generatedAt, updatedAt: st.updatedAt });
+  const summary = (st) => ({ id: st.id, domain, month, status: st.status, amount: st.amount, currency: st.currency, billable: st.billable, discount: st.discount, discountPct: st.discountPct, unitPriceYear: st.unitPriceYear, generatedAt: st.generatedAt, updatedAt: st.updatedAt });
   const stm = Object.assign(c, {
     id: id || null, status: "draft", generatedAt: at, updatedAt: at, by, note: String((opts && opts.note) || "").slice(0, 500),
     school: (opts && opts.school) || null,
-    history: ((existing && existing.history) || []).concat([{ at, by, action: existing ? "regenerated" : "generated", discount: c.discount, amount: c.amount }]),
+    history: ((existing && existing.history) || []).concat([{ at, by, action: existing ? "regenerated" : "generated", discount: c.discount, discountPct: c.discountPct, unitPriceYear: c.unitPriceYear, amount: c.amount }]),
   });
   await store.update(INDEX, EMPTY_INDEX, (ix) => {
     if (!ix.items || typeof ix.items !== "object") ix.items = {};
@@ -134,7 +146,8 @@ async function setStatus(domain, month, status, by, note) {
 }
 
 // The listing of one month: every verified domain with its saved statement or a live
-// preview, and the school's name. The discount defaults to the previous month's.
+// preview, and the school's name. Price, free accounts and the percentage default to the
+// previous month's statement (prevOpts), then to the relationship's terms.
 async function listMonth(month, domains, names) {
   const [ix, rels] = await Promise.all([readIndex(), P.readRels()]);
   const rows = [];
@@ -143,14 +156,14 @@ async function listMonth(month, domains, names) {
     const prev = (ix.items || {})[key(d, prevMonth(month))] || null;
     let preview = null;
     if (!saved) {
-      try { preview = await compute(d, month, { rels, discount: prev ? prev.discount : undefined }); } catch (err) { preview = { error: err.message }; }
+      try { preview = await compute(d, month, Object.assign({ rels }, prevOpts(prev))); } catch (err) { preview = { error: err.message }; }
     }
     const rel = itRelationshipOf(rels, d);
     const nm = names[d] || {};
-    rows.push(Object.assign({ domain: d, name: nm.name || "", nameEn: nm.nameEn || "", relationship: rel ? rel.id : null, stage: rel ? rel.stage : null, saved: !!saved }, saved || (preview && !preview.error ? { status: null, amount: preview.amount, currency: preview.currency, billable: preview.billable, discount: preview.discount, counts: preview.counts, reconstructed: preview.reconstructed } : { status: null, error: preview && preview.error })));
+    rows.push(Object.assign({ domain: d, name: nm.name || "", nameEn: nm.nameEn || "", relationship: rel ? rel.id : null, stage: rel ? rel.stage : null, saved: !!saved }, saved || (preview && !preview.error ? { status: null, amount: preview.amount, currency: preview.currency, billable: preview.billable, discount: preview.discount, discountPct: preview.discountPct, unitPriceYear: preview.unitPriceYear, counts: preview.counts, reconstructed: preview.reconstructed } : { status: null, error: preview && preview.error })));
   }
   rows.sort((a, b) => (a.relationship ? 0 : 1) - (b.relationship ? 0 : 1) || (a.name || a.domain).localeCompare(b.name || b.domain, "zh"));
   return { month, period: { start: `${month}-01`, end: `${nextMonth(month)}-01` }, rows, totals: { amount: Math.round(rows.filter((r) => r.relationship && r.amount != null).reduce((s, r) => s + r.amount, 0) * 100) / 100, billable: rows.filter((r) => r.relationship).reduce((s, r) => s + (r.billable || 0), 0) } };
 }
 
-module.exports = { compute, generate, setStatus, readStatement, readIndex, listMonth, monthOk, nextMonth, prevMonth, defaultMonth, itRelationshipOf, STATUSES, DEFAULT_PRICE, DEFAULT_CURRENCY, INDEX };
+module.exports = { compute, generate, setStatus, readStatement, readIndex, prevOpts, listMonth, monthOk, nextMonth, prevMonth, defaultMonth, itRelationshipOf, STATUSES, DEFAULT_PRICE, DEFAULT_CURRENCY, INDEX };

@@ -18,8 +18,8 @@
     if (!stmState.month) { var d = new Date(Date.now() + 8 * 3600 * 1000); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1); stmState.month = d.toISOString().slice(0, 7); }
     setTitle(t("经营 › 对账单", "Operations › Statements"), t("IT 服务月度账单", "Monthly IT statements"),
       '<input type="month" id="stMonth" class="sm" value="' + esc(stmState.month) + '" /> <button class="btn secondary sm" id="stCsv">' + t("导出 CSV", "Export CSV") + '</button> <button class="btn secondary sm" id="stReload">' + t("刷新", "Refresh") + "</button>",
-      { info: t("每所学校一个月一张账单：账号数取该月 1 号和下月 1 号的目录快照（夜间同步在 1 号凌晨保存），可计费 = 有 A1 许可证的账号；金额 = (可计费 − 扣减) × 每账号年费 ÷ 12，年费和币种来自该校的 IT 服务合作关系（默认 5 美元）。先看预览，填扣减账号数，点「生成账单」保存为草稿；发送和收款由财务手工标记。明细列出当月新增和删除的账号。", "One statement per school per month: the accounts on the 1st and on the next 1st come from the directory's monthly snapshots (saved by the nightly sync in the small hours of the 1st); billable = accounts holding an A1 licence; amount = (billable − discount) × price per account per year ÷ 12, price and currency from the school's IT relationship (default USD 5). Review the preview, enter the discount, press Generate to save a draft; sending and payment are marked by finance by hand. The detail lists the accounts added and removed in the month.") });
-    $("content").innerHTML = '<div class="kpis strip" id="stkpi"></div><div class="tbl-wrap"><table class="data" id="sttable"><thead><tr><th>' + t("学校", "School") + '</th><th class="num">' + t("期初", "Start") + '</th><th class="num">' + t("期末", "End") + '</th><th class="num">' + t("新增", "Added") + '</th><th class="num">' + t("删除", "Removed") + '</th><th class="num">' + t("可计费", "Billable") + '</th><th class="num">' + t("扣减", "Discount") + '</th><th class="num">' + t("金额", "Amount") + "</th><th>" + t("状态", "Status") + '</th></tr></thead><tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + '</td></tr></tbody></table></div><p class="muted" id="stfoot" style="font-size:.8rem"></p>';
+      { info: t("每所学校一个月一张账单：账号数取该月 1 号和下月 1 号的目录快照（夜间同步在 1 号凌晨保存），可计费 = 有 A1 许可证的账号；金额 = (可计费 − 免费账号) × 服务年费 ÷ 12 × (1 − 折扣)。生成前可以填三项：服务年费（每账号每年）、免费账号数、折扣 %；默认沿用该校上月账单，没有则取 IT 服务合作关系的条款（默认 5 美元、0、0）。先看预览，填好数字，点「生成账单」保存为草稿；发送和收款由财务手工标记。明细列出当月新增和删除的账号。", "One statement per school per month: the accounts on the 1st and on the next 1st come from the directory's monthly snapshots (saved by the nightly sync in the small hours of the 1st); billable = accounts holding an A1 licence; amount = (billable − free accounts) × price per account per year ÷ 12 × (1 − discount %). Before generating, finance sets three figures: the yearly price per account, the free accounts and a percentage off; they default to the school's previous statement, else to the IT relationship's terms (USD 5, 0, 0). Review the preview, set the figures, press Generate to save a draft; sending and payment are marked by finance by hand. The detail lists the accounts added and removed in the month.") });
+    $("content").innerHTML = '<div class="kpis strip" id="stkpi"></div><div class="tbl-wrap"><table class="data" id="sttable"><thead><tr><th>' + t("学校", "School") + '</th><th class="num">' + t("期初", "Start") + '</th><th class="num">' + t("期末", "End") + '</th><th class="num">' + t("新增", "Added") + '</th><th class="num">' + t("删除", "Removed") + '</th><th class="num">' + t("可计费", "Billable") + '</th><th class="num">' + t("免费", "Free") + '</th><th class="num">' + t("金额", "Amount") + "</th><th>" + t("状态", "Status") + '</th></tr></thead><tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + '</td></tr></tbody></table></div><p class="muted" id="stfoot" style="font-size:.8rem"></p>';
     $("stMonth").addEventListener("change", function () { if (!this.value) return; stmState.month = this.value; loadStatements().then(renderStatements); });
     $("stReload").addEventListener("click", function () { loadStatements().then(renderStatements); });
     $("stCsv").addEventListener("click", exportStatementsCsv);
@@ -49,7 +49,7 @@
         num(c.start && c.start.total) + num(c.end && c.end.total) + num(c.added) + num(c.removed) + num(r.billable) + num(r.discount) +
         '<td class="num">' + (r.error ? '<span class="tag bad">' + esc(r.error) + "</span>" : "<b>" + stmMoney(r.amount, r.currency) + "</b>") + "</td><td>" + stmStatusTag(r.status) + "</td></tr>";
     }).join("") : '<tr><td colspan="9" class="empty">' + t("没有学校。", "No schools.") + "</td></tr>";
-    $("stfoot").textContent = t("计费期间 ", "Period ") + d.period.start + " → " + d.period.end + t("（北京时间）· 账号数来自目录快照；未生成的行是预览，扣减默认沿用上月。", " (Beijing) · counts from the directory snapshots; rows not yet generated are previews, the discount defaults to last month's.");
+    $("stfoot").textContent = t("计费期间 ", "Period ") + d.period.start + " → " + d.period.end + t("（北京时间）· 账号数来自目录快照；未生成的行是预览，年费、免费账号和折扣默认沿用上月。", " (Beijing) · counts from the directory snapshots; rows not yet generated are previews; price, free accounts and discount default to last month's.");
   }
   function exportStatementsCsv() {
     var d = stmState.data; if (!d) return;
@@ -59,10 +59,13 @@
     var blob = new Blob(["﻿" + [head.map(cell).join(",")].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "statements-" + d.month + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
-  // The panel: the statement (saved or preview), the discount, generate / status / print.
-  function openStatementPanel(domain, month, discount) {
+  // amount = (billable − free) × price ÷ 12 × (1 − pct ÷ 100), rounded to cents — the same as api/shared/statements.js.
+  function stmAmount(billable, free, price, pct) { var sub = Math.round((billable - free) * price / 12 * 100) / 100; return Math.round(sub * (1 - pct / 100) * 100) / 100; }
+  function stmFormula(billable, free, price, pct, cur) { return "= (" + fmtNum(billable) + " − " + fmtNum(free) + ") × " + stmMoney(price, cur) + " ÷ 12" + (pct ? " × (1 − " + pct + "%)" : ""); }
+  // The panel: the statement (saved or preview), the three figures, generate / status / print.
+  function openStatementPanel(domain, month) {
     panelOpen('<div class="ph"><h3>' + esc(domain) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>");
-    api("crm/statement?domain=" + encodeURIComponent(domain) + "&month=" + encodeURIComponent(month) + (discount != null ? "&discount=" + encodeURIComponent(discount) : "")).then(function (r) {
+    api("crm/statement?domain=" + encodeURIComponent(domain) + "&month=" + encodeURIComponent(month)).then(function (r) {
       if (!r.ok) { $("panel").querySelector(".pb").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
       renderStatementPanel(r.body.statement, r.body.saved, r.body.canEdit);
     });
@@ -82,13 +85,15 @@
         '<span class="k">' + t("期初账号", "Accounts at start") + "</span><span>" + fmtNum(c.start.total) + t("（有许可证 ", " (licensed ") + fmtNum(c.start.licensed) + "）</span>" +
         '<span class="k">' + t("期末账号", "Accounts at end") + "</span><span>" + fmtNum(c.end.total) + t("（有许可证 ", " (licensed ") + fmtNum(c.end.licensed) + t("：学生版 ", ": students ") + fmtNum(c.end.student) + t("，教职工版 ", ", faculty ") + fmtNum(c.end.faculty) + (c.end.disabled ? t("；已停用 ", "; disabled ") + fmtNum(c.end.disabled) : "") + "）</span>" +
         '<span class="k">' + t("变动", "Changes") + "</span><span>" + t("新增 ", "added ") + fmtNum(c.added) + t("，删除 ", ", removed ") + fmtNum(c.removed) + "</span>" +
-        '<span class="k">' + t("单价", "Price") + "</span><span>" + stmMoney(s.unitPriceYear, cur) + t(" / 账号 / 年", " per account per year") + (s.relationship ? ' <span class="muted">' + esc(s.relationship) + "</span>" : ' <span class="tag muted">' + t("无 IT 服务关系：按默认价", "No IT relationship: default price") + "</span>") + "</span>" +
+        '<span class="k">' + t("合作关系", "Relationship") + "</span><span>" + (s.relationship ? esc(s.relationship) : '<span class="tag muted">' + t("无 IT 服务关系", "No IT relationship") + "</span>") + "</span>" +
       "</div>" +
       (recon ? '<div class="msg err">' + t("该月没有完整的 1 号快照（" + (s.reconstructed.start ? "期初" : "") + (s.reconstructed.start && s.reconstructed.end ? "、" : "") + (s.reconstructed.end ? "期末" : "") + "），账号数按当前账号的创建日期和删除记录推算。从下个月起夜间同步会在 1 号保存快照。", "No complete snapshot for the 1st (" + [s.reconstructed.start ? "start" : "", s.reconstructed.end ? "end" : ""].filter(Boolean).join(", ") + "): counts are reconstructed from the current accounts' created dates and the removal ledger. From next month the nightly sync saves a snapshot on the 1st.") + "</div>" : "") +
       "<h4>" + t("金额", "Amount") + "</h4>" +
       '<div class="kv"><span class="k">' + t("可计费账号", "Billable") + "</span><span><b>" + fmtNum(s.billable) + "</b> " + t("（期末有 A1 许可证）", "(licensed on the next 1st)") + "</span>" +
-        '<span class="k">' + t("扣减账号", "Discount") + "</span><span>" + (editable ? '<input type="number" id="stDisc" min="0" max="' + s.billable + '" step="1" value="' + esc(s.discount) + '" style="width:90px" /> <span class="muted">' + t("不计费的账号数", "accounts not billed") + "</span>" : fmtNum(s.discount)) + "</span>" +
-        '<span class="k">' + t("应收", "Due") + '</span><span><b id="stAmt">' + stmMoney(s.amount, cur) + "</b> <span class=\"muted\">= (" + fmtNum(s.billable) + " − <span id=\"stDiscShow\">" + fmtNum(s.discount) + "</span>) × " + stmMoney(s.unitPriceYear, cur) + " ÷ 12</span></span>" +
+        '<span class="k">' + t("服务年费", "Yearly price") + "</span><span>" + (editable ? '<input type="number" id="stPrice" min="0" step="0.01" value="' + esc(s.unitPriceYear) + '" style="width:90px" /> <span class="muted">' + esc(cur) + t(" / 账号 / 年", " per account per year") + "</span>" : stmMoney(s.unitPriceYear, cur) + t(" / 账号 / 年", " per account per year")) + "</span>" +
+        '<span class="k">' + t("免费账号", "Free accounts") + "</span><span>" + (editable ? '<input type="number" id="stDisc" min="0" max="' + s.billable + '" step="1" value="' + esc(s.discount) + '" style="width:90px" /> <span class="muted">' + t("不计费的账号数", "accounts not billed") + "</span>" : fmtNum(s.discount)) + "</span>" +
+        '<span class="k">' + t("折扣", "Discount") + "</span><span>" + (editable ? '<input type="number" id="stPct" min="0" max="100" step="0.5" value="' + esc(s.discountPct || 0) + '" style="width:90px" /> <span class="muted">%</span>' : fmtNum(s.discountPct || 0) + " %") + "</span>" +
+        '<span class="k">' + t("应收", "Due") + '</span><span><b id="stAmt">' + stmMoney(s.amount, cur) + '</b> <span class="muted" id="stFormula">' + stmFormula(s.billable, s.discount, s.unitPriceYear, s.discountPct || 0, cur) + "</span></span>" +
         (editable ? '<span class="k">' + t("备注", "Note") + '</span><span><input type="text" id="stNote" maxlength="500" value="' + esc(s.note || "") + '" /></span>' : (s.note ? '<span class="k">' + t("备注", "Note") + "</span><span>" + esc(s.note) + "</span>" : "")) +
       "</div>" +
       '<div class="actions">' +
@@ -103,13 +108,17 @@
       "<h4>" + t("删除账号", "Accounts removed") + " · " + fmtNum(s.removed.length) + '</h4><div class="stlist">' + (s.removed.length ? s.removed.map(function (a) { return acctRow(a, "removedAt"); }).join("") : '<div class="muted" style="font-size:.86rem">' + t("无", "None") + "</div>") + "</div>" +
       (s.history && s.history.length ? "<h4>" + t("记录", "History") + '</h4><div class="stlist">' + s.history.slice().reverse().map(function (h) { return '<div class="devrow"><div class="m"><b>' + esc(h.action === "status" ? t("状态 ", "Status ") + (STM_ST[h.from] ? t(STM_ST[h.from][0], STM_ST[h.from][1]) : h.from) + " → " + (STM_ST[h.to] ? t(STM_ST[h.to][0], STM_ST[h.to][1]) : h.to) : h.action === "regenerated" ? t("重新生成", "Regenerated") : t("生成", "Generated")) + "</b><small>" + esc(when(h.at)) + " · " + esc(h.by || "") + (h.note ? " · " + esc(h.note) : "") + (h.amount != null ? " · " + stmMoney(h.amount, cur) : "") + "</small></div></div>"; }).join("") + "</div>" : "");
     var pb = $("panel").querySelector(".pb");
-    var disc = $("stDisc");
-    if (disc) disc.addEventListener("input", function () { var v = Math.max(0, Math.min(s.billable, Math.round(+disc.value || 0))); $("stDiscShow").textContent = fmtNum(v); $("stAmt").textContent = stmMoney(Math.round((s.billable - v) * s.unitPriceYear / 12 * 100) / 100, cur); });
+    var disc = $("stDisc"), price = $("stPrice"), pct = $("stPct");
+    function figures() {
+      return { discount: disc ? Math.max(0, Math.min(s.billable, Math.round(+disc.value || 0))) : s.discount, unitPriceYear: price ? Math.max(0, +price.value || 0) : s.unitPriceYear, discountPct: pct ? Math.max(0, Math.min(100, +pct.value || 0)) : (s.discountPct || 0) };
+    }
+    function live() { var f = figures(); $("stAmt").textContent = stmMoney(stmAmount(s.billable, f.discount, f.unitPriceYear, f.discountPct), cur); $("stFormula").innerHTML = stmFormula(s.billable, f.discount, f.unitPriceYear, f.discountPct, cur); }
+    [disc, price, pct].forEach(function (el) { if (el) el.addEventListener("input", live); });
     pb.addEventListener("click", function (e) {
       var b = e.target.closest("button"); if (!b) return;
       if (b.id === "stGen") {
         savingButton(b, t("生成中…", "Generating…"));
-        post("crm/statement", "POST", { op: "generate", domain: s.domain, month: s.month, discount: disc ? +disc.value : s.discount, note: $("stNote") ? $("stNote").value.trim() : "" }).then(function (r) {
+        post("crm/statement", "POST", Object.assign({ op: "generate", domain: s.domain, month: s.month, note: $("stNote") ? $("stNote").value.trim() : "" }, figures())).then(function (r) {
           if (!r.ok) { restoreButton(b); $("stMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
           renderStatementPanel(r.body.statement, true, true); loadStatements().then(renderStatements);
           flash(t("账单 ", "Statement ") + esc(r.body.statement.id) + t(" 已保存为草稿。", " saved as a draft."), 4000);
@@ -144,9 +153,11 @@
       "<tr><td>" + t("删除账号", "Accounts removed") + '</td><td class="num">−' + fmtNum(s.counts.removed) + "</td></tr>" +
       "<tr><td>" + t("期末账号（" + s.period.end + "）", "Accounts on " + s.period.end) + '</td><td class="num">' + fmtNum(s.counts.end.total) + "</td></tr>" +
       "<tr><td>" + t("其中有 Office 365 A1 许可证（可计费）", "of which licensed with Office 365 A1 (billable)") + '</td><td class="num">' + fmtNum(s.billable) + "</td></tr>" +
-      "<tr><td>" + t("扣减账号", "Discount (accounts not billed)") + '</td><td class="num">−' + fmtNum(s.discount) + "</td></tr>" +
+      "<tr><td>" + t("免费账号", "Free accounts (not billed)") + '</td><td class="num">−' + fmtNum(s.discount) + "</td></tr>" +
       "<tr><td>" + t("计费账号", "Accounts billed") + '</td><td class="num">' + fmtNum(s.billable - s.discount) + "</td></tr>" +
-      "<tr><td>" + t("单价", "Price") + '</td><td class="num">' + stmMoney(s.unitPriceYear, cur) + t(" / 账号 / 年（÷ 12）", " per account per year (÷ 12)") + "</td></tr>" +
+      "<tr><td>" + t("服务年费", "Yearly price") + '</td><td class="num">' + stmMoney(s.unitPriceYear, cur) + t(" / 账号 / 年（÷ 12）", " per account per year (÷ 12)") + "</td></tr>" +
+      "<tr><td>" + t("小计", "Subtotal") + '</td><td class="num">' + stmMoney(s.subtotal != null ? s.subtotal : s.amount, cur) + "</td></tr>" +
+      (s.discountPct ? "<tr><td>" + t("折扣", "Discount") + '</td><td class="num">−' + s.discountPct + " %</td></tr>" : "") +
       '<tr class="total"><td>' + t("本月应收", "Amount due") + '</td><td class="num">' + stmMoney(s.amount, cur) + "</td></tr></table>" +
       (s.note ? '<p class="muted">' + esc(s.note) + "</p>" : "") +
       "<h2>" + t("新增账号明细", "Accounts added") + " (" + s.added.length + ")</h2>" + (s.added.length ? "<table><tr><th>" + t("姓名", "Name") + "</th><th>" + t("账号", "Account") + "</th><th>" + t("许可证", "Licence") + "</th><th>" + t("创建日期", "Created") + "</th></tr>" + s.added.map(function (a) { return row(a, "created"); }).join("") + "</table>" : '<p class="muted">' + t("无", "None") + "</p>") +

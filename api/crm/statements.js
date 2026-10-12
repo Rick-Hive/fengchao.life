@@ -2,8 +2,10 @@
 // Split out of index.js like partners.js; handle() returns true when it answered.
 //
 //   GET  crm/statements?month=YYYY-MM          every school for that month: saved statement or live preview
-//   GET  crm/statement?domain=&month=           one statement in full (saved), or the live preview (saved:false)
-//   POST crm/statement {op:"generate", domain, month, discount, note}   → draft (a draft is replaced)
+//   GET  crm/statement?domain=&month=[&price=&discount=&pct=]   one statement in full (saved), or the live
+//                                               preview (saved:false) with the figures finance is trying
+//   POST crm/statement {op:"generate", domain, month, unitPriceYear, discount, discountPct, note}
+//                                               → draft (a draft is replaced)
 //   POST crm/statement {op:"status", domain, month, status: draft|sent|paid, note}
 //
 // Who: finance (money rw) and the system administrator generate and mark; anyone with
@@ -19,6 +21,17 @@ const { audit } = require("../shared/audit");
 const ACTIONS = new Set(["statements", "statement"]);
 const canSee = (roles) => isAdmin(roles) || crm.atLeast(roles, "money", "read") || crm.atLeast(roles, "partners", "read");
 const canEdit = (roles) => isAdmin(roles) || crm.atLeast(roles, "money", "rw");
+
+// The three figures finance may set (服务年费 / 免费账号数 / 折扣 %): absent or blank = keep
+// the default; otherwise a number in range, or a 400 naming the field.
+function figures(src) {
+  const opts = {};
+  const take = (v, key, check, msg) => { if (v === undefined || v === null || v === "") return null; const n = Number(v); if (!Number.isFinite(n) || !check(n)) return msg; opts[key] = n; return null; };
+  const error = take(src.price, "unitPriceYear", (n) => n >= 0, "unitPriceYear must be a non-negative amount per account per year")
+    || take(src.discount, "discount", (n) => n >= 0, "discount must be a whole number of free accounts")
+    || take(src.pct, "discountPct", (n) => n >= 0 && n <= 100, "discountPct must be between 0 and 100");
+  return { opts, error };
+}
 
 async function schoolNames() {
   try { return (await readInstitutions()).institutions || {}; } catch { return {}; }
@@ -57,7 +70,9 @@ async function handle(context, req, ctx) {
     if (saved) { ok(context, { statement: Object.assign({ school }, saved, { school: saved.school || school }), saved: true, canEdit: canEdit(roles) }); return true; }
     const ix = await S.readIndex();
     const prev = (ix.items || {})[`${domain}|${S.prevMonth(month)}`];
-    const preview = await S.compute(domain, month, { discount: q.discount != null && q.discount !== "" ? Number(q.discount) : prev ? prev.discount : undefined });
+    const tried = figures(q);
+    if (tried.error) { fail(context, 400, tried.error); return true; }
+    const preview = await S.compute(domain, month, Object.assign(S.prevOpts(prev), tried.opts));
     ok(context, { statement: Object.assign({ school, status: null }, preview), saved: false, canEdit: canEdit(roles) });
     return true;
   }
@@ -68,10 +83,10 @@ async function handle(context, req, ctx) {
     const by = normUser(user);
     try {
       if (op === "generate") {
-        const discount = body.discount == null || body.discount === "" ? undefined : Number(body.discount);
-        if (discount !== undefined && !(Number.isFinite(discount) && discount >= 0)) { fail(context, 400, "discount must be a whole number of accounts"); return true; }
-        const stm = await S.generate(domain, month, { discount, note: body.note, school }, by);
-        await audit(context, { actor: by, action: "crm.statement.generate", target: `${domain} ${month}`, id: stm.id, billable: stm.billable, discount: stm.discount, amount: stm.amount, currency: stm.currency, result: "ok" });
+        const f = figures({ price: body.unitPriceYear, discount: body.discount, pct: body.discountPct });
+        if (f.error) { fail(context, 400, f.error); return true; }
+        const stm = await S.generate(domain, month, Object.assign({ note: body.note, school }, f.opts), by);
+        await audit(context, { actor: by, action: "crm.statement.generate", target: `${domain} ${month}`, id: stm.id, billable: stm.billable, discount: stm.discount, discountPct: stm.discountPct, unitPriceYear: stm.unitPriceYear, amount: stm.amount, currency: stm.currency, result: "ok" });
         ok(context, { ok: true, statement: stm });
         return true;
       }
