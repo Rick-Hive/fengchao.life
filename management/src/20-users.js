@@ -243,6 +243,10 @@
     (state.allDomains ? loadAllUsers() : loadDomainData("users")).then(renderUsers).catch(showUsersError);
   }
   function showUsersError(e) { var tb = $("utable") && $("utable").tBodies[0]; if (tb) tb.innerHTML = '<tr><td colspan="7"><div class="msg err">' + esc(e.message || e) + "</div></td></tr>"; }
+  // 从未登录 = no sign-in time from Microsoft AND no authenticator: registering one takes a
+  // sign-in, and Microsoft's signInActivity lags hours behind (Rick, 2026-10-12: Linda H.
+  // had iPhone 13 registered and was shown as never signed in).
+  function neverSigned(u) { return !u.lastSignIn && u.verified !== true; }
   function usersNow() { var d = state.domainUsers[currentDomain]; return d ? d.users : []; }
   function renderUsers() {
     if (!$("utable")) return;
@@ -262,7 +266,7 @@
     var rows = d.users.filter(function (u) {
       if (f === "noauth" && u.verified !== false) return false;
       if (f === "noid" && u.identity) return false;
-      if (f === "never" && u.lastSignIn) return false;
+      if (f === "never" && !neverSigned(u)) return false;
       if (f === "anomaly" && !u.anomaly) return false;
       if (role.indexOf("id:") === 0 && u.identity !== role.slice(3)) return false;
       if (role.indexOf("role:") === 0 && !hasRole(u, role.slice(5))) return false;
@@ -279,7 +283,7 @@
     // 「Display how many users haven't login office 365 successfully」). The date comes from
     // Entra's signInActivity; when the tenant does not expose it, nobody has one and the
     // tile says so instead of a number.
-    var never = d.users.filter(function (u) { return !u.lastSignIn; }).length, anySignIn = d.users.some(function (u) { return u.lastSignIn; });
+    var never = d.users.filter(neverSigned).length, anySignIn = d.users.some(function (u) { return u.lastSignIn; });
     // The tiles are buttons (Rick, 2026-10-05: 「这些数字是否可以点击？显示相应的账户列表」):
     // each applies its filter to the table below; 群组 goes to the Teams 群组 page.
     function kpi(f, label, value, cls, sub) { return '<button type="button" class="kpi' + (f && state.userFilter === f ? " on" : "") + '" data-kf="' + f + '"><div class="l">' + label + '</div><div class="v' + (cls || "") + '">' + value + "</div>" + (sub || "") + "</button>"; }
@@ -306,10 +310,10 @@
       }
       var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "class" || g.kind === "m365"; });
       var gl = gs.slice(0, 2).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + hl(gname(g), state.userQ) + "</button>"; }).join("") + (gs.length > 2 ? '<span class="tag muted" title="' + esc(gs.slice(2).map(function (g) { return gname(g); }).join(", ")) + '">+' + (gs.length - 2) + "</span>" : "");
-      var signTip = u.lastSignIn ? t("最近登录 ", "Last sign-in ") + when(u.lastSignIn) : t("从未登录", "Never signed in");
+      var signTip = u.lastSignIn ? t("最近登录 ", "Last sign-in ") + when(u.lastSignIn) : neverSigned(u) ? t("从未登录", "Never signed in") : t("已登录过（登记了验证器），微软还没给出最近登录时间，通常要等几小时", "Has signed in (an authenticator is registered); Microsoft has not reported the time yet, usually a few hours");
       var roleTags = (u.roles || []).length ? ' <span class="info" tabindex="0" data-tip="' + esc((u.roles || []).map(function (r) { return EN ? (r.en || r.role) : (r.zh || r.role); }).join("\n")) + '">i</span>' : "";
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"' + (u.domain ? ' data-dom="' + esc(u.domain) + '"' : "") + '><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
-        '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (u.lastSignIn ? "" : " never") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
+        '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (neverSigned(u) ? " never" : "") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
         '<td class="nowrap">' + auth + '</td><td class="nowrap devcell">' + dev + '</td><td><div class="tags nowrap">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
         '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + (u.anomaly ? ' <span class="tag bad" title="' + esc(anomalyText(u)) + '">' + t("异常", "Anomaly") + "</span>" : "") + (u.hiveTeacher ? ' <span class="tag ok" title="' + esc(t("蜂巢课程教师", "Hive course teacher") + (u.hiveTeacher.teacherId ? " · " + u.hiveTeacher.teacherId : "")) + '">' + t("课程教师", "Course teacher") + "</span>" : "") + ((u.roles || []).length ? ' <span class="tag">' + t("角色", "Role") + "</span>" + roleTags : "") + "</td>" +
         '<td class="nowrap">' + (u.linked.length ? '<span class="cell-ell" title="' + esc(u.linked.join(", ")) + '">' + u.linked.map(function (l) { return hl(l, state.userQ); }).join(", ") + "</span>" : '<span class="muted">—</span>') + "</td></tr>";

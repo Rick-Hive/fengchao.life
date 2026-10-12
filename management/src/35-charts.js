@@ -61,8 +61,10 @@
   // One tooltip for every mark: data-tip carries ready HTML built with esc() above.
   var tip = document.createElement("div"); tip.className = "viztip"; tip.hidden = true; document.body.appendChild(tip);
   $("content").addEventListener("mousemove", function (e) {
+    // Chart marks only: an ⓘ (.info) shows its own CSS tooltip from data-tip as plain
+    // text — run through here as well it showed twice (Rick, 2026-10-12), and as HTML.
     var m = e.target.closest("[data-tip]");
-    if (!m) { tip.hidden = true; return; }
+    if (!m || m.classList.contains("info")) { tip.hidden = true; return; }
     tip.innerHTML = m.getAttribute("data-tip"); tip.hidden = false;
     var x = e.clientX + 14, y = e.clientY + 14;
     if (x + tip.offsetWidth > window.innerWidth - 8) x = e.clientX - tip.offsetWidth - 14;
