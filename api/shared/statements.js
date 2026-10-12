@@ -54,8 +54,11 @@ async function accountsAt(domain, month, ctx) {
 }
 
 // The IT relationship of a domain (open), for the price, currency and discount defaults.
+// crm/relationships.json keeps `items` as an object keyed by REL id (partners.js); an
+// array is tolerated for older fixtures.
 function itRelationshipOf(rels, domain) {
-  return (rels.items || []).find((r) => r.type === "it" && !r.closed && r.terms && String(r.terms.domain || "").toLowerCase() === domain) || null;
+  const items = rels && rels.items ? (Array.isArray(rels.items) ? rels.items : Object.values(rels.items)) : [];
+  return items.find((r) => r && r.type === "it" && !r.closed && r.terms && String(r.terms.domain || "").toLowerCase() === domain) || null;
 }
 
 // The month's figures for one domain. `opts.discount` overrides the default.

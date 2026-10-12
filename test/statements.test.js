@@ -36,7 +36,8 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   assert.strictEqual(S.defaultMonth("2026-09-30T20:00:00Z"), "2026-09", "the Beijing month decides: 04:00 on Oct 1 Beijing");
 
   // 1. Both snapshots present: the IT relationship gives price and currency.
-  blobs["crm/relationships.json"] = { next: 2, items: [{ id: "REL-000001", type: "it", stage: "operating", terms: { domain: D, unitPriceYear: 5, discountSeats: 2, currency: "USD" } }] };
+  // The real blob keeps items keyed by id (partners.js EMPTY_REL) — the shape that broke the page on 2026-10-13 ("(rels.items || []).find is not a function").
+  blobs["crm/relationships.json"] = { next: 2, items: { "REL-000001": { id: "REL-000001", type: "it", stage: "operating", terms: { domain: D, unitPriceYear: 5, discountSeats: 2, currency: "USD" } } } };
   blobs[`directory/_snapshots/${D}/2026-09.json`] = { domain: D, month: "2026-09", at: "2026-09-01T01:00:00+08:00", accounts: [u("ann", "faculty", "2026-01-01"), u("bob", "student", "2026-02-01"), u("cal", "", "2026-02-01"), u("dee", "student", "2026-03-01")] };
   blobs[`directory/_snapshots/${D}/2026-10.json`] = { domain: D, month: "2026-10", at: "2026-10-01T01:00:00+08:00", accounts: [u("ann", "faculty", "2026-01-01"), u("bob", "student", "2026-02-01"), u("cal", "", "2026-02-01"), u("eve", "student", "2026-09-10"), u("fay", "faculty", "2026-09-20", { enabled: false })] };
   blobs[`directory/_ledger/${D}.json`] = { domain: D, events: [{ kind: "removed", at: "2026-09-15T00:00:00Z", upn: `dee@${D}`, displayName: "DEE", plan: "student", created: "2026-03-01", why: "delta" }] };
@@ -65,10 +66,10 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   assert.strictEqual(c.amount, Math.round(4 * 5 / 12 * 100) / 100);
 
   // 3. No IT relationship: defaults (5 USD, no discount) and relationship null.
-  blobs["crm/relationships.json"] = { next: 1, items: [] };
+  blobs["crm/relationships.json"] = { next: 1, items: {} };
   c = await S.compute(D, "2026-09");
   assert.strictEqual(c.relationship, null); assert.strictEqual(c.unitPriceYear, 5); assert.strictEqual(c.discount, 0);
-  blobs["crm/relationships.json"] = { next: 2, items: [{ id: "REL-000001", type: "it", stage: "operating", terms: { domain: D, unitPriceYear: 6, discountSeats: 1 } }] };
+  blobs["crm/relationships.json"] = { next: 2, items: { "REL-000001": { id: "REL-000001", type: "it", stage: "operating", terms: { domain: D, unitPriceYear: 6, discountSeats: 1 } }, "REL-000002": { id: "REL-000002", type: "it", stage: "ended", closed: { at: "2026-01-01T00:00:00Z" }, terms: { domain: D, unitPriceYear: 99 } } } };
 
   // 4. Generate → draft with an id; regenerate replaces the draft (same id); sent/paid freeze it.
   let st = await S.generate(D, "2026-09", { discount: 1, note: "first" }, "fin@x");
