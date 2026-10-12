@@ -270,7 +270,11 @@ async function handler(context, req) {
     return;
   }
   const log = (m) => context.log(m);
-  // Warnings raised before the main `warnings` array exists, merged into it below.
+  // Warnings raised before the main `warnings` array exists (schools, curriculum maps),
+  // merged into it below. The map loop runs before `const warnings` is declared, so a
+  // push to `warnings` there is a ReferenceError (temporal dead zone) that turned a
+  // missing map table or an unknown subject into a 502 — found while documenting the
+  // sync centre, 2026-10-12.
   const earlyWarnings = [];
 
   try {
@@ -651,7 +655,7 @@ async function handler(context, req) {
     for (const spec of cfg.curriculumMaps || []) {
       const found = await findTableRecords(spec.names, pat, context, `Curriculum map (${spec.stage})`, baseTables);
       if (!found.found) {
-        warnings.push(
+        earlyWarnings.push(
           `Curriculum map for the ${spec.stage} stage: no table named ${spec.names.map((n) => `"${n}"`).join(" or ")} ` +
           `was found${found.tableNames ? ` (tables in the base: ${found.tableNames.join(", ")})` : ""} — that stage shows no map step.`
         );
@@ -707,7 +711,7 @@ async function handler(context, req) {
       curriculumMap[spec.stage] = { grades: spec.grades, rows };
       context.log(`Curriculum map (${spec.stage}) loaded via ${found.via}: ${rows.length} rows`);
       if (unresolved.length) {
-        warnings.push(
+        earlyWarnings.push(
           `Curriculum map (${spec.stage}): ${unresolved.length} row(s) name a subject that is not in Course Subject — ` +
           `${unresolved.slice(0, 5).map((n) => `"${n}"`).join(", ")}${unresolved.length > 5 ? ", …" : ""}. ` +
           `Those rows display, but no courses can attach to them.`
