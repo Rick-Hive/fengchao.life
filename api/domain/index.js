@@ -176,7 +176,7 @@ async function handler(context, req) {
       domains = domains.map((d) => Object.assign({}, d, {
         name: (inst[d.domain] && inst[d.domain].name) || "",
         nameEn: (inst[d.domain] && inst[d.domain].nameEn) || "",
-        can: { methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), full: isAdmin, institutions: isAdmin },
+        can: { view: can(roles, "view", d.domain), methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), plan: can(roles, "plan", d.domain), full: isAdmin, institutions: isAdmin },
       }));
       context.res = { status: 200, body: { user: actor, roles, all, domains, mine: domainOf(actor), showDomains: isAdmin } };
       return;
@@ -199,6 +199,8 @@ async function handler(context, req) {
 
     if (!DOMAIN_RE.test(domain)) return fail(context, 400, "domain missing or malformed");
     if (!may(domain)) return fail(context, 403, `you do not manage ${domain}`, { allowed: all ? ["*"] : allowed });
+    // An 教育领袖 holds the school only for its 课程方案 (api/school-plan), not its accounts.
+    if (!can(roles, "view", domain)) return fail(context, 403, `you do not manage the accounts of ${domain}`, { code: "forbidden" });
 
     if (method === "GET" && action === "users") {
       const { doc, users } = await usersView(domain);

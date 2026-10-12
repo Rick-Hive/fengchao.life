@@ -12,9 +12,11 @@
   // ================================================================================
   // One school role since 2026-10-12 (Rick: 「合并……叫 IT 管理员」 — not 学校管理员, which
   // reads as the principal); the old 域蜂巢管理员 (domain_hive) was deleted the same day.
-  var ROLE_KIND = { it: ["IT 管理员", "IT administrator"], staff: ["Staff", "Staff"], sys: ["系统管理员", "System administrator"] };
+  // 教育领袖 (domain_leader, 2026-10-12): the school's graduation credits and curriculum map only.
+  var ROLE_KIND = { it: ["IT 管理员", "IT administrator"], leader: ["教育领袖", "Education leader"], staff: ["Staff", "Staff"], sys: ["系统管理员", "System administrator"] };
   function roleKind(r) {
     if (/^domain_it:/.test(r)) return "it";
+    if (/^domain_leader:/.test(r)) return "leader";
     if (/^domain_admin:/.test(r)) return "it"; // legacy name of the IT 管理员
     if (r === "admin" || r === "staff:sysadmin") return "sys";
     return "staff";
@@ -26,11 +28,12 @@
       if ((m = /^domain_admin:(.+)$/.exec(r))) { out.push(["it", m[1]]); return; }
       if (r === "admin" && (roles || []).indexOf("staff:sysadmin") >= 0) return;
       if (/^domain_hive:/.test(r)) return; // deleted role
-      out.push([roleKind(r), (m = /^domain_it:(.+)$/.exec(r)) ? m[1] : (m = /^staff:(.+)$/.exec(r)) ? m[1] : ""]);
+      out.push([roleKind(r), (m = /^domain_(?:it|leader):(.+)$/.exec(r)) ? m[1] : (m = /^staff:(.+)$/.exec(r)) ? m[1] : ""]);
     });
     return out.filter(function (x) { var k = x.join("|"); if (seen[k]) return false; seen[k] = 1; return true; }).map(function (x) {
       var kind = x[0], arg = x[1], label;
       if (kind === "it") label = ROLE_KIND.it[EN ? 1 : 0] + " · " + dname(arg);
+      else if (kind === "leader") label = ROLE_KIND.leader[EN ? 1 : 0] + " · " + dname(arg);
       else if (kind === "sys") label = ROLE_KIND.sys[EN ? 1 : 0];
       else label = "Staff · " + (STAFF_FN[arg] ? STAFF_FN[arg][EN ? 1 : 0] : arg);
       return '<span class="tag role-' + kind + '">' + esc(label) + "</span>";
@@ -104,6 +107,7 @@
         '<span class="spacer"></span>' +
         '<button class="chip" data-k="all" aria-pressed="true">' + t("全部", "All") + "</button>" +
         '<button class="chip" data-k="it" aria-pressed="false">' + t("IT 管理员", "IT admin") + "</button>" +
+        '<button class="chip" data-k="leader" aria-pressed="false">' + t("教育领袖", "Education leader") + "</button>" +
         '<button class="chip" data-k="staff" aria-pressed="false">Staff</button>' +
         '<button class="chip" data-k="sys" aria-pressed="false">' + t("系统管理员", "System admin") + "</button>" +
         (doms.length > 1 ? '<select id="rdom"><option value="">' + t("所有学校", "All schools") + "</option>" + doms.map(function (d) { return '<option value="' + esc(d.domain) + '">' + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>" : "") +
@@ -201,12 +205,13 @@
     // Current state, from the roles given.
     // A person may hold several functions at once (the order manager who is also the
     // community manager); `staff` is the list of them.
-    var st = { it: {}, staff: [], sys: false, schools: [] };
+    var st = { it: {}, leader: {}, staff: [], sys: false, schools: [] };
     var staffOnly = !isAdmin(); // the CEO: staff functions only, school roles and sysadmin untouched
     function addFn(fn) { if (st.staff.indexOf(fn) < 0) st.staff.push(fn); }
     (roles || []).forEach(function (r) {
       var m;
       if ((m = /^domain_(it|admin):(.+)$/.exec(r))) { st.it[m[2]] = true; if (st.schools.indexOf(m[2]) < 0) st.schools.push(m[2]); }
+      else if ((m = /^domain_leader:(.+)$/.exec(r))) { st.leader[m[1]] = true; if (st.schools.indexOf(m[1]) < 0) st.schools.push(m[1]); }
       else if ((m = /^staff:(.+)$/.exec(r))) { if (m[1] === "sysadmin") st.sys = true; else addFn(m[1]); }
       else if (r === "admin") st.sys = true;
       else if (r === "coordinator") addFn("community");
@@ -218,7 +223,7 @@
     // functions (the server keeps the account's school roles and sysadmin as they were).
     function compose() {
       var out = [];
-      if (!staffOnly) st.schools.forEach(function (d) { if (st.it[d]) out.push("domain_it:" + d); });
+      if (!staffOnly) st.schools.forEach(function (d) { if (st.it[d]) out.push("domain_it:" + d); if (st.leader[d]) out.push("domain_leader:" + d); });
       st.staff.forEach(function (fn) { out.push("staff:" + fn); });
       if (!staffOnly && st.sys) out.push("staff:sysadmin");
       return out;
@@ -229,6 +234,7 @@
       var known = doms.indexOf(d) >= 0;
       return '<div class="rschool" data-d="' + esc(d) + '"><div class="rsh"><b>' + esc(dname(d)) + "</b>" + (d !== own ? '<button type="button" class="lnk" data-drop="' + esc(d) + '">' + t("移除", "Remove") + "</button>" : '<span class="muted">' + t("所在学校", "Their school") + "</span>") + (known ? "" : ' <span class="tag warn">' + t("未知域", "Unknown domain") + "</span>") + "</div>" +
         '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("本校的账号：新建、修改资料、换许可证、重置密码、删除验证设备、删除账号；身份、关联账号、备注；同步变动。", "The school's accounts: create, edit details, change licence, reset passwords, remove authenticator devices, delete; identity, linked accounts, notes; sync changes.") + "</small></span></label>" +
+        '<label class="sw"><input type="checkbox" data-role="leader" data-d="' + esc(d) + '"' + (st.leader[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.leader[EN ? 1 : 0] + "</b><small>" + t("本校的课程方案：毕业学分要求和课程地图，发布后本校家庭在网站上看到学校版本。看不到账号。", "The school's curriculum plan: graduation credit requirements and the curriculum map, published to the school's families on the website. No access to accounts.") + "</small></span></label>" +
         "</div>";
     }
     function preview() {
@@ -281,7 +287,7 @@
         preview(); return;
       }
       var drop = e.target.closest("button[data-drop]");
-      if (drop) { var d = drop.getAttribute("data-drop"); st.schools = st.schools.filter(function (x) { return x !== d; }); delete st.it[d]; draw(); return; }
+      if (drop) { var d = drop.getAttribute("data-drop"); st.schools = st.schools.filter(function (x) { return x !== d; }); delete st.it[d]; delete st.leader[d]; draw(); return; }
       if (e.target.closest("#rsave")) {
         var rs = compose(), b = $("rsave"); savingButton(b);
         post("roles", "POST", { user: person.upn, roles: rs }).then(function (r) {

@@ -365,6 +365,7 @@ button.mrow.link:hover { background: #f1f4f8; }
 
 /* ---- 角色分配 (2026-10-04): search, role chips, the role editor ------------------------- */
 .tag.role-it { color: var(--accent-dark); border-color: transparent; background: var(--accent-soft); }
+.tag.role-leader { color: #1b6b3a; border-color: transparent; background: #e3f5ea; }
 .tag.role-staff { color: #6b21a8; border-color: transparent; background: #f3e8ff; }
 .tag.role-sys { color: var(--warn); border-color: transparent; background: var(--warn-soft); }
 table.roles2 { min-width: 720px; }
@@ -823,3 +824,12 @@ svg.track.en { font-size: 9.5px; }
 /* 对账单: the added / removed account lists in the statement panel */
 .stlist { max-height: 260px; overflow: auto; }
 .stlist .devrow small { word-break: break-all; }
+
+/* 本域管理 › 课程方案 (22-plan.js): the map editor — one textarea per subject × grade cell. */
+table.plmap th, table.plmap td { vertical-align: top; font-size: 12px; }
+table.plmap td textarea { width: 100%; min-width: 110px; font-size: 12px; resize: vertical; }
+table.plmap.edit td:first-child { min-width: 150px; }
+table.plmap .chk { padding: 0; font-size: 12px; white-space: nowrap; }
+table.plmap.edit td:nth-child(2) { min-width: 130px; }
+table.plmap .plrowbtns { white-space: nowrap; }
+table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }

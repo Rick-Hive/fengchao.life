@@ -511,6 +511,7 @@ span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(-
    courses that fit. Two renderings live in the DOM — the table for wide
    screens, a grade-tab list for phones — and the media query picks one. */
 .cm-scope { font-size: 0.8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 3px 12px; vertical-align: middle; margin-left: 8px; }
+.cm-scope.school { color: #1b6b3a; background: #e3f5ea; }
 .cm-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .cm-scroll { overflow-x: auto; }
 .cm-table { width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 0.86rem; }

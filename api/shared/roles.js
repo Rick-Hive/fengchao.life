@@ -7,6 +7,10 @@
 //                       which reads as the principal): the domain's accounts — create,
 //                       edit, licence, password, sign-in devices, delete — its Teams
 //                       groups, and 身份 / 关联账号 / 备注.
+//   教育领袖              `domain_leader:<domain>` — the school's education leader (Rick,
+//                       2026-10-08/12): sets the school's graduation credit requirements
+//                       and curriculum map (课程方案), which the school's families then see
+//                       on the website. Nothing else: no accounts, no 身份.
 //   (deleted) 域蜂巢管理员 `domain_hive:<domain>` — removed 2026-10-12 (Rick: 「这个角色与
 //                       相关功能可以删除」). Not assignable, grants nothing; roles.json
 //                       entries drop it when read (normalizeRoles), and a sign-in that
@@ -41,6 +45,7 @@ const BLOB_NAME = "roles.json";
 const DOMAIN = "[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}";
 const DOMAIN_IT_RE = new RegExp(`^domain_it:(${DOMAIN})$`);
 const DOMAIN_ADMIN_RE = new RegExp(`^domain_admin:(${DOMAIN})$`); // legacy: both
+const DOMAIN_LEADER_RE = new RegExp(`^domain_leader:(${DOMAIN})$`);
 const STAFF_RE = /^staff:(ceo|curriculum|fundraising|partnership|consultant|contractor|community|finance|sales|sysadmin)$/;
 
 const STAFF = {
@@ -60,6 +65,7 @@ const STAFF = {
 // Role kinds for pickers and labels.
 const KINDS = {
   domain_it: { zh: "IT 管理员", en: "IT administrator" },
+  domain_leader: { zh: "教育领袖", en: "Education leader" },
   staff: { zh: "Staff", en: "Staff" },
 };
 // Kept for old callers; everything assignable is described by the regexes above.
@@ -67,7 +73,7 @@ const ASSIGNABLE = { admin: { zh: "系统管理员", en: "System administrator" 
 
 function isAssignable(role) {
   const r = String(role || "");
-  return r === "admin" || DOMAIN_IT_RE.test(r) || STAFF_RE.test(r);
+  return r === "admin" || DOMAIN_IT_RE.test(r) || DOMAIN_LEADER_RE.test(r) || STAFF_RE.test(r);
 }
 
 // Roles as a person sees them, for lists and pickers.
@@ -76,6 +82,7 @@ function roleLabel(role, lang) {
   let m;
   if ((m = DOMAIN_IT_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
   if ((m = DOMAIN_ADMIN_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
+  if ((m = DOMAIN_LEADER_RE.exec(role))) return `${en ? KINDS.domain_leader.en : KINDS.domain_leader.zh} · ${m[1]}`;
   if ((m = STAFF_RE.exec(role))) return `Staff · ${en ? STAFF[m[1]].en : STAFF[m[1]].zh}`;
   if (role === "admin") return en ? "System administrator" : "系统管理员";
   if (role === "coordinator") return en ? "Staff · Education community manager (old name)" : "Staff · 教育社区经理（旧名）";
@@ -110,7 +117,7 @@ function managedDomains(roles) {
   if (isStaff(roles)) return ["*"];
   const out = new Set();
   for (const r of roles || []) {
-    const m = DOMAIN_IT_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r);
+    const m = DOMAIN_IT_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r) || DOMAIN_LEADER_RE.exec(r);
     if (m) out.add(m[1]);
   }
   return Array.from(out);
@@ -121,6 +128,8 @@ function managedDomains(roles) {
 //   methods  — the Microsoft account itself: create, edit, licence, password,
 //              sign-in devices, delete                          (IT 管理员, sysadmin)
 //   people   — 身份 / 关联账号 / 备注                (IT 管理员, staff)
+//   plan     — the school's 课程方案 (graduation credits, curriculum map)
+//                                                   (教育领袖, 课程总监, sysadmin)
 //   admin    — 角色分配, 数据同步, anything                    (sysadmin)
 function can(roles, action, domain) {
   roles = roles || [];
@@ -130,6 +139,7 @@ function can(roles, action, domain) {
   const holds = (re) => roles.some((r) => { const m = re.exec(r); return m && m[1] === d; });
   const it = holds(DOMAIN_IT_RE) || holds(DOMAIN_ADMIN_RE);
   const staff = isStaff(roles);
+  if (action === "plan") return holds(DOMAIN_LEADER_RE) || staffFunctions(roles).includes("curriculum");
   if (action === "view") return it || staff;
   if (action === "methods") return it;
   if (action === "people") return it || staff;
@@ -240,4 +250,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser };

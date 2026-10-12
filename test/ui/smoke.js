@@ -38,7 +38,13 @@ const groups = {
     { id: "g6", name: "Science Grade 6", description: "Sixth-grade science lab", kind: "team", visibility: "Public", members: 22, channels: 5, owner: false, created: "2026-09-01T00:00:00Z" }
   ]
 };
-const CAN = { methods: true, people: true, full: true };
+const CAN = { view: true, methods: true, people: true, plan: true, full: true };
+// 课程方案 (2026-10-12): what /api/school-plan?domain= answers the editor, and the PUTs it makes.
+const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, { id: "recSci", nameEn: "Science", nameZh: "科学" }];
+const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }],
+  map: { grammar: { grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"], rows: [] }, dialectic: { grades: ["G7", "G8"], rows: [] }, rhetoric: { grades: ["G9", "G10", "G11", "G12"], rows: [{ id: "recA", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G9: [{ en: "Geometry", zh: "几何" }], G10: [{ en: "Algebra 2", zh: "代数2" }] } }] } } };
+let PLAN_DOC = { domain: "bes.qiaoliang.online", draft: { tracks: {}, map: {} }, published: null, updatedAt: null, updatedBy: "" };
+const planPuts = [];
 const domains = { user: summary.profile.upn, roles: ["admin"], all: true, mine: "bes.qiaoliang.online", domains: [{ domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", isDefault: true, isInitial: false, can: CAN }, { domain: "demo.fengchao.life", name: "", isDefault: false, isInitial: false, can: CAN }], showDomains: true };
 function mkUser(i) {
   const names = ["Elaine Chen", "Lei Dong", "Rick Zhang", "Mei Wang", "Tom Li", "Anna Zhao", "Kevin Wu", "Sophie Liu", "Jack Sun", "Lily Huang", "Mark Zhou", "Grace Xu"];
@@ -159,7 +165,9 @@ const deleted = []; const writebacks = []; const digests = [];
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
       if (p === "/api/me/summary") body = me;
       else if (p === "/api/me/groups") body = groups;
-      else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
+      else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : rolesList.some(x => /^domain_leader:/.test(x)) ? { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [Object.assign({}, domains.domains[0], { can: { view: false, methods: false, people: false, plan: true, full: false, institutions: false } })], showDomains: false } : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
+      else if (p === "/api/school-plan" && r.request().method() === "GET") body = { domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS, canEdit: true, isAdmin: isAdm };
+      else if (p === "/api/school-plan" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); planPuts.push(b); const at = new Date().toISOString(); if (b.unpublish) PLAN_DOC = Object.assign({}, PLAN_DOC, { published: null, updatedAt: at }); else { const map = {}; Object.keys(b.map || {}).forEach(st => { map[st] = { grades: PLAN_DEFAULTS.map[st].grades, rows: (b.map[st].rows || []).map((row, i) => ({ id: row.id || "s" + i, order: i + 1, subjects: row.subjects, trackIds: row.trackIds || [], pedagogy: row.pedagogy || null, spanAll: !!row.spanAll, cells: Object.fromEntries(Object.entries(row.cells || {}).filter(([, v]) => String(v).trim()).map(([g, v]) => [g, String(v).split(/[;；\n]+/).map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf("/"); return i < 0 ? { en: x, zh: null } : { en: x.slice(0, i).trim(), zh: x.slice(i + 1).trim() }; })])) })) }; }); PLAN_DOC = Object.assign({}, PLAN_DOC, { draft: { tracks: b.tracks || {}, map }, updatedAt: at, updatedBy: me.profile.upn }); if (b.publish) PLAN_DOC.published = Object.assign({}, PLAN_DOC.draft, { at, by: me.profile.upn }); } body = { ok: true, domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS }; }
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
       else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))) } : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
       else if (p === "/api/domain/user" && r.request().method() === "GET") { const up = u.searchParams.get("upn"); const hit = users.users.find(x => x.upn === up); body = { domain: u.searchParams.get("domain"), user: hit || null, gone: !hit, profile: u.searchParams.get("full") && hit ? { givenName: "", surname: "", displayName: hit.displayName, jobTitle: hit.jobTitle || "", city: hit.city || "南京", postalCode: "210000", usageLocation: "CN", safeEmail: hit.safeEmail || "" } : null }; }
@@ -691,6 +699,54 @@ const deleted = []; const writebacks = []; const digests = [];
     const pb = await p.$eval("#panel .pb", e => e.innerText);
     if (await p.$("#stGen") || await p.$("#stDisc") || await p.$('#panel button[data-st]')) throw new Error("partnership director can edit");
     if (!/No complete snapshot/.test(pb) || !/Sent/.test(pb)) throw new Error("readonly panel: " + pb.slice(0, 300));
+  });
+  // 课程方案 (2026-10-12): an 教育领袖 sees only 课程方案 of their school; edits credits and the map, saves, publishes.
+  await shot("plan-leader", 1280, 900, "#/domain/users", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForTimeout(800);
+    const nv = await p.$eval("#nav", e => e.innerText);
+    if (!/课程方案/.test(nv) || /用户|Teams 群组|操作手册/.test(nv)) throw new Error("leader nav: " + nv);
+    if (!/#\/domain\/plan$/.test(await p.evaluate(() => location.hash))) throw new Error("a leader at #/domain/users is not sent to the plan: " + await p.evaluate(() => location.hash));
+    const st = await p.$eval("#plstatus", e => e.innerText); if (!/未发布/.test(st)) throw new Error("status: " + st);
+    const body0 = await p.$eval("#plbody", e => e.innerText); if (!/国际·古典/.test(body0) || !/蜂巢默认/.test(body0) || !/总学分\s*24/.test(body0)) throw new Error("credits tab: " + body0.slice(0, 300));
+    await p.click("label.sw:has(#plOwn) .track"); await p.waitForTimeout(200);
+    await p.fill('#plbody input[data-credit="math"]', "5"); await p.$eval('#plbody input[data-credit="math"]', e => e.dispatchEvent(new Event("change", { bubbles: true })));
+    await p.click('#plbody input[data-off="speaking"]'); await p.waitForTimeout(200);
+    if (!(await p.$eval('#plbody input[data-credit="speaking"]', e => e.disabled))) throw new Error("不要求 did not disable the input");
+    await p.fill("#plTotal", "26"); await p.$eval("#plTotal", e => e.dispatchEvent(new Event("change", { bubbles: true })));
+    await p.click('#pltabs a[data-tab="map"]'); await p.waitForTimeout(200);
+    await p.click('#plbody .chip[data-stage="rhetoric"]'); await p.waitForTimeout(200);
+    const m0 = await p.$eval("#plbody", e => e.innerText); if (!/几何/.test(m0) || !/蜂巢默认/.test(m0)) throw new Error("map default: " + m0.slice(0, 300));
+    await p.click("label.sw:has(#plOwnMap) .track"); await p.waitForTimeout(200);
+    if ((await p.$$("#plbody table.plmap.edit tbody tr")).length !== 1) throw new Error("Hive's row was not copied");
+    await p.click("#plAddRow"); await p.waitForTimeout(200);
+    const rows = await p.$$("#plbody table.plmap.edit tbody tr"); if (rows.length !== 2) throw new Error("add row");
+    const rid = await rows[1].getAttribute("data-row");
+    await p.selectOption('#plbody select[data-subj="' + rid + '"]', "recSci");
+    await p.fill('#plbody textarea[data-cell="G9"][data-row="' + rid + '"]', "Biology / 生物; Chemistry / 化学"); await p.$eval('#plbody textarea[data-cell="G9"][data-row="' + rid + '"]', e => e.dispatchEvent(new Event("change", { bubbles: true })));
+    await p.click("#plSave"); await p.waitForTimeout(600);
+    if (planPuts.length !== 1 || planPuts[0].publish || planPuts[0].tracks["1"].credits.math !== 5 || planPuts[0].tracks["1"].credits.speaking !== null || planPuts[0].tracks["1"].totalCredits !== 26) throw new Error("save body: " + JSON.stringify(planPuts[0]).slice(0, 400));
+    const rr = planPuts[0].map.rhetoric.rows; if (rr.length !== 2 || rr[1].subjects[0].id !== "recSci" || !/Biology/.test(rr[1].cells.G9) || rr[0].cells.G9 !== "Geometry / 几何") throw new Error("save map: " + JSON.stringify(rr).slice(0, 400));
+    if (!/草稿已保存/.test(await p.$eval("#flash", e => e.innerText))) throw new Error("no saved flash");
+    p.on("dialog", d => d.accept());
+    await p.click("#plPub"); await p.waitForTimeout(600);
+    if (planPuts.length !== 2 || planPuts[1].publish !== true) throw new Error("publish body: " + JSON.stringify(planPuts[1]).slice(0, 200));
+    if (!/已发布/.test(await p.$eval("#plstatus", e => e.innerText)) || !(await p.$eval("#plUnpub", e => !e.hidden))) throw new Error("status after publish: " + await p.$eval("#plstatus", e => e.innerText));
+    const m1 = await p.$$eval('#plbody textarea[data-cell="G9"]', es => es.map(e => e.value)); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("map after save: " + JSON.stringify(m1));
+    await p.click("#plUnpub"); await p.waitForTimeout(500);
+    if (planPuts.length !== 3 || planPuts[2].unpublish !== true || !/未发布/.test(await p.$eval("#plstatus", e => e.innerText))) throw new Error("unpublish: " + JSON.stringify(planPuts[2]));
+  });
+  // The sysadmin: 课程方案 beside the accounts pages, the school picker; 角色分配 offers 教育领袖.
+  await shot("plan-admin", 1280, 800, "#/domain/plan", "en", ["admin"], async p => {
+    await p.waitForTimeout(800);
+    const nv = await p.$eval("#nav", e => e.innerText); if (!/Curriculum plan/.test(nv) || !/Users/.test(nv)) throw new Error("admin nav: " + nv);
+    if (!(await p.$("#plsel"))) throw new Error("no school picker for the admin");
+    if (!/Graduation credits/.test(await p.$eval("#pltabs", e => e.innerText))) throw new Error("tabs");
+    await p.click('#nav a[href="#/system/roles"]'); await p.waitForTimeout(600);
+    if (!/Education leader/.test(await p.$eval("#rbar", e => e.innerText))) throw new Error("no leader filter chip");
+    await p.click('#rtable tr[data-user="mei.wang@bes.qiaoliang.online"]'); await p.waitForTimeout(400);
+    if (!(await p.$('#rschools input[data-role="leader"]'))) throw new Error("no 教育领袖 switch in the school card");
+    await p.click('#rschools label.sw:has(input[data-role="leader"]) .track'); await p.waitForTimeout(100);
+    if (!/Education leader · Beijing Example School/.test(await p.$eval("#rprev", e => e.innerText))) throw new Error("preview: " + await p.$eval("#rprev", e => e.innerText));
   });
   await shot("royalty-finance", 1280, 800, "#/ops/royalty", "zh", ["staff:finance"], async p => {
     await p.waitForTimeout(600);

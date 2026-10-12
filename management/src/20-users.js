@@ -187,7 +187,7 @@
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
     // school, or across all schools with 所有学校 in the picker.
     var ROLE_OPTS = [["", t("全部角色", "All roles")]].concat(IDENTITIES.map(function (i) { return ["id:" + i, vl(i)]; })).concat([
-      ["role:teacher", t("蜂巢课程教师", "Hive course teachers")], ["role:it", t("IT 管理员", "IT administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
+      ["role:teacher", t("蜂巢课程教师", "Hive course teachers")], ["role:it", t("IT 管理员", "IT administrator")], ["role:leader", t("教育领袖", "Education leader")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel", canAll) +
         '<select id="urole" aria-label="' + t("按角色筛选", "Filter by role") + '">' + ROLE_OPTS.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (state.userRole === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>" +
@@ -256,6 +256,7 @@
       var rs = (u.roles || []).map(function (r) { return r.role || r; });
       if (kind === "any") return rs.length > 0;
       if (kind === "it") return rs.some(function (r) { return /^domain_(it|admin):/.test(r); });
+      if (kind === "leader") return rs.some(function (r) { return /^domain_leader:/.test(r); });
       if (kind === "staff") return rs.some(function (r) { return /^staff:/.test(r) || r === "coordinator"; });
       if (kind === "admin") return rs.some(function (r) { return r === "admin" || r === "staff:sysadmin"; });
       // 蜂巢课程教师 (Rick, 2026-10-08): from the Hive Teachers table, or any account whose identity is 老师.

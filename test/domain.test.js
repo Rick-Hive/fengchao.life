@@ -217,6 +217,16 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   r = await call({ action: "users", query: { domain: "not a domain" }, user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.status, 400);
 
+  // 4b. An 教育领袖 holds the school for its 课程方案 only: it is listed (can.plan, not can.view), its accounts are refused.
+  r = await call({ action: "domains", user: `leader@${DOMAIN}`, roles: [`domain_leader:${DOMAIN}`] });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.body.domains.map((d) => [d.domain, d.can.view, d.can.plan]), [[DOMAIN, false, true]]);
+  r = await call({ action: "users", query: { domain: DOMAIN }, user: `leader@${DOMAIN}`, roles: [`domain_leader:${DOMAIN}`] });
+  assert.strictEqual(r.status, 403, "a leader does not see the accounts");
+  assert.strictEqual(r.body.code, "forbidden");
+  r = await call({ action: "domains", user: DOMADMIN, roles: DOMROLE });
+  assert.deepStrictEqual([r.body.domains[0].can.view, r.body.domains[0].can.plan], [true, false], "the IT 管理员 sees accounts, not the plan");
+
   // 5a. Before any sync the table is empty but the reply says so (no 500, no live walk).
   r = await call({ action: "users", query: { domain: DOMAIN }, user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));

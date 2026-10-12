@@ -95,11 +95,14 @@
       ] },
     ];
     if (domainsInfo && domainsInfo.domains && domainsInfo.domains.length) {
-      groups.push({ title: domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), items: [
+      // Accounts pages for whoever may view a school's accounts (IT 管理员, staff); 课程方案
+      // for an 教育领袖 (who sees nothing else of the school), 课程总监 and the sysadmin.
+      var seesAccounts = domainsInfo.domains.some(function (d) { return d.can && d.can.view; });
+      groups.push({ title: domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), items: (seesAccounts ? [
         { hash: "#/domain/users", icon: "users", zh: "用户", en: "Users" },
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 群组", en: "Teams groups" },
         { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },
-      ] });
+      ] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "课程方案", en: "Curriculum plan" }] : []) });
     }
     if (canSeeOrders() || isStaff()) {
       groups.push({ title: t("经营", "Operations"), items: [

@@ -109,6 +109,12 @@
       }
     },
     {
+      "route": "/api/school-plan",
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    },
+    {
       "route": "/api/logout",
       "methods": [
         "POST"

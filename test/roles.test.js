@@ -60,6 +60,15 @@ const R = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
   assert.ok(R.can(OLD, "methods", "a.edu") && R.can(OLD, "people", "a.edu"), "old domain_admin = IT 管理员");
   assert.ok(R.can(["domain_it:a.edu", "domain_hive:a.edu"], "methods", "a.edu") && R.can(["domain_it:a.edu", "domain_hive:a.edu"], "people", "a.edu"));
   assert.ok(!R.can([], "view", "a.edu"), "普通用户 sees no domain");
+  // 教育领袖 (domain_leader, 2026-10-12): the school's 课程方案 only.
+  const LEADER = ["domain_leader:a.edu"], CURR = ["staff:curriculum"];
+  assert.ok(R.isAssignable("domain_leader:a.edu") && R.canAssign(["admin"], "domain_leader:a.edu") && !R.canAssign(["staff:ceo"], "domain_leader:a.edu"));
+  assert.deepStrictEqual(R.managedDomains(LEADER), ["a.edu"], "the leader's school is listed (for the 课程方案 picker)");
+  assert.ok(R.can(LEADER, "plan", "a.edu") && !R.can(LEADER, "plan", "b.org"), "a leader plans their own school only");
+  assert.ok(!R.can(LEADER, "view", "a.edu") && !R.can(LEADER, "methods", "a.edu") && !R.can(LEADER, "people", "a.edu"), "a leader sees no accounts");
+  assert.ok(!R.can(IT, "plan", "a.edu") && !R.can(SALES, "plan", "a.edu"), "IT 管理员 and other staff do not edit the plan");
+  assert.ok(R.can(CURR, "plan", "any.edu") && R.can(SYS, "plan", "any.edu"), "课程总监 and the sysadmin plan for every school");
+  assert.strictEqual(R.roleLabel("domain_leader:a.edu", "zh"), "教育领袖 · a.edu");
 
   // Labels.
   assert.strictEqual(R.roleLabel("staff:community"), "Staff · 教育社区经理");

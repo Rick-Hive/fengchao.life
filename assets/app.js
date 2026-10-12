@@ -42,6 +42,10 @@
     formErr: "",
     email: "",
     teams: "",
+    // The signed-in family's school edition of the graduation requirements and the
+    // curriculum map (/api/school-plan, published by the school's 教育领袖), or null:
+    // then the wizard generates the requirements from the track and shows Hive's map.
+    school: null,
   };
 
   try {
@@ -306,9 +310,37 @@
   function track() {
     var id = trackId();
     if (!id || !state.data) return null;
+    var base = null;
     for (var i = 0; i < state.data.tracks.length; i++)
-      if (state.data.tracks[i].trackId === id) return state.data.tracks[i];
-    return null;
+      if (state.data.tracks[i].trackId === id) { base = state.data.tracks[i]; break; }
+    if (!base) return null;
+    // The school's own requirements for this track, when its 教育领袖 published any:
+    // credits, totals and notes replace Hive's; everything else (name, id) is the track's.
+    var ov = state.school && state.school.tracks && state.school.tracks[String(id)];
+    if (!ov) return base;
+    var credits = {};
+    Object.keys(base.credits || {}).concat(Object.keys(ov.credits || {})).forEach(function (k) {
+      credits[k] = Object.prototype.hasOwnProperty.call(ov.credits || {}, k) ? ov.credits[k] : (base.credits || {})[k];
+    });
+    var notes = ov.notes || {};
+    return Object.assign({}, base, {
+      credits: credits,
+      totalCredits: ov.totalCredits != null ? ov.totalCredits : base.totalCredits,
+      serviceHours: ov.serviceHours != null ? ov.serviceHours : base.serviceHours,
+      commentsEn: notes.en || notes.zh ? notes.en : base.commentsEn,
+      commentsZh: notes.en || notes.zh ? notes.zh : base.commentsZh,
+      comments: notes.en || notes.zh ? (notes.zh || notes.en) : base.comments,
+      schoolEdition: true,
+    });
+  }
+  // The school's name for the 学校版本 chip (page language, then the other, then the domain).
+  function schoolEditionName() {
+    var sc = state.school && state.school.school;
+    if (!sc) return "";
+    return pickLang(sc.nameEn, sc.name) || sc.domain || "";
+  }
+  function schoolChip(on) {
+    return on ? ' <span class="cm-scope school" title="' + esc(t().schoolEditionHint) + '">' + esc(t().schoolEdition) + (schoolEditionName() ? " · " + esc(schoolEditionName()) : "") + "</span>" : "";
   }
   function teacherByName(name) {
     var list = (state.data && state.data.teacherProfiles) || [];
@@ -1114,7 +1146,7 @@
       : "";
 
     return (
-      '<section class="panel"><h2>' + esc(t().step3Title) + '</h2><p class="hint">' + esc(t().step3Hint) +
+      '<section class="panel"><h2>' + esc(t().step3Title) + schoolChip(!!tr.schoolEdition) + '</h2><p class="hint">' + esc(t().step3Hint) +
       (trackName(tr) ? " — <b>" + esc(trackName(tr)) + "</b>" : "") + "</p>" +
       '<div class="req-card" id="reqCard">' + reqTableHtml() + "</div>" + policy +
       '<div class="nav-row"><button class="btn btn-ghost" id="back3">' + esc(t().back) + '</button>' +
@@ -1273,10 +1305,15 @@
   var mapGradeTab = null;          // phone view: the grade currently shown
 
   function mapDataFor(key) {
+    var k = key || state.stage;
+    // The school's own map for this stage, when published; else Hive's.
+    var sm = state.school && state.school.map && state.school.map[k];
+    if (sm && sm.rows && sm.rows.length) return { grades: sm.grades || (state.data && state.data.curriculumMap && state.data.curriculumMap[k] && state.data.curriculumMap[k].grades) || STAGE_GRADES[k] || [], rows: sm.rows, schoolEdition: true };
     var cm = state.data && state.data.curriculumMap;
-    var d = cm && cm[key || state.stage];
+    var d = cm && cm[k];
     return d && d.rows && d.rows.length ? d : null;
   }
+  var STAGE_GRADES = { grammar: ["K", "G1", "G2", "G3", "G4", "G5", "G6"], dialectic: ["G7", "G8"], rhetoric: ["G9", "G10", "G11", "G12"] };
   function hasMap() { return !!mapDataFor(); }
   // Where "Next" from the stage (or the requirements) lands: the map when the
   // stage has one, else straight into the catalog.
@@ -1399,7 +1436,7 @@
     var scope = tr && trackName(tr) ? trackName(tr) : stageName();
     return (
       '<section class="panel"><h2>' + esc(t().mapTitle) +
-      (scope ? ' <span class="cm-scope">' + esc(scope) + "</span>" : "") + "</h2>" +
+      (scope ? ' <span class="cm-scope">' + esc(scope) + "</span>" : "") + schoolChip(!!(mapDataFor() && mapDataFor().schoolEdition)) + "</h2>" +
       '<p class="hint">' + esc(t().mapHint) + "</p>" +
       '<div class="cm-card" id="mapCard">' + mapHtml() + "</div>" +
       '<div class="nav-row"><button class="btn btn-ghost" id="back6">' + esc(t().back) + "</button>" +
@@ -2405,6 +2442,13 @@
   bindStepperOnce();
   bindCartOnce();
   render();
+  // The signed-in family's school edition (published by its 教育领袖), fetched beside the
+  // snapshot; a visitor who is not signed in, or a school that published nothing, gets
+  // null and the wizard behaves as before. Never blocks the page.
+  fetch("/api/school-plan", { credentials: "same-origin" })
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (j) { if (j && j.plan) { state.school = j.plan; if (state.data) render(); } })
+    .catch(function () {});
   fetch("/api/data")
     .then(function (res) {
       if (!res.ok) throw new Error("no data");
