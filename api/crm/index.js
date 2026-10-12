@@ -39,6 +39,7 @@ const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
 const partnersApi = require("./partners");
+const statementsApi = require("./statements");
 
 // What a reader gets of an Equip order: contact details by `identity`, amounts by `money`,
 // the royalty bag only for finance (money rw) or the CEO.
@@ -83,6 +84,8 @@ async function handler(context, req) {
 
   // 合作伙伴 (api/crm/partners.js): partners ≥ read, not tied to orders.
   if (await partnersApi.handle(context, req, { action, method, user, roles, acc, ok, fail })) return;
+  // 对账单 (api/crm/statements.js): finance / sysadmin write, money or partners ≥ read see.
+  if (await statementsApi.handle(context, req, { action, method, user, roles, acc, ok, fail })) return;
 
   if (!crm.atLeast(roles, "orders", "masked")) { fail(context, 403, "no_access"); return; }
 

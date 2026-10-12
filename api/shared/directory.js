@@ -367,9 +367,7 @@ async function addUser(domain, graphUser, extra) {
 // A deleted account leaves the cache at once.
 async function removeUser(domain, upn) {
   const doc = await readDomain(domain);
-  const n = doc.users.length;
-  doc.users = doc.users.filter((r) => r.upn !== upn);
-  if (doc.users.length !== n) await store.write(`${domain}.json`, doc);
+  if (await dropUsers(doc, (r) => r.upn === upn, "hive")) await store.write(`${domain}.json`, doc);
 }
 
 // ---- tenant-wide change tracking (/users/delta) -----------------------------------
@@ -394,6 +392,57 @@ async function pullDelta(link) {
   }
   return { changes, deltaLink: nextLink || link };
 }
+// ---- monthly snapshots and the removal ledger (对账单, Rick 2026-10-12) ------------
+// The IT invoice of a month needs the accounts on its first day and on the first day
+// of the next month, and which accounts came and went in between. The cache only
+// knows "now", so: (1) the first sync on or after the 1st (Beijing) of a month writes
+// directory/_snapshots/<domain>/<YYYY-MM>.json — the accounts as of that day;
+// (2) every row the sync drops (deleted in Microsoft, or by Hive) is appended to
+// directory/_ledger/<domain>.json, since Graph does not tell us later who was deleted.
+// api/shared/statements.js reads both; a month with no snapshot is reconstructed from
+// the current rows, their created dates and the ledger (marked as such).
+const SNAP_DIR = "_snapshots/";
+const LEDGER_DIR = "_ledger/";
+const LEDGER_MAX = 5000;
+function beijingDate(d) { // "YYYY-MM-DD" in Asia/Shanghai
+  const x = new Date((d ? new Date(d) : new Date()).getTime() + 8 * 3600 * 1000);
+  return x.toISOString().slice(0, 10);
+}
+function snapshotRow(r) { return { id: r.id, upn: r.upn, displayName: r.displayName || "", plan: r.plan || "", enabled: r.enabled !== false, created: r.created || null }; }
+async function takeMonthlySnapshot(doc, log) {
+  const month = beijingDate().slice(0, 7);
+  const name = `${SNAP_DIR}${doc.domain}/${month}.json`;
+  try {
+    if (await store.read(name)) return false;
+    await store.write(name, { domain: doc.domain, month, at: new Date().toISOString(), accounts: (doc.users || []).map(snapshotRow) });
+    log(`directory ${doc.domain}: accounts of ${month} snapshotted (${doc.users.length})`);
+    return true;
+  } catch (err) { log(`directory ${doc.domain}: snapshot of ${month} not taken: ${err.message}`); return false; }
+}
+async function recordRemoved(domain, rows, why) {
+  const list = (rows || []).filter((r) => r && r.upn);
+  if (!list.length) return;
+  const name = `${LEDGER_DIR}${domain}.json`;
+  try {
+    const led = (await store.read(name)) || { domain, events: [] };
+    if (!Array.isArray(led.events)) led.events = [];
+    const at = new Date().toISOString();
+    for (const r of list) led.events.push(Object.assign({ at, kind: "removed", why: why || "" }, snapshotRow(r)));
+    if (led.events.length > LEDGER_MAX) led.events = led.events.slice(-LEDGER_MAX);
+    await store.write(name, led);
+  } catch (err) { /* the statement will say the month was reconstructed */ }
+}
+// Drop the rows `gone(row)` selects from the cache and remember them. Returns how many.
+async function dropUsers(doc, gone, why) {
+  const out = doc.users.filter(gone);
+  if (!out.length) return 0;
+  doc.users = doc.users.filter((r) => !gone(r));
+  await recordRemoved(doc.domain, out, why);
+  return out.length;
+}
+async function readSnapshot(domain, month) { return store.read(`${SNAP_DIR}${domain}/${month}.json`); }
+async function readLedger(domain) { return (await store.read(`${LEDGER_DIR}${domain}.json`)) || { domain, events: [] }; }
+
 // Apply the tenant's changes to every cached domain: deletions drop the row at once,
 // creations and updates are queued (with a basics re-read) for that domain's next slice.
 async function distributeChanges(changes, byDomain) {
@@ -404,9 +453,7 @@ async function distributeChanges(changes, byDomain) {
     const pendingSet = new Set(doc.pending || []);
     for (const c of list) {
       if (c.removed) {
-        const n = doc.users.length;
-        doc.users = doc.users.filter((r) => r.id !== c.id && r.upn !== c.upn);
-        if (doc.users.length !== n) touched++;
+        if (await dropUsers(doc, (r) => r.id === c.id || r.upn === c.upn, "delta")) touched++;
       } else {
         pendingSet.add(JSON.stringify({ id: c.id, upn: c.upn, b: 1 }));
         touched++;
@@ -438,7 +485,7 @@ async function refreshUser(domain, upn) {
   ]);
   const b = res.b || {};
   if (b.status === 404) {
-    if (old) { doc.users = doc.users.filter((r) => r !== old); await store.write(`${domain}.json`, doc); }
+    if (old) { await dropUsers(doc, (r) => r === old, "gone"); await store.write(`${domain}.json`, doc); }
     return null;
   }
   if (b.status !== 200 || !b.body || b.body.userType === "Guest") return old || null;
@@ -493,7 +540,7 @@ async function syncSlice(domain, mode, opts) {
       }
       // Deletions that arrive without a UPN are matched by id against this domain.
       const blind = changes.filter((c) => c.removed && !c.upn);
-      if (blind.length) { const ids = new Set(blind.map((c) => c.id)); const n = doc.users.length; doc.users = doc.users.filter((r) => !ids.has(r.id)); removed += n - doc.users.length; }
+      if (blind.length) { const ids = new Set(blind.map((c) => c.id)); removed += await dropUsers(doc, (r) => ids.has(r.id), "delta"); }
       const mine = byDomain[domain] || [];
       removed += mine.filter((c) => c.removed).length;
       added += mine.filter((c) => !c.removed).length;
@@ -568,7 +615,7 @@ async function syncSlice(domain, mode, opts) {
     // A full pass also drops accounts that no longer exist in the tenant.
     if (mode === "full") {
       const live = new Set(accounts.map((u) => String(u.userPrincipalName).toLowerCase()));
-      doc.users = doc.users.filter((r) => live.has(r.upn));
+      removed += await dropUsers(doc, (r) => !live.has(r.upn), "full");
     }
     doc.basics = Object.fromEntries(accounts.map((u) => [u.id, u]));
     doc.pending = Array.from(pendingSet);
@@ -588,12 +635,13 @@ async function syncSlice(domain, mode, opts) {
         if (c.b) reqs.push({ id: `b${i}`, url: `/users/${c.id}?$select=${USER_SELECT.replace(",signInActivity", "")}` });
       });
       const res = await batch(reqs);
+      const gone = [];
       chunk.forEach((c, i) => {
         const old = doc.users.find((r) => r.id === c.id || r.upn === c.upn);
         const fresh = res[`b${i}`];
         const basic = (fresh && fresh.status === 200 && fresh.body) || (doc.basics && doc.basics[c.id]) ||
           (old ? { id: old.id, userPrincipalName: old.upn, displayName: old.displayName, department: old.department, jobTitle: old.jobTitle, accountEnabled: old.enabled, createdDateTime: old.created } : { id: c.id, userPrincipalName: c.upn });
-        if (fresh && fresh.status === 404) { doc.users = doc.users.filter((r) => r.id !== c.id); return; } // gone meanwhile
+        if (fresh && fresh.status === 404) { gone.push(c.id); return; } // gone meanwhile
         if (fresh && fresh.status === 200 && fresh.body && fresh.body.userType === "Guest") return;
         const row = rowOf(basic, res[`m${i}`], res[`g${i}`], plans);
         if (old && !row.lastSignIn) row.lastSignIn = old.lastSignIn; // delta re-reads skip signInActivity
@@ -602,6 +650,7 @@ async function syncSlice(domain, mode, opts) {
         const k = doc.users.findIndex((r) => r.id === row.id || r.upn === row.upn);
         if (k >= 0) doc.users[k] = row; else doc.users.push(row);
       });
+      if (gone.length) { const ids = new Set(gone); await dropUsers(doc, (r) => ids.has(r.id), "gone"); }
       doc.pending.splice(0, chunk.length);
     }
   } catch (err) {
@@ -624,6 +673,7 @@ async function syncSlice(domain, mode, opts) {
   if (done) {
     await markClassTeams(doc, log);
     await fetchGroupOwners(doc, log);
+    await takeMonthlySnapshot(doc, log);
     doc.users.sort((a, b) => a.displayName.localeCompare(b.displayName, "zh") || a.upn.localeCompare(b.upn));
     doc.syncedAt = new Date().toISOString();
     if (doc.run && doc.run.mode === "full") doc.fullAt = doc.syncedAt;
@@ -673,4 +723,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, refreshUser, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, refreshUser, readSnapshot, readLedger, beijingDate, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };

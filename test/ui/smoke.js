@@ -129,7 +129,23 @@ const EQUIP = [
   function ptOrgIdx() { const m = new Map(); for (const i of HUB.institutions) m.set(i.key || i.domain, i); return m; }
   function ptRow(rel, projects) { const idx = ptOrgIdx(); const i = rel.party && rel.party.kind === "org" ? idx.get(rel.party.key) : null; const mine = projects.filter(x => x.relationship === rel.id); const pn = rel.party ? (rel.party.kind === "org" ? ((i && (i.name || i.nameEn)) || rel.party.name || rel.party.key) : ((HUB.people.find(x => x.crmId === rel.party.id) || {}).name || rel.party.name)) : ""; return Object.assign({}, rel, { partyName: pn, metrics: i ? { accounts: i.accounts || 0, active: i.active || 0, customers: i.customers || 0, courses: i.courses || 0, hiveOrders: i.hiveOrders || 0 } : null, projects: mine.length, activeProjects: mine.filter(x => x.status === "active").length, overdueMilestones: 0 }); }
   const licMod = require(path.join(ROOT, "api", "shared", "licenses.js")); const LIC = { pools: [], allocations: [], nextPool: 1, nextAlloc: 1 };
-  const verdicts = []; let rebuilds = 0; const acctEdits = [], licChanges = [];
+  const verdicts = []; let rebuilds = 0; const stmPosts = [];
+const STM_ROWS = [
+  { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", relationship: "REL-000001", stage: "operating", saved: false, status: null, amount: 15.42, currency: "USD", billable: 40, discount: 3, counts: { start: { total: 39, licensed: 37 }, end: { total: 42, licensed: 40 }, added: 4, removed: 1 }, reconstructed: { start: false, end: false } },
+  { domain: "demo.fengchao.life", name: "示范校", nameEn: "Demo School", relationship: "REL-000002", stage: "operating", saved: true, id: "STM-000003", status: "sent", amount: 1.67, currency: "USD", billable: 4, discount: 0, counts: { start: { total: 4, licensed: 4 }, end: { total: 4, licensed: 4 }, added: 0, removed: 0 }, reconstructed: { start: true, end: false } },
+  { domain: "equipme.cloud", name: "Equip 教育社区", nameEn: "Equip Education Community", relationship: null, stage: null, saved: false, status: null, amount: 0, currency: "USD", billable: 0, discount: 0, counts: { start: { total: 280, licensed: 275 }, end: { total: 281, licensed: 276 }, added: 1, removed: 0 }, reconstructed: { start: false, end: false } },
+];
+function stmDetail(row, discount) {
+  const disc = discount != null && discount !== "" ? +discount : row.discount;
+  const c = row.counts;
+  return { id: row.id || null, status: row.saved ? row.status : null, domain: row.domain, month: "2026-09", period: { start: "2026-09-01", end: "2026-10-01" }, relationship: row.relationship, school: { domain: row.domain, name: row.name, nameEn: row.nameEn },
+    counts: { start: Object.assign({ student: 20, faculty: 17, disabled: 0 }, c.start), end: Object.assign({ student: 22, faculty: 18, disabled: 1 }, c.end), added: c.added, removed: c.removed },
+    billable: row.billable, discount: disc, unitPriceYear: 5, currency: "USD", amount: Math.round((row.billable - disc) * 5 / 12 * 100) / 100,
+    added: Array.from({ length: c.added }, (_, i) => ({ upn: "new" + i + "@" + row.domain, displayName: "New " + i, plan: i % 2 ? "student" : "faculty", created: "2026-09-1" + i + "T00:00:00Z" })),
+    removed: Array.from({ length: c.removed }, (_, i) => ({ upn: "old" + i + "@" + row.domain, displayName: "Old " + i, plan: "student", removedAt: "2026-09-20T00:00:00Z" })),
+    reconstructed: row.reconstructed, generatedAt: row.saved ? "2026-10-02T01:00:00Z" : null, sentAt: row.status === "sent" ? "2026-10-03T01:00:00Z" : null, note: "", history: row.saved ? [{ at: "2026-10-02T01:00:00Z", by: "fin@equipme.cloud", action: "generated", discount: 0, amount: 1.67 }] : [] };
+}
+const acctEdits = [], licChanges = [];
 const deleted = []; const writebacks = []; const digests = [];
   async function shot(name, w, h, hash, lang, rolesList, act) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
@@ -167,6 +183,9 @@ const deleted = []; const writebacks = []; const digests = [];
       else if (p === "/api/crm/entry") { const b = JSON.parse(r.request().postData()); entries.push(b); body = { ok: true, orderId: "H-20261008-TEST", orderRec: "recNEWO", customerRec: b.customer.recId || "recNEWC", newCustomer: !!b.customer.new, lines: b.items.length, status: {} }; }
       else if (p === "/api/crm/received") { const b = JSON.parse(r.request().postData()); received.push(b); body = { ok: true }; }
       else if (p === "/api/crm/feed") body = { feed: [{ at: "2026-10-08T01:00:00Z", action: "crm.entry.order", by: "obadiah.sun@equipme.cloud", orderId: "H-20261008-AB12", newCustomer: true }, { at: "2026-10-07T20:00:00Z", action: "crm.order.status", by: "obadiah.sun@equipme.cloud", orderId: "FC-20261002-KXC-002", from: "submitted", to: "confirmed" }, { at: "2026-10-07T17:05:00Z", action: "crm.equip.sync", actor: "scheduler", counts: { orders: 520 } }], access: acc };
+      else if (p === "/api/crm/statements") { const canEdit = isAdm || acc.money === "rw"; body = { month: "2026-09", period: { start: "2026-09-01", end: "2026-10-01" }, canEdit, defaultMonth: "2026-09", price: 5, currency: "USD", totals: { amount: STM_ROWS.filter(r => r.relationship).reduce((s2, r) => s2 + r.amount, 0), billable: 44 }, rows: STM_ROWS }; }
+      else if (p === "/api/crm/statement" && r.request().method() === "GET") { const d = u.searchParams.get("domain"); const row = STM_ROWS.find(x => x.domain === d); body = { saved: !!row.saved, canEdit: isAdm || acc.money === "rw", statement: stmDetail(row, u.searchParams.get("discount")) }; }
+      else if (p === "/api/crm/statement" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); stmPosts.push(b); const row = STM_ROWS.find(x => x.domain === b.domain); if (b.op === "generate") { row.saved = true; row.status = "draft"; row.id = "STM-000007"; row.discount = +b.discount; row.amount = Math.round((row.billable - row.discount) * 5 / 12 * 100) / 100; } else row.status = b.status; body = { ok: true, statement: stmDetail(row) }; }
       else if (p === "/api/crm/licenses") { const canEdit = isAdm || acc.drm === "rw"; const regionOf = d => (PARTNERS[d] && PARTNERS[d].region) || "other"; if (r.request().method() === "POST") { if (!canEdit) { status = 403; body = { error: "no_access" }; } else { const b = JSON.parse(r.request().postData()); try { const res = b.op === "pool" ? licMod.createPool(LIC, b, "om") : b.op === "allocate" ? licMod.allocate(LIC, b, "om") : licMod.revoke(LIC, b.id, "om"); body = { ok: true, result: res, view: licMod.view(LIC, { regionOf }) }; } catch (e) { status = 400; body = { error: e.code, message: e.message, balance: e.balance }; } } } else if (u.searchParams.get("person")) body = { allocations: LIC.allocations.filter(a => a.to.type === "person" && a.to.crmId === u.searchParams.get("person")).map(a => Object.assign({}, a, { pool: LIC.pools.find(p => p.id === a.poolId) })) }; else body = Object.assign(licMod.view(LIC, { regionOf }), { canEdit, regions: licMod.REGIONS, instTypes: licMod.INST_TYPES, access: acc }); }
       else if (p === "/api/crm/catalogue") body = { skus: [{ sku: "IEW-SSS1A-FP", nameZh: "IEW 结构和风格 1A - 全套", nameEn: "IEW SSS 1-A", publisher: "IEW", category: "Curriculum", available: true, price: 648, lastSale: "2026-10-01", unitsEver: 2 }, { sku: "CEFF-CSB", nameZh: "儿童圣经故事", nameEn: "The Child's Story Bible", publisher: "CEFF", category: "Curriculum", available: true, lastSale: "2026-09-12", unitsEver: 53 }, { sku: "OLD-1", nameZh: "旧教材", nameEn: "Old title", publisher: "CAP", category: "Curriculum", available: true, lastSale: "2024-03-01", unitsEver: 4 }, { sku: "OLD-2", nameZh: "从未卖出", nameEn: "Never sold", publisher: "CAP", category: "Pre-recorded", available: true, lastSale: null, unitsEver: 0 }, { sku: "GONE", nameZh: "下架", nameEn: "Withdrawn", publisher: "CAP", category: "Curriculum", available: false, lastSale: null, unitsEver: 0 }], syncedAt: "2026-10-06T17:05:00Z" };
       else if (p === "/api/crm/royalty") { if (r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); const key = (b.key || b.publisher) + "|" + b.quarter; if (b.paid) ROY_PAID[key] = { by: "fin", at: new Date().toISOString(), amount: b.amount }; else delete ROY_PAID[key]; body = { ok: true, key, mark: ROY_PAID[key] || null }; } else { const canPay = acc.money === "rw"; if (!canPay && !rolesList.includes("staff:ceo")) { status = 403; body = { error: "no_access" }; } else body = Object.assign(royaltyMod.build({ syncedAt: "2026-10-06T17:05:00Z", curriculums: [{ sku: "IEW-SSS1A-FP", publisher: "IEW", royaltyRate: 0.15, royaltyRecipient: "IEW Inc." }, { sku: "CEFF-CSB", publisher: "CEFF", royaltyRate: 0 }], orders: EQUIP }, { quarters: 4 }), { paid: ROY_PAID, canPay }); } }
@@ -645,6 +664,33 @@ const deleted = []; const writebacks = []; const digests = [];
     await p.click("#panel .x"); await p.click('#nav a[href="#/dashboard"]'); await p.waitForTimeout(900);
     const dl = await p.$eval("#dLic", e => e.innerText); if (!/60 份/.test(dl) && !/50 份/.test(dl)) throw new Error("licence panel: " + dl.slice(0, 200));
     if (!(await p.$("#dLic svg.viz-svg"))) throw new Error("licence chart not drawn");
+  });
+  // 对账单 (2026-10-12): the month's schools, the panel with the discount and the live amount, generate, mark sent, print.
+  await shot("statements", 1280, 900, "#/ops/statements", "zh", ["staff:finance"], async p => {
+    await p.waitForTimeout(700);
+    if (!/对账单/.test(await p.$eval("#nav", e => e.innerText))) throw new Error("no nav item for finance");
+    const tb = await p.$eval("#sttable", e => e.innerText);
+    if (!/北京某某学校/.test(tb) || !/未生成/.test(tb) || !/已发送/.test(tb) || !/无 IT 服务关系/.test(tb) || !/推算/.test(tb)) throw new Error("table: " + tb.slice(0, 500));
+    const k = await p.$eval("#stkpi", e => e.innerText); if (!/计费学校\s*2/.test(k)) throw new Error("kpi: " + k);
+    await p.click('#sttable tr[data-domain="bes.qiaoliang.online"]'); await p.waitForTimeout(600);
+    const pb = await p.$eval("#panel .pb", e => e.innerText);
+    if (!/期初账号\s*39/.test(pb) || !/新增账号 · 4/.test(pb) || !/删除账号 · 1/.test(pb) || !/\$15\.42/.test(pb)) throw new Error("panel: " + pb.slice(0, 600));
+    await p.fill("#stDisc", "10"); await p.waitForTimeout(100);
+    if (!/\$12\.50/.test(await p.$eval("#stAmt", e => e.innerText))) throw new Error("live amount: " + await p.$eval("#stAmt", e => e.innerText));
+    await p.click("#stGen"); await p.waitForTimeout(600);
+    if (stmPosts.length !== 1 || stmPosts[0].op !== "generate" || stmPosts[0].discount !== 10) throw new Error("generate call: " + JSON.stringify(stmPosts));
+    const pb2 = await p.$eval("#panel .pb", e => e.innerText);
+    if (!/STM-000007/.test(pb2) || !/草稿/.test(pb2) || !(await p.$('#panel button[data-st="sent"]')) || !(await p.$("#stPrint"))) throw new Error("after generate: " + pb2.slice(0, 300));
+    await p.click('#panel button[data-st="sent"]'); await p.waitForTimeout(500);
+    if (stmPosts[1].op !== "status" || stmPosts[1].status !== "sent" || !/已发送/.test(await p.$eval("#panel .pb", e => e.innerText))) throw new Error("mark sent: " + JSON.stringify(stmPosts));
+    const row = await p.$eval('#sttable tr[data-domain="bes.qiaoliang.online"]', e => e.innerText); if (!/已发送/.test(row)) throw new Error("table not refreshed: " + row);
+  });
+  await shot("statements-readonly", 1280, 700, "#/ops/statements", "en", ["staff:partnership"], async p => {
+    await p.waitForTimeout(600);
+    await p.click('#sttable tr[data-domain="demo.fengchao.life"]'); await p.waitForTimeout(500);
+    const pb = await p.$eval("#panel .pb", e => e.innerText);
+    if (await p.$("#stGen") || await p.$("#stDisc") || await p.$('#panel button[data-st]')) throw new Error("partnership director can edit");
+    if (!/No complete snapshot/.test(pb) || !/Sent/.test(pb)) throw new Error("readonly panel: " + pb.slice(0, 300));
   });
   await shot("royalty-finance", 1280, 800, "#/ops/royalty", "zh", ["staff:finance"], async p => {
     await p.waitForTimeout(600);

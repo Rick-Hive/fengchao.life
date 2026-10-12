@@ -819,3 +819,7 @@ svg.tline .ms.late { fill: #fff; stroke: var(--bad); stroke-width: 2; }
 .pres.pauto .phead { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.04em; }
 .pnew.inline { margin: var(--s2) 0; padding: var(--s3); background: var(--bg); border: 1px dashed var(--line-strong); border-radius: var(--r); }
 svg.track.en { font-size: 9.5px; }
+
+/* 对账单: the added / removed account lists in the statement panel */
+.stlist { max-height: 260px; overflow: auto; }
+.stlist .devrow small { word-break: break-all; }
