@@ -7,10 +7,10 @@
 //                       which reads as the principal): the domain's accounts — create,
 //                       edit, licence, password, sign-in devices, delete — its Teams
 //                       groups, and 身份 / 关联账号 / 备注.
-//   (old) 域蜂巢管理员    `domain_hive:<domain>` — no longer offered. Holders keep what
-//                       they had (view + 身份 / 关联账号 / 备注), shown as 「蜂巢资料（旧角色）」
-//                       until the system administrator makes them IT 管理员; never
-//                       widened silently, since IT 管理员 can reset passwords.
+//   (deleted) 域蜂巢管理员 `domain_hive:<domain>` — removed 2026-10-12 (Rick: 「这个角色与
+//                       相关功能可以删除」). Not assignable, grants nothing; roles.json
+//                       entries drop it when read (normalizeRoles), and a sign-in that
+//                       still carries it is ignored by can() / managedDomains().
 //   Staff（蜂巢员工）    `staff:<function>`     — Hive's own people, across every school.
 //                       The six CRM functions (design doc, Rick 2026-10-06): CEO `ceo` ·
 //                       课程总监 `curriculum` · 教育社区经理 `community` · 财务总监 `finance` ·
@@ -40,7 +40,6 @@ const BLOB_NAME = "roles.json";
 
 const DOMAIN = "[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}";
 const DOMAIN_IT_RE = new RegExp(`^domain_it:(${DOMAIN})$`);
-const DOMAIN_HIVE_RE = new RegExp(`^domain_hive:(${DOMAIN})$`);
 const DOMAIN_ADMIN_RE = new RegExp(`^domain_admin:(${DOMAIN})$`); // legacy: both
 const STAFF_RE = /^staff:(ceo|curriculum|fundraising|partnership|consultant|contractor|community|finance|sales|sysadmin)$/;
 
@@ -61,7 +60,6 @@ const STAFF = {
 // Role kinds for pickers and labels.
 const KINDS = {
   domain_it: { zh: "IT 管理员", en: "IT administrator" },
-  domain_hive: { zh: "蜂巢资料（旧角色）", en: "Hive records (old role)", legacy: true },
   staff: { zh: "Staff", en: "Staff" },
 };
 // Kept for old callers; everything assignable is described by the regexes above.
@@ -69,7 +67,7 @@ const ASSIGNABLE = { admin: { zh: "系统管理员", en: "System administrator" 
 
 function isAssignable(role) {
   const r = String(role || "");
-  return r === "admin" || DOMAIN_IT_RE.test(r) || DOMAIN_HIVE_RE.test(r) || STAFF_RE.test(r);
+  return r === "admin" || DOMAIN_IT_RE.test(r) || STAFF_RE.test(r);
 }
 
 // Roles as a person sees them, for lists and pickers.
@@ -77,7 +75,6 @@ function roleLabel(role, lang) {
   const en = lang === "en";
   let m;
   if ((m = DOMAIN_IT_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
-  if ((m = DOMAIN_HIVE_RE.exec(role))) return `${en ? KINDS.domain_hive.en : KINDS.domain_hive.zh} · ${m[1]}`;
   if ((m = DOMAIN_ADMIN_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
   if ((m = STAFF_RE.exec(role))) return `Staff · ${en ? STAFF[m[1]].en : STAFF[m[1]].zh}`;
   if (role === "admin") return en ? "System administrator" : "系统管理员";
@@ -113,7 +110,7 @@ function managedDomains(roles) {
   if (isStaff(roles)) return ["*"];
   const out = new Set();
   for (const r of roles || []) {
-    const m = DOMAIN_IT_RE.exec(r) || DOMAIN_HIVE_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r);
+    const m = DOMAIN_IT_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r);
     if (m) out.add(m[1]);
   }
   return Array.from(out);
@@ -123,7 +120,7 @@ function managedDomains(roles) {
 //   view     — the user table, Teams groups, exports        (every role above)
 //   methods  — the Microsoft account itself: create, edit, licence, password,
 //              sign-in devices, delete                          (IT 管理员, sysadmin)
-//   people   — 身份 / 关联账号 / 备注                (IT 管理员, old 域蜂巢管理员, staff)
+//   people   — 身份 / 关联账号 / 备注                (IT 管理员, staff)
 //   admin    — 角色分配, 数据同步, anything                    (sysadmin)
 function can(roles, action, domain) {
   roles = roles || [];
@@ -132,11 +129,10 @@ function can(roles, action, domain) {
   const d = String(domain || "").toLowerCase();
   const holds = (re) => roles.some((r) => { const m = re.exec(r); return m && m[1] === d; });
   const it = holds(DOMAIN_IT_RE) || holds(DOMAIN_ADMIN_RE);
-  const hive = holds(DOMAIN_HIVE_RE) || holds(DOMAIN_ADMIN_RE);
   const staff = isStaff(roles);
-  if (action === "view") return it || hive || staff;
+  if (action === "view") return it || staff;
   if (action === "methods") return it;
-  if (action === "people") return it || hive || staff;
+  if (action === "people") return it || staff;
   return false;
 }
 
@@ -244,4 +240,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser };

@@ -255,7 +255,7 @@
     function hasRole(u, kind) {
       var rs = (u.roles || []).map(function (r) { return r.role || r; });
       if (kind === "any") return rs.length > 0;
-      if (kind === "it") return rs.some(function (r) { return /^domain_(it|admin|hive):/.test(r); }); // the old 域蜂巢管理员 listed with them
+      if (kind === "it") return rs.some(function (r) { return /^domain_(it|admin):/.test(r); });
       if (kind === "staff") return rs.some(function (r) { return /^staff:/.test(r) || r === "coordinator"; });
       if (kind === "admin") return rs.some(function (r) { return r === "admin" || r === "staff:sysadmin"; });
       // 蜂巢课程教师 (Rick, 2026-10-08): from the Hive Teachers table, or any account whose identity is 老师.

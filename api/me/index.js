@@ -15,7 +15,7 @@
 // to Microsoft's own change-password and self-service reset pages.
 const { graph, graphRaw, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
-const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_HIVE_RE, DOMAIN_ADMIN_RE } = require("../shared/roles");
+const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_ADMIN_RE } = require("../shared/roles");
 const dir = require("../shared/directory");
 const crm = require("../shared/crm");
 
@@ -29,9 +29,8 @@ async function domainAdmins(domain) {
     const names = new Map((cache.users || []).map((u) => [u.upn, u.displayName || ""]));
     return doc.entries.map((e) => {
       const it = e.roles.some((r) => { const m = DOMAIN_IT_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r); return m && m[1] === domain; });
-      const hive = e.roles.some((r) => { const m = DOMAIN_HIVE_RE.exec(r) || DOMAIN_ADMIN_RE.exec(r); return m && m[1] === domain; });
-      return it || hive ? { upn: e.user, displayName: names.get(e.user) || "", it, hive } : null;
-    }).filter(Boolean).sort((a, b) => (b.it - a.it) || a.upn.localeCompare(b.upn));
+      return it ? { upn: e.user, displayName: names.get(e.user) || "", it } : null;
+    }).filter(Boolean).sort((a, b) => a.upn.localeCompare(b.upn));
   } catch { return []; }
 }
 const { audit } = require("../shared/audit");

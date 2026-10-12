@@ -55,7 +55,7 @@ const users = { domain: "bes.qiaoliang.online", partial: false, sync: SYNC, user
 const dgroups = { sync: SYNC, groups: groups.groups.map((g, i) => ({ ...g, nameZh: i === 0 ? "五年级英语" : "", nameEn: i === 0 ? "English Grade 5" : "", mail: g.name.toLowerCase().replace(/ /g, ".") + "@bes.qiaoliang.online", domainMembers: 3, members: users.users.slice(i, i + 3).map(u => u.upn) })) };
 const roles = { entries: [
   { user: "lei.dong@bes.qiaoliang.online", roles: ["domain_it:bes.qiaoliang.online"], by: "rick.zhang@bes.qiaoliang.online", at: "2026-10-01T02:00:00Z", displayName: "Lei Dong", domain: "bes.qiaoliang.online", lastSignIn: "2026-10-03T01:00:00Z", inDirectory: true },
-  { user: "mei.wang@bes.qiaoliang.online", roles: ["domain_hive:bes.qiaoliang.online", "staff:community"], by: "rick.zhang@bes.qiaoliang.online", at: "2026-10-02T02:00:00Z", displayName: "Mei Wang", domain: "bes.qiaoliang.online", lastSignIn: "", inDirectory: true },
+  { user: "mei.wang@bes.qiaoliang.online", roles: ["domain_it:bes.qiaoliang.online", "staff:community"], by: "rick.zhang@bes.qiaoliang.online", at: "2026-10-02T02:00:00Z", displayName: "Mei Wang", domain: "bes.qiaoliang.online", lastSignIn: "", inDirectory: true },
   { user: "ops@fengchao.life", roles: ["staff:sysadmin", "admin"], by: "rick.zhang@bes.qiaoliang.online", at: "2026-09-29T02:00:00Z", displayName: "", domain: "fengchao.life", lastSignIn: "", inDirectory: false },
 ], kinds: {}, staff: {} };
 // A 100×60 red PNG for the photo test (zlib-compressed raw rows).
@@ -256,7 +256,7 @@ const deleted = []; const writebacks = []; const digests = [];
     if (/Fundraising/.test(pb)) throw new Error("legacy fundraising offered");
     const pressed = await p.$$eval('#rstaff .chip[aria-pressed="true"]', es => es.map(e => e.getAttribute("data-staff"))); if (pressed.join() !== "community") throw new Error("pressed: " + pressed);
     await p.click('#rstaff .chip[data-staff="sales"]'); await p.waitForTimeout(100);
-    const prev = await p.$eval("#rprev", e => e.innerText); if (!/Order manager/.test(prev) || !/Education community manager/.test(prev) || !/Hive records \(old role\)/.test(prev)) throw new Error("preview: " + prev);
+    const prev = await p.$eval("#rprev", e => e.innerText); if (!/Order manager/.test(prev) || !/Education community manager/.test(prev) || !/IT administrator/.test(prev)) throw new Error("preview: " + prev);
   });
   await shot("users-identity-en", 1280, 900, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(500);

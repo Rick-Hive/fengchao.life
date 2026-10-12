@@ -191,7 +191,7 @@ async function call({ action, method = "GET", query = {}, body = null, user, rol
 const ADMIN = "hive.admin@fengchao.life";
 const DOMADMIN = `principal@${DOMAIN}`;
 const DOMROLE = [`domain_admin:${DOMAIN}`]; // old name = IT + Hive; principal roles stand in for roles.json in the test
-const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
+const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: the deleted 域蜂巢管理员 (2026-10-12) — grants nothing
 
 (async () => {
   // 1. Signed in with no management role → 403.
@@ -621,6 +621,8 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   const leiEntry = r.body.entries.find((e) => e.user === `lei@${DOMAIN}`);
   assert.ok(leiEntry && leiEntry.displayName && leiEntry.domain === DOMAIN && leiEntry.inDirectory === true, "entry joined with the directory: " + JSON.stringify(leiEntry));
   r = await rcall({ method: "POST", body: { user: `Elaine@${DOMAIN}`, roles: [`domain_hive:${DOMAIN}`, "staff:sales"] } });
+  assert.strictEqual(r.status, 400, "the deleted 域蜂巢管理员 cannot be assigned: " + JSON.stringify(r.body));
+  r = await rcall({ method: "POST", body: { user: `Elaine@${DOMAIN}`, roles: [`domain_it:${DOMAIN}`, "staff:sales"] } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.ok(stored.entries.some((e) => e.user === `elaine@${DOMAIN}` && e.roles.length === 2), "saved lowercase with both roles");
   r = await rcall({ method: "POST", body: { user: `x@${DOMAIN}`, roles: ["domain_it:not-a-domain"] } });

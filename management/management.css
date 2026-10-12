@@ -365,7 +365,6 @@ button.mrow.link:hover { background: #f1f4f8; }
 
 /* ---- 角色分配 (2026-10-04): search, role chips, the role editor ------------------------- */
 .tag.role-it { color: var(--accent-dark); border-color: transparent; background: var(--accent-soft); }
-.tag.role-hive { color: var(--ok); border-color: transparent; background: var(--ok-soft); }
 .tag.role-staff { color: #6b21a8; border-color: transparent; background: #f3e8ff; }
 .tag.role-sys { color: var(--warn); border-color: transparent; background: var(--warn-soft); }
 table.roles2 { min-width: 720px; }
