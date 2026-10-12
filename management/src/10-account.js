@@ -146,7 +146,7 @@
           "<div><dt>" + t("职务 / 部门", "Job title / department") + "</dt><dd>" + (esc(dept) || '<span class="muted">' + t("由学校设置", "Set by the school") + "</span>") + "</dd></div>" +
         '</dl>' +
         '<div class="grid3">' +
-          (canName ? '<label class="f">' + t("显示名", "Display name") + '<input type="text" data-p="displayName" maxlength="64" value="' + esc(p.displayName) + '" required /><small>' + t("仅域管理员（IT）和系统管理员可改。", "Only the IT or system administrator may change this.") + "</small></label>" : "") +
+          (canName ? '<label class="f">' + t("显示名", "Display name") + '<input type="text" data-p="displayName" maxlength="64" value="' + esc(p.displayName) + '" required /><small>' + t("仅 IT 管理员和系统管理员可改。", "Only the IT or system administrator may change this.") + "</small></label>" : "") +
           '<label class="f">' + t("名", "Given name") + '<input type="text" data-p="givenName" maxlength="40" value="' + esc(p.givenName) + '" /></label>' +
           '<label class="f">' + t("姓", "Surname") + '<input type="text" data-p="surname" maxlength="40" value="' + esc(p.surname) + '" /></label>' +
           '<label class="f">' + t("手机", "Mobile phone") + '<input type="tel" data-p="mobilePhone" maxlength="20" value="' + esc(p.mobilePhone) + '" placeholder="+86 138 0000 0000" /></label>' +
@@ -231,9 +231,8 @@
   function canAssignRoles() { return isAdmin() || hasFn("ceo"); }
   function roleName(r) {
     var m;
-    if ((m = /^domain_it:(.+)$/.exec(r))) return t("域管理员（IT） · ", "Domain administrator (IT) · ") + dname(m[1]);
-    if ((m = /^domain_hive:(.+)$/.exec(r))) return t("域蜂巢管理员 · ", "Domain Hive administrator · ") + dname(m[1]);
-    if ((m = /^domain_admin:(.+)$/.exec(r))) return t("域管理员（IT＋蜂巢） · ", "Domain administrator (IT + Hive) · ") + dname(m[1]);
+    if ((m = /^domain_(it|admin):(.+)$/.exec(r))) return t("IT 管理员 · ", "IT administrator · ") + dname(m[2]);
+    if ((m = /^domain_hive:(.+)$/.exec(r))) return t("蜂巢资料（旧角色） · ", "Hive records (old role) · ") + dname(m[1]);
     if ((m = /^staff:(.+)$/.exec(r))) return "Staff · " + (STAFF_FN[m[1]] ? STAFF_FN[m[1]][EN ? 1 : 0] : m[1]);
     if (r === "admin") return t("系统管理员", "System administrator");
     if (r === "coordinator") return t("Staff · 教育社区经理", "Staff · Education community manager");
@@ -277,13 +276,13 @@
         '<div id="mMsg"></div>' +
       "</section>" +
       // 需要帮助？ the school's administrators (Rick, 2026-10-05): who to contact for a lost
-      // phone, a forgotten password or a locked account — the 域管理员（IT）first, then the
-      // 域蜂巢管理员. Without any, point at Hive's system administrator.
+      // phone, a forgotten password or a locked account — the IT 管理员 first, then anyone
+      // still holding the old 域蜂巢管理员 role. Without any, point at Hive's system administrator.
       '<section class="card" id="helpCard"><header class="ch"><h2>' + t("需要帮助？", "Need help?") + '</h2><p>' +
         t("手机丢了、忘记密码、登不进去——请联系你学校的管理员，他们可以在这里为你删除旧设备、重置密码。", "Lost phone, forgotten password, cannot sign in — contact your school's administrator; they can remove the old device or reset your password here.") + "</p></header>" +
         (admins.length ? '<div class="admins">' + admins.map(function (a) {
           return '<a class="adminrow" href="mailto:' + esc(a.upn) + '"><span class="avatar" style="background:' + hue(a.upn) + ';color:#fff">' + esc(initials(a.displayName || a.upn)) + '</span><div class="m"><b>' + esc(a.displayName || a.upn.split("@")[0]) + "</b><small>" + esc(a.upn) + "</small></div>" +
-            '<span class="tags">' + (a.it ? '<span class="tag role-it">' + t("域管理员（IT）", "Domain administrator (IT)") + "</span>" : "") + (a.hive ? '<span class="tag role-hive">' + t("域蜂巢管理员", "Domain Hive administrator") + "</span>" : "") + "</span></a>";
+            '<span class="tags">' + (a.it ? '<span class="tag role-it">' + t("IT 管理员", "IT administrator") + "</span>" : "") + (a.hive && !a.it ? '<span class="tag role-hive">' + t("蜂巢资料（旧角色）", "Hive records (old role)") + "</span>" : "") + "</span></a>";
         }).join("") + "</div>"
         : '<div class="empty">' + t("本校还没有指定管理员。请通过学校联系蜂巢的系统管理员。", "Your school has no administrator yet. Please reach Hive's system administrator through your school.") + "</div>") +
       "</section>";

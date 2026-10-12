@@ -187,7 +187,7 @@
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
     // school, or across all schools with 所有学校 in the picker.
     var ROLE_OPTS = [["", t("全部角色", "All roles")]].concat(IDENTITIES.map(function (i) { return ["id:" + i, vl(i)]; })).concat([
-      ["role:teacher", t("蜂巢课程教师", "Hive course teachers")], ["role:it", t("域管理员（IT）", "Domain administrator (IT)")], ["role:hive", t("域蜂巢管理员", "Domain Hive administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
+      ["role:teacher", t("蜂巢课程教师", "Hive course teachers")], ["role:it", t("IT 管理员", "IT administrator")], ["role:staff", "Staff"], ["role:admin", t("系统管理员", "System administrator")], ["role:any", t("有任一蜂巢角色", "Any Hive role")]]);
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel", canAll) +
         '<select id="urole" aria-label="' + t("按角色筛选", "Filter by role") + '">' + ROLE_OPTS.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (state.userRole === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>" +
@@ -255,8 +255,7 @@
     function hasRole(u, kind) {
       var rs = (u.roles || []).map(function (r) { return r.role || r; });
       if (kind === "any") return rs.length > 0;
-      if (kind === "it") return rs.some(function (r) { return /^domain_(it|admin):/.test(r); });
-      if (kind === "hive") return rs.some(function (r) { return /^domain_(hive|admin):/.test(r); });
+      if (kind === "it") return rs.some(function (r) { return /^domain_(it|admin|hive):/.test(r); }); // the old 域蜂巢管理员 listed with them
       if (kind === "staff") return rs.some(function (r) { return /^staff:/.test(r) || r === "coordinator"; });
       if (kind === "admin") return rs.some(function (r) { return r === "admin" || r === "staff:sysadmin"; });
       // 蜂巢课程教师 (Rick, 2026-10-08): from the Hive Teachers table, or any account whose identity is 老师.
@@ -381,6 +380,13 @@
           '<span class="k">' + t("最近登录", "Last sign-in") + "</span><span>" + esc(when(u.lastSignIn) || "—") + "</span>" +
           '<span class="k">' + t("创建", "Created") + "</span><span>" + esc(day(u.created) || "—") + "</span>" +
           '<span class="k">' + t("状态", "Status") + "</span><span>" + (u.enabled ? t("已启用", "Enabled") : '<span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</span></div>" +
+        // 账号资料 and 许可证 (Rick, 2026-10-12): the IT 管理员 edits the account in Microsoft 365
+        // and switches its A1 plan; everyone else sees the plan only.
+        "<h4>" + t("账号资料与许可证", "Account details and licence") + '</h4><div id="pacct">' +
+          '<div class="devrow"><div class="m"><b>' + esc(planLabel(u.plan)) + "</b><small>" + t("许可证", "Licence") + "</small></div>" +
+            (canDo("methods") && !isSelf ? '<button class="btn secondary sm" type="button" id="licOpen">' + t("更换…", "Change…") + "</button>" : "") + "</div>" +
+          (canDo("methods") ? '<div class="devrow"><div class="m"><b>' + t("姓名、职务、城市、邮编、安全邮箱", "Name, job title, city, postcode, safe email") + "</b><small>" + t("写回 Microsoft 365；部门字段不写", "Saved to Microsoft 365; the department is never written") + '</small></div><button class="btn secondary sm" type="button" id="editOpen">' + t("修改资料…", "Edit…") + "</button></div>" : "") +
+          '<div id="acctMsg"></div></div>' +
         "<h4>" + t("验证设备", "Authentication devices") + '</h4><div id="pdev">' + (u.devices.length ? u.devices.map(function (x) {
           return '<div class="devrow"><div class="m"><b>' + esc(x.name) + "</b><small>" + esc((KIND[x.kind] || [x.kind, x.kind])[EN ? 1 : 0]) + (x.version ? " · " + esc(x.version) : "") + (x.created ? " · " + esc(day(x.created)) : "") + "</small></div>" +
             (canDo("methods") ? '<button class="btn danger sm" type="button" data-del="' + esc(x.id) + '" data-name="' + esc(x.name) + '">' + t("删除", "Delete") + "</button>" : "") + "</div>";
@@ -388,7 +394,7 @@
         (canDo("methods") ? '<div class="note">' + t("删除后对方下次登录要重新绑定验证器；唯一的设备不要在他还没准备好新手机时删。", "After a delete the person links an authenticator afresh at the next sign-in; do not remove the only device before they have the new phone ready.") + "</div>" +
           (isSelf ? "" : "<h4>" + t("密码", "Password") + '</h4><div id="ppw"><div class="devrow"><div class="m"><b>' + t("重置密码", "Reset password") + "</b><small>" + t("生成一个临时密码，对方下次登录必须改掉。", "Makes a temporary password that must be changed at the next sign-in.") + '</small></div><button class="btn secondary sm" type="button" id="pwReset">' + t("重置", "Reset") + "</button></div></div>") +
           (isSelf || (u.roles || []).length ? "" : "<h4>" + t("删除账号", "Delete account") + '</h4><div class="devrow"><div class="m"><b>' + t("删除这个账号", "Delete this account") + "</b><small>" + t("账号、邮箱和 OneDrive 进入微软的回收站，30 天内可由系统管理员在 Microsoft 365 管理中心恢复。", "The account, mailbox and OneDrive go to Microsoft's recycle bin; restorable for 30 days in the Microsoft 365 admin center.") + '</small></div><button class="btn danger sm" type="button" id="uDel">' + t("删除", "Delete") + "</button></div>")
-          : '<div class="note">' + t("登录设备由域管理员（IT）管理。", "Sign-in devices are managed by the domain administrator (IT).") + "</div>") +
+          : '<div class="note">' + t("登录设备由本校的 IT 管理员管理。", "Sign-in devices are managed by the school's IT administrator.") + "</div>") +
         "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + esc(gname(g)) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
           ((u.extra.roles || []).length ? '<span class="k">' + t("身份/角色", "Roles") + "</span><span>" + esc(u.extra.roles.map(vl).join("、") + (u.extra.rolesOther ? "（" + u.extra.rolesOther + "）" : "")) + "</span>" : "") +
@@ -409,7 +415,7 @@
           '<label class="f" style="margin-top:8px">' + t("关联账号（孩子 / 家长的 Teams 账号，多个用逗号分开）", "Linked accounts (child / parent Teams accounts, comma-separated)") + '<input type="text" id="plink" value="' + esc(u.linked.join(", ")) + '" placeholder="student@' + esc(currentDomain) + '" /></label>' +
           '<label class="f" style="margin-top:8px">' + t("备注", "Note") + '<input type="text" id="pnote" maxlength="200" value="' + esc(u.note) + '" /></label>' +
           '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>'
-        : '<div class="kv"><span class="k">' + t("身份", "Identity") + "</span><span>" + esc(u.identity ? vl(u.identity) : "—") + '</span><span class="k">' + t("关联账号", "Linked") + "</span><span>" + esc(u.linked.join(", ") || "—") + "</span>" + (u.note ? '<span class="k">' + t("备注", "Note") + "</span><span>" + esc(u.note) + "</span>" : "") + '</div><div class="note">' + t("身份和关联由域蜂巢管理员或蜂巢员工维护。", "Identity and links are maintained by the domain Hive administrator or Hive staff.") + "</div>") +
+        : '<div class="kv"><span class="k">' + t("身份", "Identity") + "</span><span>" + esc(u.identity ? vl(u.identity) : "—") + '</span><span class="k">' + t("关联账号", "Linked") + "</span><span>" + esc(u.linked.join(", ") || "—") + "</span>" + (u.note ? '<span class="k">' + t("备注", "Note") + "</span><span>" + esc(u.note) + "</span>" : "") + '</div><div class="note">' + t("身份和关联由本校的 IT 管理员或蜂巢员工维护。", "Identity and links are maintained by the school's IT administrator or Hive staff.") + "</div>") +
       "</div>", where);
     if ($("pform")) $("pform").addEventListener("submit", function (ev) {
       ev.preventDefault(); savingButton($("psave"));
@@ -477,9 +483,80 @@
     // Linda H. had an authenticator in Entra, "No" here — registering one is not a change
     // the directory sync's delta reports). If anything shown changed, the row and the
     // panel are redrawn.
+    var dom0 = currentDomain;
+    if ($("editOpen")) $("editOpen").addEventListener("click", function () { openEditForm(u, dom0, opts); });
+    if ($("licOpen")) $("licOpen").addEventListener("click", function () { openLicenceForm(u, dom0, opts); });
     if (!opts.fresh) refreshUserRow(u.upn, currentDomain, opts);
   }
 
+  function planLabel(plan) { return plan === "student" ? "Office 365 A1 for students" : plan === "faculty" ? "Office 365 A1 for faculty" : t("没有 A1 许可证", "No A1 licence"); }
+  // After an edit or a licence change: the fresh row into the tables, the panel redrawn.
+  function applyFreshRow(fresh, domain, opts) {
+    if (!fresh) return;
+    [state.domainUsers[domain], state.domainUsers["*"]].forEach(function (d) {
+      if (!d || !d.users) return;
+      d.users.forEach(function (x, i) { if (x.upn === fresh.upn && (!x.domain || x.domain === domain)) d.users[i] = Object.assign({}, fresh, x.domain ? { domain: x.domain } : {}); });
+    });
+    renderUsers();
+    openUserPanel(fresh.upn, domain, Object.assign({}, opts || {}, { fresh: true }));
+  }
+  // 修改资料: the fields as Microsoft has them now (GET domain/user?full=1), saved with PATCH domain/user.
+  function openEditForm(u, domain, opts) {
+    var box = $("pacct"); if (!box) return;
+    box.innerHTML = '<div class="loading">' + t("正在从 Microsoft 读取…", "Reading from Microsoft…") + "</div>";
+    api("domain/user?domain=" + encodeURIComponent(domain) + "&upn=" + encodeURIComponent(u.upn) + "&full=1").then(function (r) {
+      if (!r.ok || !r.body.profile) { box.innerHTML = '<div class="msg err">' + esc(r.ok ? t("读不到这个账号的资料。", "Could not read this account.") : errText(r)) + "</div>"; return; }
+      var p = r.body.profile;
+      function f(id, zh, en, v, max, extra) { return '<label class="f">' + t(zh, en) + '<input type="text" id="' + id + '" maxlength="' + max + '" value="' + esc(v) + '"' + (extra || "") + " /></label>"; }
+      box.innerHTML = '<form id="ef" autocomplete="off">' +
+        '<div class="grid2">' + f("efSur", "姓", "Surname", p.surname, 40) + f("efGiv", "名", "Given name", p.givenName, 40) + "</div>" +
+        f("efDisp", "显示名", "Display name", p.displayName, 64, " required") +
+        f("efJob", "职务", "Job title", p.jobTitle, 60) +
+        '<div class="grid2">' + f("efCity", "所在城市", "City", p.city, 40, " required") + f("efZip", "邮编", "Postcode", p.postalCode, 12, ' required inputmode="numeric"') + "</div>" +
+        '<div class="grid2">' + f("efMail", "安全邮箱（找回密码用，不收 QQ/163）", "Safe email (account recovery; no QQ/163)", p.safeEmail, 120, ' type="email"') + f("efLoc", "使用地区（两位国家代码）", "Usage location (country code)", p.usageLocation, 2, ' required style="text-transform:uppercase"') + "</div>" +
+        '<p class="muted" style="font-size:12px;margin:4px 0 0">' + t("保存后立即写入 Microsoft 365，Teams 和 Outlook 里通常几小时内更新。账号名和部门字段不在这里改。", "Saved to Microsoft 365 at once; Teams and Outlook usually follow within hours. The account name and the department are not changed here.") + "</p>" +
+        '<div class="actions"><button class="btn" type="submit" id="efSave">' + t("保存到 Microsoft 365", "Save to Microsoft 365") + '</button><button class="btn secondary" type="button" id="efCancel">' + t("取消", "Cancel") + '</button></div><div id="efMsg"></div></form>';
+      $("efCancel").addEventListener("click", function () { openUserPanel(u.upn, domain, Object.assign({}, opts, { fresh: true })); });
+      $("ef").addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var now = { surname: $("efSur").value.trim(), givenName: $("efGiv").value.trim(), displayName: $("efDisp").value.trim(), jobTitle: $("efJob").value.trim(), city: $("efCity").value.trim(), postalCode: $("efZip").value.trim(), safeEmail: $("efMail").value.trim().toLowerCase(), usageLocation: $("efLoc").value.trim().toUpperCase() };
+        var body = { domain: domain, user: u.upn }, n = 0;
+        Object.keys(now).forEach(function (k) { if (now[k] !== String(p[k] || "")) { body[k] = now[k]; n++; } }); // only what changed
+        if (!n) { $("efMsg").innerHTML = '<div class="msg">' + t("没有改动。", "Nothing changed.") + "</div>"; return; }
+        var btn = $("efSave"); savingButton(btn);
+        post("domain/user", "PATCH", body).then(function (res) {
+          if (!res.ok) { restoreButton(btn); $("efMsg").innerHTML = '<div class="msg err">' + esc(res.body && res.body.code === "privileged" ? t("Microsoft 拒绝修改：这是 Microsoft 365 管理员账号，只能在 Entra 里改。", "Microsoft refused: this is a Microsoft 365 administrator account, which only Entra can change.") : errText(res)) + "</div>"; return; }
+          applyFreshRow(res.body.user, domain, opts);
+          var m = $("acctMsg"); if (m) m.innerHTML = '<div class="msg ok">' + t("已保存到 Microsoft 365。", "Saved to Microsoft 365.") + "</div>";
+        });
+      });
+    });
+  }
+  // 换许可证: A1 for students ↔ A1 for faculty, one click after a confirmation line.
+  function openLicenceForm(u, domain, opts) {
+    var box = $("pacct"); if (!box) return;
+    var want = u.plan === "student" ? "faculty" : u.plan === "faculty" ? "student" : (u.identity === "学生" ? "student" : "faculty");
+    box.innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
+    api("domain/licenses?domain=" + encodeURIComponent(domain)).then(function (r) {
+      if (!r.ok) { box.innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+      var pl = r.body[want];
+      var rule = want === "student" && u.identity !== "学生" ? t("A1 for students 仅限学生：请先在下面把身份改为「学生」。", "A1 for students is for students only: set the identity to 学生 below first.")
+        : want === "faculty" && u.identity === "学生" ? t("学生用 A1 for students：要换成教职工版，请先把身份改掉。", "Students take A1 for students: change the identity first.") : "";
+      box.innerHTML = '<div class="devrow"><div class="m"><b>' + esc(planLabel(u.plan)) + " → " + esc(planLabel(want)) + "</b><small>" +
+          (pl ? (pl.free ? t("剩余 ", "") + pl.free + t(" 个", " free") : t("没有空余名额", "No free seats")) : t("租户里没有这个方案", "Not in this tenant")) + " · " + t("邮箱和文件都保留；Power Automate Free 保留", "Mailbox and files stay; Power Automate Free stays") + "</small></div></div>" +
+        (rule ? '<div class="msg err">' + esc(rule) + "</div>" : "") +
+        '<div class="actions"><button class="btn" type="button" id="licGo"' + (rule || !pl || !pl.free ? " disabled" : "") + ">" + t("确认更换", "Change licence") + '</button><button class="btn secondary" type="button" id="licCancel">' + t("取消", "Cancel") + '</button></div><div id="licMsg"></div>';
+      $("licCancel").addEventListener("click", function () { openUserPanel(u.upn, domain, Object.assign({}, opts, { fresh: true })); });
+      $("licGo").addEventListener("click", function () {
+        var btn = $("licGo"); savingButton(btn, t("更换中…", "Changing…"));
+        post("domain/licence", "POST", { domain: domain, user: u.upn, plan: want }).then(function (res) {
+          if (!res.ok) { restoreButton(btn); $("licMsg").innerHTML = '<div class="msg err">' + esc(errText(res)) + "</div>"; return; }
+          applyFreshRow(res.body.user, domain, opts);
+          var m = $("acctMsg"); if (m) m.innerHTML = '<div class="msg ok">' + t("许可证已更换为 ", "Licence changed to ") + esc(res.body.plan || planLabel(want)) + "</div>";
+        });
+      });
+    });
+  }
   function refreshUserRow(upn, domain, opts) {
     var shownIn = opts.beside ? "panel2" : "panel";
     $(shownIn).setAttribute("data-upn", upn);
@@ -502,7 +579,7 @@
     }).catch(function () { /* the cached row stays */ });
   }
 
-  // 新建账号 (Rick, 2026-10-04): a 域管理员（IT）creates an account in their own school.
+  // 新建账号 (Rick, 2026-10-04): an IT 管理员 creates an account in their own school.
   // Form → POST /api/domain/user → the result card with the temporary password shown
   // once; the new row appears in the table without a sync.
   function openNewUserPanel(domain) {

@@ -7,8 +7,8 @@
 // refused another one; the directory cache is filled by budgeted sync slices
 // (and the scheduler endpoint drives them for every domain); the users view
 // then comes from the cache with 身份 overlaid; identity edits are validated and
-// limited to accounts in the domain (域蜂巢管理员 / staff only); deleting a
-// verifier is for 域管理员（IT）, refused for accounts outside the domain, and
+// limited to accounts in the domain (IT 管理员, the old 域蜂巢管理员, staff); deleting a
+// verifier is for the IT 管理员, refused for accounts outside the domain, and
 // the reply reports how many verifiers remain; a Hive admin sees every domain.
 const assert = require("assert");
 const path = require("path");
@@ -101,7 +101,7 @@ global.fetch = async function (url, opts) {
   if (method === "GET" && /^\/users\/lei@/.test(p) && p.endsWith("/authentication/methods")) return json(200, { value: leiMethods });
   if (method === "GET" && p === "/subscribedSkus") return json(200, { value: [
     { skuId: "94763226-9b3c-4e75-a931-5c89701abe66", skuPartNumber: "STANDARDWOFFPACK_FACULTY", capabilityStatus: "Enabled", prepaidUnits: { enabled: 500 }, consumedUnits: 12 },
-    { skuId: "314c4481-f395-4525-be8b-2ec4bb1e9d91", skuPartNumber: "STANDARDWOFFPACK_STUDENT", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1000 }, consumedUnits: 999 },
+    { skuId: "314c4481-f395-4525-be8b-2ec4bb1e9d91", skuPartNumber: "STANDARDWOFFPACK_STUDENT", capabilityStatus: "Enabled", prepaidUnits: { enabled: 1000 }, consumedUnits: studentSeatsUsed },
     { skuId: "0000-dead", skuPartNumber: "OLD_PLAN", capabilityStatus: "Suspended", prepaidUnits: { enabled: 5 }, consumedUnits: 0 },
     { skuId: "f30db892-07e9-47e9-837c-80727f46fd3d", skuPartNumber: "FLOW_FREE", capabilityStatus: "Enabled", prepaidUnits: { enabled: 10000 }, consumedUnits: 3 },
     { skuId: "e2be619b-b125-455f-8660-fb503e431a5d", skuPartNumber: "ENTERPRISEPACK", capabilityStatus: "Enabled", prepaidUnits: { enabled: 5 }, consumedUnits: 0 },
@@ -111,11 +111,16 @@ global.fetch = async function (url, opts) {
     const u = Object.assign({ id: "u-" + b.mailNickname, createdDateTime: "2026-10-04T00:00:00Z", userType: "Member" }, b); delete u.passwordProfile; users.push(u);
     return json(201, u);
   }
-  if (method === "POST" && /^\/users\/[^/]+\/assignLicense$/.test(p)) { licenseCalls.push({ id: p.split("/")[2], body: JSON.parse(opts.body) }); return json(200, { id: p.split("/")[2] }); }
+  if (method === "POST" && /^\/users\/[^/]+\/assignLicense$/.test(p)) {
+    const id = p.split("/")[2], b = JSON.parse(opts.body); licenseCalls.push({ id, body: b });
+    const hit = users.find((x) => x.id === id);
+    if (hit) hit.assignedLicenses = (hit.assignedLicenses || []).filter((l) => !(b.removeLicenses || []).includes(l.skuId)).concat((b.addLicenses || []).map((l) => ({ skuId: l.skuId })));
+    return json(200, { id });
+  }
   if (method === "DELETE" && /^\/users\/[^/]+$/.test(p)) { const id = p.split("/")[2]; deletedIds.push(id); const i = users.findIndex((x) => x.id === id); if (i >= 0) users.splice(i, 1); return { ok: true, status: 204, headers: { get: () => null }, text: async () => "" }; }
   if (method === "GET" && /^\/users\/[^/]+$/.test(p)) {
-    const upn = p.slice("/users/".length).toLowerCase();
-    const hit = users.find((x) => x.userPrincipalName.toLowerCase() === upn);
+    const upn = decodeURIComponent(p.slice("/users/".length)).toLowerCase();
+    const hit = users.find((x) => x.userPrincipalName.toLowerCase() === upn || x.id === upn);
     return hit ? json(200, hit) : json(404, { error: { code: "Request_ResourceNotFound" } });
   }
   if (method === "GET" && /^\/users\/[^/]+\/authentication\/methods$/.test(p)) {
@@ -123,7 +128,12 @@ global.fetch = async function (url, opts) {
     return json(200, { value: id === "u-lei" || id === `lei@${DOMAIN}` ? leiMethods : id === "u-elaine" ? elaineMethods : [] });
   }
   if (method === "PATCH" && /^\/users\/[^/]+$/.test(p) && refuseDept && p === `/users/${refuseDept}` && "department" in JSON.parse(opts.body || "{}")) return json(403, { error: { code: "Authorization_RequestDenied", message: "Insufficient privileges to complete the operation." } });
-  if (method === "PATCH" && /^\/users\/[^/]+$/.test(p)) return { ok: true, status: 204, headers: { get: () => null }, text: async () => "" };
+  if (method === "PATCH" && /^\/users\/[^/]+$/.test(p) && refusePatch && p === `/users/${refusePatch}`) return json(403, { error: { code: "Authorization_RequestDenied", message: "Insufficient privileges to complete the operation." } });
+  if (method === "PATCH" && /^\/users\/[^/]+$/.test(p)) {
+    const id = p.split("/")[2], b = JSON.parse(opts.body || "{}"); userPatches.push({ id, body: b });
+    const hit = users.find((x) => x.id === id); if (hit && !("department" in b)) Object.assign(hit, b);
+    return { ok: true, status: 204, headers: { get: () => null }, text: async () => "" };
+  }
   if (method === "DELETE" && /\/authentication\/microsoftAuthenticatorMethods\//.test(p)) {
     const id = p.split("/").pop();
     leiMethods = leiMethods.filter((m) => m.id !== id);
@@ -135,6 +145,9 @@ global.fetch = async function (url, opts) {
 const people = require(path.join(__dirname, "..", "api", "shared", "people.js"));
 let institutions = { institutions: {} };
 let refuseDept = null;
+let refusePatch = null;
+let studentSeatsUsed = 999; // of 1000 A1 for students seats // a user id whose every PATCH Microsoft refuses (an administrator account)
+const userPatches = [];
 let elaineMethods = []; // Elaine registers an authenticator in 10d // a user id whose department PATCH Microsoft refuses
 people.readInstitutions = async () => JSON.parse(JSON.stringify(institutions));
 people.writeInstitutions = async (doc) => { institutions = JSON.parse(JSON.stringify(doc)); };
@@ -253,7 +266,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
 
   // 5d. Rows carry the person's Hive roles, safe email and city (for the side panel).
   assert.deepStrictEqual(lei.roles.map((x) => x.role), [`domain_it:${DOMAIN}`]);
-  assert.ok(lei.roles[0].zh.indexOf("域管理员") === 0);
+  assert.ok(lei.roles[0].zh.indexOf("IT 管理员") === 0);
   assert.strictEqual(typeof lei.safeEmail, "string");
   assert.strictEqual(typeof lei.city, "string");
 
@@ -294,7 +307,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   // 7. Identity edits: outside account refused; bad identity refused; a good one is accepted
   //    (it cannot be persisted without storage, so expect 200 or a 5xx that names storage — never a silent success for the bad ones).
   r = await call({ action: "person", method: "PATCH", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, identity: "学生" }, user: DOMADMIN, roles: IT });
-  assert.strictEqual(r.status, 403, "IT does not edit 身份");
+  assert.strictEqual(r.status, 200, "the IT 管理员 edits 身份 too (one school role since 2026-10-12)");
   r = await call({ action: "person", method: "PATCH", body: { domain: DOMAIN, user: "someone@other.example.edu", identity: "学生" }, user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.status, 400);
   r = await call({ action: "person", method: "PATCH", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, identity: "校长" }, user: DOMADMIN, roles: DOMROLE });
@@ -624,5 +637,56 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`];
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.ok(r.body.domains.includes(DOMAIN) && r.body.domains.includes("other.example.edu"), "both verified schools listed: " + r.body.domains);
   assert.ok(r.body.users.some((u) => u.domain === "other.example.edu" && u.upn === "a@other.example.edu") && r.body.users.some((u) => u.domain === DOMAIN), "rows carry their domain");
+  // 14. 修改资料 and 换许可证 (Rick, 2026-10-12): the IT 管理员 edits an account in
+  //     Microsoft 365 and switches its A1 plan; the old 域蜂巢管理员 cannot.
+  const FAC = "94763226-9b3c-4e75-a931-5c89701abe66", STU = "314c4481-f395-4525-be8b-2ec4bb1e9d91", FLOW = "f30db892-07e9-47e9-837c-80727f46fd3d";
+  const elaine14 = users.find((x) => x.id === "u-elaine");
+  Object.assign(elaine14, { usageLocation: "CN", assignedLicenses: [{ skuId: FAC }] });
+  r = await call({ action: "user", method: "PATCH", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, jobTitle: "数学老师" }, user: DOMADMIN, roles: HIVE });
+  assert.strictEqual(r.status, 403, "the old 域蜂巢管理员 does not edit Microsoft accounts");
+  r = await call({ action: "user", method: "PATCH", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, safeEmail: "elaine@qq.com", postalCode: "x" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400);
+  assert.ok(r.body.problems.some((x) => /mainland/.test(x)) && r.body.problems.some((x) => /postal/.test(x)), JSON.stringify(r.body));
+  r = await call({ action: "user", method: "PATCH", body: { domain: DOMAIN, user: "x@other.example.edu", jobTitle: "a" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "only this school's accounts");
+  r = await call({ action: "user", method: "PATCH", body: { domain: DOMAIN, user: `elaine@${DOMAIN}` }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "nothing to change");
+  userPatches.length = 0;
+  r = await call({ action: "user", method: "PATCH", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, displayName: "Elaine C.", jobTitle: "数学老师", city: "南京", postalCode: "210000", safeEmail: "Elaine@Gmail.com", surname: "", department: "智慧园书院" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual(userPatches[0].body, { surname: null, displayName: "Elaine C.", jobTitle: "数学老师", city: "南京", postalCode: "210000", otherMails: ["elaine@gmail.com"] }, "written to Microsoft — never the department");
+  assert.ok(r.body.user && r.body.user.displayName === "Elaine C." && r.body.user.jobTitle === "数学老师", "the row comes back fresh: " + JSON.stringify(r.body.user));
+  refusePatch = "u-elaine";
+  r = await call({ action: "user", method: "PATCH", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, jobTitle: "x" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403); assert.strictEqual(r.body.code, "privileged");
+  refusePatch = null;
+  r = await call({ action: "user", query: { domain: DOMAIN, upn: `elaine@${DOMAIN}`, full: "1" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.body.profile && [r.body.profile.displayName, r.body.profile.postalCode, r.body.profile.safeEmail, r.body.profile.usageLocation], ["Elaine C.", "210000", "elaine@gmail.com", "CN"], "the edit form's live values");
+  // Licence: Elaine's 身份 is 家长 (job title / Hive), so not the student plan.
+  peopleStore.people[`elaine@${DOMAIN}`] = Object.assign({}, peopleStore.people[`elaine@${DOMAIN}`], { identity: "家长" });
+  r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "student" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400); assert.strictEqual(r.body.code, "identity");
+  r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "faculty" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200); assert.strictEqual(r.body.unchanged, true, "already on faculty");
+  peopleStore.people[`elaine@${DOMAIN}`].identity = "学生";
+  r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "student" }, user: DOMADMIN, roles: HIVE });
+  assert.strictEqual(r.status, 403, "the old 域蜂巢管理员 does not change licences");
+  studentSeatsUsed = 1000;
+  r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "student" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 409, "no free student seat");
+  assert.strictEqual(r.body.code, "no_seats");
+  // A seat frees up: faculty out, students in, Power Automate kept — one call.
+  licenseCalls.length = 0;
+  studentSeatsUsed = 10;
+  r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "student" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual(licenseCalls[0].body.removeLicenses, [FAC], "the faculty plan removed");
+  assert.deepStrictEqual(licenseCalls[0].body.addLicenses.map((x) => x.skuId), [STU, FLOW], "the student plan added, with Power Automate Free");
+  assert.strictEqual(r.body.user.plan, "student", "the row shows the new plan");
+  delete elaine14.usageLocation; elaine14.assignedLicenses = [];
+  r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "student" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.body.code, "no_usage_location");
+
   console.log("domain: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

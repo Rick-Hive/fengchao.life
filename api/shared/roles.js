@@ -2,11 +2,15 @@
 //
 // Who is who (Rick, 2026-10-02):
 //   普通用户            no role — sees 我的账号 only.
-//   域管理员（IT）       `domain_it:<domain>`   — the school's IT person: the accounts of
-//                       that domain, their sign-in devices (and, in phase 2, password
-//                       resets), its Teams groups.
-//   域蜂巢管理员         `domain_hive:<domain>` — the school's Hive coordinator: the same
-//                       accounts, plus 身份 / 关联账号 / 备注 and what people filled in.
+//   IT 管理员            `domain_it:<domain>`   — the school's administrator in Hive (one
+//                       role since 2026-10-12; Rick: 「合并……叫 IT 管理员」, not 学校管理员,
+//                       which reads as the principal): the domain's accounts — create,
+//                       edit, licence, password, sign-in devices, delete — its Teams
+//                       groups, and 身份 / 关联账号 / 备注.
+//   (old) 域蜂巢管理员    `domain_hive:<domain>` — no longer offered. Holders keep what
+//                       they had (view + 身份 / 关联账号 / 备注), shown as 「蜂巢资料（旧角色）」
+//                       until the system administrator makes them IT 管理员; never
+//                       widened silently, since IT 管理员 can reset passwords.
 //   Staff（蜂巢员工）    `staff:<function>`     — Hive's own people, across every school.
 //                       The six CRM functions (design doc, Rick 2026-10-06): CEO `ceo` ·
 //                       课程总监 `curriculum` · 教育社区经理 `community` · 财务总监 `finance` ·
@@ -17,7 +21,7 @@
 //                       everything); `admin` is kept as its alias for the bootstrap
 //                       account and old roles.json entries. What each function may see in
 //                       the CRM is the matrix in ./crm.js.
-// Old names still honoured: `domain_admin:<d>` = both domain roles; `coordinator` =
+// Old names still honoured: `domain_admin:<d>` = IT 管理员; `coordinator` =
 // `staff:community`; `staff:fundraising` = `staff:partnership` (shown as the old name
 // until the entry is re-saved).
 //
@@ -56,8 +60,8 @@ const STAFF = {
 };
 // Role kinds for pickers and labels.
 const KINDS = {
-  domain_it: { zh: "域管理员（IT）", en: "Domain administrator (IT)" },
-  domain_hive: { zh: "域蜂巢管理员", en: "Domain Hive administrator" },
+  domain_it: { zh: "IT 管理员", en: "IT administrator" },
+  domain_hive: { zh: "蜂巢资料（旧角色）", en: "Hive records (old role)", legacy: true },
   staff: { zh: "Staff", en: "Staff" },
 };
 // Kept for old callers; everything assignable is described by the regexes above.
@@ -74,7 +78,7 @@ function roleLabel(role, lang) {
   let m;
   if ((m = DOMAIN_IT_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
   if ((m = DOMAIN_HIVE_RE.exec(role))) return `${en ? KINDS.domain_hive.en : KINDS.domain_hive.zh} · ${m[1]}`;
-  if ((m = DOMAIN_ADMIN_RE.exec(role))) return `${en ? "Domain administrator (IT + Hive)" : "域管理员（IT＋蜂巢）"} · ${m[1]}`;
+  if ((m = DOMAIN_ADMIN_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
   if ((m = STAFF_RE.exec(role))) return `Staff · ${en ? STAFF[m[1]].en : STAFF[m[1]].zh}`;
   if (role === "admin") return en ? "System administrator" : "系统管理员";
   if (role === "coordinator") return en ? "Staff · Education community manager (old name)" : "Staff · 教育社区经理（旧名）";
@@ -117,9 +121,9 @@ function managedDomains(roles) {
 
 // What an account may do with the accounts of `domain`:
 //   view     — the user table, Teams groups, exports        (every role above)
-//   methods  — remove a sign-in device (phase 2: reset password, TAP)
-//                                                             (域管理员 IT, sysadmin)
-//   people   — 身份 / 关联账号 / 备注                           (域蜂巢管理员, staff)
+//   methods  — the Microsoft account itself: create, edit, licence, password,
+//              sign-in devices, delete                          (IT 管理员, sysadmin)
+//   people   — 身份 / 关联账号 / 备注                (IT 管理员, old 域蜂巢管理员, staff)
 //   admin    — 角色分配, 数据同步, anything                    (sysadmin)
 function can(roles, action, domain) {
   roles = roles || [];
@@ -132,7 +136,7 @@ function can(roles, action, domain) {
   const staff = isStaff(roles);
   if (action === "view") return it || hive || staff;
   if (action === "methods") return it;
-  if (action === "people") return hive || staff;
+  if (action === "people") return it || hive || staff;
   return false;
 }
 

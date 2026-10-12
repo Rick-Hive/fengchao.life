@@ -9,16 +9,19 @@
 //   GET    domain/sync?domain=x           the cache's status (when it was synced, whether a run is under way)
 //   POST   domain/sync   {domain, mode}   one budgeted slice of a sync — "changes" (accounts created, updated
 //                                         or deleted since the last sync) or "full"; call again while done:false.
-//                                         A 域管理员（IT）'s sync is scoped to their own domain (other schools'
+//                                         A IT 管理员's sync is scoped to their own domain (other schools'
 //                                         caches and the tenant delta token are left alone); sysadmin = tenant-wide.
-//   PATCH  domain/person                  {user, identity?, linked?, note?} → people.json       (域蜂巢管理员, staff)
+//   PATCH  domain/person                  {user, identity?, linked?, note?} → people.json       (IT 管理员, staff)
 //   PUT    domain/institution             {domain, name, nameEn} → institutions.json (the school's display names) (sysadmin)
-//   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (域管理员 IT, sysadmin)
-//   POST   domain/password                {user} → temporary password, must change at next sign-in (域管理员 IT, sysadmin)
+//   DELETE domain/method                  {user, id} → remove one Authenticator / FIDO2 method    (IT 管理员, sysadmin)
+//   POST   domain/password                {user} → temporary password, must change at next sign-in (IT 管理员, sysadmin)
 //   GET    domain/licenses?domain=x       {faculty, student, extras[]} — the A1 plans and the always-on extras, with free seats
 //   POST   domain/user                    {domain, account, givenName, surname, displayName?, identity, city, postalCode, jobTitle?, plan, usageLocation?}
-//                                         → create the account (temporary password returned once)         (域管理员 IT, sysadmin)
-//   DELETE domain/user                    {domain, user} → delete an ordinary account (soft delete, 30 days)   (域管理员 IT, sysadmin)
+//                                         → create the account (temporary password returned once)         (IT 管理员, sysadmin)
+//   DELETE domain/user                    {domain, user} → delete an ordinary account (soft delete, 30 days)   (IT 管理员, sysadmin)
+//   GET    domain/user?upn=&full=1         → the account read live into the cache (+ editable fields with full=1)
+//   PATCH  domain/user                     {domain, user, givenName?, surname?, displayName?, jobTitle?, city?, postalCode?, usageLocation?, safeEmail?} → Microsoft 365   (IT 管理员, sysadmin)
+//   POST   domain/licence                  {domain, user, plan: student|faculty} → A1 for students ↔ A1 for faculty                       (IT 管理员, sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
 // domain; the target account's UPN must end in it, or the call is refused — a
@@ -34,6 +37,7 @@ const { userRoles, managedDomains, can, normUser } = require("../shared/roles");
 const { readPeople, writePeople, identityOf, IDENTITIES, readInstitutions, writeInstitutions } = require("../shared/people");
 const { readRoles, roleLabel } = require("../shared/roles");
 const { audit } = require("../shared/audit");
+const { safeEmailProblem } = require("../shared/safe-email");
 const people = require("../shared/people");
 const peopleMod = people;
 const { guard, finish } = require("../shared/session");
@@ -90,7 +94,9 @@ async function licencePlans() {
   const plan = (k) => { const total = (k.prepaidUnits && k.prepaidUnits.enabled) || 0; return { skuId: k.skuId, part: k.skuPartNumber, name: LICENSE_NAMES[k.skuPartNumber] || k.skuPartNumber, total, used: k.consumedUnits || 0, free: Math.max(0, total - (k.consumedUnits || 0)) }; };
   const enabled = skus.filter((k) => k.capabilityStatus === "Enabled");
   const find = (parts) => { for (const pn of parts) { const k = enabled.find((x) => x.skuPartNumber === pn); if (k) return plan(k); } return null; };
-  return { faculty: find(A1.faculty), student: find(A1.student), extras: ALWAYS_ON.map((pn) => find([pn])).filter(Boolean) };
+  // a1: every A1 plan the tenant has (any status, any variant) — what a licence change removes.
+  const a1 = skus.filter((k) => A1.faculty.concat(A1.student).includes(k.skuPartNumber)).map(plan);
+  return { faculty: find(A1.faculty), student: find(A1.student), extras: ALWAYS_ON.map((pn) => find([pn])).filter(Boolean), a1 };
 }
 
 // A temporary password Microsoft accepts (3 of 4 character classes, 8–256 chars):
@@ -207,7 +213,13 @@ async function handler(context, req) {
       if (!upn || domainOf(upn) !== domain) return fail(context, 400, "upn must be an account of this domain");
       const row = await dir.refreshUser(domain, upn);
       const view = row ? (await usersView(domain)).users.find((u) => u.upn === upn) || null : null;
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain, user: view, gone: !row } };
+      // ?full=1 (修改资料 form): the editable fields as Microsoft has them now.
+      let profile = null;
+      if (row && req.query && req.query.full && can(roles, "methods", domain)) {
+        const p = await graph("GET", `/users/${encodeURIComponent(row.id)}?$select=givenName,surname,displayName,jobTitle,city,postalCode,usageLocation,otherMails`);
+        profile = { givenName: p.givenName || "", surname: p.surname || "", displayName: p.displayName || "", jobTitle: p.jobTitle || "", city: p.city || "", postalCode: p.postalCode || "", usageLocation: p.usageLocation || "", safeEmail: (p.otherMails || [])[0] || "" };
+      }
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain, user: view, gone: !row, profile } };
       return;
     }
     if (method === "GET" && action === "groups") {
@@ -218,9 +230,9 @@ async function handler(context, req) {
     }
 
     // Both-language names for a Teams group, shown in the management centre only
-    // (域蜂巢管理员 of the domain, Hive staff); the tenant's own name is not changed.
+    // (the domain's IT 管理员, Hive staff); the tenant's own name is not changed.
     if (method === "PUT" && action === "groupname") {
-      if (!can(roles, "people", domain)) return fail(context, 403, "group names are set by the 域蜂巢管理员 or Hive staff", { code: "forbidden" });
+      if (!can(roles, "people", domain)) return fail(context, 403, "group names are set by the IT 管理员 or Hive staff", { code: "forbidden" });
       const id = String((req.body && req.body.id) || "").trim();
       if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(context, 400, "group id missing");
       const zh = String((req.body && req.body.zh) || "").trim().slice(0, 80);
@@ -246,7 +258,7 @@ async function handler(context, req) {
         // A full pass of a school is heavier and drops vanished accounts: system administrators only.
         if (mode === "full" && !can(roles, "admin")) return fail(context, 403, "a full sync is run by the system administrator (or nightly)", { code: "forbidden" });
         // The system administrator's sync is tenant-wide intake (every school's cache
-        // learns its share, the delta token advances); a 域管理员（IT）'s sync touches
+        // learns its share, the delta token advances); a IT 管理员's sync touches
         // only the school they manage.
         const scope = can(roles, "admin") ? "tenant" : "domain";
         const st = await dir.syncSlice(domain, mode, { budgetMs: 20000, by: actor, scope, log: (m) => context.log(m) });
@@ -272,7 +284,7 @@ async function handler(context, req) {
     }
 
     if (method === "PATCH" && action === "person") {
-      if (!can(roles, "people", domain)) return fail(context, 403, "身份 and linked accounts are edited by the 域蜂巢管理员 or Hive staff", { code: "forbidden" });
+      if (!can(roles, "people", domain)) return fail(context, 403, "身份 and linked accounts are edited by the IT 管理员 or Hive staff", { code: "forbidden" });
       const b = req.body || {};
       const user = normUser(b.user);
       if (!EMAIL_RE.test(user) || domainOf(user) !== domain) return fail(context, 400, "user must be an account in this domain");
@@ -303,7 +315,7 @@ async function handler(context, req) {
     }
 
     if (method === "DELETE" && action === "method") {
-      if (!can(roles, "methods", domain)) return fail(context, 403, "sign-in devices are managed by the 域管理员（IT）", { code: "forbidden" });
+      if (!can(roles, "methods", domain)) return fail(context, 403, "sign-in devices are managed by the IT 管理员", { code: "forbidden" });
       const b = req.body || {};
       const user = normUser(b.user);
       const id = String(b.id || "");
@@ -337,18 +349,18 @@ async function handler(context, req) {
     // this domain with a temporary password (must change at first sign-in), the
     // chosen licence (usageLocation is required for that) and Hive's 身份, puts it
     // into the directory cache at once, and returns the temporary password once.
-    // Both need can(roles, "methods", domain): a 域管理员（IT）for their school, or the
+    // Both need can(roles, "methods", domain): a IT 管理员for their school, or the
     // system administrator. Graph: User.ReadWrite.All (create, assignLicense),
     // Directory.Read.All (subscribedSkus). No directory role is needed to create
     // an ordinary account; Microsoft will not let this create an administrator.
     if (method === "GET" && action === "licenses") {
-      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are created by the 域管理员（IT）", { code: "forbidden" });
+      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are created by the IT 管理员", { code: "forbidden" });
       const lic = await licencePlans();
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: Object.assign({ usageLocation: process.env.HIVE_USAGE_LOCATION || "CN" }, lic) };
       return;
     }
     if (method === "POST" && action === "user") {
-      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are created by the 域管理员（IT）", { code: "forbidden" });
+      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are created by the IT 管理员", { code: "forbidden" });
       const b = req.body || {};
       const nick = String(b.account || "").trim().toLowerCase();
       const givenName = String(b.givenName || "").trim(), surname = String(b.surname || "").trim();
@@ -417,13 +429,98 @@ async function handler(context, req) {
       return;
     }
 
+    // 修改资料 (Rick, 2026-10-12: 「允许 domain admin 编辑用户信息……存回 MS tenant」):
+    // the IT 管理员 (or the system administrator) changes an account's details in
+    // Microsoft 365 — the fields of 新建账号 plus the safe email. Never the account
+    // name, never the department (the school's name stays off the accounts,
+    // 2026-10-10), never a phone number. A field left out is left alone; an optional
+    // one sent empty is cleared. Microsoft refuses changes to its administrator
+    // accounts: that 403 is passed on with a plain explanation.
+    if (method === "PATCH" && action === "user") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "account details are changed by the IT 管理员", { code: "forbidden" });
+      const b = req.body || {};
+      const upn = String(b.user || "").trim().toLowerCase();
+      if (domainOf(upn) !== domain) return fail(context, 400, "user must be an account of this domain");
+      const has = (k) => b[k] !== undefined && b[k] !== null;
+      const str = (k) => String(b[k]).trim();
+      const patch = {}, problems = [];
+      if (has("givenName")) { const v = str("givenName"); if (v.length > 40) problems.push("given name longer than 40"); else patch.givenName = v || null; }
+      if (has("surname")) { const v = str("surname"); if (v.length > 40) problems.push("surname longer than 40"); else patch.surname = v || null; }
+      if (has("displayName")) { const v = str("displayName"); if (!v || v.length > 64) problems.push("display name is missing or longer than 64"); else patch.displayName = v; }
+      if (has("jobTitle")) { const v = str("jobTitle"); if (v.length > 60) problems.push("job title longer than 60"); else patch.jobTitle = v || null; }
+      if (has("city")) { const v = str("city"); if (!v) problems.push("city is required"); else if (v.length > 40) problems.push("city longer than 40"); else patch.city = v; }
+      if (has("postalCode")) { const v = str("postalCode"); if (!v) problems.push("postal code is required"); else if (!/^[A-Za-z0-9 -]{3,12}$/.test(v)) problems.push("postal code: 3–12 letters or digits"); else patch.postalCode = v; }
+      if (has("usageLocation")) { const v = str("usageLocation").toUpperCase(); if (!/^[A-Z]{2}$/.test(v)) problems.push("usage location must be a two-letter country code"); else patch.usageLocation = v; }
+      if (has("safeEmail")) { const v = str("safeEmail").toLowerCase(); const why = safeEmailProblem(v, upn); if (why) problems.push(why); else patch.otherMails = v ? [v] : []; }
+      if (problems.length) return fail(context, 400, "please check the form", { problems });
+      if (!Object.keys(patch).length) return fail(context, 400, "nothing to change");
+      let target;
+      try { target = await graph("GET", `/users/${encodeURIComponent(upn)}?$select=id,userType`); } catch (err) { if (err.status === 404) return fail(context, 404, `${upn} does not exist`, { code: "not_found" }); throw err; }
+      if (target.userType === "Guest") return fail(context, 400, "guest accounts are not edited here");
+      try {
+        await graph("PATCH", `/users/${target.id}`, patch);
+      } catch (err) {
+        await audit(context, { actor, action: "user.update", target: upn, fields: Object.keys(patch), result: "failed", error: err.code || err.status });
+        if (err.status === 403) return fail(context, 403, "Microsoft refused: this is a Microsoft 365 administrator account, which only Entra can change", { code: "privileged" });
+        if (err.status === 400) return fail(context, 400, "Microsoft refused the change: " + (err.message.split(": ").slice(1).join(": ") || err.code), { code: err.code });
+        throw err;
+      }
+      await audit(context, { actor, action: "user.update", target: upn, fields: Object.keys(patch), result: "ok" });
+      try { await dir.refreshUser(domain, upn); } catch { /* the next sync catches up */ }
+      const view = (await usersView(domain)).users.find((u) => u.upn === upn) || null;
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: view, changed: Object.keys(patch).map((k) => (k === "otherMails" ? "safeEmail" : k)) } };
+      return;
+    }
+
+    // 换许可证 (Rick, 2026-10-12): Office 365 A1 for students ↔ A1 for faculty, in one
+    // assignLicense call (the new plan added and the old A1 removed together, so the
+    // account is never without one; mailbox and files stay). The 身份 rule of 新建账号
+    // holds: A1 for students is for 学生 only and a 学生 takes it. Needs a free seat
+    // and a usage location. An account with no A1 yet simply gets the chosen one.
+    if (method === "POST" && action === "licence") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "licences are changed by the IT 管理员", { code: "forbidden" });
+      const b = req.body || {};
+      const upn = String(b.user || "").trim().toLowerCase();
+      const plan = String(b.plan || "").trim().toLowerCase();
+      if (domainOf(upn) !== domain) return fail(context, 400, "user must be an account of this domain");
+      if (plan !== "faculty" && plan !== "student") return fail(context, 400, "plan must be faculty or student");
+      const row = (await usersView(domain)).users.find((u) => u.upn === upn);
+      const identity = row ? row.identity : "";
+      if (plan === "student" && identity !== "学生") return fail(context, 400, "Office 365 A1 for students is for 学生 only: set the identity to 学生 first", { code: "identity" });
+      if (plan === "faculty" && identity === "学生") return fail(context, 400, "a 学生 keeps Office 365 A1 for students: change the identity first", { code: "identity" });
+      let user;
+      try { user = await graph("GET", `/users/${encodeURIComponent(upn)}?$select=id,userType,usageLocation,assignedLicenses`); } catch (err) { if (err.status === 404) return fail(context, 404, `${upn} does not exist`, { code: "not_found" }); throw err; }
+      if (user.userType === "Guest") return fail(context, 400, "guest accounts are not licensed here");
+      if (!user.usageLocation) return fail(context, 400, "the account has no usage location: set it in 修改资料 first", { code: "no_usage_location" });
+      const lic = await licencePlans();
+      const want = lic[plan];
+      if (!want) return fail(context, 409, `the tenant has no ${plan === "student" ? "Office 365 A1 for students" : "Office 365 A1 for faculty"} plan`, { code: "no_plan" });
+      const held = new Set((user.assignedLicenses || []).map((l) => String(l.skuId).toLowerCase()));
+      if (held.has(String(want.skuId).toLowerCase())) return void (context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, unchanged: true, plan: want.name } });
+      if (!want.free) return fail(context, 409, `${want.name}: no free seats left`, { code: "no_seats" });
+      const remove = (lic.a1 || []).map((x) => x.skuId).filter((id) => id !== want.skuId && held.has(String(id).toLowerCase()));
+      const add = [want].concat(lic.extras.filter((x) => x.free && !held.has(String(x.skuId).toLowerCase())));
+      try {
+        await graph("POST", `/users/${user.id}/assignLicense`, { addLicenses: add.map((x) => ({ skuId: x.skuId, disabledPlans: [] })), removeLicenses: remove });
+      } catch (err) {
+        await audit(context, { actor, action: "license.change", target: upn, plan, result: "failed", error: err.code || err.status });
+        if (err.status === 400 || err.status === 403) return fail(context, err.status, "Microsoft refused the licence change: " + (err.message.split(": ").slice(1).join(": ") || err.code), { code: err.code });
+        throw err;
+      }
+      await audit(context, { actor, action: "license.change", target: upn, plan, added: add.map((x) => x.skuId), removed: remove, result: "ok" });
+      try { await dir.refreshUser(domain, upn); } catch { /* the next sync catches up */ }
+      const view = (await usersView(domain)).users.find((u) => u.upn === upn) || null;
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: view, plan: want.name, removed: remove.length } };
+      return;
+    }
+
     // 删除账号 (Rick, 2026-10-05: 「Give domain admin right to delete ordinary users」):
-    // a 域管理员（IT）or the system administrator deletes an ordinary account of this
+    // a IT 管理员or the system administrator deletes an ordinary account of this
     // domain. Ordinary = holds no Hive role; not oneself; not a guest. Microsoft
     // soft-deletes (30 days in the deleted-users list of the Microsoft 365 admin
     // center, restorable there); Hive drops the cache row and its people.json record.
     if (method === "DELETE" && action === "user") {
-      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are deleted by the 域管理员（IT）", { code: "forbidden" });
+      if (!can(roles, "methods", domain)) return fail(context, 403, "accounts are deleted by the IT 管理员", { code: "forbidden" });
       const b = req.body || {};
       const user = normUser(b.user);
       if (!EMAIL_RE.test(user) || domainOf(user) !== domain) return fail(context, 400, "user must be an account in this domain");
@@ -447,7 +544,7 @@ async function handler(context, req) {
       return;
     }
 
-    // 重置密码 (Rick, 2026-10-04): a 域管理员（IT）or the system administrator gives an
+    // 重置密码 (Rick, 2026-10-04): a IT 管理员or the system administrator gives an
     // ordinary user of this domain a random temporary password that must be changed
     // at the next sign-in. The password is returned once to the caller and never
     // stored or logged; the audit line records who reset whose password, not the
@@ -457,7 +554,7 @@ async function handler(context, req) {
     // on as a clear message. Hive's own session check notices the password
     // change and signs the person's old Hive sessions out within 30 minutes.
     if (method === "POST" && action === "password") {
-      if (!can(roles, "methods", domain)) return fail(context, 403, "passwords are reset by the 域管理员（IT）", { code: "forbidden" });
+      if (!can(roles, "methods", domain)) return fail(context, 403, "passwords are reset by the IT 管理员", { code: "forbidden" });
       const b = req.body || {};
       const user = normUser(b.user);
       if (!EMAIL_RE.test(user) || domainOf(user) !== domain) return fail(context, 400, "user must be an account in this domain");

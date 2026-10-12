@@ -51,7 +51,7 @@ const R = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
 
   // What each may do.
   const IT = ["domain_it:a.edu"], HIVE = ["domain_hive:a.edu"], SALES = ["staff:sales"], SYS = ["staff:sysadmin"], OLD = ["domain_admin:a.edu"];
-  assert.ok(R.can(IT, "view", "a.edu") && R.can(IT, "methods", "a.edu") && !R.can(IT, "people", "a.edu") && !R.can(IT, "admin"));
+  assert.ok(R.can(IT, "view", "a.edu") && R.can(IT, "methods", "a.edu") && R.can(IT, "people", "a.edu") && !R.can(IT, "admin"), "IT 管理员 = the one school role (2026-10-12): accounts and 身份 alike");
   assert.ok(!R.can(IT, "view", "b.org"), "IT of a.edu sees nothing of b.org");
   assert.ok(R.can(HIVE, "view", "a.edu") && R.can(HIVE, "people", "a.edu") && !R.can(HIVE, "methods", "a.edu"));
   assert.ok(R.can(SALES, "view", "anything.edu") && R.can(SALES, "people", "anything.edu") && !R.can(SALES, "methods", "anything.edu") && !R.can(SALES, "admin"));
@@ -63,8 +63,10 @@ const R = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
 
   // Labels.
   assert.strictEqual(R.roleLabel("staff:community"), "Staff · 教育社区经理");
-  assert.strictEqual(R.roleLabel("domain_hive:a.edu", "en"), "Domain Hive administrator · a.edu");
-  assert.strictEqual(R.roleLabel("domain_it:a.edu"), "域管理员（IT） · a.edu");
+  assert.strictEqual(R.roleLabel("domain_hive:a.edu", "en"), "Hive records (old role) · a.edu");
+  assert.strictEqual(R.roleLabel("domain_it:a.edu", "zh"), "IT 管理员 · a.edu");
+  assert.strictEqual(R.roleLabel("domain_admin:a.edu", "zh"), "IT 管理员 · a.edu");
+  assert.strictEqual(R.roleLabel("domain_it:a.edu"), "IT 管理员 · a.edu");
 
   // The bootstrap account is admin; a sysadmin entry would also carry `admin`.
   assert.deepStrictEqual(await R.rolesFor("Boot@fengchao.life"), ["admin"]);

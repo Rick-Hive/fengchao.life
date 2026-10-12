@@ -45,19 +45,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const EDITABLE = ["displayName", "givenName", "surname", "safeEmail", "mobilePhone", "streetAddress", "city", "state", "country", "postalCode", "preferredLanguage"];
 const TEXT_MAX = { givenName: 40, surname: 40, city: 40, state: 40, country: 40, streetAddress: 120 };
 
-// Same list as the order form (api/order): mainland free-mail is not accepted
-// as a safe email, since it is exactly the mail that stops arriving.
-const BLOCKED_EMAIL_DOMAINS = [
-  "qq.com", "vip.qq.com", "foxmail.com",
-  "163.com", "vip.163.com", "126.com", "vip.126.com", "yeah.net", "188.com",
-  "sina.com", "sina.cn", "vip.sina.com",
-  "sohu.com", "tom.com", "21cn.com", "aliyun.com",
-  "139.com", "189.cn", "wo.cn", "wo.com.cn",
-];
-function blockedEmail(email) {
-  const d = email.split("@")[1].toLowerCase();
-  return BLOCKED_EMAIL_DOMAINS.some((b) => d === b || d.endsWith("." + b));
-}
+const { blockedEmail } = require("../shared/safe-email"); // mainland free-mail is not accepted as a safe email
 
 // Graph collection for each method type that may be removed here.
 const METHOD_TYPES = {
@@ -251,7 +239,7 @@ async function handler(context, req) {
             canEditName: can(roles, "methods", myDomain),
             institution: (inst.institutions[myDomain] && inst.institutions[myDomain].name) || "",
             institutionEn: (inst.institutions[myDomain] && inst.institutions[myDomain].nameEn) || "",
-            admins, // the school's 域管理员, for "need help? contact your administrator"
+            admins, // the school's IT 管理员, for "need help? contact your administrator"
             vocab: { selfRoles: people.SELF_ROLES, topics: people.TOPICS, grades: people.GRADES, schooling: people.SCHOOLING, models: people.MODELS, higherEd: people.HIGHER_ED, maxChildren: people.MAX_CHILDREN, maxAccounts: people.MAX_ACCOUNTS },
           },
           // 基本资料: read from the Office 365 account; the fields in EDITABLE may be

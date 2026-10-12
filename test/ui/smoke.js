@@ -47,7 +47,7 @@ function mkUser(i) {
   return { id: "u" + i, upn, displayName: n, enabled: i !== 7, created: "2026-08-0" + ((i % 9) + 1) + "T00:00:00Z", lastSignIn: i % 4 ? "2026-09-2" + (i % 9) + "T08:00:00Z" : null,
     verified, devices: verified ? [{ id: "d" + i, kind: "authenticator", name: i % 2 ? "iPhone 13" : "Xiaomi 14", version: "6.8.1", created: "2026-09-01T00:00:00Z" }] : [], otherMethods: ["password"],
     groups: i % 2 ? [{ id: "g1", name: "English Grade 5", kind: "team", nameZh: "五年级英语", nameEn: "English Grade 5" }] : [{ id: "g2", name: "Math Grade 5", kind: "team" }, { id: "g3", name: "BES Staff", kind: "m365" }],
-    roles: i === 1 ? [{ role: "domain_it:bes.qiaoliang.online", zh: "域管理员（IT） · bes.qiaoliang.online", en: "Domain administrator (IT) · bes.qiaoliang.online" }] : [], hiveTeacher: i % 5 === 2 ? { name: n, teacherId: "T-00" + i, organization: ["BES"] } : null, plan: i % 5 === 1 ? "student" : "faculty", anomaly: i === 6 ? "student_without_student_plan" : i === 1 ? "" : "", safeEmail: i % 2 ? "" : "parent" + i + "@gmail.com", city: ["南京", "苏州", ""][i % 3],
+    roles: i === 1 ? [{ role: "domain_it:bes.qiaoliang.online", zh: "IT 管理员 · bes.qiaoliang.online", en: "IT administrator · bes.qiaoliang.online" }] : [], hiveTeacher: i % 5 === 2 ? { name: n, teacherId: "T-00" + i, organization: ["BES"] } : null, plan: i % 5 === 1 ? "student" : "faculty", anomaly: i === 6 ? "student_without_student_plan" : i === 1 ? "" : "", safeEmail: i % 2 ? "" : "parent" + i + "@gmail.com", city: ["南京", "苏州", ""][i % 3],
     identity: ["家长", "学生", "老师", "行政", ""][i % 5], identitySource: i % 5 === 4 ? "" : (i % 2 ? "hive" : "entra"), linked: i % 5 === 0 ? ["kid.chen@bes.qiaoliang.online"] : [], note: i === 1 ? "SSPR 未生效，待复核" : "", extra: i === 1 ? { city: "南京", needs: ["教材"], children: [{ name: "大宝", age: 12, grade: "6", schooling: "在家教育", model: "古典教育", higherEd: "海外上大学", account: "kid.chen@bes.qiaoliang.online" }] } : null };
 }
 const SYNC = { domain: "bes.qiaoliang.online", done: true, mode: "full", total: 12, remaining: 0, users: 12, syncedAt: "2026-10-01T17:00:00Z", fullAt: "2026-10-01T17:00:00Z", lastRun: null, error: null, added: 0 };
@@ -129,7 +129,8 @@ const EQUIP = [
   function ptOrgIdx() { const m = new Map(); for (const i of HUB.institutions) m.set(i.key || i.domain, i); return m; }
   function ptRow(rel, projects) { const idx = ptOrgIdx(); const i = rel.party && rel.party.kind === "org" ? idx.get(rel.party.key) : null; const mine = projects.filter(x => x.relationship === rel.id); const pn = rel.party ? (rel.party.kind === "org" ? ((i && (i.name || i.nameEn)) || rel.party.name || rel.party.key) : ((HUB.people.find(x => x.crmId === rel.party.id) || {}).name || rel.party.name)) : ""; return Object.assign({}, rel, { partyName: pn, metrics: i ? { accounts: i.accounts || 0, active: i.active || 0, customers: i.customers || 0, courses: i.courses || 0, hiveOrders: i.hiveOrders || 0 } : null, projects: mine.length, activeProjects: mine.filter(x => x.status === "active").length, overdueMilestones: 0 }); }
   const licMod = require(path.join(ROOT, "api", "shared", "licenses.js")); const LIC = { pools: [], allocations: [], nextPool: 1, nextAlloc: 1 };
-  const verdicts = []; let rebuilds = 0; const deleted = []; const writebacks = []; const digests = [];
+  const verdicts = []; let rebuilds = 0; const acctEdits = [], licChanges = [];
+const deleted = []; const writebacks = []; const digests = [];
   async function shot(name, w, h, hash, lang, rolesList, act) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
@@ -145,7 +146,10 @@ const EQUIP = [
       else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
       else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))) } : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
-      else if (p === "/api/domain/user" && r.request().method() === "GET") { const up = u.searchParams.get("upn"); const hit = users.users.find(x => x.upn === up); body = { domain: u.searchParams.get("domain"), user: hit || null, gone: !hit }; } // the person panel's live re-read: unchanged here
+      else if (p === "/api/domain/user" && r.request().method() === "GET") { const up = u.searchParams.get("upn"); const hit = users.users.find(x => x.upn === up); body = { domain: u.searchParams.get("domain"), user: hit || null, gone: !hit, profile: u.searchParams.get("full") && hit ? { givenName: "", surname: "", displayName: hit.displayName, jobTitle: hit.jobTitle || "", city: hit.city || "南京", postalCode: "210000", usageLocation: "CN", safeEmail: hit.safeEmail || "" } : null }; }
+      else if (p === "/api/domain/user" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); acctEdits.push(b); const hit = users.users.find(x => x.upn === b.user); if (b.jobTitle !== undefined) hit.jobTitle = b.jobTitle; if (b.displayName) hit.displayName = b.displayName; body = { ok: true, user: hit, changed: Object.keys(b).filter(k => k !== "domain" && k !== "user") }; }
+      else if (p === "/api/domain/licenses") body = { usageLocation: "CN", faculty: { skuId: "f", name: "Office 365 A1 for faculty", total: 500, used: 12, free: 488 }, student: { skuId: "s", name: "Office 365 A1 for students", total: 1000, used: 990, free: 10 }, extras: [], a1: [] };
+      else if (p === "/api/domain/licence") { const b = JSON.parse(r.request().postData()); licChanges.push(b); const hit = users.users.find(x => x.upn === b.user); hit.plan = b.plan; body = { ok: true, user: hit, plan: b.plan === "student" ? "Office 365 A1 for students" : "Office 365 A1 for faculty" }; } // the person panel's live re-read: unchanged here
       else if (p === "/api/domain/groups") body = dgroups;
       else if (p === "/api/roles" && r.request().method() === "GET" && u.searchParams.get("q")) body = { people: peopleHits };
       else if (p === "/api/roles") body = r.request().method() === "GET" ? Object.assign({}, roles, { scope: isAdm ? "all" : "staff" }) : { ok: true, entries: roles.entries };
@@ -252,7 +256,7 @@ const EQUIP = [
     if (/Fundraising/.test(pb)) throw new Error("legacy fundraising offered");
     const pressed = await p.$$eval('#rstaff .chip[aria-pressed="true"]', es => es.map(e => e.getAttribute("data-staff"))); if (pressed.join() !== "community") throw new Error("pressed: " + pressed);
     await p.click('#rstaff .chip[data-staff="sales"]'); await p.waitForTimeout(100);
-    const prev = await p.$eval("#rprev", e => e.innerText); if (!/Order manager/.test(prev) || !/Education community manager/.test(prev) || !/Domain Hive administrator/.test(prev)) throw new Error("preview: " + prev);
+    const prev = await p.$eval("#rprev", e => e.innerText); if (!/Order manager/.test(prev) || !/Education community manager/.test(prev) || !/Hive records \(old role\)/.test(prev)) throw new Error("preview: " + prev);
   });
   await shot("users-identity-en", 1280, 900, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(500);
@@ -427,6 +431,25 @@ const EQUIP = [
   // 删除账号 (Rick, 2026-10-07: 「verify if it works after deleting a user」): the typed
   // confirmation, the row, the tiles, the footer, the notice, the group member lists.
   const tom = users.users[4], groupsBefore = JSON.stringify(dgroups.groups);
+  // 修改资料 / 换许可证 (2026-10-12): the IT 管理员 edits an account and switches its A1 plan from the person panel.
+  await shot("user-edit-licence", 1280, 900, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForTimeout(600);
+    const upn = "mei.wang@bes.qiaoliang.online";
+    const row = await p.$('#utable tbody tr[data-upn="' + upn + '"]'); if (!row) throw new Error("fixture: no " + upn + " in " + (await p.$$eval("#utable tbody tr", es => es.map(e => e.getAttribute("data-upn")).join())));
+    await row.click(); await p.waitForTimeout(500);
+    if (!(await p.$("#editOpen")) || !(await p.$("#licOpen"))) throw new Error("edit / licence buttons missing");
+    await p.click("#editOpen"); await p.waitForTimeout(500);
+    if ((await p.$eval("#efZip", e => e.value)) !== "210000") throw new Error("live values not filled");
+    await p.fill("#efJob", "数学老师");
+    await p.click("#efSave"); await p.waitForTimeout(600);
+    if (acctEdits.length !== 1 || acctEdits[0].jobTitle !== "数学老师" || Object.keys(acctEdits[0]).length !== 3) throw new Error("PATCH body (only what changed): " + JSON.stringify(acctEdits));
+    if (!/已保存到 Microsoft 365/.test(await p.$eval("#acctMsg", e => e.innerText))) throw new Error("no saved note");
+    await p.click("#licOpen"); await p.waitForTimeout(500);
+    const txt = await p.$eval("#pacct", e => e.innerText);
+    if (!/→/.test(txt) || !/剩余/.test(txt)) throw new Error("licence form: " + txt);
+    const disabled = await p.$eval("#licGo", e => e.disabled);
+    if (!disabled) { await p.click("#licGo"); await p.waitForTimeout(600); if (licChanges.length !== 1) throw new Error("licence call: " + JSON.stringify(licChanges)); }
+  });
   await shot("user-delete", 1280, 900, "#/domain/groups", "zh", ["admin", "staff:sysadmin"], async p => {
     // The 群组 page is visited first, so its cache exists when the account is deleted.
     await p.waitForTimeout(700);

@@ -10,11 +10,14 @@
   // roles are being withdrawn from people). Search any account of any school (from
   // the directory cache), open the role editor in the side panel, save.
   // ================================================================================
-  var ROLE_KIND = { it: ["域管理员（IT）", "Domain administrator (IT)"], hive: ["域蜂巢管理员", "Domain Hive administrator"], staff: ["Staff", "Staff"], sys: ["系统管理员", "System administrator"] };
+  // One school role since 2026-10-12 (Rick: 「合并……叫 IT 管理员」 — not 学校管理员, which
+  // reads as the principal). `hive` is the old 域蜂巢管理员: no longer offered, kept for
+  // the people who hold it until they are made IT 管理员.
+  var ROLE_KIND = { it: ["IT 管理员", "IT administrator"], hive: ["蜂巢资料（旧角色）", "Hive records (old role)"], staff: ["Staff", "Staff"], sys: ["系统管理员", "System administrator"] };
   function roleKind(r) {
     if (/^domain_it:/.test(r)) return "it";
     if (/^domain_hive:/.test(r)) return "hive";
-    if (/^domain_admin:/.test(r)) return "it"; // legacy IT + Hive: shown as two chips by roleChips
+    if (/^domain_admin:/.test(r)) return "it"; // legacy name of the IT 管理员
     if (r === "admin" || r === "staff:sysadmin") return "sys";
     return "staff";
   }
@@ -22,7 +25,7 @@
     var out = [], seen = {};
     (roles || []).forEach(function (r) {
       var m;
-      if ((m = /^domain_admin:(.+)$/.exec(r))) { out.push(["it", m[1]]); out.push(["hive", m[1]]); return; }
+      if ((m = /^domain_admin:(.+)$/.exec(r))) { out.push(["it", m[1]]); return; }
       if (r === "admin" && (roles || []).indexOf("staff:sysadmin") >= 0) return;
       out.push([roleKind(r), (m = /^domain_(it|hive):(.+)$/.exec(r)) ? m[2] : (m = /^staff:(.+)$/.exec(r)) ? m[1] : ""]);
     });
@@ -45,7 +48,7 @@
   // standalone page still exists for anyone who has the address.
   var handbookHtml = null;
   function viewHandbook() {
-    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("操作手册", "Handbook"), "", t("域管理员在管理中心能做什么、怎么做、要注意什么。", "What a domain administrator can do in the Management Center, how, and what to watch."));
+    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("操作手册", "Handbook"), "", t("IT 管理员在管理中心能做什么、怎么做、要注意什么。", "What an IT administrator can do in the Management Center, how, and what to watch."));
     $("content").innerHTML = '<div class="handbook" id="handbook"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     var p = handbookHtml ? Promise.resolve(handbookHtml) : fetch("/help/domain-admin.html", { credentials: "same-origin" }).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }).then(function (h) { handbookHtml = h; return h; });
     p.then(function (html) {
@@ -101,8 +104,7 @@
         '<div class="search rsearch">' + ICON.search + '<input type="search" id="rq" autocomplete="off" placeholder="' + t("搜索姓名或账号，添加或修改…", "Search a name or account to add or edit…") + '" /><div class="sugg" id="rsugg" hidden></div></div>' +
         '<span class="spacer"></span>' +
         '<button class="chip" data-k="all" aria-pressed="true">' + t("全部", "All") + "</button>" +
-        '<button class="chip" data-k="it" aria-pressed="false">' + t("域管理员（IT）", "Domain IT") + "</button>" +
-        '<button class="chip" data-k="hive" aria-pressed="false">' + t("域蜂巢管理员", "Domain Hive") + "</button>" +
+        '<button class="chip" data-k="it" aria-pressed="false">' + t("IT 管理员", "IT admin") + "</button>" +
         '<button class="chip" data-k="staff" aria-pressed="false">Staff</button>' +
         '<button class="chip" data-k="sys" aria-pressed="false">' + t("系统管理员", "System admin") + "</button>" +
         (doms.length > 1 ? '<select id="rdom"><option value="">' + t("所有学校", "All schools") + "</option>" + doms.map(function (d) { return '<option value="' + esc(d.domain) + '">' + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>" : "") +
@@ -118,7 +120,7 @@
     }
     function render() {
       var rows = state.entries.filter(function (e) {
-        if (state.kind !== "all" && !e.roles.some(function (r) { return roleKind(r) === state.kind || (state.kind === "hive" && /^domain_admin:/.test(r)); })) return false;
+        if (state.kind !== "all" && !e.roles.some(function (r) { return roleKind(r) === state.kind || (state.kind === "it" && roleKind(r) === "hive"); })) return false;
         if (state.domain && e.domain !== state.domain && !e.roles.some(function (r) { return r.indexOf(":" + state.domain) > 0; })) return false;
         return true;
       });
@@ -205,7 +207,7 @@
     function addFn(fn) { if (st.staff.indexOf(fn) < 0) st.staff.push(fn); }
     (roles || []).forEach(function (r) {
       var m;
-      if ((m = /^domain_(it|hive|admin):(.+)$/.exec(r))) { if (m[1] !== "hive") st.it[m[2]] = true; if (m[1] !== "it") st.hive[m[2]] = true; if (st.schools.indexOf(m[2]) < 0) st.schools.push(m[2]); }
+      if ((m = /^domain_(it|hive|admin):(.+)$/.exec(r))) { if (m[1] !== "hive") st.it[m[2]] = true; else st.hive[m[2]] = true; if (st.schools.indexOf(m[2]) < 0) st.schools.push(m[2]); }
       else if ((m = /^staff:(.+)$/.exec(r))) { if (m[1] === "sysadmin") st.sys = true; else addFn(m[1]); }
       else if (r === "admin") st.sys = true;
       else if (r === "coordinator") addFn("community");
@@ -217,7 +219,7 @@
     // functions (the server keeps the account's school roles and sysadmin as they were).
     function compose() {
       var out = [];
-      if (!staffOnly) st.schools.forEach(function (d) { if (st.it[d]) out.push("domain_it:" + d); if (st.hive[d]) out.push("domain_hive:" + d); });
+      if (!staffOnly) st.schools.forEach(function (d) { if (st.it[d]) out.push("domain_it:" + d); else if (st.hive[d]) out.push("domain_hive:" + d); }); // IT 管理员 includes what the old role allowed
       st.staff.forEach(function (fn) { out.push("staff:" + fn); });
       if (!staffOnly && st.sys) out.push("staff:sysadmin");
       return out;
@@ -227,8 +229,9 @@
     function schoolCard(d) {
       var known = doms.indexOf(d) >= 0;
       return '<div class="rschool" data-d="' + esc(d) + '"><div class="rsh"><b>' + esc(dname(d)) + "</b>" + (d !== own ? '<button type="button" class="lnk" data-drop="' + esc(d) + '">' + t("移除", "Remove") + "</button>" : '<span class="muted">' + t("所在学校", "Their school") + "</span>") + (known ? "" : ' <span class="tag warn">' + t("未知域", "Unknown domain") + "</span>") + "</div>" +
-        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("账号安全：查看本校账号，新建和删除账号，删除验证设备，重置密码，同步变动。", "Account security: see the school's accounts, create and delete accounts, remove authenticator devices, reset passwords, sync changes.") + "</small></span></label>" +
-        '<label class="sw"><input type="checkbox" data-role="hive" data-d="' + esc(d) + '"' + (st.hive[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.hive[EN ? 1 : 0] + "</b><small>" + t("蜂巢信息：身份、关联账号、备注；不能动设备和密码。", "Hive information: identity, linked accounts, notes; no devices or passwords.") + "</small></span></label></div>";
+        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("本校的账号：新建、修改资料、换许可证、重置密码、删除验证设备、删除账号；身份、关联账号、备注；同步变动。", "The school's accounts: create, edit details, change licence, reset passwords, remove authenticator devices, delete; identity, linked accounts, notes; sync changes.") + "</small></span></label>" +
+        // The old 域蜂巢管理员, only where someone still holds it: kept unless they are made IT 管理员.
+        (st.hive[d] && !st.it[d] ? '<label class="sw"><input type="checkbox" data-role="hive" data-d="' + esc(d) + '" checked /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.hive[EN ? 1 : 0] + "</b><small>" + t("只能改身份、关联账号、备注。这个角色已不再提供：需要时改为 IT 管理员，或关掉。", "Identity, linked accounts and notes only. No longer offered: make them IT administrator, or switch it off.") + "</small></span></label>" : "") + "</div>";
     }
     function preview() {
       var rs = after();
@@ -264,7 +267,7 @@
     var pb = $("panel").querySelector(".pb");
     pb.addEventListener("change", function (e) {
       var c = e.target;
-      if (c.matches("input[data-role]")) { st[c.getAttribute("data-role")][c.getAttribute("data-d")] = c.checked; preview(); return; }
+      if (c.matches("input[data-role]")) { st[c.getAttribute("data-role")][c.getAttribute("data-d")] = c.checked; if (c.getAttribute("data-role") === "it") draw(); else preview(); return; }
       if (c.id === "rsys") {
         if (c.checked && !window.confirm(t("把 " + (person.displayName || person.upn) + " 设为系统管理员？他将拥有所有学校的全部权限，包括分配角色。", "Make " + (person.displayName || person.upn) + " a system administrator? They will have every permission for every school, including assigning roles."))) { c.checked = false; return; }
         st.sys = c.checked; preview(); return;

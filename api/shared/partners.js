@@ -59,7 +59,7 @@ const CONTACT_ROLES = {
 // Project kinds per type with their default milestones (gate = closes a phase).
 const M = (zh, en, gate) => ({ zh, en, kind: gate ? "gate" : "deliverable" });
 const PROJECT_KINDS = {
-  it: { rollout: { zh: "开通 / 推广", en: "Rollout", ms: [M("账号创建", "Accounts created"), M("域管理员培训", "Admin training"), M("全员登录", "Everyone signed in", true)] }, migration: { zh: "租户迁移", en: "Tenant migration", ms: [M("方案确认", "Plan confirmed", true), M("数据迁移", "Data migrated"), M("切换完成", "Cut-over done", true)] } },
+  it: { rollout: { zh: "开通 / 推广", en: "Rollout", ms: [M("账号创建", "Accounts created"), M("IT 管理员培训", "IT admin training"), M("全员登录", "Everyone signed in", true)] }, migration: { zh: "租户迁移", en: "Tenant migration", ms: [M("方案确认", "Plan confirmed", true), M("数据迁移", "Data migrated"), M("切换完成", "Cut-over done", true)] } },
   publisher: { licence_deal: { zh: "书系授权", en: "Licensed series", ms: [M("样书评估", "Sample evaluation", true), M("条款确认", "Terms confirmed", true), M("签约", "Signed", true), M("SKU 上架", "SKUs listed"), M("首月结算", "First settlement")] } },
   university: {
     degree_cn: { zh: "面向中国的学位项目", en: "Degree programme for China", ms: [M("意向书", "Letter of intent"), M("项目条款", "Programme terms", true), M("协议签署", "Agreement signed", true), M("招生页上线", "Admissions page live"), M("说明会", "Information session"), M("申请截止", "Application deadline"), M("录取公布", "Offers announced"), M("首批入学", "First intake", true), M("首学期评估", "First-term review")] },

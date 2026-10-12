@@ -463,7 +463,7 @@ async function refreshUser(domain, upn) {
 
 // One budgeted slice of a sync. Returns the document's status:
 // { done, domain, mode, total, remaining, syncedAt, fullAt, added }.
-// opts.scope = "domain" (a 域管理员 IT's own sync) keeps the "changes" intake to this
+// opts.scope = "domain" (an IT 管理员's own sync) keeps the "changes" intake to this
 // domain: nothing is written for other domains and the tenant delta token stays.
 async function syncSlice(domain, mode, opts) {
   const o = opts || {};
@@ -499,7 +499,7 @@ async function syncSlice(domain, mode, opts) {
       added += mine.filter((c) => !c.removed).length;
       await store.write(`${domain}.json`, doc);
       if (o.scope === "domain") {
-        // A 域管理员（IT）syncs their own school only (Rick, 2026-10-03): the other
+        // A IT 管理员syncs their own school only (Rick, 2026-10-03): the other
         // domains' caches are not touched and the tenant's delta token is not
         // advanced, so their changes are still there for their own sync or the
         // nightly run. This domain may see the same changes again until then —
