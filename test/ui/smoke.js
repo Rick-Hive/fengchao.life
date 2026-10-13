@@ -137,9 +137,9 @@ const EQUIP = [
   const licMod = require(path.join(ROOT, "api", "shared", "licenses.js")); const LIC = { pools: [], allocations: [], nextPool: 1, nextAlloc: 1 };
   const verdicts = []; let rebuilds = 0; const stmPosts = [];
 const STM_ROWS = [
-  { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", relationship: "REL-000001", stage: "operating", saved: false, status: null, amount: 15.42, currency: "USD", billable: 40, discount: 3, counts: { start: { total: 39, licensed: 37 }, end: { total: 42, licensed: 40 }, added: 4, removed: 1 }, reconstructed: { start: false, end: false } },
+  { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", relationship: "REL-000001", stage: "operating", saved: false, status: null, amount: 14.17, currency: "USD", billable: 37, discount: 3, counts: { start: { total: 39, licensed: 37 }, end: { total: 42, licensed: 40 }, added: 4, removed: 1 }, reconstructed: { start: false, end: false } },
   { domain: "demo.fengchao.life", name: "示范校", nameEn: "Demo School", relationship: "REL-000002", stage: "operating", saved: true, id: "STM-000003", status: "sent", amount: 1.67, currency: "USD", billable: 4, discount: 0, counts: { start: { total: 4, licensed: 4 }, end: { total: 4, licensed: 4 }, added: 0, removed: 0 }, reconstructed: { start: true, end: false } },
-  { domain: "equipme.cloud", name: "Equip 教育社区", nameEn: "Equip Education Community", relationship: null, stage: null, saved: false, status: null, amount: 0, currency: "USD", billable: 0, discount: 0, counts: { start: { total: 280, licensed: 275 }, end: { total: 281, licensed: 276 }, added: 1, removed: 0 }, reconstructed: { start: false, end: false } },
+  { domain: "equipme.cloud", name: "Equip 教育社区", nameEn: "Equip Education Community", relationship: null, stage: null, saved: false, status: null, amount: 0, currency: "USD", billable: 275, discount: 0, counts: { start: { total: 280, licensed: 275 }, end: { total: 281, licensed: 276 }, added: 1, removed: 0 }, reconstructed: { start: false, end: false } },
 ];
 function stmDetail(row) {
   const disc = row.discount, price = row.unitPriceYear != null ? row.unitPriceYear : 5, pct = row.discountPct || 0;
@@ -191,7 +191,7 @@ const deleted = []; const writebacks = []; const digests = [];
       else if (p === "/api/crm/entry") { const b = JSON.parse(r.request().postData()); entries.push(b); body = { ok: true, orderId: "H-20261008-TEST", orderRec: "recNEWO", customerRec: b.customer.recId || "recNEWC", newCustomer: !!b.customer.new, lines: b.items.length, status: {} }; }
       else if (p === "/api/crm/received") { const b = JSON.parse(r.request().postData()); received.push(b); body = { ok: true }; }
       else if (p === "/api/crm/feed") body = { feed: [{ at: "2026-10-08T01:00:00Z", action: "crm.entry.order", by: "obadiah.sun@equipme.cloud", orderId: "H-20261008-AB12", newCustomer: true }, { at: "2026-10-07T20:00:00Z", action: "crm.order.status", by: "obadiah.sun@equipme.cloud", orderId: "FC-20261002-KXC-002", from: "submitted", to: "confirmed" }, { at: "2026-10-07T17:05:00Z", action: "crm.equip.sync", actor: "scheduler", counts: { orders: 520 } }], access: acc };
-      else if (p === "/api/crm/statements") { const canEdit = isAdm || acc.money === "rw"; body = { month: "2026-09", period: { start: "2026-09-01", end: "2026-10-01" }, canEdit, defaultMonth: "2026-09", price: 5, currency: "USD", totals: { amount: STM_ROWS.filter(r => r.relationship).reduce((s2, r) => s2 + r.amount, 0), billable: 44 }, rows: STM_ROWS }; }
+      else if (p === "/api/crm/statements") { const canEdit = isAdm || acc.money === "rw"; body = { month: "2026-09", period: { start: "2026-09-01", end: "2026-10-01" }, canEdit, defaultMonth: "2026-09", price: 5, currency: "USD", totals: { amount: STM_ROWS.filter(r => r.relationship).reduce((s2, r) => s2 + r.amount, 0), billable: 41 }, rows: STM_ROWS }; }
       else if (p === "/api/crm/statement" && r.request().method() === "GET") { const d = u.searchParams.get("domain"); const row = STM_ROWS.find(x => x.domain === d); body = { saved: !!row.saved, canEdit: isAdm || acc.money === "rw", statement: stmDetail(row) }; }
       else if (p === "/api/crm/statement" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); stmPosts.push(b); const row = STM_ROWS.find(x => x.domain === b.domain); if (b.op === "generate") { row.saved = true; row.status = "draft"; row.id = "STM-000007"; row.discount = +b.discount; row.unitPriceYear = +b.unitPriceYear; row.discountPct = +b.discountPct; row.amount = stmDetail(row).amount; } else row.status = b.status; body = { ok: true, statement: stmDetail(row) }; }
       else if (p === "/api/crm/licenses") { const canEdit = isAdm || acc.drm === "rw"; const regionOf = d => (PARTNERS[d] && PARTNERS[d].region) || "other"; if (r.request().method() === "POST") { if (!canEdit) { status = 403; body = { error: "no_access" }; } else { const b = JSON.parse(r.request().postData()); try { const res = b.op === "pool" ? licMod.createPool(LIC, b, "om") : b.op === "allocate" ? licMod.allocate(LIC, b, "om") : licMod.revoke(LIC, b.id, "om"); body = { ok: true, result: res, view: licMod.view(LIC, { regionOf }) }; } catch (e) { status = 400; body = { error: e.code, message: e.message, balance: e.balance }; } } } else if (u.searchParams.get("person")) body = { allocations: LIC.allocations.filter(a => a.to.type === "person" && a.to.crmId === u.searchParams.get("person")).map(a => Object.assign({}, a, { pool: LIC.pools.find(p => p.id === a.poolId) })) }; else body = Object.assign(licMod.view(LIC, { regionOf }), { canEdit, regions: licMod.REGIONS, instTypes: licMod.INST_TYPES, access: acc }); }
@@ -682,17 +682,18 @@ const deleted = []; const writebacks = []; const digests = [];
     const k = await p.$eval("#stkpi", e => e.innerText); if (!/计费学校\s*2/.test(k)) throw new Error("kpi: " + k);
     await p.click('#sttable tr[data-domain="bes.qiaoliang.online"]'); await p.waitForTimeout(600);
     const pb = await p.$eval("#panel .pb", e => e.innerText);
-    if (!/期初账号\s*39/.test(pb) || !/新增账号 · 4/.test(pb) || !/删除账号 · 1/.test(pb) || !/\$15\.42/.test(pb)) throw new Error("panel: " + pb.slice(0, 600));
+    if (!/期初账号\s*39/.test(pb) || !/新增账号 · 4/.test(pb) || !/删除账号 · 1/.test(pb) || !/\$14\.17/.test(pb)) throw new Error("panel: " + pb.slice(0, 600));
     await p.fill("#stDisc", "10"); await p.waitForTimeout(100);
-    if (!/\$12\.50/.test(await p.$eval("#stAmt", e => e.innerText))) throw new Error("live amount: " + await p.$eval("#stAmt", e => e.innerText));
-    // The three figures (Rick, 2026-10-13): 服务年费 8, 免费账号 10, 折扣 25 % → (40 − 10) × 8 ÷ 12 = 20.00 × 0.75 = 15.00.
+    if (!/\$11\.25/.test(await p.$eval("#stAmt", e => e.innerText))) throw new Error("live amount: " + await p.$eval("#stAmt", e => e.innerText));
+    // The three figures (Rick, 2026-10-13): 服务年费 8, 免费账号 10, 折扣 25 % → (37 − 10) × 8 ÷ 12 = 18.00 × 0.75 = 13.50
+    // (37 = licensed on the 1st; the 4 accounts added in September are billed from October).
     await p.fill("#stPrice", "8"); await p.fill("#stPct", "25"); await p.waitForTimeout(100);
-    const live = await p.$eval("#stAmt", e => e.innerText); if (!/\$15\.00/.test(live)) throw new Error("live amount with price and pct: " + live);
+    const live = await p.$eval("#stAmt", e => e.innerText); if (!/\$13\.50/.test(live)) throw new Error("live amount with price and pct: " + live);
     if (!/1 − 25%/.test(await p.$eval("#stFormula", e => e.innerText))) throw new Error("formula: " + await p.$eval("#stFormula", e => e.innerText));
     await p.click("#stGen"); await p.waitForTimeout(600);
     if (stmPosts.length !== 1 || stmPosts[0].op !== "generate" || stmPosts[0].discount !== 10 || stmPosts[0].unitPriceYear !== 8 || stmPosts[0].discountPct !== 25) throw new Error("generate call: " + JSON.stringify(stmPosts));
     const pb2 = await p.$eval("#panel .pb", e => e.innerText);
-    if (!/STM-000007/.test(pb2) || !/草稿/.test(pb2) || !/\$15\.00/.test(pb2) || !(await p.$('#panel button[data-st="sent"]')) || !(await p.$("#stPrint"))) throw new Error("after generate: " + pb2.slice(0, 300));
+    if (!/STM-000007/.test(pb2) || !/草稿/.test(pb2) || !/\$13\.50/.test(pb2) || !(await p.$('#panel button[data-st="sent"]')) || !(await p.$("#stPrint"))) throw new Error("after generate: " + pb2.slice(0, 300));
     await p.click('#panel button[data-st="sent"]'); await p.waitForTimeout(500);
     if (stmPosts[1].op !== "status" || stmPosts[1].status !== "sent" || !/已发送/.test(await p.$eval("#panel .pb", e => e.innerText))) throw new Error("mark sent: " + JSON.stringify(stmPosts));
     const row = await p.$eval('#sttable tr[data-domain="bes.qiaoliang.online"]', e => e.innerText); if (!/已发送/.test(row)) throw new Error("table not refreshed: " + row);

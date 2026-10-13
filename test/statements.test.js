@@ -47,12 +47,12 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   assert.deepStrictEqual(c.counts, { start: { total: 4, licensed: 3, student: 2, faculty: 1, disabled: 0 }, end: { total: 5, licensed: 4, student: 2, faculty: 2, disabled: 1 }, added: 2, removed: 1 });
   assert.deepStrictEqual(c.added.map((x) => x.upn), [`eve@${D}`, `fay@${D}`]);
   assert.deepStrictEqual(c.removed.map((x) => [x.upn, x.removedAt]), [[`dee@${D}`, "2026-09-15T00:00:00Z"]], "the ledger gives the removal time");
-  assert.strictEqual(c.billable, 4, "licensed accounts on the next 1st (decision 1)");
+  assert.strictEqual(c.billable, 3, "licensed accounts on the 1st — ann, bob, dee; cal has no plan (Rick 2026-10-13: 月初许可证数量; eve and fay, added in September, are billed from October)");
   assert.strictEqual(c.discount, 2, "default discount from the relationship's terms");
-  assert.strictEqual(c.amount, Math.round((4 - 2) * 5 / 12 * 100) / 100); assert.strictEqual(c.currency, "USD");
+  assert.strictEqual(c.amount, Math.round((3 - 2) * 5 / 12 * 100) / 100); assert.strictEqual(c.currency, "USD");
   assert.deepStrictEqual(c.reconstructed, { start: false, end: false });
   c = await S.compute(D, "2026-09", { discount: 10 });
-  assert.strictEqual(c.discount, 4, "the discount never exceeds the billable count"); assert.strictEqual(c.amount, 0);
+  assert.strictEqual(c.discount, 3, "the discount never exceeds the billable count"); assert.strictEqual(c.amount, 0);
 
   // 2. No snapshot for the next month yet (viewed on the 2nd before the sync ran, say):
   //    the end is reconstructed from the current rows; the start from rows + ledger.
@@ -63,7 +63,8 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   assert.strictEqual(c.counts.start.total, 4, "ann, bob, cal (created before Sep) + dee from the ledger");
   assert.deepStrictEqual(c.removed.map((x) => x.upn), [`dee@${D}`]);
   assert.deepStrictEqual(c.added.map((x) => x.upn), [`eve@${D}`, `fay@${D}`]);
-  assert.strictEqual(c.amount, Math.round(4 * 5 / 12 * 100) / 100);
+  assert.strictEqual(c.billable, 3, "reconstructed start: the three licensed of ann, bob, cal, dee");
+  assert.strictEqual(c.amount, Math.round(3 * 5 / 12 * 100) / 100);
 
   // 3. No IT relationship: defaults (5 USD, no discount) and relationship null.
   blobs["crm/relationships.json"] = { next: 1, items: {} };
@@ -74,14 +75,14 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   // 4. Generate → draft with an id; regenerate replaces the draft (same id); sent/paid freeze it.
   let st = await S.generate(D, "2026-09", { discount: 1, note: "first" }, "fin@x");
   assert.strictEqual(st.id, "STM-000001"); assert.strictEqual(st.status, "draft"); assert.strictEqual(st.discount, 1); assert.strictEqual(st.unitPriceYear, 6);
-  assert.strictEqual(st.amount, Math.round(3 * 6 / 12 * 100) / 100);
+  assert.strictEqual(st.amount, Math.round((3 - 1) * 6 / 12 * 100) / 100);
   // Finance's three figures (Rick, 2026-10-13): price per account per year, free accounts, percentage off.
   st = await S.generate(D, "2026-09", { discount: 2, unitPriceYear: 8, discountPct: 25 }, "fin@x");
   assert.strictEqual(st.id, "STM-000001", "a draft keeps its id"); assert.strictEqual(st.discount, 2); assert.strictEqual(st.history.length, 2);
   assert.strictEqual(st.unitPriceYear, 8); assert.strictEqual(st.discountPct, 25);
-  assert.strictEqual(st.subtotal, Math.round(2 * 8 / 12 * 100) / 100); assert.strictEqual(st.amount, Math.round(st.subtotal * 0.75 * 100) / 100);
+  assert.strictEqual(st.subtotal, Math.round((3 - 2) * 8 / 12 * 100) / 100); assert.strictEqual(st.amount, Math.round(st.subtotal * 0.75 * 100) / 100);
   c = await S.compute(D, "2026-09", { discountPct: 150, discount: 99, unitPriceYear: -3 });
-  assert.deepStrictEqual([c.discountPct, c.discount, c.unitPriceYear, c.amount], [100, 4, 0, 0], "figures are clamped: 0–100 %, at most the billable accounts, price ≥ 0");
+  assert.deepStrictEqual([c.discountPct, c.discount, c.unitPriceYear, c.amount], [100, 3, 0, 0], "figures are clamped: 0–100 %, at most the billable accounts, price ≥ 0");
   c = await S.compute(D, "2026-09", { unitPriceYear: 0 });
   assert.strictEqual(c.unitPriceYear, 0, "an explicit 0 price is 0, not the default");
   st = await S.setStatus(D, "2026-09", "sent", "fin@x", "");
@@ -100,7 +101,7 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   let list = await S.listMonth("2026-09", ["b.edu", D], { [D]: { name: "示例学校" } });
   assert.deepStrictEqual(list.rows.map((r) => [r.domain, r.saved, r.relationship]), [[D, true, "REL-000001"], ["b.edu", false, null]]);
   assert.strictEqual(list.rows[0].name, "示例学校"); assert.strictEqual(list.rows[0].status, "paid");
-  assert.strictEqual(list.totals.billable, 4, "only schools with an IT relationship count");
+  assert.strictEqual(list.totals.billable, 3, "only schools with an IT relationship count");
   list = await S.listMonth("2026-10", [D], {});
   assert.strictEqual(list.rows[0].saved, false); assert.deepStrictEqual([list.rows[0].discount, list.rows[0].unitPriceYear, list.rows[0].discountPct], [2, 8, 25], "a preview defaults to last month's figures");
   assert.deepStrictEqual(S.prevOpts(null), {});

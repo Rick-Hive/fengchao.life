@@ -8,7 +8,10 @@
 // snapshots (taken by the first sync on or after the 1st); a day without a snapshot is
 // reconstructed from the current rows, their created dates and the removal ledger, and
 // the statement says so. Billable = the licensed accounts (an A1 plan) on the school's
-// own domain on the last day (decision 1). Finance sets three figures before generating
+// own domain on the 1st of the month (Rick, 2026-10-13: 「账单按照月初许可证的数量计算
+// 费用。本月新增的用户，从下个月开始收费」): an account added during the month is first
+// billed next month, when it is in that month's opening snapshot; one removed during the
+// month is still billed for it. Finance sets three figures before generating
 // (Rick, 2026-10-13: 「让我输入服务年费，折扣和免费账户数，然后再生成账单」):
 //   unitPriceYear — the price per account per year (服务年费)
 //   discount      — free accounts, not billed (免费账号数; the field keeps its first name)
@@ -86,7 +89,7 @@ async function compute(domain, month, opts) {
   const rawPrice = pick(o.unitPriceYear, terms.unitPriceYear);
   const unitPriceYear = rawPrice === undefined ? DEFAULT_PRICE : Math.max(0, Number(rawPrice) || 0);
   const currency = String(o.currency || terms.currency || DEFAULT_CURRENCY).toUpperCase();
-  const billable = a1.accounts.filter(licensed).length;
+  const billable = a0.accounts.filter(licensed).length;
   const discount = Math.max(0, Math.min(billable, Math.round(Number(pick(o.discount, terms.discountSeats)) || 0)));
   const discountPct = Math.max(0, Math.min(100, Math.round((Number(pick(o.discountPct, terms.discountPct)) || 0) * 100) / 100));
   const subtotal = Math.round(((billable - discount) * unitPriceYear) / 12 * 100) / 100;

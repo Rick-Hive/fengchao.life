@@ -38,7 +38,7 @@
     var gen = billed.filter(function (r) { return r.saved; }).length, sent = billed.filter(function (r) { return r.status === "sent" || r.status === "paid"; }).length, paid = billed.filter(function (r) { return r.status === "paid"; }).length;
     var cur = (billed[0] && billed[0].currency) || d.currency || "USD";
     $("stkpi").innerHTML = statTile(t("计费学校", "Schools billed"), fmtNum(billed.length), { sub: t("有 IT 服务合作关系的学校", "schools with an IT relationship") }) +
-      statTile(t("可计费账号", "Billable accounts"), fmtNum(d.totals.billable), { sub: t("期末有 A1 许可证", "licensed on the next 1st") }) +
+      statTile(t("可计费账号", "Billable accounts"), fmtNum(d.totals.billable), { sub: t("月初有 A1 许可证", "licensed on the 1st") }) +
       statTile(t("本月合计", "Month total"), stmMoney(d.totals.amount, cur), { sub: t("扣减后", "after discounts") }) +
       statTile(t("账单进度", "Progress"), gen + " / " + billed.length, { sub: t("已生成 · 已发送 ", "generated · sent ") + sent + t(" · 已收款 ", " · paid ") + paid });
     var num = function (v) { return '<td class="num">' + (v == null ? '<span class="muted">—</span>' : fmtNum(v)) + "</td>"; };
@@ -89,7 +89,7 @@
       "</div>" +
       (recon ? '<div class="msg err">' + t("该月没有完整的 1 号快照（" + (s.reconstructed.start ? "期初" : "") + (s.reconstructed.start && s.reconstructed.end ? "、" : "") + (s.reconstructed.end ? "期末" : "") + "），账号数按当前账号的创建日期和删除记录推算。从下个月起夜间同步会在 1 号保存快照。", "No complete snapshot for the 1st (" + [s.reconstructed.start ? "start" : "", s.reconstructed.end ? "end" : ""].filter(Boolean).join(", ") + "): counts are reconstructed from the current accounts' created dates and the removal ledger. From next month the nightly sync saves a snapshot on the 1st.") + "</div>" : "") +
       "<h4>" + t("金额", "Amount") + "</h4>" +
-      '<div class="kv"><span class="k">' + t("可计费账号", "Billable") + "</span><span><b>" + fmtNum(s.billable) + "</b> " + t("（期末有 A1 许可证）", "(licensed on the next 1st)") + "</span>" +
+      '<div class="kv"><span class="k">' + t("可计费账号", "Billable") + "</span><span><b>" + fmtNum(s.billable) + "</b> " + t("（月初有 A1 许可证；本月新增的账号从下个月起计费）", "(licensed on the 1st; accounts added this month are billed from next month)") + "</span>" +
         '<span class="k">' + t("服务年费", "Yearly price") + "</span><span>" + (editable ? '<input type="number" id="stPrice" min="0" step="0.01" value="' + esc(s.unitPriceYear) + '" style="width:90px" /> <span class="muted">' + esc(cur) + t(" / 账号 / 年", " per account per year") + "</span>" : stmMoney(s.unitPriceYear, cur) + t(" / 账号 / 年", " per account per year")) + "</span>" +
         '<span class="k">' + t("免费账号", "Free accounts") + "</span><span>" + (editable ? '<input type="number" id="stDisc" min="0" max="' + s.billable + '" step="1" value="' + esc(s.discount) + '" style="width:90px" /> <span class="muted">' + t("不计费的账号数", "accounts not billed") + "</span>" : fmtNum(s.discount)) + "</span>" +
         '<span class="k">' + t("折扣", "Discount") + "</span><span>" + (editable ? '<input type="number" id="stPct" min="0" max="100" step="0.5" value="' + esc(s.discountPct || 0) + '" style="width:90px" /> <span class="muted">%</span>' : fmtNum(s.discountPct || 0) + " %") + "</span>" +
@@ -149,16 +149,18 @@
       '<div class="box"><div><b>' + esc(school) + "</b> · " + esc(s.domain) + "</div><div>" + t("计费期间：", "Period: ") + esc(s.period.start) + " → " + esc(s.period.end) + t("（北京时间）", " (Beijing time)") + "</div></div>" +
       "<h2>" + t("账号与金额", "Accounts and amount") + "</h2><table><tr><th>" + t("项目", "Item") + '</th><th class="num">' + t("数量", "Count") + "</th></tr>" +
       "<tr><td>" + t("期初账号（" + s.period.start + "）", "Accounts on " + s.period.start) + '</td><td class="num">' + fmtNum(s.counts.start.total) + "</td></tr>" +
-      "<tr><td>" + t("新增账号", "Accounts added") + '</td><td class="num">+' + fmtNum(s.counts.added) + "</td></tr>" +
-      "<tr><td>" + t("删除账号", "Accounts removed") + '</td><td class="num">−' + fmtNum(s.counts.removed) + "</td></tr>" +
-      "<tr><td>" + t("期末账号（" + s.period.end + "）", "Accounts on " + s.period.end) + '</td><td class="num">' + fmtNum(s.counts.end.total) + "</td></tr>" +
       "<tr><td>" + t("其中有 Office 365 A1 许可证（可计费）", "of which licensed with Office 365 A1 (billable)") + '</td><td class="num">' + fmtNum(s.billable) + "</td></tr>" +
+      "<tr><td>" + t("本月新增账号（从下个月起计费）", "Accounts added this month (billed from next month)") + '</td><td class="num">+' + fmtNum(s.counts.added) + "</td></tr>" +
+      "<tr><td>" + t("本月删除账号", "Accounts removed this month") + '</td><td class="num">−' + fmtNum(s.counts.removed) + "</td></tr>" +
+      "<tr><td>" + t("期末账号（" + s.period.end + "）", "Accounts on " + s.period.end) + '</td><td class="num">' + fmtNum(s.counts.end.total) + "</td></tr>" +
       "<tr><td>" + t("免费账号", "Free accounts (not billed)") + '</td><td class="num">−' + fmtNum(s.discount) + "</td></tr>" +
       "<tr><td>" + t("计费账号", "Accounts billed") + '</td><td class="num">' + fmtNum(s.billable - s.discount) + "</td></tr>" +
       "<tr><td>" + t("服务年费", "Yearly price") + '</td><td class="num">' + stmMoney(s.unitPriceYear, cur) + t(" / 账号 / 年（÷ 12）", " per account per year (÷ 12)") + "</td></tr>" +
       "<tr><td>" + t("小计", "Subtotal") + '</td><td class="num">' + stmMoney(s.subtotal != null ? s.subtotal : s.amount, cur) + "</td></tr>" +
       (s.discountPct ? "<tr><td>" + t("折扣", "Discount") + '</td><td class="num">−' + s.discountPct + " %</td></tr>" : "") +
       '<tr class="total"><td>' + t("本月应收", "Amount due") + '</td><td class="num">' + stmMoney(s.amount, cur) + "</td></tr></table>" +
+      // Billing rule on the statement itself (Rick, 2026-10-13: 「在生成的账单PDF文档中注明这一点」).
+      '<p class="muted" style="margin-top:8px">' + t("计费说明：本月费用按 " + s.period.start + "（月初）持有 Office 365 A1 许可证的账号数计算。本月新增的账号从下个月开始收费；本月删除的账号本月仍计费。", "Billing rule: this month's charge is based on the accounts holding an Office 365 A1 licence on " + s.period.start + " (the start of the month). Accounts added during the month are billed from next month; accounts removed during the month are still billed for this month.") + "</p>" +
       (s.note ? '<p class="muted">' + esc(s.note) + "</p>" : "") +
       "<h2>" + t("新增账号明细", "Accounts added") + " (" + s.added.length + ")</h2>" + (s.added.length ? "<table><tr><th>" + t("姓名", "Name") + "</th><th>" + t("账号", "Account") + "</th><th>" + t("许可证", "Licence") + "</th><th>" + t("创建日期", "Created") + "</th></tr>" + s.added.map(function (a) { return row(a, "created"); }).join("") + "</table>" : '<p class="muted">' + t("无", "None") + "</p>") +
       "<h2>" + t("删除账号明细", "Accounts removed") + " (" + s.removed.length + ")</h2>" + (s.removed.length ? "<table><tr><th>" + t("姓名", "Name") + "</th><th>" + t("账号", "Account") + "</th><th>" + t("许可证", "Licence") + "</th><th>" + t("删除日期", "Removed") + "</th></tr>" + s.removed.map(function (a) { return row(a, "removedAt"); }).join("") + "</table>" : '<p class="muted">' + t("无", "None") + "</p>") +
