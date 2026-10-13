@@ -5,11 +5,11 @@
   // ================================================================================
   // 经营 › 对账单 — one month, every school: the accounts on the 1st and the next 1st,
   // who came and went, licensed × (price ÷ 12) minus the discount finance enters
-  // (Rick, 2026-10-12). Rows are previews until 生成账单 saves a draft; then
+  // (Rick, 2026-10-12). Rows are previews until 生成账单 saves the statement (status draft, shown as 待发送); then
   // draft → sent → paid. The statement prints from the panel (打印 / PDF).
   // ================================================================================
   var stmState = { month: "", data: null, open: null };
-  var STM_ST = { draft: ["草稿", "Draft", "warn"], sent: ["已发送", "Sent", "accent"], paid: ["已收款", "Paid", "ok"] };
+  var STM_ST = { draft: ["待发送", "Ready to send", "warn"], sent: ["已发送", "Sent", "accent"], paid: ["已收款", "Paid", "ok"] };
   function stmMoney(v, cur) { if (v == null) return "—"; var n = Number(v).toLocaleString(EN ? "en-US" : "zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (cur === "CNY" ? "¥" : cur === "USD" ? "$" : (cur || "") + " ") + n; }
   function stmMonthLabel(m) { if (!m) return ""; var p = m.split("-"); return EN ? ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][+p[1] - 1] + " " + p[0] : p[0] + " 年 " + (+p[1]) + " 月"; }
   function stmStatusTag(st) { if (!st) return '<span class="tag muted">' + t("未生成", "Not generated") + "</span>"; var d = STM_ST[st] || [st, st, ""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
@@ -18,7 +18,7 @@
     if (!stmState.month) { var d = new Date(Date.now() + 8 * 3600 * 1000); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() - 1); stmState.month = d.toISOString().slice(0, 7); }
     setTitle(t("经营 › 对账单", "Operations › Statements"), t("IT 服务月度账单", "Monthly IT statements"),
       '<input type="month" id="stMonth" class="sm" value="' + esc(stmState.month) + '" /> <button class="btn secondary sm" id="stCsv">' + t("导出 CSV", "Export CSV") + '</button> <button class="btn secondary sm" id="stReload">' + t("刷新", "Refresh") + "</button>",
-      { info: t("每所学校一个月一张账单：账号数取该月 1 号和下月 1 号的目录快照（夜间同步在 1 号凌晨保存），可计费 = 有 A1 许可证的账号；金额 = (可计费 − 免费账号) × 服务年费 ÷ 12 × (1 − 折扣)。生成前可以填三项：服务年费（每账号每年）、免费账号数、折扣 %；默认沿用该校上月账单，没有则取 IT 服务合作关系的条款（默认 5 美元、0、0）。先看预览，填好数字，点「生成账单」保存为草稿；发送和收款由财务手工标记。明细列出当月新增和删除的账号。下方「期间账单」可以选起始月份和截止月份，把几个月合成一张账单（逐月明细，三项数字统一应用）。", "One statement per school per month: the accounts on the 1st and on the next 1st come from the directory's monthly snapshots (saved by the nightly sync in the small hours of the 1st); billable = accounts holding an A1 licence; amount = (billable − free accounts) × price per account per year ÷ 12 × (1 − discount %). Before generating, finance sets three figures: the yearly price per account, the free accounts and a percentage off; they default to the school's previous statement, else to the IT relationship's terms (USD 5, 0, 0). Review the preview, set the figures, press Generate to save a draft; sending and payment are marked by finance by hand. The detail lists the accounts added and removed in the month. Period statements below combine a span of months into one statement (month-by-month detail, the same three figures for every month).") });
+      { info: t("每所学校一个月一张账单：期初和期末账号数取该月 1 号和下月 1 号的目录快照（夜间同步在 1 号凌晨保存），可计费 = 当月 1 号有 A1 许可证的账号，当月新增的账号从下个月开始收费；金额 = (可计费 − 免费账号) × 服务年费 ÷ 12 × (1 − 折扣)。生成前可以填三项：服务年费（每账号每年）、免费账号数、折扣 %；默认沿用该校上月账单，没有则取 IT 服务合作关系的条款（默认 5 美元、0、0）。先看预览，填好数字，点「生成账单」，状态是「待发送」（已生成、还没发给学校，可以修改后重新生成）；发给学校后点「标为已发送」，收款后点「标为已收款」，都由财务手工标记。明细列出当月新增和删除的账号。下方「期间账单」可以选起始月份和截止月份，把几个月合成一张账单（逐月明细，三项数字统一应用）。", "One statement per school per month: the accounts on the 1st and on the next 1st come from the directory's monthly snapshots (saved by the nightly sync in the small hours of the 1st); billable = accounts holding an A1 licence on the 1st of the month (accounts added during the month are billed from the next); amount = (billable − free accounts) × price per account per year ÷ 12 × (1 − discount %). Before generating, finance sets three figures: the yearly price per account, the free accounts and a percentage off; they default to the school's previous statement, else to the IT relationship's terms (USD 5, 0, 0). Review the preview, set the figures, press Generate — the status is “Ready to send” (generated, not yet sent to the school; it can be edited and regenerated); after sending it to the school finance presses Mark sent, and Mark paid once the payment arrives. The detail lists the accounts added and removed in the month. Period statements below combine a span of months into one statement (month-by-month detail, the same three figures for every month).") });
     $("content").innerHTML = '<div class="kpis strip" id="stkpi"></div><div class="tbl-wrap"><table class="data" id="sttable"><thead><tr><th>' + t("学校", "School") + '</th><th class="num">' + t("期初", "Start") + '</th><th class="num">' + t("期末", "End") + '</th><th class="num">' + t("新增", "Added") + '</th><th class="num">' + t("删除", "Removed") + '</th><th class="num">' + t("可计费", "Billable") + '</th><th class="num">' + t("免费", "Free") + '</th><th class="num">' + t("金额", "Amount") + "</th><th>" + t("状态", "Status") + '</th></tr></thead><tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + '</td></tr></tbody></table></div><p class="muted" id="stfoot" style="font-size:.8rem"></p>' +
       // Period statements (Rick 2026-10-13): pick a school and a span of months → one statement with the month-by-month detail.
       '<div class="card" id="stPeriod" style="margin-top:18px"><div class="ch"><h2>' + t("期间账单", "Period statements") + ' <span class="n">' + t("起始月份到截止月份合成一张账单，逐月列出账号数、金额和新增 / 删除账号", "one statement from a start month to an end month, with every month's counts, amount and added / removed accounts") + '</span></h2></div>' +
@@ -137,7 +137,7 @@
         (editable ? '<button class="btn" type="button" id="stGen">' + (saved ? t("重新生成账单", "Regenerate statement") : t("生成账单", "Generate statement")) + "</button>" : "") +
         (saved ? '<button class="btn secondary" type="button" id="stPrint">' + t("打印 / PDF", "Print / PDF") + "</button>" : "") +
         (canEdit && saved && s.status === "draft" ? '<button class="btn secondary" type="button" data-st="sent">' + t("标为已发送", "Mark sent") + "</button>" : "") +
-        (canEdit && saved && s.status === "sent" ? '<button class="btn secondary" type="button" data-st="paid">' + t("标为已收款", "Mark paid") + '</button><button class="btn secondary" type="button" data-st="draft">' + t("退回草稿", "Back to draft") + "</button>" : "") +
+        (canEdit && saved && s.status === "sent" ? '<button class="btn secondary" type="button" data-st="paid">' + t("标为已收款", "Mark paid") + '</button><button class="btn secondary" type="button" data-st="draft">' + t("退回待发送", "Back to ready to send") + "</button>" : "") +
         (canEdit && saved && s.status === "paid" ? '<button class="btn secondary" type="button" data-st="sent">' + t("撤销收款", "Undo paid") + "</button>" : "") +
       '</div><div id="stMsg"></div>' +
       (saved ? '<p class="muted" style="font-size:12px">' + t("生成于 ", "Generated ") + esc(when(s.generatedAt)) + (s.sentAt ? t(" · 发送于 ", " · sent ") + esc(when(s.sentAt)) : "") + (s.paidAt ? t(" · 收款于 ", " · paid ") + esc(when(s.paidAt)) : "") + "</p>" : "") +
@@ -178,7 +178,7 @@
         post("crm/statement", "POST", Object.assign({ op: "generate", domain: s.domain, note: $("stNote") ? $("stNote").value.trim() : "" }, stmKeyBody(s), figures())).then(function (r) {
           if (!r.ok) { restoreButton(b); $("stMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
           renderStatementPanel(r.body.statement, true, true); loadStatements().then(renderStatements);
-          flash(t("账单 ", "Statement ") + esc(r.body.statement.id) + t(" 已保存为草稿。", " saved as a draft."), 4000);
+          flash(t("账单 ", "Statement ") + esc(r.body.statement.id) + t(" 已生成，状态：待发送。", " generated; status: ready to send."), 4000);
         });
         return;
       }
