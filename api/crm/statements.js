@@ -1,12 +1,15 @@
 // /api/crm/{statements|statement} — IT service statements (api/shared/statements.js).
 // Split out of index.js like partners.js; handle() returns true when it answered.
 //
-//   GET  crm/statements?month=YYYY-MM          every school for that month: saved statement or live preview
+//   GET  crm/statements?month=YYYY-MM          every school for that month: saved statement or live preview,
+//                                               plus `periods`: every saved period statement (summaries)
 //   GET  crm/statement?domain=&month=[&price=&discount=&pct=]   one statement in full (saved), or the live
 //                                               preview (saved:false) with the figures finance is trying
 //   POST crm/statement {op:"generate", domain, month, unitPriceYear, discount, discountPct, note}
 //                                               → draft (a draft is replaced)
 //   POST crm/statement {op:"status", domain, month, status: draft|sent|paid, note}
+//   Period statements (Rick 2026-10-13): the same calls with `from` and `to` (YYYY-MM, from < to,
+//   ≤ 24 months) in place of `month` — one statement covering those months, own id and status.
 //
 // Who: finance (money rw) and the system administrator generate and mark; anyone with
 // money ≥ read or partners ≥ read (CEO, partnership, community …) reads. Schools' own
@@ -53,15 +56,18 @@ async function handle(context, req, ctx) {
   if (action === "statements" && method === "GET") {
     const month = S.monthOk(q.month) ? q.month : S.defaultMonth();
     const [domains, names] = await Promise.all([domainsToBill(), schoolNames()]);
-    const out = await S.listMonth(month, domains, names);
-    ok(context, Object.assign(out, { canEdit: canEdit(roles), defaultMonth: S.defaultMonth(), price: S.DEFAULT_PRICE, currency: S.DEFAULT_CURRENCY }));
+    const [out, periods] = await Promise.all([S.listMonth(month, domains, names), S.listPeriods()]);
+    ok(context, Object.assign(out, { periods: periods.map((p) => Object.assign({ name: (names[p.domain] || {}).name || "", nameEn: (names[p.domain] || {}).nameEn || "" }, p)), canEdit: canEdit(roles), defaultMonth: S.defaultMonth(), price: S.DEFAULT_PRICE, currency: S.DEFAULT_CURRENCY }));
     return true;
   }
 
   const domain = String(q.domain || body.domain || "").trim().toLowerCase();
-  const month = String(q.month || body.month || "").trim();
+  // `month`, or a period `from`…`to` (its key is from_to; from === to is the month itself).
+  const from = String(q.from || body.from || "").trim(), to = String(q.to || body.to || "").trim();
+  const month = from || to ? (S.monthOk(from) && S.monthOk(to) ? S.periodKey(from, to) : "") : String(q.month || body.month || "").trim();
   if (!dir.DOMAIN_RE.test(domain)) { fail(context, 400, "domain missing or malformed"); return true; }
-  if (!S.monthOk(month)) { fail(context, 400, "month must be YYYY-MM"); return true; }
+  if (!S.keyOk(month)) { fail(context, 400, from || to ? `from and to must be YYYY-MM with from before to, at most ${S.MAX_PERIOD_MONTHS} months` : "month must be YYYY-MM"); return true; }
+  const span = S.parseKey(month);
   const names = await schoolNames();
   const school = { domain, name: (names[domain] && names[domain].name) || "", nameEn: (names[domain] && names[domain].nameEn) || "" };
 
@@ -69,10 +75,11 @@ async function handle(context, req, ctx) {
     const saved = await S.readStatement(domain, month);
     if (saved) { ok(context, { statement: Object.assign({ school }, saved, { school: saved.school || school }), saved: true, canEdit: canEdit(roles) }); return true; }
     const ix = await S.readIndex();
-    const prev = (ix.items || {})[`${domain}|${S.prevMonth(month)}`];
+    // Defaults: the school's statement for the month before (a period starts from the month before its first month).
+    const prev = (ix.items || {})[`${domain}|${S.prevMonth(span.from)}`];
     const tried = figures(q);
     if (tried.error) { fail(context, 400, tried.error); return true; }
-    const preview = await S.compute(domain, month, Object.assign(S.prevOpts(prev), tried.opts));
+    const preview = await S.computeKey(domain, month, Object.assign(S.prevOpts(prev), tried.opts));
     ok(context, { statement: Object.assign({ school, status: null }, preview), saved: false, canEdit: canEdit(roles) });
     return true;
   }

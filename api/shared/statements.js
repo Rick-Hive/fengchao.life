@@ -24,6 +24,14 @@
 // Storage: crm/statements/<domain>/<YYYY-MM>.json, ids STM-nnnnnn minted in
 // crm/statements/_index.json, which also keeps the listing's summary per statement.
 // Status: draft → sent → paid (finance marks by hand; nothing is sent automatically).
+//
+// Period statements (Rick, 2026-10-13: 「账单能否做成可选：起始月份，截止月份，生成这段时间
+// 内的账单明细」): one statement for several consecutive months, keyed `<from>_<to>`
+// (blob crm/statements/<domain>/<from>_<to>.json, index key `<domain>|<from>_<to>`). Each
+// month inside is computed exactly like a monthly statement (its own opening snapshot,
+// additions, removals) with the same three figures applied to every month; the statement
+// carries the per-month rows and the totals. It has its own id and status, independent of
+// any monthly statements of the same months. `key` below is a month or such a period key.
 const dir = require("./directory");
 const store = require("./jsonstore");
 const P = require("./partners");
@@ -34,6 +42,8 @@ const DEFAULT_PRICE = 5;
 const DEFAULT_CURRENCY = "USD";
 const STATUSES = ["draft", "sent", "paid"];
 
+const MAX_PERIOD_MONTHS = 24;
+
 const pad = (n) => "STM-" + String(n).padStart(6, "0");
 const key = (domain, month) => `${domain}|${month}`;
 const blobOf = (domain, month) => `crm/statements/${domain}/${month}.json`;
@@ -41,6 +51,19 @@ const blobOf = (domain, month) => `crm/statements/${domain}/${month}.json`;
 function monthOk(m) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m || "")); }
 function nextMonth(m) { const [y, mo] = m.split("-").map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`; }
 function prevMonth(m) { const [y, mo] = m.split("-").map(Number); return mo === 1 ? `${y - 1}-12` : `${y}-${String(mo - 1).padStart(2, "0")}`; }
+// Period keys: `<from>_<to>`, from < to, at most MAX_PERIOD_MONTHS months. from === to is
+// just the month.
+function periodKey(from, to) { return from === to ? from : `${from}_${to}`; }
+function parseKey(k) {
+  const s = String(k || "");
+  if (monthOk(s)) return { month: s, from: s, to: s, period: false };
+  const m = /^(\d{4}-\d{2})_(\d{4}-\d{2})$/.exec(s);
+  if (!m || !monthOk(m[1]) || !monthOk(m[2]) || m[1] >= m[2]) return null;
+  if (monthsBetween(m[1], m[2]).length > MAX_PERIOD_MONTHS) return null;
+  return { month: null, from: m[1], to: m[2], period: true };
+}
+function keyOk(k) { return !!parseKey(k); }
+function monthsBetween(from, to) { const out = []; for (let m = from; m <= to && out.length <= MAX_PERIOD_MONTHS; m = nextMonth(m)) out.push(m); return out; }
 // The month a statement is normally viewed for: the one before the current Beijing month.
 function defaultMonth(now) { return prevMonth(dir.beijingDate(now).slice(0, 7)); }
 // Beijing midnight of the 1st, as an ISO instant, for comparing created / removed times.
@@ -107,19 +130,60 @@ async function compute(domain, month, opts) {
   };
 }
 
+// Several consecutive months as one statement: every month computed like a monthly
+// statement with the same figures (the free-account figure is capped per month), then
+// summed. The month rows keep their own added / removed lists for the detail.
+async function computePeriod(domain, from, to, opts) {
+  const o = opts || {};
+  const rels = o.rels || (await P.readRels());
+  const months = [];
+  for (const m of monthsBetween(from, to)) months.push(await compute(domain, m, Object.assign({}, o, { rels })));
+  const first = months[0], last = months[months.length - 1];
+  const sum = (f) => Math.round(months.reduce((s, m) => s + (f(m) || 0), 0) * 100) / 100;
+  const maxBillable = Math.max(0, ...months.map((m) => m.billable));
+  const pickNum = (v) => (v === undefined || v === null || v === "" ? undefined : Number(v));
+  // The figures as set (not the per-month capped ones), so the panel's inputs show what finance typed.
+  const discount = Math.max(0, Math.min(maxBillable, Math.round(pickNum(o.discount) ?? first.discount)));
+  return {
+    domain, from, to, period: { start: `${from}-01`, end: `${nextMonth(to)}-01` }, months: months.length,
+    relationship: first.relationship,
+    counts: { start: first.counts.start, end: last.counts.end, added: months.reduce((s, m) => s + m.counts.added, 0), removed: months.reduce((s, m) => s + m.counts.removed, 0) },
+    billable: maxBillable, billableMonths: months.reduce((s, m) => s + m.billable, 0),
+    discount, discountPct: first.discountPct, unitPriceYear: first.unitPriceYear, currency: first.currency,
+    subtotal: sum((m) => m.subtotal), amount: sum((m) => m.amount),
+    rows: months.map((m) => ({ month: m.month, period: m.period, counts: m.counts, billable: m.billable, discount: m.discount, subtotal: m.subtotal, amount: m.amount, added: m.added, removed: m.removed, snapshots: m.snapshots, reconstructed: m.reconstructed })),
+    added: [].concat(...months.map((m) => m.added)), removed: [].concat(...months.map((m) => m.removed)),
+    snapshots: { start: first.snapshots.start, end: last.snapshots.end },
+    reconstructed: { start: months.some((m) => m.reconstructed.start), end: months.some((m) => m.reconstructed.end) },
+    synced: first.synced,
+  };
+}
+// A month or a period, by key.
+async function computeKey(domain, k, opts) {
+  const p = parseKey(k);
+  if (!p) throw Object.assign(new Error("month must be YYYY-MM, a period YYYY-MM_YYYY-MM"), { status: 400 });
+  return p.period ? computePeriod(domain, p.from, p.to, opts) : compute(domain, p.month, opts);
+}
+
 async function readIndex() { return store.read(INDEX, EMPTY_INDEX()); }
 // The figures to carry over from a school's previous statement (index summary or full doc).
 function prevOpts(prev) { return prev ? { discount: prev.discount, discountPct: prev.discountPct, unitPriceYear: prev.unitPriceYear } : {}; }
 async function readStatement(domain, month) { return store.read(blobOf(domain, month), null); }
+// The saved period statements (index summaries), newest first; `domain` narrows.
+async function listPeriods(domain) {
+  const ix = await readIndex();
+  return Object.values(ix.items || {}).filter((s) => s && s.from && s.to && (!domain || s.domain === domain)).sort((a, b) => String(b.from).localeCompare(a.from) || String(b.to).localeCompare(a.to) || String(a.domain).localeCompare(b.domain));
+}
 
 // Save a computed statement as a draft (a draft is replaced; sent / paid are kept).
+// `month` is a month or a period key.
 async function generate(domain, month, opts, by) {
   const existing = await readStatement(domain, month);
   if (existing && existing.status !== "draft") throw Object.assign(new Error(`statement ${existing.id} is ${existing.status}; set it back to draft first`), { code: "not_draft", status: 409 });
-  const c = await compute(domain, month, opts);
+  const c = await computeKey(domain, month, opts);
   const at = new Date().toISOString();
   let id = existing && existing.id;
-  const summary = (st) => ({ id: st.id, domain, month, status: st.status, amount: st.amount, currency: st.currency, billable: st.billable, discount: st.discount, discountPct: st.discountPct, unitPriceYear: st.unitPriceYear, generatedAt: st.generatedAt, updatedAt: st.updatedAt });
+  const summary = (st) => Object.assign({ id: st.id, domain, month, status: st.status, amount: st.amount, currency: st.currency, billable: st.billable, discount: st.discount, discountPct: st.discountPct, unitPriceYear: st.unitPriceYear, generatedAt: st.generatedAt, updatedAt: st.updatedAt }, st.from ? { from: st.from, to: st.to, months: st.months } : {});
   const stm = Object.assign(c, {
     id: id || null, status: "draft", generatedAt: at, updatedAt: at, by, note: String((opts && opts.note) || "").slice(0, 500),
     school: (opts && opts.school) || null,
@@ -169,4 +233,4 @@ async function listMonth(month, domains, names) {
   return { month, period: { start: `${month}-01`, end: `${nextMonth(month)}-01` }, rows, totals: { amount: Math.round(rows.filter((r) => r.relationship && r.amount != null).reduce((s, r) => s + r.amount, 0) * 100) / 100, billable: rows.filter((r) => r.relationship).reduce((s, r) => s + (r.billable || 0), 0) } };
 }
 
-module.exports = { compute, generate, setStatus, readStatement, readIndex, prevOpts, listMonth, monthOk, nextMonth, prevMonth, defaultMonth, itRelationshipOf, STATUSES, DEFAULT_PRICE, DEFAULT_CURRENCY, INDEX };
+module.exports = { compute, computePeriod, computeKey, generate, setStatus, readStatement, readIndex, listPeriods, prevOpts, listMonth, monthOk, keyOk, parseKey, periodKey, monthsBetween, nextMonth, prevMonth, defaultMonth, itRelationshipOf, STATUSES, DEFAULT_PRICE, DEFAULT_CURRENCY, MAX_PERIOD_MONTHS, INDEX };

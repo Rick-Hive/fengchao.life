@@ -106,6 +106,37 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   assert.strictEqual(list.rows[0].saved, false); assert.deepStrictEqual([list.rows[0].discount, list.rows[0].unitPriceYear, list.rows[0].discountPct], [2, 8, 25], "a preview defaults to last month's figures");
   assert.deepStrictEqual(S.prevOpts(null), {});
 
+  // 5b. Period statements (Rick 2026-10-13: 起始月份、截止月份): Aug–Sep as one statement.
+  //     Keys: a month, or from_to with from < to and at most 24 months.
+  assert.deepStrictEqual(S.parseKey("2026-08_2026-09"), { month: null, from: "2026-08", to: "2026-09", period: true });
+  assert.strictEqual(S.parseKey("2026-09_2026-08"), null, "from must be before to"); assert.strictEqual(S.parseKey("2024-01_2026-09"), null, "at most 24 months");
+  assert.strictEqual(S.periodKey("2026-09", "2026-09"), "2026-09", "from === to is the month"); assert.ok(S.keyOk("2026-09") && !S.keyOk("2026-9"));
+  assert.deepStrictEqual(S.monthsBetween("2026-11", "2027-01"), ["2026-11", "2026-12", "2027-01"]);
+  // The a.edu rows now: ann (Jan), bob (Feb), cal (Feb, no plan), eve (Sep 10), fay (Sep 20, disabled); dee removed 15 Sep.
+  // No August or September snapshot any more (deleted in step 2): both months reconstructed.
+  // Aug: ann, bob, cal, dee on 1 Aug → 3 licensed; Sep: the same 4 on 1 Sep → 3 licensed; Oct snapshot gone too.
+  let per = await S.computePeriod(D, "2026-08", "2026-09", { discount: 1, unitPriceYear: 12, discountPct: 50 });
+  assert.deepStrictEqual([per.from, per.to, per.months, per.period], ["2026-08", "2026-09", 2, { start: "2026-08-01", end: "2026-10-01" }]);
+  assert.deepStrictEqual(per.rows.map((r) => [r.month, r.billable, r.discount, r.amount]), [["2026-08", 3, 1, 1], ["2026-09", 3, 1, 1]], "each month: (3 − 1) × 12 ÷ 12 × 0.5 = 1.00");
+  assert.deepStrictEqual([per.billable, per.billableMonths, per.subtotal, per.amount, per.discount, per.discountPct, per.unitPriceYear], [3, 6, 4, 2, 1, 50, 12]);
+  assert.deepStrictEqual(per.rows.map((r) => r.added.map((a) => a.upn)), [[], [`eve@${D}`, `fay@${D}`]], "each month keeps its own additions");
+  assert.deepStrictEqual(per.rows.map((r) => r.removed.map((a) => a.upn)), [[], [`dee@${D}`]]);
+  assert.deepStrictEqual([per.counts.start.total, per.counts.end.total, per.counts.added, per.counts.removed], [4, 5, 2, 1]);
+  assert.strictEqual(per.reconstructed.start, true);
+  per = await S.computePeriod(D, "2026-08", "2026-09", { discount: 99 });
+  assert.strictEqual(per.discount, 3, "free accounts capped at the largest monthly count");
+  // Saved as its own statement, beside the monthly one for September.
+  st = await S.generate(D, "2026-08_2026-09", { discount: 1, unitPriceYear: 12, discountPct: 50, note: "two months" }, "fin@x");
+  assert.strictEqual(st.id, "STM-000002"); assert.strictEqual(st.status, "draft"); assert.strictEqual(st.amount, 2); assert.strictEqual(st.rows.length, 2); assert.strictEqual(st.from, "2026-08");
+  assert.ok(blobs[`crm/statements/${D}/2026-08_2026-09.json`], "period blob"); assert.ok(blobs[`crm/statements/${D}/2026-09.json`], "the monthly one is untouched");
+  st = await S.readStatement(D, "2026-08_2026-09"); assert.strictEqual(st.note, "two months");
+  let periods = await S.listPeriods(); assert.deepStrictEqual(periods.map((p) => [p.id, p.domain, p.from, p.to, p.months, p.status]), [["STM-000002", D, "2026-08", "2026-09", 2, "draft"]]);
+  assert.deepStrictEqual(await S.listPeriods("b.edu"), []);
+  st = await S.setStatus(D, "2026-08_2026-09", "sent", "fin@x", ""); assert.strictEqual(st.status, "sent");
+  await assert.rejects(() => S.generate(D, "2026-08_2026-09", {}, "fin@x"), (e) => e.code === "not_draft");
+  await assert.rejects(() => S.computeKey(D, "2026-09_2026-08", {}), (e) => e.status === 400);
+  list = await S.listMonth("2026-09", [D], {}); assert.strictEqual(list.rows[0].id, "STM-000001", "the month listing shows the monthly statement, not the period");
+
   // 6. The directory side: a full sync snapshots the month once and ledgers what it drops.
   const calls = [];
   global.fetch = async (url, opts) => {
