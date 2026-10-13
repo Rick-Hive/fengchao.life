@@ -29,6 +29,11 @@ const R = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
   assert.ok(!R.isAssignable("crm_entry"), "the order-entry role is gone");
   assert.ok(!R.isAssignable("domain_it:bad"), "a domain needs a dot");
   assert.ok(!R.isAssignable("staff:boss"), "unknown staff function");
+  assert.ok(!R.isAssignable("staff:contractor"), "contractor was deleted (2026-10-13)");
+  assert.ok(!R.isStaff(["staff:contractor"]) && R.staffFunctions(["staff:contractor"]).length === 0, "a sign-in still carrying contractor is not staff");
+  assert.deepStrictEqual(R.managedDomains(["staff:contractor"]), [], "…and sees no school");
+  assert.ok(!R.can(["staff:contractor"], "view", "a.edu") && !R.can(["staff:contractor"], "people", "a.edu") && !R.can(["staff:contractor"], "plan", "a.edu"));
+  assert.ok(!("contractor" in R.STAFF), "not offered by pickers");
   // The six CRM functions (Rick 2026-10-06): CEO and 合作发展总监 are new; 募款 is the old name.
   assert.ok(R.isAssignable("staff:ceo") && R.isAssignable("staff:partnership") && R.isAssignable("staff:fundraising") && R.isAssignable("staff:consultant"));
   assert.strictEqual(R.roleLabel("staff:consultant", "en"), "Staff · Education consultant");

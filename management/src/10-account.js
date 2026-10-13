@@ -222,9 +222,10 @@
   }
 
   // The staff functions (api/shared/roles.js STAFF): the six CRM functions of the design
-  // doc (Rick 2026-10-06) plus contractor and the system administrator. `fundraising` is
-  // the old name of `partnership`: still shown on an account that holds it, never offered.
-  var STAFF_FN = { ceo: ["CEO", "CEO"], curriculum: ["课程总监", "Curriculum director"], community: ["教育社区经理", "Education community manager"], finance: ["财务总监", "Finance director"], sales: ["订单经理", "Order manager"], partnership: ["合作发展总监", "Partnership director"], consultant: ["教育顾问", "Education consultant"], contractor: ["Contractor", "Contractor"], sysadmin: ["系统管理员", "System administrator"], fundraising: ["募款（旧名）", "Fundraising (old name)"] };
+  // doc (Rick 2026-10-06), 教育顾问 and the system administrator. `fundraising` is the old
+  // name of `partnership`: still shown on an account that holds it, never offered.
+  // (`contractor` was removed 2026-10-13 — the API drops it from roles.json on read.)
+  var STAFF_FN = { ceo: ["CEO", "CEO"], curriculum: ["课程总监", "Curriculum director"], community: ["教育社区经理", "Education community manager"], finance: ["财务总监", "Finance director"], sales: ["订单经理", "Order manager"], partnership: ["合作发展总监", "Partnership director"], consultant: ["教育顾问", "Education consultant"], sysadmin: ["系统管理员", "System administrator"], fundraising: ["募款（旧名）", "Fundraising (old name)"] };
   var STAFF_LEGACY = { fundraising: 1 };
   function hasFn(fn) { var r = (me && me.roles) || []; return r.indexOf("staff:" + fn) >= 0; }
   // 角色分配 is the system administrator's page; the CEO may use it for the staff functions (decision 4).

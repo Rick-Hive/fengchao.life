@@ -55,7 +55,6 @@ const MATRIX = {
   // bought (no amounts), the catalogue and the leads; changes nothing. Adjust when the role's duties are set.
   consultant:  { identity: "read",   accounts: "read", orders: "masked", drm: "none", money: "none", catalogue: "read", leads: "read", partners: "read", system: "none" },
   sysadmin:    { identity: "rw",     accounts: "rw",   orders: "read",   drm: "rw",   money: "read", catalogue: "read", leads: "read", partners: "read", system: "rw" },
-  contractor:  { identity: "none",   accounts: "none", orders: "none",   drm: "none", money: "none", catalogue: "read", leads: "none", partners: "none", system: "none" },
 };
 
 function rank(level) { const i = LEVELS.indexOf(level); return i < 0 ? 0 : i; }

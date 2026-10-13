@@ -20,7 +20,10 @@
 //                       课程总监 `curriculum` · 教育社区经理 `community` · 财务总监 `finance` ·
 //                       订单经理 `sales` (the old name of the role is kept as its key) ·
 //                       合作发展总监 `partnership`; 教育顾问 `consultant` (Rick 2026-10-06); plus
-//                       `contractor` and 系统管理员 `sysadmin`.
+//                       系统管理员 `sysadmin`. `staff:contractor` was removed 2026-10-13
+//                       (Rick: 「请删除contractor角色以及相关的功能」): like domain_hive, it is
+//                       no longer assignable, roles.json entries drop it when read, and a
+//                       sign-in still carrying it is not staff and holds nothing.
 //                       `staff:sysadmin` is the site administrator (角色分配, 数据同步,
 //                       everything); `admin` is kept as its alias for the bootstrap
 //                       account and old roles.json entries. What each function may see in
@@ -46,7 +49,7 @@ const DOMAIN = "[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}";
 const DOMAIN_IT_RE = new RegExp(`^domain_it:(${DOMAIN})$`);
 const DOMAIN_ADMIN_RE = new RegExp(`^domain_admin:(${DOMAIN})$`); // legacy: both
 const DOMAIN_LEADER_RE = new RegExp(`^domain_leader:(${DOMAIN})$`);
-const STAFF_RE = /^staff:(ceo|curriculum|fundraising|partnership|consultant|contractor|community|finance|sales|sysadmin)$/;
+const STAFF_RE = /^staff:(ceo|curriculum|fundraising|partnership|consultant|community|finance|sales|sysadmin)$/;
 
 const STAFF = {
   ceo: { zh: "CEO", en: "CEO" },
@@ -56,7 +59,6 @@ const STAFF = {
   sales: { zh: "订单经理", en: "Order manager" },
   partnership: { zh: "合作发展总监", en: "Partnership director" },
   consultant: { zh: "教育顾问", en: "Education consultant" }, // Rick 2026-10-06
-  contractor: { zh: "Contractor", en: "Contractor" },
   sysadmin: { zh: "系统管理员", en: "System administrator" },
   // Old name of `partnership`; still assignable so nothing breaks, but the picker
   // offers the new one (listed last so pickers that iterate STAFF show it last).
@@ -238,7 +240,10 @@ async function userRoles(req) {
   const p = getPrincipal(req);
   if (!p) return { user: "", roles: [] };
   const user = normUser(p.userDetails);
-  const roles = new Set((p.userRoles || []).filter((r) => r !== "anonymous" && r !== "authenticated"));
+  // A sign-in from before a role was deleted (domain_hive, staff:contractor) still
+  // carries it in the principal; only roles that exist today (or their old names) count.
+  const known = (r) => isAssignable(r) || DOMAIN_ADMIN_RE.test(r) || r === "coordinator";
+  const roles = new Set((p.userRoles || []).filter((r) => r !== "anonymous" && r !== "authenticated" && known(r)));
   if (user) (await rolesFor(user)).forEach((r) => roles.add(r));
   return { user, roles: Array.from(roles) };
 }

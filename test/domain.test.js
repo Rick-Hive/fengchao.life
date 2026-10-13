@@ -197,6 +197,8 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   // 1. Signed in with no management role → 403.
   let r = await call({ action: "domains", user: `teacher@${DOMAIN}` });
   assert.strictEqual(r.status, 403);
+  r = await call({ action: "domains", user: `old.contractor@${DOMAIN}`, roles: ["staff:contractor"] });
+  assert.strictEqual(r.status, 403, "a sign-in still carrying the deleted contractor role is no one");
 
   // 2. A domain administrator sees only their own domain; the unverified one never appears.
   r = await call({ action: "domains", user: DOMADMIN, roles: DOMROLE });
@@ -632,6 +634,8 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   assert.ok(leiEntry && leiEntry.displayName && leiEntry.domain === DOMAIN && leiEntry.inDirectory === true, "entry joined with the directory: " + JSON.stringify(leiEntry));
   r = await rcall({ method: "POST", body: { user: `Elaine@${DOMAIN}`, roles: [`domain_hive:${DOMAIN}`, "staff:sales"] } });
   assert.strictEqual(r.status, 400, "the deleted 域蜂巢管理员 cannot be assigned: " + JSON.stringify(r.body));
+  r = await rcall({ method: "POST", body: { user: `Elaine@${DOMAIN}`, roles: ["staff:contractor"] } });
+  assert.strictEqual(r.status, 400, "the deleted contractor cannot be assigned: " + JSON.stringify(r.body));
   r = await rcall({ method: "POST", body: { user: `Elaine@${DOMAIN}`, roles: [`domain_it:${DOMAIN}`, "staff:sales"] } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.ok(stored.entries.some((e) => e.user === `elaine@${DOMAIN}` && e.roles.length === 2), "saved lowercase with both roles");

@@ -11,7 +11,7 @@
   // same period of the previous school year.
   // ================================================================================
   var dashState = { period: "month", trend: "cum", from: "", to: "" };
-  function isStaff() { return (me && me.roles || []).some(function (r) { return /^staff:/.test(r) && r !== "staff:contractor"; }); }
+  function isStaff() { return (me && me.roles || []).some(function (r) { return /^staff:/.test(r); }); }
   function curMonth() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
   // The months of a period and of its comparison, newest period first.
   function periodMonths(kind) {

@@ -26,6 +26,7 @@ const E = require(path.join(__dirname, "..", "api", "shared", "emailTier.js"));
 // ---- permission matrix ----------------------------------------------------
 assert.strictEqual(C.access([], "orders"), "none", "ordinary users and domain admins hold no CRM level");
 assert.strictEqual(C.access(["domain_it:a.edu", "domain_hive:a.edu"], "identity"), "none", "decision 5: a school's admin sees nothing of the CRM");
+assert.strictEqual(C.access(["staff:contractor"], "catalogue"), "none", "contractor was deleted (2026-10-13): no row, no level");
 assert.strictEqual(C.access(["staff:sales"], "orders"), "rw");
 assert.strictEqual(C.access(["staff:sales"], "money"), "read", "the order manager sees payment status, not royalties (decision 6 is enforced on the royalty field)");
 assert.strictEqual(C.access(["staff:finance"], "money"), "rw");
