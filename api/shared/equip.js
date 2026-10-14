@@ -44,6 +44,7 @@ function ids(v) { return (Array.isArray(v) ? v : v ? [v] : []).map(String).filte
 
 // Resolve a table's field specs to the live field names once; unresolved ones are warnings.
 // Fields whose absence is not worth a note (nice to have, nothing depends on them).
+const CRM_ID_RE = /^HC-\d{6}$/; // the people hub's ids (hub.js); PER-/FM- ids are never customers
 const OPTIONAL = new Set(["session", "display", "login", "sales", "notes", "royaltyRecipient", "onEquipme"]);
 function resolve(table, specs, warnings, label) {
   const out = {};
@@ -260,17 +261,31 @@ async function syncEquip(opts) {
     return row;
   });
 
-  // Customers.
+  // Customers. The CRM ID column is Hive's own tag (HC-nnnnnn, written back by the
+  // people hub); anything else typed there is not an id. Rick, 2026-10-14: a row whose
+  // CRM ID was "begoniagx@gmail.com" with an empty Personal Email became a person whose
+  // CRM ID was the address, with no name and 无邮箱. So: a value that is not HC-nnnnnn is
+  // ignored as an id (the hub mints one; the write-back then reports the conflict), and
+  // when it looks like an email and the row has none, it is taken as the email.
+  const badCrmIds = [];
   const customers = cu.records.map((r) => {
-    const email = normalizeEmail(get(r, cu.map, "email"));
+    let email = normalizeEmail(get(r, cu.map, "email"));
     const teams = normalizeEmail(get(r, cu.map, "teams"));
+    const rawId = s(get(r, cu.map, "crmId"));
+    let crmId = CRM_ID_RE.test(rawId) ? rawId : "";
+    if (rawId && !crmId) {
+      const asEmail = normalizeEmail(rawId);
+      if (asEmail && asEmail.includes("@") && !email) { email = asEmail; badCrmIds.push(`${r.id}: CRM ID "${rawId}" used as the email`); }
+      else badCrmIds.push(`${r.id}: CRM ID "${rawId}" ignored (not HC-nnnnnn)`);
+    }
     return {
       recId: r.id, email, teams, emailTier: tier(email), first: s(get(r, cu.map, "first")), last: s(get(r, cu.map, "last")), display: s(get(r, cu.map, "display")),
       name: [s(get(r, cu.map, "first")), s(get(r, cu.map, "last"))].filter(Boolean).join(" ") || s(get(r, cu.map, "display")),
       active: !!get(r, cu.map, "active"), login: text(cu, r, "login"), city: text(cu, r, "city"), orderRecs: ids(get(r, cu.map, "orders")),
-      crmId: s(get(r, cu.map, "crmId")), sales: n(get(r, cu.map, "sales")), createdTime: r.createdTime || null,
+      crmId, crmIdRaw: rawId, sales: n(get(r, cu.map, "sales")), createdTime: r.createdTime || null,
     };
   });
+  if (badCrmIds.length) warnings.push(`Customers: ${badCrmIds.length} CRM ID value(s) are not Hive ids — ${badCrmIds.slice(0, 5).join("; ")}${badCrmIds.length > 5 ? "; …" : ""}`);
   const customerByOrder = new Map();
   for (const c of customers) for (const o of c.orderRecs) customerByOrder.set(o, c);
   const customerLink = or.table ? AirtableBase.linkTo(or.table, cu.table && cu.table.id) : null;

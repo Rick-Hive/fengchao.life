@@ -23,6 +23,7 @@
 // Rebuilt after every Equip sync and on demand; the result is crm/people.json.
 const { BlobServiceClient } = require("@azure/storage-blob");
 const { snapshotBlob } = require("./config");
+const HC_RE = /^HC-\d{6}$/; // the hub's own ids; anything else in a CRM ID field is not an id
 const { normalizeEmail, tier, primaryEmail } = require("./emailTier");
 
 const PEOPLE_BLOB = "crm/people.json";
@@ -139,9 +140,13 @@ function build(src) {
   const byKey = new Map();
   facets.forEach((f, i) => { for (const k of f.keys) { if (byKey.has(k)) union(byKey.get(k), i); else byKey.set(k, i); } });
   const prevIdByKey = new Map();
-  for (const p of (src.prev && src.prev.people) || []) for (const k of p.keys || []) prevIdByKey.set(k, p.crmId);
+  // Only Hive's own ids are honoured, from Airtable's CRM ID column and from the previous
+  // hub alike (equip.js drops a bad column value; this is the second guard, so a hub built
+  // before 2026-10-14 cannot hand a bad id forward).
+  const hiveId = (id) => (HC_RE.test(String(id || "")) ? id : "");
+  for (const p of (src.prev && src.prev.people) || []) for (const k of p.keys || []) { const id = hiveId(p.crmId); if (id) prevIdByKey.set(k, id); }
   const byCrm = new Map();
-  facets.forEach((f, i) => { const id = (f.kind === "customer" || f.kind === "contact") && f.crmId ? f.crmId : f.keys.map((k) => prevIdByKey.get(k)).find(Boolean); if (id) { if (byCrm.has(id)) union(byCrm.get(id), i); else byCrm.set(id, i); } });
+  facets.forEach((f, i) => { const id = ((f.kind === "customer" || f.kind === "contact") && hiveId(f.crmId)) || f.keys.map((k) => prevIdByKey.get(k)).find(Boolean); if (id) { if (byCrm.has(id)) union(byCrm.get(id), i); else byCrm.set(id, i); } });
   // Decisions: 是同一个人 joins; 不是 is remembered so the pair is not suggested again.
   const facetIndex = new Map(facets.map((f, i) => [f.kind + ":" + f.id, i]));
   for (const [k, v] of Object.entries(decisions)) {
@@ -160,7 +165,7 @@ function build(src) {
   const people = [];
   for (const fs of groups.values()) {
     const keys = Array.from(new Set(fs.flatMap((f) => f.keys)));
-    let crmId = fs.map((f) => (f.kind === "customer" || f.kind === "contact" ? f.crmId : "")).find((id) => id && !used.has(id)) || keys.map((k) => prevIdByKey.get(k)).find((id) => id && !used.has(id)) || "";
+    let crmId = fs.map((f) => (f.kind === "customer" || f.kind === "contact" ? hiveId(f.crmId) : "")).find((id) => id && !used.has(id)) || keys.map((k) => prevIdByKey.get(k)).find((id) => id && !used.has(id)) || "";
     if (!crmId) crmId = "HC-" + String(next++).padStart(6, "0");
     used.add(crmId);
     const customers = fs.filter((f) => f.kind === "customer"), accounts = fs.filter((f) => f.kind === "account"), leads = fs.filter((f) => f.kind === "lead"), hive = fs.filter((f) => f.kind === "hive"), contacts = fs.filter((f) => f.kind === "contact");
@@ -196,7 +201,7 @@ function build(src) {
         hive: hive.map((h) => ({ orderId: h.orderId, status: h.status, total: h.total, at: h.at, hives: h.hives, keys: h.keys })),
         contacts: contacts.map((c) => ({ email: c.keys[0] || "", name: c.name, org: c.org, lang: c.lang, at: c.createdTime })),
       },
-      writeBack: customers.filter((c) => !c.crmId).map((c) => c.id), // customers Airtable does not yet tag with this id
+      writeBack: customers.filter((c) => !hiveId(c.crmId)).map((c) => c.id), // customers Airtable does not yet tag with this id (or tags with something that is not one)
     });
   }
   people.sort((a, b) => String(b.lastOrder || b.lastSignIn || "").localeCompare(String(a.lastOrder || a.lastSignIn || "")) || a.name.localeCompare(b.name, "zh"));

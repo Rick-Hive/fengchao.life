@@ -208,6 +208,17 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   AirtableBase.prototype.updateMany = async function () { throw Object.assign(new Error("Airtable PATCH x -> HTTP 403: INVALID_PERMISSIONS"), { status: 403 }); };
   rows.tblC[0].fields["CRM ID"] = "";
   await assert.rejects(() => equip.writeBackCrmIds([{ recId: "recC1", crmId: "HC-000001" }], {}), (e) => e.code === "no_write" && /data\.records:write/.test(e.message), "a read-only token is explained");
+  // A CRM ID column holding something that is not a Hive id (Rick 2026-10-14: an email typed
+  // into CRM ID, Personal Email empty → a person whose id was the address, no name, 无邮箱):
+  // the value is not an id; an email-shaped one fills the missing email; the sync warns.
+  rows.tblC.push({ id: "recC3", fields: { "CRM ID": "begoniagx@gmail.com", "First Name": "", "Last Name": "" } }, { id: "recC4", fields: { "CRM ID": "customer 12", "Personal Email": "c4@gmail.com", "First Name": "C", "Last Name": "Four" } });
+  const bad = await equip.syncEquip({ force: true });
+  const c3 = bad.customers.find((c) => c.recId === "recC3"), c4 = bad.customers.find((c) => c.recId === "recC4");
+  assert.deepStrictEqual([c3.crmId, c3.email, c3.crmIdRaw], ["", "begoniagx@gmail.com", "begoniagx@gmail.com"], "the address becomes the email, not the id");
+  assert.deepStrictEqual([c4.crmId, c4.email], ["", "c4@gmail.com"], "a non-id value is dropped and the real email kept");
+  assert.ok(bad.customers.find((c) => c.recId === "recC2").crmId === "HC-000999", "a proper id is kept");
+  assert.ok(bad.warnings.some((w) => /CRM ID value\(s\) are not Hive ids/.test(w) && /begoniagx@gmail\.com/.test(w) && /customer 12/.test(w)), bad.warnings.join(" | "));
+  rows.tblC.pop(); rows.tblC.pop();
   schema[0].fields.pop(); schema[0].primaryFieldId = "f1"; rows.tblC.pop();
 
   // ---- 录入 (phase 4): a customer, an order with lines and the received amount are written

@@ -179,4 +179,11 @@ const dean = ctc.people.find((p) => p.name === "Dean Smith"), ann = ctc.people.f
 assert.strictEqual(dean.crmId, "HC-000042", "the contact's id wins over a fresh one"); assert.ok(dean.sources.customer && dean.sources.contact, "merged with the customer on the same email");
 assert.strictEqual(dean.facets.contacts[0].org, "Grace Christian University");
 assert.strictEqual(ann.crmId, "HC-000043"); assert.ok(ann.sources.contact && !ann.sources.customer); assert.strictEqual(ann.stage, "lead");
+// A customer whose CRM ID column holds something that is not a Hive id (Rick 2026-10-14) gets
+// a minted id, and a previous hub that carried such an id does not hand it forward either.
+const badIdHub = H.build({ equip: { customers: [{ recId: "recB", email: "begoniagx@gmail.com", teams: "", name: "", crmId: "begoniagx@gmail.com", createdTime: "2026-03-01T00:00:00Z" }], orders: [], seminar: [] }, domains: [],
+  hiveOrders: [], prev: { nextId: 500, people: [{ crmId: "begoniagx@gmail.com", keys: ["begoniagx@gmail.com"] }] }, decisions: { pairs: {} }, now });
+assert.strictEqual(badIdHub.people.length, 1); assert.strictEqual(badIdHub.people[0].crmId, "HC-000500", "minted, never the address: " + badIdHub.people[0].crmId);
+assert.strictEqual(badIdHub.people[0].name, "begoniagx", "a nameless customer is called by the local part of the address");
+assert.deepStrictEqual(badIdHub.people[0].writeBack, ["recB"], "and the hub wants to write the real id back (the conflict then shows the bad value)");
 console.log("hub: all assertions passed");
