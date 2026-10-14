@@ -440,6 +440,69 @@ async function dropUsers(doc, gone, why) {
   await recordRemoved(doc.domain, out, why);
   return out.length;
 }
+// Entra's recycle bin (Rick, 2026-10-14: 「最好还是准确一点，否则学校会有疑问的」). The ledger
+// above records a removal when the sync notices it, with the sync's own time; accounts
+// deleted before the ledger existed (2026-10-12) or between syncs got no entry, or one
+// dated days late, so a statement showed 删除 0. Microsoft keeps a deleted user for 30
+// days in /directory/deletedItems with its real deletedDateTime (and createdDateTime),
+// so each completed sync reads the bin and reconciles the domain's ledger: an account
+// not ledgered yet is added with the real deletion time (why "recycleBin"); one the
+// sync had ledgered later than Microsoft says is moved to the real time (`exact`).
+// A row still in the cache but in the bin is dropped. Deletions older than 30 days are
+// gone from Microsoft too and cannot be recovered. A deleted user's UPN comes back
+// prefixed with its object id without dashes; that prefix is stripped.
+// The bin is tenant-wide and paged, so it is read once per process every ten minutes.
+const BIN_TTL_MS = 10 * 60 * 1000;
+let binCache = { at: 0, items: null };
+async function deletedUsers(fresh) {
+  if (!fresh && binCache.items && Date.now() - binCache.at < BIN_TTL_MS) return binCache.items;
+  const items = await list("/directory/deletedItems/microsoft.graph.user?$select=id,userPrincipalName,displayName,deletedDateTime,createdDateTime,accountEnabled,assignedLicenses,userType&$top=999", 5000);
+  binCache = { at: Date.now(), items };
+  return items;
+}
+function binUpn(u) {
+  let upn = String(u.userPrincipalName || "").toLowerCase();
+  const prefix = String(u.id || "").replace(/-/g, "").toLowerCase();
+  if (prefix && upn.startsWith(prefix)) upn = upn.slice(prefix.length);
+  return upn;
+}
+async function reconcileRecycleBin(doc, log, opts) {
+  let bin;
+  try { bin = await deletedUsers(!!(opts && opts.fresh)); } catch (err) { log(`directory ${doc.domain}: recycle bin not read: ${err.message}`); return { added: 0, moved: 0, dropped: 0 }; }
+  const plans = await loadSkuPlans();
+  const mine = bin.filter((u) => u.userType !== "Guest" && domainOf(binUpn(u)) === doc.domain && u.deletedDateTime);
+  if (!mine.length) return { added: 0, moved: 0, dropped: 0 };
+  const name = `${LEDGER_DIR}${doc.domain}.json`;
+  let led;
+  try { led = (await store.read(name)) || { domain: doc.domain, events: [] }; } catch { return { added: 0, moved: 0, dropped: 0 }; }
+  if (!Array.isArray(led.events)) led.events = [];
+  const byId = new Map(), byUpn = new Map();
+  for (const e of led.events) { if (e.kind !== "removed") continue; if (e.id) byId.set(e.id, e); if (e.upn) byUpn.set(e.upn, e); }
+  let added = 0, moved = 0;
+  const binIds = new Set();
+  for (const u of mine) {
+    binIds.add(u.id);
+    const upn = binUpn(u);
+    const at = new Date(u.deletedDateTime).toISOString();
+    const have = byId.get(u.id) || byUpn.get(upn);
+    if (have) {
+      if (!have.exact && have.at !== at) { have.at = at; have.exact = true; moved++; }
+      continue;
+    }
+    const row = Object.assign({ at, kind: "removed", why: "recycleBin", exact: true }, snapshotRow({ id: u.id, upn, displayName: u.displayName || "", plan: planOf(u, plans), enabled: u.accountEnabled !== false, created: u.createdDateTime || null }));
+    led.events.push(row); byId.set(u.id, row); byUpn.set(upn, row); added++;
+  }
+  // A cached row that Microsoft has in the bin is deleted: drop it, dated by the bin.
+  const gone = doc.users.filter((r) => binIds.has(r.id)); // already ledgered above
+  if (gone.length) doc.users = doc.users.filter((r) => !binIds.has(r.id));
+  if (added || moved) {
+    led.events.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    if (led.events.length > LEDGER_MAX) led.events = led.events.slice(-LEDGER_MAX);
+    try { await store.write(name, led); } catch (err) { log(`directory ${doc.domain}: ledger not written: ${err.message}`); return { added: 0, moved: 0, dropped: gone.length }; }
+    log(`directory ${doc.domain}: recycle bin reconciled — ${added} deletion(s) added, ${moved} re-dated, ${gone.length} cached row(s) dropped`);
+  }
+  return { added, moved, dropped: gone.length };
+}
 async function readSnapshot(domain, month) { return store.read(`${SNAP_DIR}${domain}/${month}.json`); }
 async function readLedger(domain) { return (await store.read(`${LEDGER_DIR}${domain}.json`)) || { domain, events: [] }; }
 
@@ -673,6 +736,8 @@ async function syncSlice(domain, mode, opts) {
   if (done) {
     await markClassTeams(doc, log);
     await fetchGroupOwners(doc, log);
+    const bin = await reconcileRecycleBin(doc, log); // real deletion dates from Entra's recycle bin
+    if (bin.dropped) removed += bin.dropped;
     await takeMonthlySnapshot(doc, log);
     doc.users.sort((a, b) => a.displayName.localeCompare(b.displayName, "zh") || a.upn.localeCompare(b.upn));
     doc.syncedAt = new Date().toISOString();
@@ -723,4 +788,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, refreshUser, readSnapshot, readLedger, beijingDate, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, refreshUser, readSnapshot, readLedger, reconcileRecycleBin, beijingDate, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };

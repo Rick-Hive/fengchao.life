@@ -152,7 +152,7 @@ async function send(d, opts) {
 // The daily run: collect, skip when nothing to act on or already sent today (force overrides), send, remember.
 async function run(opts) {
   const force = !!(opts && opts.force);
-  const d = await collect();
+  const d = await collect(opts && opts.now); // `now` for tests; the real clock otherwise
   const today = new Date().toISOString().slice(0, 10);
   const last = await readLast().catch(() => null);
   if (!force && !d.total) return { sent: false, reason: "nothing_to_do", summary: d };

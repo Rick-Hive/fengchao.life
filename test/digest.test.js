@@ -89,9 +89,9 @@ hub.readHub = async () => ({ people: [{ primaryTier: "replace", orders: 2 }, { p
 
   // run(): sends once a day when there is something; nothing to do → not sent; force → sent again.
   lastDoc = null; calls.length = 0;
-  const r1 = await D.run({}); assert.strictEqual(r1.sent, true); assert.strictEqual(calls.length, 1); assert.ok(lastDoc && lastDoc.total === 5);
-  const r2 = await D.run({}); assert.strictEqual(r2.sent, false); assert.strictEqual(r2.reason, "already_today"); assert.strictEqual(calls.length, 1);
-  const r3 = await D.run({ force: true }); assert.strictEqual(r3.sent, true); assert.strictEqual(calls.length, 2);
+  const r1 = await D.run({ now }); // the fixture's clock, so the 6 Oct order does not go overdue as real days pass assert.strictEqual(r1.sent, true); assert.strictEqual(calls.length, 1); assert.ok(lastDoc && lastDoc.total === 5);
+  const r2 = await D.run({ now }); assert.strictEqual(r2.sent, false); assert.strictEqual(r2.reason, "already_today"); assert.strictEqual(calls.length, 1);
+  const r3 = await D.run({ force: true, now }); assert.strictEqual(r3.sent, true); assert.strictEqual(calls.length, 2);
   hub.readHub = async () => ({ people: [], queue: [], stats: {} });
   crm.listOrders = async () => [mk("FC-20261006-KXC-002", "submitted", new Date().toISOString())];
   lastDoc = null;

@@ -148,8 +148,11 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
     if (p === "/users/delta") return json(200, { value: [], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users/delta?$deltatoken=T" });
     if (p === "/$batch") { const reqs = JSON.parse(opts.body).requests; return json(200, { responses: reqs.map((r) => ({ id: r.id, status: 200, body: { value: [] } })) }); }
     if (p === "/domains") return json(200, { value: [] });
+    // Entra's recycle bin (Rick 2026-10-14): deleted users keep their real deletedDateTime; the UPN comes back prefixed with the id without dashes.
+    if (p === "/directory/deletedItems/microsoft.graph.user") return json(200, { value: BIN });
     return json(404, {});
   };
+  const BIN = [];
   process.env.AZURE_TENANT_ID = "t"; process.env.AZURE_CLIENT_ID = "c"; process.env.AZURE_CLIENT_SECRET = "s";
   blobs[`directory/${D}.json`] = { domain: D, syncedAt: "2026-10-05T00:00:00Z", users: [u("ann", "faculty", "2026-01-01"), u("old", "student", "2026-02-01")], pending: [] };
   blobs["directory/_departments.json"] = { domains: { [D]: { at: "x", refused: [] } } };
@@ -166,6 +169,36 @@ const u = (n, plan, created, extra) => Object.assign({ id: "id-" + n, upn: `${n}
   assert.strictEqual(blobs[`directory/_snapshots/${D}/${month}.json`].at, snapAt, "taken once per month, not overwritten");
   await dir.removeUser(D, `ann@${D}`);
   assert.ok(blobs[`directory/_ledger/${D}.json`].events.some((e) => e.upn === `ann@${D}` && e.why === "hive"), "a Hive deletion is ledgered too");
+
+  // 7. Recycle bin reconciliation: `old` was ledgered by the full sync with the sync's time; Microsoft
+  //    says it was deleted on 15 Sep → the event moves to that date. `gone` was deleted on 20 Aug,
+  //    before the ledger existed → added with the real date, created date and plan. `bob` is still in
+  //    the cache but in the bin → dropped and ledgered. Another domain's deletion is ignored.
+  //    Deleted users' UPNs are prefixed with the object id without dashes.
+  BIN.length = 0;
+  BIN.push(
+    { id: "id-old", userPrincipalName: `idold${"old"}@${D}`, displayName: "OLD", deletedDateTime: "2026-09-15T08:00:00Z", createdDateTime: "2026-02-01", accountEnabled: true, userType: "Member" },
+    { id: "ab12cd34-0000-0000-0000-000000000001", userPrincipalName: `ab12cd34000000000000000000000001gone@${D}`, displayName: "GONE", deletedDateTime: "2026-08-20T01:00:00Z", createdDateTime: "2026-03-01", accountEnabled: true, userType: "Member", assignedLicenses: [] },
+    { id: "id-bob", userPrincipalName: `idbobbob@${D}`, displayName: "BOB", deletedDateTime: "2026-10-02T00:00:00Z", createdDateTime: "2026-02-01", accountEnabled: true, userType: "Member" },
+    { id: "id-z", userPrincipalName: `idzzed@b.edu`, displayName: "ZED", deletedDateTime: "2026-09-01T00:00:00Z", createdDateTime: "2026-01-01", userType: "Member" });
+  blobs[`directory/${D}.json`].users.push(u("bob", "student", "2026-02-01"));
+  const doc = JSON.parse(JSON.stringify(blobs[`directory/${D}.json`]));
+  const rb = await dir.reconcileRecycleBin(doc, () => {}, { fresh: true });
+  assert.deepStrictEqual(rb, { added: 2, moved: 1, dropped: 1 }, JSON.stringify(rb));
+  const ev = blobs[`directory/_ledger/${D}.json`].events;
+  const oldEv = ev.find((e) => e.upn === `old@${D}`); assert.strictEqual(oldEv.at, "2026-09-15T08:00:00.000Z", "re-dated to Microsoft's deletion time"); assert.ok(oldEv.exact && oldEv.why === "full");
+  const goneEv = ev.find((e) => e.upn === `gone@${D}`); assert.ok(goneEv && goneEv.why === "recycleBin" && goneEv.at === "2026-08-20T01:00:00.000Z" && goneEv.created === "2026-03-01" && goneEv.id === "ab12cd34-0000-0000-0000-000000000001", JSON.stringify(goneEv));
+  assert.ok(ev.some((e) => e.upn === `bob@${D}` && e.why === "recycleBin"), "a cached row in the bin is ledgered"); assert.ok(!doc.users.some((x) => x.upn === `bob@${D}`), "…and dropped from the cache");
+  assert.ok(!ev.some((e) => e.upn === "zed@b.edu"), "other domains ignored");
+  assert.deepStrictEqual(ev.map((e) => e.at), ev.map((e) => e.at).slice().sort(), "events sorted by time");
+  // Idempotent: a second pass changes nothing.
+  const rb2 = await dir.reconcileRecycleBin(doc, () => {}); assert.deepStrictEqual(rb2, { added: 0, moved: 0, dropped: 0 });
+  // And the statement now sees the deletion in the right month: gone (created Mar, deleted 20 Aug) counts on 1 Aug, not on 1 Sep.
+  delete blobs[`directory/_snapshots/${D}/2026-08.json`]; delete blobs[`directory/_snapshots/${D}/2026-09.json`];
+  blobs[`directory/${D}.json`] = doc;
+  const aug = await S.compute(D, "2026-08", { discount: 0 });
+  assert.ok(aug.removed.some((x) => x.upn === `gone@${D}` && x.removedAt === "2026-08-20T01:00:00.000Z"), "August lists the deletion with Microsoft's date: " + JSON.stringify(aug.removed));
+  assert.ok(aug.counts.start.total >= 2 && !(await S.compute(D, "2026-09", { discount: 0 })).removed.some((x) => x.upn === `gone@${D}`), "September does not");
 
   console.log("statements: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });
