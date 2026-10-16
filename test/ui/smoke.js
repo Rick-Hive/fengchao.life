@@ -49,7 +49,7 @@ const planPuts = [];
 const CAL_SEED = { id: "h-seed", title: "联合教师培训", allDay: false, start: "2026-12-05T19:00", end: "2026-12-05T20:30", timeZone: "America/New_York", audience: ["老师"], location: "", description: "", link: "https://zoom.us/j/123456", meeting: "link", reminder: 15, showAs: "free", targets: ["*"], createdBy: "hive.admin@fengchao.life" };
 let CAL_SCHOOL = { domain: "bes.qiaoliang.online", timezone: "", events: [], updatedAt: null, updatedBy: "" };
 let CAL_HIVE = { events: [CAL_SEED], updatedAt: null, updatedBy: "" };
-const calPosts = [];
+const calPosts = [], syncPosts = [];
 const domains = { user: summary.profile.upn, roles: ["admin"], all: true, mine: "bes.qiaoliang.online", domains: [{ domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", isDefault: true, isInitial: false, can: CAN }, { domain: "demo.fengchao.life", name: "", isDefault: false, isInitial: false, can: CAN }], showDomains: true };
 function mkUser(i) {
   const names = ["Elaine Chen", "Lei Dong", "Rick Zhang", "Mei Wang", "Tom Li", "Anna Zhao", "Kevin Wu", "Sophie Liu", "Jack Sun", "Lily Huang", "Mark Zhou", "Grace Xu"];
@@ -190,12 +190,20 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
         else body = { layer: "school", domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, calendar: CAL_SCHOOL, hive: { events: CAL_HIVE.events.filter(e => e.targets.indexOf("*") >= 0 || e.targets.indexOf("bes.qiaoliang.online") >= 0) }, canEdit: rolesList.some(x => /^domain_leader:/.test(x)), reminders: REM, defaults: { reminder: 15, timeZone: CAL_SCHOOL.timezone || "America/New_York" } };
       }
       else if (p === "/api/calendar" && r.request().method() === "POST") {
-        const b = JSON.parse(r.request().postData()); calPosts.push(b);
+        const b = JSON.parse(r.request().postData());
+        if (["syncplan", "sync", "withdraw"].includes(b.op)) {
+          syncPosts.push(b);
+          const failed = [{ key: "school:e-1", upn: "nomail@bes.qiaoliang.online", title: "家长会", reason: "no_mailbox", message: "" }];
+          if (b.op === "syncplan") body = { ok: true, domain: b.domain, layer: b.layer || "school", counts: { create: 5, update: 0, delete: 0 }, remaining: 5, gone: 1, failed: [], accounts: 4, events: 1, written: 0 };
+          else { const n = syncPosts.filter(x => x.op === b.op).length; body = n === 1 ? { ok: true, done: 3, failedNow: 0, remaining: 2, counts: { create: 2, update: 0, delete: 0 }, failed: [], gone: 1, created: 3, updated: 0, deleted: 0 } : { ok: true, done: 1, failedNow: 1, remaining: 0, counts: { create: 0, update: 0, delete: 0 }, failed, gone: 1, created: 1, updated: 0, deleted: 0 }; }
+        } else {
+        calPosts.push(b);
         const doc = b.layer === "hive" ? CAL_HIVE : CAL_SCHOOL;
         if (b.op === "delete") doc.events = doc.events.filter(e => e.id !== b.id);
         else if (b.op === "zone") doc.timezone = b.timezone;
         else { const ev = Object.assign({}, b.event, { id: b.event.id || "e-" + (doc.events.length + 1), createdBy: me.profile.upn }); const i = doc.events.findIndex(e => e.id === ev.id); if (i >= 0) doc.events[i] = ev; else doc.events.push(ev); if (b.layer !== "hive" && b.timezone && !doc.timezone) doc.timezone = b.timezone; }
         body = b.layer === "hive" ? { ok: true, hive: CAL_HIVE } : { ok: true, calendar: CAL_SCHOOL };
+        }
       }
       else if (p === "/api/school-plan" && r.request().method() === "GET") body = { domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS, canEdit: true, isAdmin: isAdm };
       else if (p === "/api/school-plan" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); planPuts.push(b); const at = new Date().toISOString(); if (b.unpublish) PLAN_DOC = Object.assign({}, PLAN_DOC, { published: null, updatedAt: at }); else { const map = {}; Object.keys(b.map || {}).forEach(st => { map[st] = { grades: PLAN_DEFAULTS.map[st].grades, rows: (b.map[st].rows || []).map((row, i) => ({ id: row.id || "s" + i, order: i + 1, subjects: row.subjects, trackIds: row.trackIds || [], pedagogy: row.pedagogy || null, spanAll: !!row.spanAll, cells: Object.fromEntries(Object.entries(row.cells || {}).filter(([, v]) => String(v).trim()).map(([g, v]) => [g, String(v).split(/[;；\n]+/).map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf("/"); return i < 0 ? { en: x, zh: null } : { en: x.slice(0, i).trim(), zh: x.slice(i + 1).trim() }; })])) })) }; }); PLAN_DOC = Object.assign({}, PLAN_DOC, { draft: { tracks: b.tracks || {}, map }, updatedAt: at, updatedBy: me.profile.upn }); if (b.publish) PLAN_DOC.published = Object.assign({}, PLAN_DOC.draft, { at, by: me.profile.upn }); } body = { ok: true, domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS }; }
@@ -897,6 +905,20 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click('#caltable tr[data-src="school"]'); await p.waitForSelector("#ceDel"); await p.click("#ceDel"); await p.waitForTimeout(700);
     assert.ok(calPosts[2].op === "delete" && calPosts[2].id === "e-1", JSON.stringify(calPosts[2]));
     assert.ok(!/家长会/.test(await p.$eval("#calbody", e => e.innerText)), "deleted");
+    // the sync card: preview, a test run on one account, the batches, the failures with their reasons, the withdrawal
+    assert.ok(await p.$("#calsynccard") && !(await p.$("#calpick")), "the leader's card has no school list");
+    await p.fill("#calonly", "teacher1@bes.qiaoliang.online"); await p.click("#calPlan"); await p.waitForTimeout(400);
+    let out = await p.$eval("#calsyncout", e => e.innerText);
+    assert.ok(/新增 5/.test(out) && /已写入 0/.test(out) && /用户自己删除的副本 1/.test(out), "plan: " + out);
+    assert.deepStrictEqual([syncPosts[0].op, syncPosts[0].domain, syncPosts[0].only], ["syncplan", "bes.qiaoliang.online", "teacher1@bes.qiaoliang.online"], JSON.stringify(syncPosts[0]));
+    await p.fill("#calonly", ""); await p.click("#calGo"); await p.waitForTimeout(900);
+    out = await p.$eval("#calsyncout", e => e.innerText);
+    const runs = syncPosts.filter(x => x.op === "sync");
+    assert.ok(runs.length === 2 && runs[0].fresh === true && runs[1].fresh === false, "two batches, the first fresh: " + JSON.stringify(runs));
+    assert.ok(/已新增 4/.test(out) && /nomail@bes\.qiaoliang\.online/.test(out) && /IT 管理员/.test(out), "result with the failed account and why: " + out);
+    await p.screenshot({ path: OUT + "/calendar-sync.png" });
+    await p.click("#calWithdraw"); await p.waitForTimeout(700);
+    assert.ok(syncPosts.some(x => x.op === "withdraw" && x.domain === "bes.qiaoliang.online"), "withdraw sent");
   });
   // The system administrator: sees a school's calendar read-only, adds events to the Hive layer aimed at schools.
   await shot("calendar-admin", 1280, 900, "#/domain/calendar", "en", ["admin"], async p => {
@@ -922,6 +944,15 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     const sent = calPosts[3];
     assert.deepStrictEqual([sent.layer, sent.op, sent.event.title, sent.event.targets, sent.event.allDay, sent.event.start], ["hive", "save", "Extra training", ["*"], false, "2026-12-12T19:00"], JSON.stringify(sent));
     const body = await p.$eval("#calbody", e => e.innerText); assert.ok(/Extra training/.test(body) && /All schools/.test(body), body.slice(0, 300));
+    // pushing: nothing is sent until a school is ticked; then the plan and the batches go to that school with layer hive
+    syncPosts.length = 0;
+    assert.ok(await p.$("#calpick"), "the Hive card lists the schools");
+    await p.click("#calPlan"); await p.waitForTimeout(200);
+    assert.ok(/Tick at least one school/.test(await p.$eval("#calmsg", e => e.innerText)) && !syncPosts.length, "no school ticked: nothing sent");
+    await p.click("#calpickAll"); await p.click("#calPlan"); await p.waitForTimeout(500);
+    assert.ok(syncPosts.length >= 1 && syncPosts.every(x => x.layer === "hive" && x.op === "syncplan"), JSON.stringify(syncPosts));
+    assert.ok(/add 5/.test(await p.$eval("#calsyncout", e => e.innerText)), "plan shown");
+    await p.screenshot({ path: OUT + "/calendar-hive-sync.png" });
   });
   // The sysadmin: 课程方案 beside the accounts pages, the school picker; 角色分配 offers 教育领袖.
   await shot("plan-admin", 1280, 800, "#/domain/plan", "en", ["admin"], async p => {

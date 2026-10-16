@@ -8,13 +8,14 @@
   // 同步到自己的域用户的 teams 和 outlook 日历」; 「系统管理员可以添加一些日历事件，比如追加培训，
   // 但是不能覆盖每个学校的校历」).
   //
-  // Server: GET/POST /api/calendar (api/shared/calendar.js). Step 1 only keeps and edits the
-  // events; writing them into people's Outlook / Teams calendars is the next step.
+  // Server: GET/POST /api/calendar (api/shared/calendar.js; writing into the Outlook / Teams default
+  // calendars is api/shared/calendarSync.js — the 同步 card under the list drives it in batches).
   //   学校校历  the school's own events — the 教育领袖 adds, changes and deletes them; the IT
   //             管理员 and the system administrator only look.
   //   蜂巢追加  the system administrator's events, each aimed at chosen schools (or all); a school
   //             sees the ones aimed at it in its list, read-only.
   // ================================================================================
+  var calSync = { only: "", busy: false, out: [], progress: null, picked: {} };
   var calState = { layer: "school", domain: "", data: null, hive: null, filter: "upcoming" };
   var CAL_AUDIENCE = ["老师", "行政", "学生", "家长"];
   var CAL_AUDIENCE_EN = { "老师": "Teachers", "行政": "Staff", "学生": "Students", "家长": "Parents" };
@@ -52,7 +53,7 @@
     if (calState.layer === "school" && !ds.length) calState.layer = "hive";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
     setTitle(domainsInfo && domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("校历", "School calendar"), '<button class="btn sm" id="calAdd" hidden>' + t("＋ 添加事件", "+ Add event") + "</button>",
-      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖编辑；系统管理员可以另外添加「蜂巢追加」的事件（如联合培训），推送给选定的学校，但不能改动学校自己的校历。学校的列表里会同时显示发给本校的蜂巢事件（只读）。目前只保存校历，还没有写入大家的 Outlook / Teams 日历——那是下一步。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader; the system administrator can add Hive events (such as a joint training) aimed at chosen schools, but never changes a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). For now events are only kept here — they are not yet written into anyone's Outlook / Teams calendar (the next step).") });
+      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖编辑；系统管理员可以另外添加「蜂巢追加」的事件（如联合培训），推送给选定的学校，但不能改动学校自己的校历。学校的列表里会同时显示发给本校的蜂巢事件（只读）。列表下方的「同步到大家的日历」把事件写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader; the system administrator can add Hive events (such as a joint training) aimed at chosen schools, but never changes a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). The “Write to everyone's calendar” card below the list writes the events into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     $("content").innerHTML =
       '<div class="pagetabs" role="tablist" id="caltabs">' + (ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
         (isAdmin() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("蜂巢追加", "Hive additions") + "</a>" : "") +
@@ -68,6 +69,7 @@
   function calMsg(text, bad) { if ($("calmsg")) $("calmsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '">' + esc(text) + "</div>" : ""; }
   function calLoad() {
     var hive = calState.layer === "hive";
+    calSync = { only: "", busy: false, out: [], progress: null, picked: calSync.picked || {} };
     $("calbody").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     return api(hive ? "calendar?layer=hive" : "calendar?domain=" + encodeURIComponent(calState.domain)).then(function (r) {
       if (!r.ok) { $("calbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
@@ -103,9 +105,9 @@
     var cnt = function (f) { return all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return f === "past" ? end < today : f === "upcoming" ? end >= today : true; }).length; };
     var chips = '<div class="toolbar sub">' + [["upcoming", "即将到来", "Upcoming"], ["past", "已过去", "Past"], ["all", "全部", "All"]].map(function (f) { return '<button type="button" class="chip" data-filter="' + f[0] + '" aria-pressed="' + (calState.filter === f[0]) + '">' + t(f[1], f[2]) + ' <span class="cnt">' + cnt(f[0]) + "</span></button>"; }).join("") + "</div>";
     var note = '<p class="sub" style="margin:4px 0 8px">' + (hive
-      ? t("系统管理员追加的事件：每个事件选择发给哪些学校。学校自己的校历不会被这里改动。目前只保存，还没有写入大家的日历。", "Events the system administrator adds, each aimed at chosen schools. A school's own calendar is never changed from here. For now they are only kept — not yet written into anyone's calendar.")
-      : edit ? t("点一行修改，或用右上角「＋ 添加事件」。「蜂巢」标记的事件是系统管理员发给本校的，只读。目前只保存，还没有写入大家的日历。", "Click a row to change it, or use “+ Add event”. Events tagged Hive were sent to this school by the system administrator and are read-only. For now they are only kept — not yet written into anyone's calendar.")
-        : t("你可以查看本校校历；编辑由本校教育领袖负责。目前只保存，还没有写入大家的日历。", "You can look at the school's calendar; editing is the school's education leader's. For now events are only kept — not yet written into anyone's calendar.")) + "</p>";
+      ? t("系统管理员追加的事件：每个事件选择发给哪些学校。学校自己的校历不会被这里改动。保存后，用下方的「同步到大家的日历」推送给选定的学校。", "Events the system administrator adds, each aimed at chosen schools. A school's own calendar is never changed from here. After saving, use the card below to push them to the chosen schools.")
+      : edit ? t("点一行修改，或用右上角「＋ 添加事件」。「蜂巢」标记的事件是系统管理员发给本校的，只读。保存后用下方的「同步到大家的日历」写入大家的日历。", "Click a row to change it, or use “+ Add event”. Events tagged Hive were sent to this school by the system administrator and are read-only. After saving, use the card below to write them into everyone's calendar.")
+        : t("你可以查看本校校历；编辑和发布由本校教育领袖负责。", "You can look at the school's calendar; editing and publishing are the school's education leader's.")) + "</p>";
     var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + (hive ? t("发给", "Aimed at") : t("对象", "For")) + "</th>" + (hive ? "<th>" + t("对象", "For") + "</th>" : "") + "<th>" + t("提醒", "Reminder") + "</th><th>" + t("会议链接", "Meeting link") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
     var body = rows.length ? rows.map(function (x) {
       var e = x.e;
@@ -113,7 +115,8 @@
         (hive ? "<td>" + esc(calTargetsText(e)) + "</td><td>" + esc(calAudText(e.audience)) + "</td>" : "<td>" + esc(calAudText(e.audience)) + "</td>") + "<td>" + esc(calRemindText(e.reminder)) + "</td><td>" + (e.link ? "✓" : "—") + "</td>" +
         (hive ? "" : '<td><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("蜂巢", "Hive") : t("校历", "School")) + "</span></td>") + "</tr>";
     }).join("") : '<tr><td colspan="' + (hive ? 6 : 6) + '" class="muted">' + (all.length ? t("这一类里没有事件。", "No events in this view.") : t("还没有事件。", "No events yet.") + (edit ? " " + t("点右上角「＋ 添加事件」开始。", "Use “+ Add event” to start.") : "")) + "</td></tr>";
-    $("calbody").innerHTML = chips + note + '<div class="tbl-wrap"><table class="data" id="caltable">' + head + "<tbody>" + body + "</tbody></table></div>";
+    $("calbody").innerHTML = chips + note + '<div class="tbl-wrap"><table class="data" id="caltable">' + head + "<tbody>" + body + "</tbody></table></div>" + (edit ? '<div id="calsync"></div>' : "");
+    if (edit) calSyncRender();
   }
 
   // ---- one event, in the side panel ------------------------------------------------------------------
@@ -197,4 +200,107 @@
         calRender(); panelClose(); flashOk(t("事件已删除。", "Event deleted."));
       });
     });
+  }
+
+  // ---- 同步到大家的日历 -------------------------------------------------------------------------------
+  // The card under the list. School layer: the 教育领袖 writes this school's calendar into its accounts'
+  // default calendar. Hive layer: the system administrator ticks the schools to push to. The server does
+  // a batch per request; this loop repeats until nothing is left (the first request is "fresh": earlier
+  // failures are tried again). A copy a person deleted for themselves is not put back.
+  function calSyncReason(f) {
+    var r = f.reason;
+    if (r === "no_mailbox") return t("没有可用的 Exchange 邮箱（请该校 IT 管理员检查这个账号的许可证）", "no usable Exchange mailbox (ask the school's IT administrator to check the account's licence)");
+    if (r === "no_access") return t("蜂巢没有写入这个邮箱的权限", "Hive may not write to this mailbox");
+    if (r === "throttled") return t("Microsoft 暂时限流，稍后再同步一次", "Microsoft is throttling — try again shortly");
+    if (r === "time_zone") return t("Microsoft 不接受这个事件的时区", "Microsoft does not accept the event's time zone");
+    return f.message || r || "?";
+  }
+  function calSyncJobs() {
+    if (calState.layer !== "hive") return [{ layer: "school", domain: calState.domain }];
+    return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return calSync.picked[d.domain]; }).map(function (d) { return { layer: "hive", domain: d.domain }; });
+  }
+  function calSyncOnly() { return (calSync.only || "").trim(); }
+  function calSyncCard() {
+    var hive = calState.layer === "hive";
+    var h = '<div class="card" id="calsynccard" style="margin-top:16px"><div class="ch"><h2>' + t("同步到大家的日历", "Write to everyone's calendar") + "</h2></div>" +
+      '<p class="sub">' + (hive
+        ? t("把「蜂巢追加」的事件写进选中学校的 Outlook / Teams 日历（只写这一层，不会碰学校自己的校历）。按每个事件的「发给」和「对象」决定谁收到；不发邀请邮件。事件改了、删了，再点一次同步就会更新或从日历里移除。", "Writes the Hive events into the chosen schools' Outlook / Teams calendars (only this layer — a school's own calendar is untouched). Each event's “Aimed at” and “For” decide who gets it; no invitation mail. After you change or delete an event, write again to update or remove it.")
+        : t("把本校校历写进本校账号的 Outlook / Teams 日历，不发邀请邮件；按每个事件的「对象」决定谁收到。事件改了、删了，再点一次同步就会更新或从日历里移除。用户自己删掉的副本不会被放回去。", "Writes this school's calendar into its accounts' Outlook / Teams calendars, with no invitation mail; each event's “For” decides who gets it. After you change or delete an event, write again to update or remove it. A copy a person deleted for themselves is not put back.")) + "</p>";
+    if (hive) {
+      var ds = ((domainsInfo && domainsInfo.domains) || []);
+      h += '<div class="f-title">' + t("写入哪些学校", "Schools") + '</div><div id="calpick" class="plans"><label class="chk" style="display:flex"><input type="checkbox" id="calpickAll"' + (ds.length && ds.every(function (d) { return calSync.picked[d.domain]; }) ? " checked" : "") + " /> <b>" + t("所有学校", "All schools") + "</b></label>" +
+        ds.map(function (d) { return '<label class="chk" style="display:flex"><input type="checkbox" data-pick="' + esc(d.domain) + '"' + (calSync.picked[d.domain] ? " checked" : "") + " /> " + esc(dname(d.domain)) + "</label>"; }).join("") + "</div>";
+    }
+    h += '<label class="f">' + t("只写入这些账号（测试用，可留空）", "Only these accounts (for a test run — may be empty)") + '<input type="text" id="calonly" placeholder="' + (hive ? "name@school.edu" : "teacher1@" + esc(calState.domain)) + '" value="' + esc(calSync.only) + '" /><small>' + t("填一两个账号（用逗号隔开）先试；确认日历里的样子没问题，再清空、写入全部账号。", "Name one or two accounts (comma-separated) to try first; once the calendar looks right, clear it and write to everyone.") + "</small></label>" +
+      '<div class="actions"><button class="btn secondary sm" type="button" id="calPlan"' + (calSync.busy ? " disabled" : "") + ">" + t("查看待写入", "Preview") + '</button> <button class="btn" type="button" id="calGo"' + (calSync.busy ? " disabled" : "") + ">" + t("同步", "Write now") + '</button> <button class="btn secondary sm" type="button" id="calWithdraw"' + (calSync.busy ? " disabled" : "") + ">" + t("撤回已写入的", "Withdraw what was written") + "</button></div>" +
+      '<div id="calsyncout">' + calSyncOut() + "</div></div>";
+    return h;
+  }
+  function calSyncOut() {
+    var h = "";
+    if (calSync.progress) h += '<p style="margin:10px 0 4px">' + esc(calSync.progress.text) + '</p><progress max="' + (calSync.progress.max || 1) + '" value="' + (calSync.progress.value || 0) + '" style="width:100%"></progress>';
+    calSync.out.forEach(function (o) {
+      h += '<div style="margin-top:12px">' + (calState.layer === "hive" ? "<b>" + esc(dname(o.domain)) + "</b> " : "");
+      if (o.error) { h += '<div class="msg err">' + esc(o.error) + "</div></div>"; return; }
+      var c = o.counts || {};
+      if (o.kind === "plan") {
+        var n = (c.create || 0) + (c.update || 0) + (c.delete || 0);
+        h += esc(t("待写入：新增 ", "To write: add ") + (c.create || 0) + t("、更新 ", ", update ") + (c.update || 0) + t("、移除 ", ", remove ") + (c.delete || 0)) + (n ? "" : " " + t("— 已经是最新的。", "— already up to date.")) + '<div class="faint" style="font-size:12px">' + esc(t("账号 ", "Accounts ") + o.accounts + t(" 个，事件 ", ", events ") + o.events + t(" 个，已写入 ", ", written ") + o.written + (o.gone ? t("；用户自己删除的副本 ", "; copies people deleted ") + o.gone : "")) + "</div>";
+      } else if (o.t) {
+        h += esc((o.withdraw ? t("已撤回 ", "Withdrawn ") + o.t.deleted : t("已新增 ", "Added ") + o.t.created + t("、更新 ", ", updated ") + o.t.updated + t("、移除 ", ", removed ") + o.t.deleted) + (o.remaining ? t("；还剩 ", "; left ") + o.remaining : "")) + (o.gone ? '<div class="faint" style="font-size:12px">' + esc(t("用户自己删除的副本（不会放回）：", "Copies people deleted for themselves (not put back): ") + o.gone) + "</div>" : "");
+      }
+      if (o.failed && o.failed.length) h += '<div class="msg err" style="margin-top:6px"><b>' + t("这些没有写入：", "Not written: ") + o.failed.length + '</b><ul style="margin:4px 0 0 18px">' + o.failed.slice(0, 20).map(function (f) { return "<li>" + esc(f.upn) + " — " + esc(f.title || "") + "：" + esc(calSyncReason(f)) + "</li>"; }).join("") + (o.failed.length > 20 ? "<li>…</li>" : "") + "</ul></div>";
+      h += "</div>";
+    });
+    return h;
+  }
+  function calSyncRender() {
+    var box = $("calsync"); if (!box) return;
+    box.innerHTML = calSyncCard();
+    var all = $("calpickAll");
+    if (all) all.addEventListener("change", function () { ((domainsInfo && domainsInfo.domains) || []).forEach(function (d) { calSync.picked[d.domain] = all.checked; }); calSyncRender(); });
+    var pk = $("calpick"); if (pk) pk.addEventListener("change", function (e) { var c = e.target.closest("input[data-pick]"); if (c) { calSync.picked[c.getAttribute("data-pick")] = c.checked; calSyncRender(); } });
+    var on = $("calonly"); if (on) on.addEventListener("input", function () { calSync.only = on.value; });
+    $("calPlan").addEventListener("click", function () { calSyncRun("syncplan"); });
+    $("calGo").addEventListener("click", function () { calSyncRun("sync"); });
+    $("calWithdraw").addEventListener("click", function () {
+      var only = calSyncOnly();
+      if (!window.confirm(only ? t("从这些账号的日历里撤回这一层写入的事件？", "Withdraw the events this layer wrote from these accounts' calendars?") : t("从所有账号的日历里撤回这一层写入的事件？（学校自己的校历和蜂巢追加互不影响。）", "Withdraw the events this layer wrote from all the accounts' calendars? (The school calendar and the Hive additions never touch each other.)"))) return;
+      calSyncRun("withdraw");
+    });
+  }
+  function calSyncPaint() { var o = $("calsyncout"); if (o) o.innerHTML = calSyncOut(); }
+  function calSyncButtons(off) { ["calPlan", "calGo", "calWithdraw"].forEach(function (id) { if ($(id)) $(id).disabled = off; }); }
+  // One school and layer at a time; the loop ends when nothing is left or a batch moved nothing.
+  async function calSyncRun(op) {
+    var jobs = calSyncJobs();
+    if (!jobs.length) { calMsg(t("请先勾选要写入的学校。", "Tick at least one school first."), true); return; }
+    calMsg("");
+    calSync.busy = true; calSync.out = []; calSync.progress = null; calSyncButtons(true);
+    var only = calSyncOnly();
+    for (var i = 0; i < jobs.length; i++) {
+      var j = jobs[i], base = { domain: j.domain, layer: j.layer };
+      if (only) base.only = only;
+      var res = { domain: j.domain, kind: op === "syncplan" ? "plan" : "run", withdraw: op === "withdraw", t: { created: 0, updated: 0, deleted: 0 } };
+      calSync.out.push(res);
+      try {
+        var r = await post("calendar", "POST", Object.assign({}, base, { op: "syncplan", withdraw: op === "withdraw" }));
+        if (!r.ok) { res.error = errText(r); calSyncPaint(); continue; }
+        if (op === "syncplan") { Object.assign(res, r.body); calSyncPaint(); continue; }
+        var total = op === "withdraw" ? r.body.counts.delete : r.body.counts.create + r.body.counts.update + r.body.counts.delete, doneN = 0, first = true;
+        for (;;) {
+          calSync.progress = { text: (jobs.length > 1 ? dname(j.domain) + " · " : "") + (op === "withdraw" ? t("正在撤回…", "Withdrawing…") : t("正在写入…", "Writing…")) + " " + doneN + " / " + total, max: Math.max(total, 1), value: doneN }; calSyncPaint();
+          var s = await post("calendar", "POST", Object.assign({}, base, { op: op, fresh: first }));
+          first = false;
+          if (!s.ok) { res.error = errText(s); break; }
+          var b = s.body; doneN += b.done;
+          res.t.created += b.created; res.t.updated += b.updated; res.t.deleted += b.deleted;
+          res.remaining = b.remaining; res.failed = b.failed; res.gone = b.gone; res.counts = b.counts;
+          if (!b.remaining || !b.done) break;
+        }
+      } catch (err) { res.error = String((err && err.message) || err); }
+      calSyncPaint();
+    }
+    calSync.progress = null; calSync.busy = false;
+    calSyncPaint(); calSyncButtons(false);
   }
