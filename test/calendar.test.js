@@ -43,7 +43,7 @@ const timed = { title: "教师培训", start: "2026-10-20T19:00", end: "2026-10-
   const can = rolesMod.can;
   assert.ok(can(LEADER, "calendar", "a.edu") && can(LEADER, "calendarEdit", "a.edu"), "the 教育领袖 sees and edits its school's calendar");
   assert.ok(!can(LEADER, "calendar", "b.edu") && !can(LEADER, "calendarEdit", "b.edu"), "not another school's");
-  assert.ok(can(IT, "calendar", "a.edu") && !can(IT, "calendarEdit", "a.edu"), "the IT 管理员 sees it, does not edit it");
+  assert.ok(!can(IT, "calendar", "a.edu") && !can(IT, "calendarEdit", "a.edu"), "the IT 管理员 has no part in the calendar (the 教育领袖 publishes directly)");
   assert.ok(can(SYS, "calendar", "a.edu") && !can(SYS, "calendarEdit", "a.edu"), "the system administrator sees every school's calendar but may not overwrite it");
   assert.ok(can(["admin"], "calendar", "zz.edu") && !can(["admin"], "calendarEdit", "zz.edu"), "also the bootstrap admin");
   assert.ok(!can([], "calendar", "a.edu") && !can(["staff:community"], "calendar", "a.edu"), "an ordinary user or other staff does not");
@@ -122,7 +122,7 @@ const timed = { title: "教师培训", start: "2026-10-20T19:00", end: "2026-10-
   assert.strictEqual(blobs["crm/school-calendars/a.edu.json"].events.length, 1, "untouched");
   // but they see it
   r = await call({ query: { domain: "a.edu" }, user: "it@a.edu", roles: IT });
-  assert.strictEqual(r.status, 200); assert.strictEqual(r.body.canEdit, false); assert.strictEqual(r.body.calendar.events.length, 1);
+  assert.strictEqual(r.status, 403, "the IT 管理员 does not even see it");
   r = await call({ query: { domain: "a.edu" }, user: "sys@fengchao.life", roles: SYS });
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.canEdit, false);
   r = await call({ query: { domain: "a.edu" }, user: "lead@b.edu", roles: ["domain_leader:b.edu"] });

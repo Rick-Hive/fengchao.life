@@ -2,7 +2,7 @@
 //
 //   GET  /api/calendar?domain=<d>          a school's calendar: its own events, the Hive events aimed
 //                                          at it (read-only), who may edit            (教育领袖 of d,
-//                                          IT 管理员 of d, sysadmin)
+//                                          sysadmin; not the IT 管理员)
 //   POST /api/calendar {domain, op: "save", event, timezone?}   add or change one event of the school's
 //                                          calendar                                    (教育领袖 of d ONLY)
 //   POST /api/calendar {domain, op: "delete", id}               remove one                (same)
@@ -62,7 +62,7 @@ module.exports = async function (context, req) {
 
     const domain = String(q.domain || body.domain || "").trim().toLowerCase();
     if (!DOMAIN_RE.test(domain)) return done(400, { error: "domain missing or malformed" });
-    if (!can(roles, "calendar", domain)) return done(403, { error: `the 校历 of ${domain} is seen by its 教育领袖 and IT 管理员`, code: "forbidden" });
+    if (!can(roles, "calendar", domain)) return done(403, { error: `the 校历 of ${domain} is seen by its 教育领袖 (and the system administrator)`, code: "forbidden" });
     const canEdit = can(roles, "calendarEdit", domain);
 
     if (method === "GET") {

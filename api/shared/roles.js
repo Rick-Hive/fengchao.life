@@ -133,7 +133,8 @@ function managedDomains(roles) {
 //   plan     — the school's 课程方案 (graduation credits, curriculum map)
 //                                                   (教育领袖, 课程总监, sysadmin)
 //   calendar — see the school's 校历 and the Hive events aimed at it
-//                                                   (教育领袖, IT 管理员, sysadmin)
+//                                                   (教育领袖, sysadmin). Not the IT 管理员 (Rick,
+//                                                   2026-10-16: the 教育领袖 publishes directly).
 //   calendarEdit — change the school's 校历: its 教育领袖 ONLY. The system administrator
 //              may not overwrite a school's calendar (Rick, 2026-10-16); what it adds
 //              goes into the separate Hive layer (api/shared/calendar.js), which only
@@ -152,7 +153,7 @@ function can(roles, action, domain) {
   const it = holds(DOMAIN_IT_RE) || holds(DOMAIN_ADMIN_RE);
   const staff = isStaff(roles);
   if (action === "plan") return holds(DOMAIN_LEADER_RE) || staffFunctions(roles).includes("curriculum");
-  if (action === "calendar") return holds(DOMAIN_LEADER_RE) || it;
+  if (action === "calendar") return holds(DOMAIN_LEADER_RE);
   if (action === "view") return it || staff;
   if (action === "methods") return it;
   if (action === "people") return it || staff;

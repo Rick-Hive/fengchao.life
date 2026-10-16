@@ -4,8 +4,9 @@
 //
 // Two layers, each with its own owner, never overwriting the other:
 //   学校校历  crm/school-calendars/<domain>.json   { domain, timezone, events: [...], updatedAt, updatedBy }
-//             edited by the school's 教育领袖 (roles.can "calendarEdit"); the IT 管理员 and the
-//             system administrator see it, they do not change it.
+//             edited by the school's 教育领袖 (roles.can "calendarEdit"); the system
+//             administrator sees it, does not change it; the IT 管理员 has no part in it (Rick,
+//             2026-10-16: the 教育领袖 publishes directly).
 //   蜂巢追加  crm/hive-calendar.json                { events: [... + targets], updatedAt, updatedBy }
 //             edited by the system administrator alone; each event names the schools it is for
 //             (["*"] = every school). A school sees the Hive events aimed at it, read-only.
