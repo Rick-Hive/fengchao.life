@@ -61,6 +61,7 @@ global.fetch = async function (url, opts) {
   const json = (status, obj) => ({ ok: status < 400, status, headers: { get: () => null }, text: async () => (obj == null ? "" : JSON.stringify(obj)), json: async () => obj });
   if (u.hostname === "login.microsoftonline.com") return json(200, { access_token: "tok", expires_in: 3600 });
   const p = decodeURIComponent(u.pathname.replace(/^\/v1\.0/, ""));
+  { const t = fakeTeams(method, p, u, opts, json); if (t) return t; } // 新建 Teams 群组 routes (section 15)
   if (method === "GET" && p === "/users/delta") {
     if (u.searchParams.get("$deltatoken") === "latest") return json(200, { value: [], "@odata.deltaLink": "https://graph.microsoft.com/v1.0/users/delta?$deltatoken=T1" });
     const tok = u.searchParams.get("$deltatoken");
@@ -90,7 +91,7 @@ global.fetch = async function (url, opts) {
       const m = r.url.match(/^\/users\/([^/]+)\/(authentication\/methods|memberOf)/);
       if (!m) {
         const b = r.url.match(/^\/users\/([^/?]+)\?/);
-        if (b) { const hit = users.find((x) => x.id === b[1]); return hit ? { id: r.id, status: 200, body: hit } : { id: r.id, status: 404, body: {} }; }
+        if (b) { const hit = users.find((x) => x.id === b[1] || x.userPrincipalName.toLowerCase() === decodeURIComponent(b[1]).toLowerCase()); return hit ? { id: r.id, status: 200, body: hit } : { id: r.id, status: 404, body: {} }; }
         return { id: r.id, status: 404, body: {} };
       }
       if (m[2] === "authentication/methods") return { id: r.id, status: 200, body: { value: m[1] === "u-lei" ? leiMethods : [{ "@odata.type": "#microsoft.graph.passwordAuthenticationMethod", id: "pw" }].concat(m[1] === "u-elaine" ? elaineMethods : []) } };
@@ -141,6 +142,52 @@ global.fetch = async function (url, opts) {
   }
   return json(500, { error: { code: "unhandled", message: method + " " + p } });
 };
+
+// ---- a fake Teams / groups side of Graph for section 15 ----------------------------------------------
+const teamCalls = []; // every write, in order: { method, path, body }
+const groupsDb = {};  // id → { id, displayName, description, visibility, groupTypes, resourceProvisioningOptions, owners:[{id,userPrincipalName,displayName}], members:[…], specialization }
+let teamSeq = 0, opState = "succeeded", failCreate = null;
+function fakeTeams(method, p, u, opts, json) {
+  const empty = (status) => ({ ok: true, status, headers: { get: () => null }, text: async () => "" });
+  if (method === "POST" && p === "/teams") {
+    const body = JSON.parse(opts.body); teamCalls.push({ method, path: p, body });
+    if (failCreate) return json(failCreate, { error: { code: "Forbidden", message: "Insufficient privileges to complete the operation." } });
+    const id = "00000000-0000-4000-8000-" + String(++teamSeq).padStart(12, "0"), op = "11111111-1111-4111-8111-" + String(teamSeq).padStart(12, "0");
+    const tpl = /teamsTemplates\('([^']+)'\)/.exec(body["template@odata.bind"])[1];
+    const ownerRef = /users\('([^']+)'\)/.exec(body.members[0]["user@odata.bind"])[1];
+    const owner = users.find((x) => x.id === ownerRef);
+    groupsDb[id] = { id, displayName: body.displayName, description: body.description || "", visibility: tpl === "educationClass" ? "HiddenMembership" : (body.visibility || "Public"), groupTypes: ["Unified"], mailEnabled: true, securityEnabled: false, resourceProvisioningOptions: ["Team"], specialization: tpl === "educationClass" ? "educationClass" : "none", owners: [{ id: owner.id, userPrincipalName: owner.userPrincipalName, displayName: owner.displayName }], members: [{ id: owner.id, userPrincipalName: owner.userPrincipalName, displayName: owner.displayName }] };
+    return { ok: true, status: 202, headers: { get: (n) => ({ location: `/teams('${id}')/operations('${op}')`, "content-location": `/teams('${id}')` })[String(n).toLowerCase()] || null }, text: async () => "" };
+  }
+  let m = /^\/teams\/([^/]+)\/operations\/([^/]+)$/.exec(p);
+  if (method === "GET" && m) return json(200, { id: m[2], status: opState });
+  m = /^\/teams\/([^/]+)$/.exec(p);
+  if (method === "GET" && m) { const g = groupsDb[m[1]]; return g ? json(200, { id: g.id, specialization: g.specialization || "none" }) : json(404, { error: { code: "NotFound" } }); }
+  if (method === "GET" && p === "/users" && u.searchParams.get("$search")) {
+    const q = u.searchParams.get("$search").match(/displayName:([^"]+)"/)[1].toLowerCase();
+    return json(200, { value: users.filter((x) => (x.displayName + x.userPrincipalName).toLowerCase().includes(q)) });
+  }
+  m = /^\/groups\/([^/]+)(?:\/(owners|members)(?:\/([^/]+))?(?:\/(\$ref))?)?$/.exec(p);
+  if (!m) return null;
+  const g = groupsDb[m[1]];
+  if (method === "GET") {
+    if (!g) return json(404, { error: { code: "Request_ResourceNotFound" } });
+    if (m[2]) return json(200, { value: m[2] === "owners" ? g.owners : g.members });
+    return json(200, g);
+  }
+  if (!g) return json(404, { error: { code: "Request_ResourceNotFound", message: "not found" } });
+  teamCalls.push({ method, path: p, body: opts.body ? JSON.parse(opts.body) : null });
+  const person = (id) => users.find((x) => x.id === id);
+  const rec = (id) => { const x = person(id); return { id: x.id, userPrincipalName: x.userPrincipalName, displayName: x.displayName }; };
+  if (method === "PATCH" && !m[2]) { for (const ref of JSON.parse(opts.body)["members@odata.bind"] || []) { const id = ref.split("/").pop(); if (!g.members.some((x) => x.id === id)) g.members.push(rec(id)); } return empty(204); }
+  if (method === "POST" && m[2] && m[3] === "$ref") {
+    const id = JSON.parse(opts.body)["@odata.id"].split("/").pop(), list = m[2] === "owners" ? g.owners : g.members;
+    if (list.some((x) => x.id === id)) return json(400, { error: { code: "Request_BadRequest", message: "One or more added object references already exist for the following modified properties: 'members'." } });
+    list.push(rec(id)); return empty(204);
+  }
+  if (method === "DELETE" && m[2] && m[4] === "$ref") { const k = m[2]; g[k] = g[k].filter((x) => x.id !== m[3]); return empty(204); }
+  return null;
+}
 
 const people = require(path.join(__dirname, "..", "api", "shared", "people.js"));
 let institutions = { institutions: {} };
@@ -703,6 +750,191 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   delete elaine14.usageLocation; elaine14.assignedLicenses = [];
   r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "student" }, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.body.code, "no_usage_location");
+
+  // 15. 新建 Teams 群组 (Rick, 2026-10-16): the IT 管理员 creates a school's team and manages its
+  //     people, so the tenant can stop ordinary users creating groups. Types as Teams for
+  //     Education offers them; 其它 chooses 公开/私有; the IT 管理员 adds only the school's own
+  //     accounts unless the system administrator opened the tenant to that school.
+  const tg = require(path.join(__dirname, "..", "api", "shared", "teamGroups.js"));
+  tg.WAIT.create = 0; tg.WAIT.check = 0; tg.WAIT.step = 1;
+  for (const [id, upn, name, ident] of [["u-t1", "t.wang@" + DOMAIN, "Wang Teacher", "老师"], ["u-t2", "t.li@" + DOMAIN, "Li Teacher", "老师"], ["u-k1", "kid.one@" + DOMAIN, "Kid One", "学生"], ["u-k2", "kid.two@" + DOMAIN, "Kid Two", "学生"]]) {
+    users.push({ id, userPrincipalName: upn, displayName: name, accountEnabled: true, userType: "Member", createdDateTime: "2026-09-01T00:00:00Z" });
+    peopleStore.people[upn] = { identity: ident };
+    if (id !== "u-k2") await dir.addUser(DOMAIN, users[users.length - 1]); // kid.two is deliberately not in the cache yet
+  }
+  users.push({ id: "u-ox", userPrincipalName: "x@other.example.edu", displayName: "Xavier Other", accountEnabled: true, userType: "Member" });
+  users.push({ id: "u-g2", userPrincipalName: "g2_gmail.com#EXT#@" + DOMAIN, displayName: "Guest Two", userType: "Guest" });
+  const T1 = "t.wang@" + DOMAIN, T2 = "t.li@" + DOMAIN, K1 = "kid.one@" + DOMAIN, K2 = "kid.two@" + DOMAIN, OX = "x@other.example.edu";
+  const O365 = (id, name, extra) => Object.assign({ id, displayName: name, groupTypes: ["Unified"], resourceProvisioningOptions: ["Team"], visibility: "Private", owners: [], members: [] }, extra || {});
+  const G1 = "aaaaaaaa-aaaa-4aaa-8aaa-000000000001", G2 = "aaaaaaaa-aaaa-4aaa-8aaa-000000000002", G3 = "aaaaaaaa-aaaa-4aaa-8aaa-000000000003", G5 = "aaaaaaaa-aaaa-4aaa-8aaa-000000000005";
+  groupsDb[G1] = O365(G1, "G5 English", { owners: [{ id: "u-lei", userPrincipalName: "lei@" + DOMAIN, displayName: "Lei Dong" }], members: [{ id: "u-lei", userPrincipalName: "lei@" + DOMAIN, displayName: "Lei Dong" }, { id: "u-elaine", userPrincipalName: "elaine@" + DOMAIN, displayName: "Elaine" }] });
+  groupsDb[G2] = { id: G2, displayName: "All staff", groupTypes: [], securityEnabled: true, mailEnabled: false, owners: [], members: [] };
+  groupsDb[G3] = O365(G3, "Science Bug Lab", { owners: [{ id: "u-x", userPrincipalName: "anna@sciencebug.net", displayName: "Anna" }] });
+  groupsDb[G5] = O365(G5, "Role group", { isAssignableToRole: true });
+  const body15 = (o) => Object.assign({ domain: DOMAIN, type: "class", name: "G5 Math 2026", description: "Fifth grade maths", owners: [T1], members: [K1, K2] }, o || {});
+  const post = (action, b, who, rl) => call({ action, method: "POST", body: b, user: who || DOMADMIN, roles: rl || IT });
+  const writes = () => teamCalls.filter((c) => c.method !== "GET");
+
+  // Who: a teacher with no role, the deleted 域蜂巢管理员 and an 教育领袖 may not; IT 管理员 and sysadmin may.
+  for (const rl of [[], HIVE, [`domain_leader:${DOMAIN}`]]) { r = await post("group", body15(), `teacher@${DOMAIN}`, rl); assert.ok(r.status === 403, "no teams without the IT role: " + r.status); }
+  r = await call({ action: "groupoptions", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.body.types.map((x) => x.id), ["class", "plc", "staff", "standard"], "Teams' own four types, in its order");
+  assert.deepStrictEqual(r.body.types.map((x) => x.privacy), ["hidden", "private", "private", "choose"], "only 其它 chooses public or private");
+  assert.strictEqual(r.body.tenantUsers, false); assert.strictEqual(r.body.canSetScope, false);
+
+  // The form is validated before anything reaches Microsoft.
+  teamCalls.length = 0;
+  r = await post("group", { domain: DOMAIN, type: "club", name: "", owners: [] });
+  assert.strictEqual(r.status, 400);
+  assert.ok(r.body.problems.some((x) => /type/.test(x)) && r.body.problems.some((x) => /name is required/.test(x)) && r.body.problems.some((x) => /owner/.test(x)), JSON.stringify(r.body));
+  r = await post("group", body15({ name: "a<b>" })); assert.strictEqual(r.status, 400);
+  r = await post("group", body15({ type: "standard", visibility: "Secret" })); assert.strictEqual(r.status, 400);
+  r = await post("group", body15({ members: [OX] }));
+  assert.strictEqual(r.status, 400); assert.ok(r.body.problems.some((x) => /not an account of this school/.test(x)), "another school's account is refused: " + JSON.stringify(r.body));
+  r = await post("group", body15({ members: ["g2_gmail.com#EXT#@" + DOMAIN] }));
+  assert.strictEqual(r.status, 400); assert.ok(r.body.problems.some((x) => /guest/.test(x)), "guests are never added: " + JSON.stringify(r.body));
+  r = await post("group", body15({ members: ["nobody@" + DOMAIN] }));
+  assert.strictEqual(r.status, 400); assert.ok(r.body.problems.some((x) => /does not exist/.test(x)));
+  r = await post("group", body15({ owners: [K1] }));
+  assert.strictEqual(r.status, 400); assert.ok(r.body.problems.some((x) => /student/.test(x)), "a student cannot own a class team: " + JSON.stringify(r.body));
+  assert.strictEqual(writes().length, 0, "nothing was sent to Microsoft for a bad form");
+
+  // A class team: the template, no visibility (hiddenMembership by design), the first owner in the call,
+  // the other owner and the members added after; the cache lists it at once.
+  r = await post("group", body15({ owners: [T1, T2] }));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(r.body.ok && !r.body.pending && r.body.owners === 2 && r.body.members === 2 && !r.body.failed.length, JSON.stringify(r.body));
+  let made = teamCalls.find((c) => c.path === "/teams").body;
+  assert.ok(/teamsTemplates\('educationClass'\)/.test(made["template@odata.bind"]), "the Education class template");
+  assert.ok(!("visibility" in made), "a class team is not given a visibility");
+  assert.deepStrictEqual([made.displayName, made.description, made.members.length, made.members[0].roles], ["G5 Math 2026", "Fifth grade maths", 1, ["owner"]]);
+  assert.ok(/users\('u-t1'\)/.test(made.members[0]["user@odata.bind"]), "the first owner goes in at creation");
+  let gid = r.body.id;
+  assert.deepStrictEqual(groupsDb[gid].owners.map((x) => x.id).sort(), ["u-t1", "u-t2"], "the second owner added");
+  assert.deepStrictEqual(groupsDb[gid].members.map((x) => x.id).sort(), ["u-k1", "u-k2", "u-t1", "u-t2"], "owners are also members, and the students");
+  r = await call({ action: "groups", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
+  let mine = r.body.groups.find((x) => x.id === gid);
+  assert.ok(mine && mine.kind === "class" && mine.name === "G5 Math 2026" && mine.owners.length === 2, "listed without a sync: " + JSON.stringify(mine));
+  assert.ok(auditLines.some((a) => a.action === "group.create" && a.target === gid && a.type === "class" && a.result === "ok"), "audited");
+
+  // 其它 chooses 公开 or 私有; PLC and staff are private whatever is sent.
+  teamCalls.length = 0;
+  r = await post("group", body15({ type: "standard", name: "Chess club", visibility: "Public", owners: [T1], members: [K1] }));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  made = teamCalls.find((c) => c.path === "/teams").body;
+  assert.ok(/teamsTemplates\('standard'\)/.test(made["template@odata.bind"]) && made.visibility === "Public", JSON.stringify(made));
+  assert.strictEqual(groupsDb[r.body.id].visibility, "Public");
+  for (const [type, tpl] of [["plc", "educationProfessionalLearningCommunity"], ["staff", "educationStaff"]]) {
+    teamCalls.length = 0;
+    r = await post("group", body15({ type, name: type + " team", visibility: "Public", owners: [T1], members: [T2] }));
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    made = teamCalls.find((c) => c.path === "/teams").body;
+    assert.ok(made["template@odata.bind"].includes(`('${tpl}')`) && made.visibility === "Private", type + ": " + JSON.stringify(made));
+  }
+  r = await post("group", body15({ type: "standard", name: "Private club", owners: [K1] })); // a student may own an "other" team
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(teamCalls.filter((c) => c.path === "/teams").pop().body.visibility, "Private", "private is the default");
+
+  // Microsoft refuses (the app lacks Team.Create): a plain message naming the permission, audited as failed.
+  failCreate = 403;
+  r = await post("group", body15());
+  failCreate = null;
+  assert.strictEqual(r.status, 403); assert.strictEqual(r.body.code, "app_permission"); assert.ok(/Team\.Create/.test(r.body.error));
+  assert.ok(auditLines.some((a) => a.action === "group.create" && a.result === "failed"));
+
+  // Creation still under way: the first answer is pending; the page asks again with the people left to add.
+  opState = "inProgress"; teamCalls.length = 0;
+  r = await post("group", body15({ name: "Slow team", owners: [T1], members: [K1] }));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(r.body.pending && r.body.id && r.body.op, JSON.stringify(r.body));
+  assert.ok(!writes().some((c) => c.path.startsWith("/groups/")), "nobody added before the team exists");
+  const slow = r.body;
+  r = await post("groupop", { domain: DOMAIN, id: slow.id, op: slow.op, owners: [T1, T2], members: [K1] });
+  assert.ok(r.status === 200 && r.body.pending === true, "still pending");
+  opState = "succeeded";
+  r = await post("groupop", { domain: DOMAIN, id: slow.id, op: slow.op, owners: [T1, T2], members: [K1] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(r.body.ok && !r.body.pending);
+  assert.deepStrictEqual(groupsDb[slow.id].owners.map((x) => x.id).sort(), ["u-t1", "u-t2"]);
+  assert.deepStrictEqual(groupsDb[slow.id].members.map((x) => x.id).sort(), ["u-k1", "u-t1", "u-t2"], "added once it succeeded");
+  opState = "failed";
+  r = await post("groupop", { domain: DOMAIN, id: slow.id, op: slow.op, owners: [T1], members: [] });
+  assert.strictEqual(r.status, 502); opState = "succeeded";
+  const OTHER = "33333333-3333-4333-8333-333333333333";
+  groupsDb[OTHER] = O365(OTHER, "Elsewhere", { owners: [{ id: "u-x", userPrincipalName: "anna@sciencebug.net", displayName: "Anna" }] });
+  r = await post("groupop", { domain: DOMAIN, id: OTHER, op: slow.op, owners: [T1], members: [K1] });
+  assert.ok(r.status === 403, "a finished creation cannot be pointed at another school's group: " + r.status);
+
+  // Reading a team: the school's own, Teams or Microsoft 365 groups only.
+  r = await call({ action: "group", query: { domain: DOMAIN, id: gid }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.group.name, r.body.group.kind, r.body.owners.length, r.body.members.length], ["G5 Math 2026", "class", 2, 4]);
+  assert.ok(r.body.members.every((m) => m.editable), "the school's own accounts are editable");
+  r = await call({ action: "group", query: { domain: DOMAIN, id: G3 }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403, "another school's team");
+  r = await call({ action: "group", query: { domain: DOMAIN, id: G2 }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400, "a security group is not managed here");
+  r = await call({ action: "group", query: { domain: DOMAIN, id: G5 }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 400, "never a role-assignable group, not even for the sysadmin");
+  r = await call({ action: "group", query: { domain: DOMAIN, id: G3 }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200, "the system administrator may read any team");
+
+  // People: the IT 管理员 adds the school's accounts, not another school's; removes only the school's own; keeps an owner.
+  teamCalls.length = 0;
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, addMembers: [OX] });
+  assert.strictEqual(r.status, 400); assert.ok(r.body.problems.some((x) => /not an account of this school/.test(x)));
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, addMembers: [K1, K2], addOwners: [T1] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual(groupsDb[G1].members.map((x) => x.id).sort(), ["u-elaine", "u-k1", "u-k2", "u-lei", "u-t1"]);
+  assert.deepStrictEqual(groupsDb[G1].owners.map((x) => x.id).sort(), ["u-lei", "u-t1"]);
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, removeMembers: [K2] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(!groupsDb[G1].members.some((x) => x.id === "u-k2"), "removed");
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, removeOwners: ["lei@" + DOMAIN, T1] });
+  assert.strictEqual(r.status, 400); assert.ok(r.body.problems.some((x) => /keeps an owner/.test(x)), "the last owner stays: " + JSON.stringify(r.body));
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, removeOwners: [T1] });
+  assert.strictEqual(r.status, 200); assert.ok(groupsDb[G1].members.some((x) => x.id === "u-t1"), "demoted, still a member");
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, removeMembers: ["ghost@" + DOMAIN] });
+  assert.strictEqual(r.status, 400, "not in the team");
+  r = await post("groupmembers", { domain: DOMAIN, id: G3, addMembers: [K1] });
+  assert.strictEqual(r.status, 403, "another school's team");
+  r = await post("groupmembers", { domain: DOMAIN, id: G2, addMembers: [K1] });
+  assert.strictEqual(r.status, 400, "not a security group");
+  r = await post("groupmembers", { domain: DOMAIN, id: G1 });
+  assert.strictEqual(r.status, 400, "nothing to change");
+  r = await call({ action: "groupmembers", method: "POST", body: { domain: DOMAIN, id: G1, addMembers: [K1] }, user: `teacher@${DOMAIN}`, roles: [] });
+  assert.strictEqual(r.status, 403, "no role, no management");
+
+  // Searching for people to add: the school's own cache; tenant-wide only when allowed.
+  r = await call({ action: "usersearch", query: { domain: DOMAIN, q: "lei" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200); assert.ok(r.body.tenant === false && r.body.users.some((x) => x.upn === "lei@" + DOMAIN) && r.body.users.every((x) => x.upn.endsWith("@" + DOMAIN)), JSON.stringify(r.body));
+
+  // The system administrator opens the tenant to this school: now another school's account may be added.
+  r = await call({ action: "groupscope", method: "PUT", body: { domain: DOMAIN, tenantUsers: true }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403, "the IT 管理员 cannot widen their own reach");
+  r = await call({ action: "groupscope", method: "PUT", body: { domain: DOMAIN, tenantUsers: true }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.strictEqual(institutions.institutions[DOMAIN].groupTenant, true);
+  r = await call({ action: "domains", user: DOMADMIN, roles: IT });
+  assert.deepStrictEqual([r.body.domains[0].can.groups, r.body.domains[0].can.groupTenant, r.body.domains[0].can.groupScope], [true, true, false]);
+  r = await call({ action: "groupoptions", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
+  assert.ok(r.body.tenantUsers && r.body.allowedByAdmin && !r.body.canSetScope);
+  r = await call({ action: "usersearch", query: { domain: DOMAIN, q: "xavier" }, user: DOMADMIN, roles: IT });
+  assert.ok(r.body.tenant && r.body.users.some((x) => x.upn === OX), "tenant-wide search: " + JSON.stringify(r.body));
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, addMembers: [OX] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.ok(groupsDb[G1].members.some((x) => x.id === "u-ox"));
+  r = await post("group", body15({ type: "standard", name: "Joint club", members: [OX] }));
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, addMembers: ["g2_gmail.com#EXT#@" + DOMAIN] });
+  assert.strictEqual(r.status, 400, "guests stay refused even with tenant scope");
+  r = await call({ action: "institution", method: "PUT", body: { domain: DOMAIN, name: "智慧园书院", nameEn: "Wisdom Garden" }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200); assert.strictEqual(institutions.institutions[DOMAIN].groupTenant, true, "renaming the school keeps its group scope");
+  r = await call({ action: "groupscope", method: "PUT", body: { domain: DOMAIN, tenantUsers: false }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200); assert.ok(!institutions.institutions[DOMAIN].groupTenant && institutions.institutions[DOMAIN].name === "智慧园书院", "switched off, the names stay");
+  r = await post("groupmembers", { domain: DOMAIN, id: G1, addMembers: [OX] });
+  assert.strictEqual(r.status, 400, "back to the school's own accounts");
 
   console.log("domain: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

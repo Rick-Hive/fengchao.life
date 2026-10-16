@@ -833,3 +833,25 @@ table.plmap .chk { padding: 0; font-size: 12px; white-space: nowrap; }
 table.plmap.edit td:nth-child(2) { min-width: 130px; }
 table.plmap .plrowbtns { white-space: nowrap; }
 table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
+
+/* 新建 Teams 群组 / 管理成员 (2026-10-16) */
+.pp { position: relative; }
+.ppchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.ppchips:empty { display: none; }
+.pchip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 3px; border: 1px solid var(--line-strong); border-radius: 999px; background: #f4f7fb; font-size: 12.5px; }
+.pchip .av, .ppitem .av { width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 9px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.pchip button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 11px; padding: 0 4px; }
+.pchip button:hover { color: var(--bad); }
+.ppbox { position: relative; }
+.ppin { width: 100%; }
+.pplist { position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 20; background: #fff; border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: 0 6px 20px rgba(15, 23, 42, .12); max-height: 240px; overflow: auto; }
+.pplist.hidden { display: none; }
+.ppitem { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0; background: none; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+.ppitem:hover { background: #f1f4f8; }
+.ppitem .u, .ppempty { color: var(--faint); font-size: 12px; }
+.ppempty { padding: 8px 10px; } .ppempty.err { color: var(--bad); }
+.gmrow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-areas: "a n x" "a u x"; column-gap: var(--s2); align-items: center; font-size: 13px; padding: var(--s1) 0; border-bottom: 1px solid var(--line); }
+.gmrow .avatar.sm { grid-area: a; width: 24px; height: 24px; font-size: 10px; color: #fff; }
+.gmrow .mname { grid-area: n; } .gmrow .mupn { grid-area: u; color: var(--faint); font-size: 12px; overflow-wrap: anywhere; }
+.gmrow .gmact { grid-area: x; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; font-size: 12px; }
+.gscope { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--muted); padding: 2px 0 var(--s2); }

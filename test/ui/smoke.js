@@ -38,7 +38,7 @@ const groups = {
     { id: "g6", name: "Science Grade 6", description: "Sixth-grade science lab", kind: "team", visibility: "Public", members: 22, channels: 5, owner: false, created: "2026-09-01T00:00:00Z" }
   ]
 };
-const CAN = { view: true, methods: true, people: true, plan: true, full: true };
+const CAN = { view: true, methods: true, people: true, plan: true, full: true, groups: true, groupTenant: false, groupScope: true };
 // 课程方案 (2026-10-12): what /api/school-plan?domain= answers the editor, and the PUTs it makes.
 const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, { id: "recSci", nameEn: "Science", nameZh: "科学" }];
 const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }],
@@ -165,6 +165,7 @@ function stmDetail(row) {
 }
 const acctEdits = [], licChanges = [];
 const deleted = []; const writebacks = []; const digests = [];
+const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 新建 Teams 群组 (2026-10-16)
   async function shot(name, w, h, hash, lang, rolesList, act) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
@@ -186,6 +187,13 @@ const deleted = []; const writebacks = []; const digests = [];
       else if (p === "/api/domain/user" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); acctEdits.push(b); const hit = users.users.find(x => x.upn === b.user); if (b.jobTitle !== undefined) hit.jobTitle = b.jobTitle; if (b.displayName) hit.displayName = b.displayName; body = { ok: true, user: hit, changed: Object.keys(b).filter(k => k !== "domain" && k !== "user") }; }
       else if (p === "/api/domain/licenses") body = { usageLocation: "CN", faculty: { skuId: "f", name: "Office 365 A1 for faculty", total: 500, used: 12, free: 488 }, student: { skuId: "s", name: "Office 365 A1 for students", total: 1000, used: 990, free: 10 }, extras: [], a1: [] };
       else if (p === "/api/domain/licence") { const b = JSON.parse(r.request().postData()); licChanges.push(b); const hit = users.users.find(x => x.upn === b.user); hit.plan = b.plan; body = { ok: true, user: hit, plan: b.plan === "student" ? "Office 365 A1 for students" : "Office 365 A1 for faculty" }; } // the person panel's live re-read: unchanged here
+      else if (p === "/api/domain/groupoptions") body = { domain: u.searchParams.get("domain"), types: [{ id: "class", zh: "班级团队", en: "Class", hintZh: "老师是所有者", hintEn: "Teachers own it", privacy: "hidden" }, { id: "plc", zh: "教师学习社区 (PLC)", en: "PLC", hintZh: "教师协作", hintEn: "Educators", privacy: "private" }, { id: "staff", zh: "教职员工团队", en: "Staff", hintZh: "行政", hintEn: "Admin", privacy: "private" }, { id: "standard", zh: "其它", en: "Other", hintZh: "社团", hintEn: "Clubs", privacy: "choose" }], tenantUsers: false, allowedByAdmin: false, canSetScope: true };
+      else if (p === "/api/domain/usersearch") { const q = String(u.searchParams.get("q") || "").toLowerCase(); body = { users: users.users.filter(x => (x.displayName + x.upn).toLowerCase().includes(q)).slice(0, 6).map(x => ({ upn: x.upn, name: x.displayName })), tenant: false }; }
+      else if (p === "/api/domain/groupscope") { const b = JSON.parse(r.request().postData()); scopePuts.push(b); body = { ok: true, domain: b.domain, tenantUsers: b.tenantUsers }; }
+      else if (p === "/api/domain/groupop") { const b = JSON.parse(r.request().postData()); teamPending = 0; body = { ok: true, id: b.id, name: "Chess club", owners: b.owners.length, members: b.members.length, failed: [] }; }
+      else if (p === "/api/domain/group" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); teamCreates.push(b); body = b.name === "Slow team" ? { ok: true, pending: true, id: "55555555-5555-4555-8555-555555555555", op: "66666666-6666-4666-8666-666666666666", name: b.name } : { ok: true, id: "55555555-5555-4555-8555-555555555555", name: b.name, type: b.type, owners: b.owners.length, members: b.members.length, failed: [] }; }
+      else if (p === "/api/domain/group" && r.request().method() === "GET") body = { domain: u.searchParams.get("domain"), tenantUsers: false, group: { id: u.searchParams.get("id"), name: "English Grade 5", description: "", visibility: "Private", kind: "team" }, owners: [{ id: "o1", upn: users.users[0].upn, name: users.users[0].displayName, domain: "bes.qiaoliang.online", editable: true }], members: [{ id: "o1", upn: users.users[0].upn, name: users.users[0].displayName, domain: "bes.qiaoliang.online", editable: true, owner: true }, { id: "m2", upn: users.users[1].upn, name: users.users[1].displayName, domain: "bes.qiaoliang.online", editable: true, owner: false }, { id: "m3", upn: "x@other.example.edu", name: "Xavier Other", domain: "other.example.edu", editable: false, owner: false }] };
+      else if (p === "/api/domain/groupmembers") { const b = JSON.parse(r.request().postData()); memberOps.push(b); body = { ok: true, id: b.id, added: (b.addMembers || []).length + (b.addOwners || []).length, removed: (b.removeMembers || []).length + (b.removeOwners || []).length }; }
       else if (p === "/api/domain/groups") body = dgroups;
       else if (p === "/api/roles" && r.request().method() === "GET" && u.searchParams.get("q")) body = { people: peopleHits };
       else if (p === "/api/roles") body = r.request().method() === "GET" ? Object.assign({}, roles, { scope: isAdm ? "all" : "staff" }) : { ok: true, entries: roles.entries };
@@ -464,6 +472,60 @@ const deleted = []; const writebacks = []; const digests = [];
     const pb = await p.$eval("#panel .pb", e => e.innerText); if (!/Teams 名称/.test(pb) || !/显示名称/.test(pb)) throw new Error("group panel: " + pb.slice(0, 200));
     await p.fill("#gnEn", "Grade 5 English"); await p.click("#gnSave"); await p.waitForTimeout(500);
     if (groupNamed.length !== 1 || groupNamed[0].en !== "Grade 5 English" || groupNamed[0].id !== "g1") throw new Error("groupname call: " + JSON.stringify(groupNamed));
+  });
+  // 新建 Teams 群组 (Rick, 2026-10-16): the IT 管理员 creates a school's team and manages its people.
+  await shot("teams-new", 1280, 900, "#/domain/groups", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForTimeout(800);
+    assert.ok(await p.$("#newGroup"), "the New Teams group button");
+    await p.evaluate(() => { const d = document.querySelector("#gtree details"); if (d) d.open = true; }); await p.waitForTimeout(500);
+    // the sysadmin's switch for what the IT 管理员 may add
+    assert.ok(await p.$('#gtree input[data-scope]'), "the school-scope switch for the system administrator");
+    await p.click('#gtree input[data-scope]'); await p.waitForTimeout(300);
+    assert.deepStrictEqual(scopePuts[0], { domain: "bes.qiaoliang.online", tenantUsers: true }, JSON.stringify(scopePuts));
+    await p.click("#newGroup"); await p.waitForSelector("#ngTypes input[name=ngType]");
+    const types = await p.$$eval("#ngTypes input[name=ngType]", es => es.map(e => e.value)); assert.deepStrictEqual(types, ["class", "plc", "staff", "standard"]);
+    await p.click('#ngTypes input[value="class"]'); await p.waitForTimeout(100);
+    assert.ok(!(await p.$("#ngPriv input[name=ngVis]")), "a class team has no privacy choice");
+    assert.ok(/隐藏/.test(await p.$eval("#ngPriv", e => e.innerText)), "says the roster is hidden from students");
+    assert.ok(/不能是学生/.test(await p.$eval("#ngOwnNote", e => e.innerText)), "warns that a student cannot own it");
+    await p.click('#ngTypes input[value="standard"]'); await p.waitForTimeout(100);
+    assert.strictEqual(await p.$$eval("#ngPriv input[name=ngVis]", es => es.map(e => e.value).join()), "Private,Public", "other chooses private or public");
+    assert.ok(/整个租户/.test(await p.$eval("#ngPriv", e => e.innerText)), "warns that public is tenant-wide");
+    // submit without owner → asked to fill in
+    await p.fill("#ngName", "Chess club"); await p.click("#ngSave"); await p.waitForTimeout(200);
+    assert.ok(/所有者/.test(await p.$eval("#ngMsg", e => e.innerText)) && teamCreates.length === 0, "an owner is required before anything is sent");
+    // pick an owner by search, a member by typing the full account
+    await p.fill("#ngOwners .ppin", users.users[0].displayName.slice(0, 3)); await p.waitForSelector("#ngOwners .ppitem"); await p.click("#ngOwners .ppitem");
+    assert.strictEqual((await p.$$("#ngOwners .pchip")).length, 1, "owner chip");
+    await p.fill("#ngMembers .ppin", users.users[1].upn); await p.waitForTimeout(500); await p.press("#ngMembers .ppin", "Enter");
+    assert.strictEqual((await p.$$("#ngMembers .pchip")).length, 1, "member chip");
+    await p.click('#ngPriv input[value="Public"]');
+    await p.screenshot({ path: OUT + "/teams-new-form.png" });
+    await p.click("#ngSave"); await p.waitForSelector("#panel .msg.ok");
+    const sent = teamCreates[0];
+    assert.deepStrictEqual([sent.domain, sent.type, sent.name, sent.visibility, sent.owners, sent.members], ["bes.qiaoliang.online", "standard", "Chess club", "Public", [users.users[0].upn], [users.users[1].upn]], JSON.stringify(sent));
+    assert.ok(/团队已创建/.test(await p.$eval("#panel .pb", e => e.innerText)));
+    // a creation that is still pending: the page polls and then reports
+    await p.click("#ngAgain"); await p.waitForSelector("#ngTypes input[name=ngType]");
+    await p.click('#ngTypes input[value="staff"]'); await p.fill("#ngName", "Slow team");
+    await p.fill("#ngOwners .ppin", users.users[0].displayName.slice(0, 3)); await p.waitForSelector("#ngOwners .ppitem"); await p.click("#ngOwners .ppitem");
+    await p.click("#ngSave"); await p.waitForSelector("#panel .msg.ok", { timeout: 8000 });
+    assert.strictEqual(teamCreates[1].type, "staff"); assert.strictEqual(teamCreates[1].visibility, "Private");
+    await p.keyboard.press("Escape");
+    // manage an existing team: live owners and members; the other school's account has no buttons
+    await p.click('#gtree button[data-manage]'); await p.waitForSelector("#gmgr .gmrow");
+    const rows = await p.$$eval("#gmgr .gmrow", es => es.map(e => e.innerText.replace(/\s+/g, " ")));
+    assert.strictEqual(rows.length, 3, "one owner and two members: " + JSON.stringify(rows));
+    await p.screenshot({ path: OUT + "/teams-manage.png" });
+    assert.ok(/other\.example\.edu/.test(rows[2]) && !/移除/.test(rows[2]), "another school's account is shown without remove: " + rows[2]);
+    await p.click('#gmgr button[data-act="promote"]'); await p.waitForTimeout(300);
+    assert.deepStrictEqual(memberOps[0], { domain: "bes.qiaoliang.online", id: "g1", addOwners: [users.users[1].upn] }, JSON.stringify(memberOps));
+    await p.waitForSelector(".gmrow", { timeout: 4000 }); await p.waitForTimeout(1500);
+    await p.click('#gmgr button[data-act="remove"]'); await p.waitForTimeout(200);
+    assert.strictEqual(memberOps.length, 1, "remove needs a second click");
+    assert.ok(/确认/.test(await p.$eval('#gmgr button[data-act="remove"]', e => e.textContent)));
+    await p.click('#gmgr button[data-act="remove"]'); await p.waitForTimeout(300);
+    assert.strictEqual(memberOps.length, 2); assert.ok(memberOps[1].removeMembers && memberOps[1].removeMembers.length === 1, JSON.stringify(memberOps[1]));
   });
   await shot("orders-phone", 390, 800, "#/ops/orders/hive", "zh", SALES, async p => { await p.waitForTimeout(300); });
   // Sticky headings (Rick 2026-10-06): scroll the users list and the column headings stay at the top of the pane.

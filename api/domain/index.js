@@ -22,6 +22,14 @@
 //   GET    domain/user?upn=&full=1         → the account read live into the cache (+ editable fields with full=1)
 //   PATCH  domain/user                     {domain, user, givenName?, surname?, displayName?, jobTitle?, city?, postalCode?, usageLocation?, safeEmail?} → Microsoft 365   (IT 管理员, sysadmin)
 //   POST   domain/licence                  {domain, user, plan: student|faculty} → A1 for students ↔ A1 for faculty                       (IT 管理员, sysadmin)
+//   GET    domain/groupoptions?domain=x    the team types, and whether this school may add accounts of other schools
+//   GET    domain/usersearch?domain=x&q=   accounts to put into a team (the school's own; tenant-wide when allowed)
+//   GET    domain/group?domain=x&id=       a team of the school, live: owners and members, and what the caller may change
+//   POST   domain/group                    {domain, type: class|plc|staff|standard, name, description?, visibility?, owners[], members[]}
+//                                          → creates the team in Microsoft Teams (202; polls, or answers pending)      (IT 管理员, sysadmin)
+//   POST   domain/groupop                  {domain, id, op, owners[], members[]} → finishes a creation that was still pending
+//   POST   domain/groupmembers             {domain, id, addMembers?, addOwners?, removeMembers?, removeOwners?}          (IT 管理员, sysadmin)
+//   PUT    domain/groupscope               {domain, tenantUsers: bool} → may this school's IT 管理员 add other schools' accounts  (sysadmin)
 //
 // Who may do what is `can()` in ../shared/roles.js. Every request names a
 // domain; the target account's UPN must end in it, or the call is refused — a
@@ -42,6 +50,7 @@ const people = require("../shared/people");
 const peopleMod = people;
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
+const tg = require("../shared/teamGroups");
 const { readSnapshot } = require("../shared/blob");
 
 // Hive course teachers (Rick, 2026-10-08: "a separate Hive Course Teachers"): the
@@ -176,7 +185,7 @@ async function handler(context, req) {
       domains = domains.map((d) => Object.assign({}, d, {
         name: (inst[d.domain] && inst[d.domain].name) || "",
         nameEn: (inst[d.domain] && inst[d.domain].nameEn) || "",
-        can: { view: can(roles, "view", d.domain), methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), plan: can(roles, "plan", d.domain), full: isAdmin, institutions: isAdmin },
+        can: { view: can(roles, "view", d.domain), methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), plan: can(roles, "plan", d.domain), full: isAdmin, institutions: isAdmin, groups: can(roles, "methods", d.domain), groupTenant: isAdmin || (inst[d.domain] || {}).groupTenant === true, groupScope: isAdmin },
       }));
       context.res = { status: 200, body: { user: actor, roles, all, domains, mine: domainOf(actor), showDomains: isAdmin } };
       return;
@@ -249,6 +258,188 @@ async function handler(context, req) {
       return;
     }
 
+    // ---- 新建 Teams 群组 (Rick, 2026-10-16) -------------------------------------------------
+    // So that ordinary users can be stopped from creating groups in the tenant, the IT 管理员
+    // creates a school's teams here and manages their owners and members. Everything goes
+    // through ../shared/teamGroups.js; this part decides who may do it and for whom.
+    const groupFail = (err, what) => {
+      if (err.status === 403) return fail(context, 403, `Microsoft refused (${what}): Hive's app probably lacks the permission Team.Create or Group.ReadWrite.All — the system administrator grants it in Entra › App registrations › API permissions`, { code: "app_permission" });
+      if (err.status === 404) return fail(context, 404, "Microsoft does not know that group or account", { code: "not_found" });
+      if (err.status === 400) return fail(context, 400, "Microsoft refused: " + (err.message.split(": ").slice(1).join(": ") || err.code), { code: err.code || "refused" });
+      throw err;
+    };
+    const isSysadmin = () => can(roles, "admin");
+    const tenantScope = async () => isSysadmin() || ((await readInstitutions()).institutions[domain] || {}).groupTenant === true;
+    // Owners of a class / PLC / staff team must not be students (Teams makes the owner a teacher).
+    const studentsAmong = async (upns) => {
+      const [doc, pdoc] = await Promise.all([dir.readDomain(domain), readPeople()]);
+      const rows = new Map(doc.users.map((r) => [String(r.upn).toLowerCase(), r]));
+      // An account the cache has not seen yet (made minutes ago) still has its 身份 in people.json.
+      return upns.filter((u) => { const r = rows.get(u) || {}; return identityOf((pdoc.people || {})[u] || (pdoc.people || {})[r.upn] || null, { department: r.department, jobTitle: r.jobTitle, plan: r.plan || "" }) === "学生"; });
+    };
+    // The group as the page shows and edits it.
+    const peopleView = (arr, tenant, ownerIds) => arr.map((x) => { const upn = String(x.userPrincipalName || "").toLowerCase(); return { id: x.id, upn, name: x.displayName || "", domain: domainOf(upn), editable: isSysadmin() || tenant || domainOf(upn) === domain, owner: ownerIds ? ownerIds.has(x.id) : undefined }; }).sort((a, b) => a.upn.localeCompare(b.upn));
+    const classOf = async (g) => { if (!(g.resourceProvisioningOptions || []).includes("Team")) return false; try { const t = await graph("GET", `/teams/${g.id}?$select=id,specialization`); return t && t.specialization === "educationClass"; } catch { return false; } };
+    // After a team was created or its people changed: the cache, the audit line, the reply.
+    async function afterPeople(g, ownerUpns, add, remove) {
+      try { await dir.noteGroup(domain, { id: g.id, name: g.displayName, description: g.description || "", mail: g.mail || "", kind: tg.kindOf(g, await classOf(g)), visibility: g.visibility || "" }, { owners: ownerUpns, add: add.filter((u) => domainOf(u) === domain), remove: remove.filter((u) => domainOf(u) === domain) }); } catch { /* the next sync catches up */ }
+    }
+
+    if (method === "GET" && action === "groupoptions") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "teams are created by the IT 管理员", { code: "forbidden" });
+      const allowed = ((await readInstitutions()).institutions[domain] || {}).groupTenant === true;
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain, types: tg.typeList(), tenantUsers: isSysadmin() || allowed, allowedByAdmin: allowed, canSetScope: isSysadmin() } };
+      return;
+    }
+
+    if (method === "PUT" && action === "groupscope") {
+      if (!isSysadmin()) return fail(context, 403, "which accounts a school's IT 管理员 may add to a team is set by the system administrator", { code: "forbidden" });
+      const on = !!(req.body && req.body.tenantUsers);
+      await people.updateInstitutions((doc) => {
+        const cur = doc.institutions[domain] || {};
+        const next = Object.assign({}, cur);
+        if (on) next.groupTenant = true; else delete next.groupTenant;
+        if (!next.name && !next.nameEn && !next.groupTenant) delete doc.institutions[domain]; else doc.institutions[domain] = next;
+      });
+      await audit(context, { actor, action: "group.scope", target: domain, tenantUsers: on, result: "ok" });
+      context.res = { status: 200, body: { ok: true, domain, tenantUsers: on } };
+      return;
+    }
+
+    if (method === "GET" && action === "usersearch") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "teams are managed by the IT 管理员", { code: "forbidden" });
+      const q = String((req.query && req.query.q) || "").replace(/["\\]/g, " ").trim().slice(0, 40);
+      if (q.length < 1) { context.res = { status: 200, body: { users: [] } }; return; }
+      const tenant = await tenantScope();
+      let out;
+      if (!tenant) {
+        const ql = q.toLowerCase();
+        const doc = await dir.readDomain(domain);
+        out = doc.users.filter((r) => r.enabled !== false && (String(r.upn).toLowerCase().includes(ql) || String(r.displayName || "").toLowerCase().includes(ql))).slice(0, 8).map((r) => ({ upn: String(r.upn).toLowerCase(), name: r.displayName || "" }));
+      } else {
+        const r = await graph("GET", `/users?$search=${encodeURIComponent(`"displayName:${q}" OR "userPrincipalName:${q}"`)}&$select=id,userPrincipalName,displayName,userType&$top=10`, undefined, { ConsistencyLevel: "eventual" });
+        out = ((r && r.value) || []).filter((u) => u.userType !== "Guest" && u.userPrincipalName).slice(0, 8).map((u) => ({ upn: String(u.userPrincipalName).toLowerCase(), name: u.displayName || "" }));
+      }
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { users: out, tenant } };
+      return;
+    }
+
+    if (method === "GET" && action === "group") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "teams are managed by the IT 管理员", { code: "forbidden" });
+      const id = String((req.query && req.query.id) || "").trim();
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(context, 400, "group id missing");
+      let read;
+      try { read = await tg.readGroup(id); } catch (err) { return groupFail(err, "read the group"); }
+      const m = tg.manageable(read.g, read.owners, domain, isSysadmin());
+      if (!m.ok) return fail(context, m.forbidden ? 403 : 400, m.why, { code: m.forbidden ? "forbidden" : "not_managed" });
+      const tenant = await tenantScope();
+      const members = await tg.readMembers(id);
+      const ownerIds = new Set(read.owners.map((o) => o.id));
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain, tenantUsers: tenant, group: { id: read.g.id, name: read.g.displayName, description: read.g.description || "", visibility: read.g.visibility || "", kind: tg.kindOf(read.g, await classOf(read.g)) }, owners: peopleView(read.owners, tenant), members: peopleView(members, tenant, ownerIds) } };
+      return;
+    }
+
+    if (method === "POST" && action === "group") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "teams are created by the IT 管理员", { code: "forbidden" });
+      const { problems, clean } = tg.validateCreate(req.body);
+      if (problems.length) return fail(context, 400, "please check the form", { problems });
+      const found = await tg.lookupUsers(clean.owners.concat(clean.members), domain, await tenantScope());
+      if (found.problems.length) return fail(context, 400, "please check the form", { problems: found.problems });
+      if (tg.TYPES[clean.type].education) {
+        const bad = await studentsAmong(clean.owners);
+        if (bad.length) return fail(context, 400, "please check the form", { problems: bad.map((u) => `${u} is a student: the owner of a ${tg.TYPES[clean.type].en} team must be a teacher or staff member`) });
+      }
+      let made;
+      try { made = await tg.createTeam(clean, found.users.get(clean.owners[0]).id); } catch (err) {
+        await audit(context, { actor, action: "group.create", target: clean.name, domain, type: clean.type, result: "failed", error: err.code || err.status });
+        return groupFail(err, "create the team");
+      }
+      await audit(context, { actor, action: "group.create", target: made.id, domain, name: clean.name, type: clean.type, visibility: clean.visibility, owners: clean.owners, members: clean.members.length, result: "ok" });
+      const op = await tg.waitFor(made.id, made.op, tg.WAIT.create);
+      if (op.state === "failed") return fail(context, 502, "Microsoft could not create the team: " + op.error, { code: "create_failed" });
+      if (op.state === "pending") { context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, pending: true, id: made.id, op: made.op, name: clean.name } }; return; }
+      const peopleToAdd = { owners: clean.owners.slice(1).map((u) => found.users.get(u)), members: clean.members.map((u) => found.users.get(u)) };
+      const res = await tg.addPeople(made.id, peopleToAdd.owners, peopleToAdd.members);
+      const g = await graph("GET", `/groups/${made.id}?$select=id,displayName,description,visibility,groupTypes,mail,resourceProvisioningOptions`).catch(() => ({ id: made.id, displayName: clean.name, description: clean.description, visibility: clean.visibility, resourceProvisioningOptions: ["Team"] }));
+      await afterPeople(g, clean.owners, clean.owners.concat(clean.members), []);
+      if (res.failed.length) await audit(context, { actor, action: "group.members", target: made.id, domain, failed: res.failed, result: "partial" });
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, id: made.id, name: clean.name, type: clean.type, owners: clean.owners.length, members: clean.members.length, failed: res.failed } };
+      return;
+    }
+
+    // A creation that was still under way when POST group answered: the page asks again
+    // (with the people it still has to add) until Microsoft says it is done.
+    if (method === "POST" && action === "groupop") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "teams are created by the IT 管理员", { code: "forbidden" });
+      const b = req.body || {};
+      const id = String(b.id || "").trim(), opId = String(b.op || "").trim();
+      if (!/^[0-9a-f-]{36}$/i.test(id) || !/^[0-9a-f-]{36}$/i.test(opId)) return fail(context, 400, "group or operation id missing");
+      const lc = (a) => (Array.isArray(a) ? a : []).map((x) => String(x || "").trim().toLowerCase()).filter(Boolean);
+      const owners = Array.from(new Set(lc(b.owners))), members = Array.from(new Set(lc(b.members))).filter((u) => !owners.includes(u));
+      let op;
+      try { op = await tg.waitFor(id, opId, tg.WAIT.check); } catch (err) { return groupFail(err, "check the creation"); }
+      if (op.state === "failed") return fail(context, 502, "Microsoft could not create the team: " + op.error, { code: "create_failed" });
+      if (op.state === "pending") { context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, pending: true, id, op: opId } }; return; }
+      let read;
+      try { read = await tg.readGroup(id); } catch (err) { return groupFail(err, "read the group"); }
+      const m = tg.manageable(read.g, read.owners, domain, isSysadmin());
+      if (!m.ok) return fail(context, m.forbidden ? 403 : 400, m.why, { code: "forbidden" });
+      const found = await tg.lookupUsers(owners.concat(members), domain, await tenantScope());
+      if (found.problems.length) return fail(context, 400, "please check the form", { problems: found.problems });
+      const have = new Set(read.owners.map((o) => String(o.userPrincipalName).toLowerCase()));
+      const res = await tg.addPeople(id, owners.filter((u) => !have.has(u)).map((u) => found.users.get(u)), members.map((u) => found.users.get(u)));
+      await afterPeople(read.g, owners, owners.concat(members), []);
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, id, name: read.g.displayName, owners: owners.length, members: members.length, failed: res.failed } };
+      return;
+    }
+
+    if (method === "POST" && action === "groupmembers") {
+      if (!can(roles, "methods", domain)) return fail(context, 403, "team members are managed by the IT 管理员", { code: "forbidden" });
+      const b = req.body || {};
+      const id = String(b.id || "").trim();
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(context, 400, "group id missing");
+      const lc = (a) => Array.from(new Set((Array.isArray(a) ? a : []).map((x) => String(x || "").trim().toLowerCase()).filter(Boolean)));
+      const addM = lc(b.addMembers), addO = lc(b.addOwners), remM = lc(b.removeMembers), remO = lc(b.removeOwners);
+      if (!addM.length && !addO.length && !remM.length && !remO.length) return fail(context, 400, "nothing to change");
+      let read;
+      try { read = await tg.readGroup(id); } catch (err) { return groupFail(err, "read the group"); }
+      const m = tg.manageable(read.g, read.owners, domain, isSysadmin());
+      if (!m.ok) return fail(context, m.forbidden ? 403 : 400, m.why, { code: m.forbidden ? "forbidden" : "not_managed" });
+      const tenant = await tenantScope();
+      const found = await tg.lookupUsers(addM.concat(addO), domain, tenant);
+      const problems = found.problems.slice();
+      const current = (remM.length || remO.length) ? await tg.readMembers(id) : [];
+      const byUpn = new Map(current.concat(read.owners).map((x) => [String(x.userPrincipalName).toLowerCase(), x]));
+      for (const u of remM.concat(remO)) {
+        if (!tenant && !isSysadmin() && domainOf(u) !== domain) problems.push(`${u} is not an account of this school: only the system administrator removes other schools' accounts`);
+        else if (!byUpn.has(u)) problems.push(`${u} is not in this team`);
+      }
+      const ownersAfter = new Set(read.owners.map((o) => String(o.userPrincipalName).toLowerCase()));
+      addO.forEach((u) => ownersAfter.add(u)); remM.concat(remO).forEach((u) => ownersAfter.delete(u));
+      if (!ownersAfter.size) problems.push("a team always keeps an owner: add another owner first");
+      if (problems.length) return fail(context, 400, "please check the form", { problems });
+      try {
+        const ownerRecs = addO.map((u) => found.users.get(u));
+        for (const o of ownerRecs) await tg.addOwner(id, o.id);
+        const ids = Array.from(new Set(ownerRecs.concat(addM.map((u) => found.users.get(u))).map((x) => x.id)));
+        const done = ids.length ? await tg.addMembers(id, ids) : [];
+        if (ids.length && done.length < ids.length) return fail(context, 502, "Microsoft added only some of the accounts; reopen the team to see who is in", { code: "partial" });
+        for (const u of remO) { if (!remM.includes(u)) await graph("DELETE", `/groups/${id}/owners/${byUpn.get(u).id}/$ref`).catch((e) => { if (e.status !== 404) throw e; }); }
+        for (const u of remM) {
+          const uid = byUpn.get(u).id;
+          await graph("DELETE", `/groups/${id}/owners/${uid}/$ref`).catch((e) => { if (e.status !== 404 && e.status !== 400) throw e; });
+          await graph("DELETE", `/groups/${id}/members/${uid}/$ref`).catch((e) => { if (e.status !== 404) throw e; });
+        }
+      } catch (err) {
+        await audit(context, { actor, action: "group.members", target: id, domain, result: "failed", error: err.code || err.status });
+        return groupFail(err, "change the team's people");
+      }
+      await audit(context, { actor, action: "group.members", target: id, domain, name: read.g.displayName, addMembers: addM, addOwners: addO, removeMembers: remM, removeOwners: remO, result: "ok" });
+      await afterPeople(read.g, Array.from(ownersAfter), addM.concat(addO), remM);
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, id, added: addM.length + addO.length, removed: remM.length + remO.length } };
+      return;
+    }
+
     if (action === "sync") {
       if (method === "GET") {
         context.res = { status: 200, body: dir.status(await dir.readDomain(domain)) };
@@ -277,7 +468,8 @@ async function handler(context, req) {
       const nameEn = String((req.body && req.body.nameEn) || "").trim().slice(0, 80);
       if (/[<>]/.test(name + nameEn)) return fail(context, 400, "name: no < or >");
       await people.updateInstitutions((doc) => {
-        if (name || nameEn) doc.institutions[domain] = { name, nameEn, by: actor, at: new Date().toISOString() };
+        const keep = doc.institutions[domain] && doc.institutions[domain].groupTenant === true; // 群组范围 survives a rename
+        if (name || nameEn || keep) doc.institutions[domain] = Object.assign({ name, nameEn, by: actor, at: new Date().toISOString() }, keep ? { groupTenant: true } : {});
         else delete doc.institutions[domain];
       });
       await audit(context, { actor, action: "institution.update", target: domain, name, nameEn, result: "ok" });

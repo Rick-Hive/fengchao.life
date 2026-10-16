@@ -10,6 +10,10 @@
 // Application permissions granted (phase 1, 2026-09-29): User.ReadWrite.All,
 // UserAuthenticationMethod.ReadWrite.All, AuditLog.Read.All,
 // Directory.Read.All, Team.ReadBasic.All.
+// Needed from 2026-10-16 for 新建 Teams 群组 (api/domain group actions; the system
+// administrator grants them in Entra › App registrations › API permissions):
+// Team.Create (create the team), Group.ReadWrite.All (owners, members, reading
+// the group). Without them the page's calls answer 403 and say which is missing.
 const GRAPH = "https://graph.microsoft.com/v1.0";
 
 let cached = { token: "", exp: 0 };
@@ -87,6 +91,29 @@ async function graph(method, path, body, extraHeaders) {
   return null;
 }
 
+// Like graph(), but returns { status, headers, data } so a 202 Accepted can be
+// followed: creating a team answers with no body and the operation in Location.
+async function graphRes(method, path, body) {
+  const url = /^https:/.test(path) ? path : GRAPH + path;
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = res.status === 204 ? "" : await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+  if (!res.ok) {
+    const e = (data && data.error) || {};
+    const err = new Error(`Graph ${method} ${path.replace(GRAPH, "")} -> HTTP ${res.status}: ${e.code || ""} ${e.message || text.slice(0, 200)}`.trim());
+    err.status = res.status;
+    err.code = e.code || "";
+    throw err;
+  }
+  const h = (n) => (res.headers && res.headers.get ? res.headers.get(n) : null) || "";
+  return { status: res.status, headers: { location: h("location"), contentLocation: h("content-location") }, data };
+}
+
 // GET a collection, following @odata.nextLink up to `max` items.
 async function list(path, max, extraHeaders) {
   const out = [];
@@ -149,4 +176,4 @@ function q(s) {
   return String(s).replace(/'/g, "''");
 }
 
-module.exports = { graph, graphRaw, list, batch, q, _reset: () => { cached = { token: "", exp: 0 }; } };
+module.exports = { graph, graphRes, graphRaw, list, batch, q, _reset: () => { cached = { token: "", exp: 0 }; } };

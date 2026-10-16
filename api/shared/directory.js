@@ -354,6 +354,27 @@ async function touchUser(domain, upn, patch) {
   if (i >= 0) { doc.users[i] = Object.assign({}, doc.users[i], patch); await store.write(`${domain}.json`, doc); }
 }
 
+// A team made or changed from the management centre goes into the cache at once
+// (the Teams 群组 page lists what the rows say, so without this it would wait for
+// the next sync). `group` = { id, name, description, mail, kind, visibility };
+// `owners` = the owners' UPNs (replaces the group's entry in groupOwners); `add` /
+// `remove` = UPNs of this domain's accounts that joined / left it.
+async function noteGroup(domain, group, change) {
+  const c = change || {};
+  const doc = await readDomain(domain);
+  const add = new Set((c.add || []).map((u) => String(u).toLowerCase())), remove = new Set((c.remove || []).map((u) => String(u).toLowerCase()));
+  let touched = false;
+  doc.users = doc.users.map((r) => {
+    const upn = String(r.upn || "").toLowerCase();
+    if (!add.has(upn) && !remove.has(upn)) return r;
+    const rest = (r.groups || []).filter((x) => x.id !== group.id);
+    touched = true;
+    return Object.assign({}, r, { groups: remove.has(upn) ? rest : rest.concat([{ id: group.id, name: group.name || "", description: group.description || "", mail: group.mail || "", kind: group.kind || "team", visibility: group.visibility || "" }]) });
+  });
+  if (Array.isArray(c.owners)) { doc.groupOwners = Object.assign({}, doc.groupOwners || {}, { [group.id]: c.owners.map((u) => String(u).toLowerCase()) }); touched = true; }
+  if (touched) await store.write(`${domain}.json`, doc);
+}
+
 // A just-created account goes into the cache at once (rowOf of the Graph user,
 // no methods or groups yet), so the Users page shows it without a sync.
 async function addUser(domain, graphUser, extra) {
@@ -788,4 +809,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, refreshUser, readSnapshot, readLedger, reconcileRecycleBin, beijingDate, initDelta, status, groupsOf, touchUser, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, refreshUser, readSnapshot, readLedger, reconcileRecycleBin, beijingDate, initDelta, status, groupsOf, touchUser, noteGroup, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
