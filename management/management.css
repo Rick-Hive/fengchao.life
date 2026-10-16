@@ -855,3 +855,88 @@ table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 .gmrow .mname { grid-area: n; } .gmrow .mupn { grid-area: u; color: var(--faint); font-size: 12px; overflow-wrap: anywhere; }
 .gmrow .gmact { grid-area: x; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; font-size: 12px; }
 .gscope { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--muted); padding: 2px 0 var(--s2); }
+
+/* ---- 校历: month / week / list (Rick, 2026-10-16: 「按月，按周查看……UI 要美观，专业」) ---------------
+   Same palette as the rest: the school's own events use the green of the "校历" tag, Hive's the blue of
+   the "蜂巢" tag. Quiet 1px lines, 8px chips, the day number is a round badge on today. */
+.calbar { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin: var(--s3) 0 var(--s2); }
+.calbar .calnav { display: inline-flex; align-items: center; gap: 6px; }
+.calbar .calarrow { width: 30px; height: 30px; border: 1px solid var(--line-strong); background: var(--card); color: var(--muted); border-radius: 8px; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 0 2px; }
+.calbar .calarrow:hover { border-color: var(--accent); color: var(--accent-dark); }
+.calbar .caltitle { margin: 0 var(--s2) 0 var(--s1); font-size: 18px; font-weight: 650; letter-spacing: -.01em; color: var(--ink); min-width: 9ch; }
+.calbar select { width: auto; height: 30px; font-size: 13px; padding-top: 0; padding-bottom: 0; }
+.calbar .calgap { flex: 1; }
+.calseg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; background: var(--card); }
+.calseg button { border: 0; background: transparent; height: 30px; padding: 0 16px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.calseg button + button { border-left: 1px solid var(--line); }
+.calseg button:hover { color: var(--accent-dark); }
+.calseg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-dark); font-weight: 650; }
+
+.calev { display: flex; align-items: center; gap: 4px; width: 100%; text-align: left; border: 0; border-left: 3px solid; border-radius: 5px; padding: 0 6px; margin-top: 2px; height: 20px; font-size: 12px; line-height: 20px; overflow: hidden; white-space: nowrap; cursor: pointer; font-family: inherit; }
+.calev .tt { overflow: hidden; text-overflow: ellipsis; }
+.calev .tm { flex: none; font-variant-numeric: tabular-nums; opacity: .72; }
+.calev.school, .calblk.school { background: var(--ok-soft); border-color: var(--ok); color: #0f5c2c; }
+.calev.hive, .calblk.hive { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+.calev:hover, .calblk:hover { filter: brightness(.96); }
+.calev:focus-visible, .calblk:focus-visible, .calmore:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.calmonth { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.caldows { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: #f8fafc; border-bottom: 1px solid var(--line); }
+.caldows > div { padding: 8px 10px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.calweeks { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calcell { min-height: 112px; padding: 6px 6px 4px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.calcell:nth-child(7n) { border-right: 0; }
+.calcell:nth-last-child(-n + 7) { border-bottom: 0; }
+.calcell:hover { background: #fafcfe; }
+.calcell.out { background: #fafbfc; }
+.calcell.out .calnum { color: var(--faint); font-weight: 500; }
+.calcell.sel { box-shadow: inset 0 0 0 2px var(--accent-soft-line); background: #fbfdff; }
+.calnum { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 12px; font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.calcell.today .calnum, .calwd.today .calnum { background: var(--accent); color: #fff; }
+.calmore { display: block; border: 0; background: none; padding: 2px 4px; margin-top: 1px; font-size: 11.5px; color: var(--accent-dark); font-weight: 600; cursor: pointer; font-family: inherit; }
+.calmore:hover { text-decoration: underline; }
+
+.calagenda { margin-top: var(--s3); background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s3) var(--s4); }
+.calagh { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); padding-bottom: var(--s2); border-bottom: 1px solid var(--line); font-size: 14px; }
+.calagrow { display: grid; grid-template-columns: 4px 96px minmax(0, 1fr) auto; gap: var(--s3); align-items: center; padding: 10px 4px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13px; }
+.calagrow:last-child { border-bottom: 0; }
+.calagrow:hover { background: #fafcfe; }
+.calagbar { align-self: stretch; border-radius: 2px; background: var(--ok); }
+.calagbar.hive { background: var(--accent); }
+.calagtime { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; }
+.calagtime .faint { font-size: 11px; }
+.calagmain b { font-weight: 600; }
+.calagmain .faint { font-size: 12px; }
+.calempty { margin: var(--s3) 0 var(--s1); font-size: 13px; }
+
+.calweekwrap { overflow-x: auto; }
+.calweek { min-width: 760px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.calwkhead, .calallday { display: grid; grid-template-columns: 56px repeat(7, minmax(0, 1fr)); }
+.calwkhead { background: #f8fafc; border-bottom: 1px solid var(--line); }
+.calgutter { font-size: 11px; color: var(--faint); padding: 8px 6px 0 0; text-align: right; }
+.calwd { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px 6px; border-left: 1px solid var(--line); cursor: pointer; }
+.calwd.sel .calnum:not(:empty) { box-shadow: 0 0 0 2px var(--accent-soft-line); }
+.calwdn { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.calallday { border-bottom: 1px solid var(--line-strong); min-height: 30px; }
+.calalc { border-left: 1px solid var(--line); padding: 2px 3px 4px; cursor: pointer; min-width: 0; }
+.calwk { max-height: 620px; overflow-y: auto; position: relative; }
+.calwkin { display: grid; grid-template-columns: 56px repeat(7, minmax(0, 1fr)); position: relative; }
+.calhrs { position: relative; }
+.calhrs span { position: absolute; right: 8px; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.calcol { position: relative; border-left: 1px solid var(--line); cursor: pointer; background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 43px, var(--line) 43px, var(--line) 44px); }
+.calcol.today { background-color: #f7faff; }
+.calblk { position: absolute; display: flex; flex-direction: column; gap: 1px; text-align: left; border: 0; border-left: 3px solid; border-radius: 6px; padding: 3px 6px; overflow: hidden; font-size: 12px; line-height: 1.25; cursor: pointer; font-family: inherit; box-shadow: 0 0 0 1px var(--card); }
+.calblk b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.calblk span { opacity: .75; font-variant-numeric: tabular-nums; font-size: 11px; }
+
+@media (max-width: 720px) {
+  .calbar .caltitle { flex-basis: 100%; order: -1; margin: 0; }
+  .calcell { min-height: 58px; padding: 4px 3px; text-align: center; }
+  .calcell .calev { display: inline-block; width: 7px; height: 7px; padding: 0; margin: 3px 1px 0; border: 0; border-radius: 50%; font-size: 0; vertical-align: top; }
+  .calcell .calev.school { background: var(--ok); } .calcell .calev.hive { background: var(--accent); }
+  .calcell .calev .tm, .calcell .calev .tt { display: none; }
+  .calmore { display: none; }
+  .caldows > div { padding: 6px 2px; text-align: center; font-size: 10.5px; }
+  .calagrow { grid-template-columns: 4px 70px minmax(0, 1fr); } .calagrow .tag { display: none; }
+  .calagenda { padding: var(--s2) var(--s3); }
+}

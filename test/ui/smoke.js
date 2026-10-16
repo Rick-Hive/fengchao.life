@@ -872,6 +872,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
   // 校历 (Rick, 2026-10-16): the 教育领袖 edits the school's calendar and sees Hive's events read-only.
   await shot("calendar-leader", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(800);
+    await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
     const nv = await p.$eval("#nav", e => e.innerText);
     assert.ok(/校历/.test(nv) && /课程方案/.test(nv) && !/Teams 群组|操作手册/.test(nv), "leader nav: " + nv);
     assert.ok(await p.$eval("#calAdd", e => !e.hidden), "the leader may add events");
@@ -923,6 +924,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
   // The system administrator: sees a school's calendar read-only, adds events to the Hive layer aimed at schools.
   await shot("calendar-admin", 1280, 900, "#/domain/calendar", "en", ["admin"], async p => {
     await p.waitForTimeout(800);
+    await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
     assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 2, "both tabs");
     assert.ok(await p.$("#calsel"), "the school picker");
     assert.ok(await p.$eval("#calAdd", e => e.hidden), "the system administrator cannot add to a school's own calendar");
@@ -953,6 +955,49 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(syncPosts.length >= 1 && syncPosts.every(x => x.layer === "hive" && x.op === "syncplan"), JSON.stringify(syncPosts));
     assert.ok(/add 5/.test(await p.$eval("#calsyncout", e => e.innerText)), "plan shown");
     await p.screenshot({ path: OUT + "/calendar-hive-sync.png" });
+  });
+  // 校历 views: month (default), week, list; the year and month pickers; a day opens the add form with that date.
+  await shot("calendar-month", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForTimeout(800);
+    assert.ok(await p.$(".calmonth"), "the month grid is the default view");
+    assert.strictEqual(await p.$$eval(".calcell", es => es.length % 7), 0, "whole weeks");
+    assert.ok(await p.$$eval("#calyear option", es => es.length >= 8), "a year picker");
+    await p.selectOption("#calyear", "2026"); await p.selectOption("#calmon", "12"); await p.waitForTimeout(150);
+    assert.ok(/2026年12月/.test(await p.$eval(".caltitle", e => e.innerText)), "title follows the pickers");
+    const chip = await p.$('.calcell[data-day="2026-12-05"] .calev.hive');
+    assert.ok(chip && /联合教师培训/.test(await chip.innerText()) && /19:00/.test(await chip.innerText()), "Hive's event is on 5 December with its time");
+    assert.strictEqual(await p.$$eval('.calcell[data-day="2026-12-04"] .calev', es => es.length), 0, "and not on the 4th");
+    await p.click('.calcell[data-day="2026-12-09"] .calnum'); await p.waitForTimeout(150);
+    assert.ok(/12月9日/.test(await p.$eval(".calagh b", e => e.innerText)) && /没有事件/.test(await p.$eval(".calagenda", e => e.innerText)), "a day shows its agenda");
+    await p.click("#calAddDay"); await p.waitForSelector("#cef");
+    assert.strictEqual(await p.$eval("#ceStart", e => e.value), "2026-12-09T19:00", "the form starts on the chosen day");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+    await p.screenshot({ path: OUT + "/calendar-month-view.png" });
+    await p.click('[data-nav="next"]'); await p.waitForTimeout(150);
+    assert.ok(/2027年1月/.test(await p.$eval(".caltitle", e => e.innerText)), "next month crosses the year");
+    await p.click('[data-nav="prev"]'); await p.click('[data-nav="prev"]'); await p.waitForTimeout(150);
+    assert.ok(/2026年11月/.test(await p.$eval(".caltitle", e => e.innerText)), "previous month");
+    await p.click('[data-nav="today"]'); await p.waitForTimeout(150);
+    assert.ok(await p.$(".calcell.today"), "today is marked");
+    // the week
+    await p.selectOption("#calyear", "2026"); await p.selectOption("#calmon", "12"); await p.click('#calview [data-view="week"]'); await p.waitForTimeout(250);
+    assert.ok(await p.$(".calweek") && (await p.$$(".calwd")).length === 7, "seven day columns");
+    await p.click('.calwd[data-day="2026-12-03"]'); await p.waitForTimeout(100);
+    await p.click('[data-nav="prev"]'); await p.click('[data-nav="next"]'); await p.waitForTimeout(100);
+    const blk = await p.$('.calcol[data-newday="2026-12-05"] .calblk.hive');
+    assert.ok(blk && /联合教师培训/.test(await blk.innerText()), "the event block carries its title");
+    await p.screenshot({ path: OUT + "/calendar-week-view.png" });
+    await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
+    assert.ok(await p.$("#caltable") && !(await p.$(".calmonth")), "the list view is still there");
+  });
+  // the month on a phone: dots in the cells, the day's agenda below, no sideways scrolling of the page
+  await shot("calendar-month-phone", 390, 800, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForTimeout(800);
+    await p.selectOption("#calyear", "2026"); await p.selectOption("#calmon", "12"); await p.waitForTimeout(150);
+    await p.click('.calcell[data-day="2026-12-05"] .calnum'); await p.waitForTimeout(150);
+    assert.ok(/联合教师培训/.test(await p.$eval(".calagenda", e => e.innerText)), "the agenda lists the day's event");
+    assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "the page does not scroll sideways");
+    assert.ok((await (await p.$('.calcell[data-day="2026-12-05"] .calev')).boundingBox()).width <= 10, "a dot in the cell");
   });
   // The sysadmin: 课程方案 beside the accounts pages, the school picker; 角色分配 offers 教育领袖.
   await shot("plan-admin", 1280, 800, "#/domain/plan", "en", ["admin"], async p => {
