@@ -990,6 +990,52 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
     assert.ok(await p.$("#caltable") && !(await p.$(".calmonth")), "the list view is still there");
   });
+  // Outlook / Teams style creation: double-click a day, drag over time, type the title, adjust the time.
+  await shot("calendar-quick", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForTimeout(800);
+    await p.selectOption("#calyear", "2026"); await p.selectOption("#calmon", "12"); await p.waitForTimeout(150);
+    const before = calPosts.length;
+    // month: a double-click on a day opens the card as an all-day event on that day
+    await p.dblclick('.calcell[data-day="2026-12-16"]'); await p.waitForSelector(".calquick");
+    assert.ok(await p.$eval(".calquick .qallday", e => e.checked) && (await p.$eval(".calquick .qstart", e => e.value)) === "2026-12-16", "all-day card for the clicked day");
+    assert.ok(await p.$eval(".calquick .qtitle", e => e === document.activeElement), "the title is ready to type");
+    await p.click(".calquick .qsave"); await p.waitForTimeout(150);
+    assert.ok(/标题/.test(await p.$eval(".calquick .qmsg", e => e.innerText)) && calPosts.length === before, "a title is required");
+    await p.fill(".calquick .qtitle", "圣诞假期"); await p.keyboard.press("Enter"); await p.waitForTimeout(700);
+    const sent = calPosts[before];
+    assert.deepStrictEqual([sent.op, sent.event.title, sent.event.allDay, sent.event.start, sent.event.end, sent.event.audience, sent.event.reminder], ["save", "圣诞假期", true, "2026-12-16", "2026-12-16", [], 15], JSON.stringify(sent));
+    assert.ok(!(await p.$(".calquick")) && /圣诞假期/.test(await p.$eval('.calcell[data-day="2026-12-16"]', e => e.innerText)), "saved and drawn in the cell");
+    await p.screenshot({ path: OUT + "/calendar-quick-month.png" });
+    // Escape cancels
+    await p.dblclick('.calcell[data-day="2026-12-17"]'); await p.waitForSelector(".calquick"); await p.keyboard.press("Escape"); await p.waitForTimeout(100);
+    assert.ok(!(await p.$(".calquick")) && calPosts.length === before + 1, "Escape closes it without saving");
+    // week: drag from 10:00 to 11:30 on the 16th
+    await p.click('#calview [data-view="week"]'); await p.waitForTimeout(250);
+    const col = await p.$('.calcol[data-newday="2026-12-16"]'); const bb = await col.boundingBox();
+    const y10 = bb.y + 10 * 44, y1130 = bb.y + 11.5 * 44;
+    // the week scrolls to its first event; bring 10:00-11:30 into view first
+    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 44; }); await p.waitForTimeout(100);
+    const bb2 = await (await p.$('.calcol[data-newday="2026-12-16"]')).boundingBox();
+    await p.mouse.move(bb2.x + 40, bb2.y + 10 * 44 + 2); await p.mouse.down(); await p.mouse.move(bb2.x + 40, bb2.y + 10.8 * 44, { steps: 4 }); await p.mouse.move(bb2.x + 40, bb2.y + 11.5 * 44 - 2, { steps: 4 }); await p.mouse.up();
+    await p.waitForSelector(".calquick");
+    assert.deepStrictEqual([await p.$eval(".calquick .qstart", e => e.value), await p.$eval(".calquick .qend", e => e.value)], ["2026-12-16T10:00", "2026-12-16T11:30"], "dragging 10:00-11:30 fills the times");
+    assert.ok(await p.$(".calghost"), "the selection stays drawn while the card is open");
+    await p.fill(".calquick .qtitle", "家长会"); await p.fill(".calquick .qend", "2026-12-16T12:00");
+    await p.screenshot({ path: OUT + "/calendar-quick-week.png" });
+    await p.click(".calquick .qsave"); await p.waitForTimeout(700);
+    const s2 = calPosts[calPosts.length - 1];
+    assert.deepStrictEqual([s2.event.title, s2.event.allDay, s2.event.start, s2.event.end, s2.event.timeZone], ["家长会", false, "2026-12-16T10:00", "2026-12-16T12:00", "UTC"], JSON.stringify(s2));
+    assert.ok(await p.$('.calcol[data-newday="2026-12-16"] .calblk.school'), "the new block is in the week");
+    // double-click an empty slot: one hour, from the half hour clicked; 更多选项 carries what was typed into the full form
+    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 44; });
+    const bb3 = await (await p.$('.calcol[data-newday="2026-12-15"]')).boundingBox();
+    await p.mouse.dblclick(bb3.x + 40, bb3.y + 14 * 44 + 10); await p.waitForSelector(".calquick");
+    assert.deepStrictEqual([await p.$eval(".calquick .qstart", e => e.value), await p.$eval(".calquick .qend", e => e.value)], ["2026-12-15T14:00", "2026-12-15T15:00"], "a double-click makes a one-hour slot");
+    await p.fill(".calquick .qtitle", "教师培训"); await p.click(".calquick .qmore"); await p.waitForSelector("#cef");
+    assert.deepStrictEqual([await p.$eval("#ceTitle", e => e.value), await p.$eval("#ceStart", e => e.value)], ["教师培训", "2026-12-15T14:00"], "the full form has what was typed");
+    assert.ok(!(await p.$(".calquick")), "the card closes");
+  });
+
   // the month on a phone: dots in the cells, the day's agenda below, no sideways scrolling of the page
   await shot("calendar-month-phone", 390, 800, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(800);

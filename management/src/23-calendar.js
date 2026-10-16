@@ -73,15 +73,10 @@
       var tr = e.target.closest("[data-ev]"); if (tr) { calOpenEvent(tr.getAttribute("data-ev"), tr.getAttribute("data-src")); return; }
       var more = e.target.closest("[data-more]"); if (more) { calState.view = "week"; calState.cursor = more.getAttribute("data-more"); calState.selected = calState.cursor; calRender(); return; }
       if (e.target.closest("#calAddDay")) { calOpenEvent(null, undefined, calState.selected); return; }
-      var nc = e.target.closest("[data-newday]");
-      if (nc) {
-        calState.selected = nc.getAttribute("data-newday");
-        if (!calCanEdit()) return;
-        var isCol = nc.classList.contains("calcol");
-        calOpenEvent(null, undefined, calState.selected, isCol ? Math.max(0, Math.min(23, Math.floor((e.clientY - nc.getBoundingClientRect().top) / CAL_HOUR))) : undefined); return;
-      }
-      var dc = e.target.closest("[data-day]"); if (dc) { calState.selected = dc.getAttribute("data-day"); calRender(); }
+      if (e.target.closest("[data-newday]")) { calState.selected = e.target.closest("[data-newday]").getAttribute("data-newday"); return; }
+      var dc = e.target.closest("[data-day]"); if (dc) { if (dc.classList.contains("calcell")) calSelectDay(dc.getAttribute("data-day")); else { calState.selected = dc.getAttribute("data-day"); calRender(); } }
     });
+    calBindCreate($("calbody"));
     $("calbody").addEventListener("change", function (e) {
       if (e.target.id !== "calyear" && e.target.id !== "calmon") return;
       calGoTo($("calyear").value + "-" + calPad(+$("calmon").value) + "-01"); calRender();
@@ -112,6 +107,7 @@
   }
   function calRender() {
     if (!$("calbody")) return;
+    calQuickClose();
     var hive = calState.layer === "hive", d = hive ? calState.hive : calState.data, ds = calDomains();
     if (!d) return;
     var edit = calCanEdit();
@@ -216,8 +212,11 @@
         (ev.length > 3 ? '<button type="button" class="calmore" data-more="' + ds + '">' + t("还有 ", "+") + (ev.length - 3) + t(" 个", " more") + "</button>" : "") + "</div>";
     }
     h += "</div></div>";
-    // the selected day, in full — this is also what a phone shows, where the cells only have dots
-    var sel = calState.selected, list = calOn(all, sel);
+    return h + calAgendaHTML(all, edit);
+  }
+  // the selected day, in full — this is also what a phone shows, where the cells only have dots
+  function calAgendaHTML(all, edit) {
+    var h = "", sel = calState.selected, list = calOn(all, sel);
     h += '<div class="calagenda"><div class="calagh"><b>' + esc(calDayLong(sel)) + "</b>" + (edit ? '<button type="button" class="btn secondary sm" id="calAddDay">' + t("＋ 添加事件", "+ Add event") + "</button>" : "") + "</div>" +
       (list.length ? list.map(function (x) {
         var e = x.e;
@@ -284,19 +283,135 @@
     return chips + '<div class="tbl-wrap"><table class="data" id="caltable">' + head + "<tbody>" + body + "</tbody></table></div>";
   }
 
+  // ---- Outlook / Teams style creation (Rick, 2026-10-16: 「双击添加事件，选择时间，输入内容」) -----------
+  // Double-click a day (month) or a slot (week), or drag over a stretch of time in the week grid: a small
+  // card opens next to it with the title to type and the time to adjust. 保存 writes the event with the
+  // usual defaults (reminder, everyone); 更多选项 opens the full form with what was typed. In the Hive layer
+  // a school has to be chosen, so there the full form opens straight away.
+  var calQ = null; // the open quick card: { el, ghost, onDown, onKey }
+  function calQuickClose() {
+    if (!calQ) return;
+    document.removeEventListener("mousedown", calQ.onDown, true); document.removeEventListener("keydown", calQ.onKey, true);
+    if (calQ.el.parentNode) calQ.el.parentNode.removeChild(calQ.el);
+    if (calQ.ghost && calQ.ghost.parentNode) calQ.ghost.parentNode.removeChild(calQ.ghost);
+    calQ = null;
+  }
+  function calQuickZone() { var d = calState.layer === "hive" ? calState.hive : calState.data; return calState.layer === "hive" ? calBrowserZone() : ((d && d.calendar && d.calendar.timezone) || calBrowserZone()); }
+  function calQuickOpen(anchor, seed, ghost) {
+    calQuickClose();
+    if (calState.layer === "hive") { if (ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost); calOpenEvent(null, undefined, seed.start.slice(0, 10), undefined, seed); return; }
+    var zone = calQuickZone(), el = document.createElement("div");
+    el.className = "calquick"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", t("新事件", "New event"));
+    var inType = seed.allDay ? "date" : "datetime-local";
+    el.innerHTML = '<input type="text" class="qtitle" maxlength="120" placeholder="' + t("添加标题", "Add a title") + '" aria-label="' + t("标题", "Title") + '" />' +
+      '<label class="chk qall"><input type="checkbox" class="qallday"' + (seed.allDay ? " checked" : "") + " /> " + t("全天", "All day") + "</label>" +
+      '<div class="qwhen"><label><span>' + t("开始", "Starts") + '</span><input type="' + inType + '" class="qstart" step="900" value="' + esc(seed.start) + '" /></label><label><span>' + t("结束", "Ends") + '</span><input type="' + inType + '" class="qend" step="900" value="' + esc(seed.end) + '" /></label></div>' +
+      '<div class="qzone"' + (seed.allDay ? " hidden" : "") + ">" + esc(t("时区 ", "Time zone ") + calZoneLabel(zone)) + "</div><div class=\"qmsg\"></div>" +
+      '<div class="qact"><button type="button" class="btn sm qsave">' + t("保存", "Save") + '</button><button type="button" class="btn secondary sm qmore">' + t("更多选项", "More options") + '</button><button type="button" class="qclose" aria-label="' + t("关闭", "Close") + '">✕</button></div>';
+    document.body.appendChild(el);
+    // beside the anchor, inside the window
+    var r = anchor.getBoundingClientRect(), w = el.offsetWidth || 320, h = el.offsetHeight || 190;
+    var left = r.right + 8; if (left + w > window.innerWidth - 8) left = r.left - w - 8; if (left < 8) left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left));
+    var top = Math.max(8, Math.min(window.innerHeight - h - 8, r.top));
+    el.style.left = left + "px"; el.style.top = top + "px";
+    var q = function (c) { return el.querySelector(c); };
+    q(".qallday").addEventListener("change", function () {
+      var on = this.checked, s = q(".qstart"), n = q(".qend"), sv = s.value, nv = n.value;
+      s.type = n.type = on ? "date" : "datetime-local";
+      s.value = on ? sv.slice(0, 10) : (sv ? sv.slice(0, 10) + "T09:00" : ""); n.value = on ? nv.slice(0, 10) : (nv ? nv.slice(0, 10) + "T10:00" : "");
+      q(".qzone").hidden = on;
+    });
+    var seedNow = function () { var on = q(".qallday").checked; return { title: q(".qtitle").value.trim(), allDay: on, start: q(".qstart").value, end: q(".qend").value || q(".qstart").value }; };
+    var save = function () {
+      var v = seedNow(), msg = q(".qmsg");
+      if (!v.title) { msg.innerHTML = '<span class="err">' + t("请输入标题。", "Please add a title.") + "</span>"; q(".qtitle").focus(); return; }
+      if (!v.start) { msg.innerHTML = '<span class="err">' + t("请选择开始时间。", "Please choose a start.") + "</span>"; return; }
+      var d = calState.data, rem = d && d.defaults && d.defaults.reminder != null ? d.defaults.reminder : 15;
+      var out = { title: v.title, allDay: v.allDay, start: v.start, end: v.end, timeZone: zone, audience: [], location: "", description: "", link: "", meeting: "link", reminder: rem, showAs: "free" };
+      var b = q(".qsave"); b.disabled = true; b.textContent = t("保存中…", "Saving…");
+      post("calendar", "POST", { domain: calState.domain, op: "save", event: out, timezone: zone }).then(function (r) {
+        if (!r.ok) { b.disabled = false; b.textContent = t("保存", "Save"); msg.innerHTML = '<span class="err">' + esc(errText(r)).replace(/\n/g, "<br>") + "</span>"; return; }
+        calState.data = Object.assign({}, calState.data, { calendar: r.body.calendar });
+        calQuickClose(); calRender(); flashOk(t("事件已保存。", "Event saved."));
+      });
+    };
+    q(".qsave").addEventListener("click", save);
+    q(".qmore").addEventListener("click", function () { var v = seedNow(); calQuickClose(); calOpenEvent(null, undefined, (v.start || calToday()).slice(0, 10), undefined, v); });
+    q(".qclose").addEventListener("click", calQuickClose);
+    q(".qtitle").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); save(); } });
+    calQ = { el: el, ghost: ghost || null,
+      onDown: function (e) { if (!el.contains(e.target)) calQuickClose(); },
+      onKey: function (e) { if (e.key === "Escape") { e.stopPropagation(); calQuickClose(); } } };
+    document.addEventListener("mousedown", calQ.onDown, true); document.addEventListener("keydown", calQ.onKey, true);
+    q(".qtitle").focus();
+  }
+  // minutes from the top of a week column to a snapped value
+  function calSnap(clientY, col, step) { var m = (clientY - col.getBoundingClientRect().top) / CAL_HOUR * 60; return Math.max(0, Math.min(1440, Math.round(m / step) * step)); }
+  function calHM(day, min) { return min >= 1440 ? calAdd(day, 1) + "T00:00" : day + "T" + calPad(Math.floor(min / 60)) + ":" + calPad(min % 60); }
+  function calGhost(col, s, e) {
+    var g = col.querySelector(".calghost");
+    if (!g) { g = document.createElement("div"); g.className = "calghost"; col.appendChild(g); }
+    g.style.top = s / 60 * CAL_HOUR + "px"; g.style.height = Math.max((e - s) / 60 * CAL_HOUR - 2, 14) + "px";
+    g.innerHTML = "<span>" + calPad(Math.floor(s / 60)) + ":" + calPad(s % 60) + "–" + (e >= 1440 ? "24:00" : calPad(Math.floor(e / 60)) + ":" + calPad(e % 60)) + "</span>";
+    return g;
+  }
+  function calQuickSlot(col, s, e) {
+    var day = col.getAttribute("data-newday"), g = calGhost(col, s, e);
+    calState.selected = day;
+    calQuickOpen(g, { allDay: false, start: calHM(day, s), end: calHM(day, e) }, g);
+  }
+  // Update the selected day in place (a re-draw between the two clicks of a double-click would lose the target).
+  function calSelectDay(ds) {
+    calState.selected = ds;
+    var old = document.querySelector(".calcell.sel"); if (old) old.classList.remove("sel");
+    var cell = document.querySelector('.calcell[data-day="' + ds + '"]'); if (cell) cell.classList.add("sel");
+    var ag = document.querySelector(".calagenda"); if (ag) ag.outerHTML = calAgendaHTML(calRows(), calCanEdit());
+  }
+  function calBindCreate(body) {
+    body.addEventListener("dblclick", function (e) {
+      if (!calCanEdit() || e.target.closest("[data-ev]") || e.target.closest("[data-more]")) return;
+      var col = e.target.closest(".calcol[data-newday]"), cell = e.target.closest(".calcell[data-day]"), alc = e.target.closest(".calalc[data-newday]");
+      if (col) { var s = Math.max(0, Math.min(1380, Math.floor(((e.clientY - col.getBoundingClientRect().top) / CAL_HOUR * 60) / 30) * 30)); calQuickSlot(col, s, Math.min(1440, s + 60)); return; }
+      var day = alc ? alc.getAttribute("data-newday") : cell ? cell.getAttribute("data-day") : "";
+      if (!day) return;
+      if (cell) calSelectDay(day); else calState.selected = day;
+      calQuickOpen(alc || cell, { allDay: true, start: day, end: day });
+    });
+    // drag over a stretch of a day column (mouse or pen; touch keeps scrolling)
+    body.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || e.pointerType === "touch" || !calCanEdit()) return;
+      var col = e.target.closest(".calcol"); if (!col || e.target.closest("[data-ev]")) return;
+      calQuickClose();
+      var y0 = e.clientY, m0 = calSnap(y0, col, 15), moved = false, m1 = m0;
+      function move(ev) {
+        if (!moved && Math.abs(ev.clientY - y0) < 6) return;
+        moved = true; m1 = calSnap(ev.clientY, col, 15);
+        var s = Math.min(m0, m1), en = Math.max(m0, m1); if (en - s < 15) en = Math.min(1440, s + 15);
+        calGhost(col, s, en);
+      }
+      function up() {
+        document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+        if (!moved) return;
+        var s = Math.min(m0, m1), en = Math.max(m0, m1); if (en - s < 15) en = Math.min(1440, s + 15);
+        calQuickSlot(col, s, en);
+      }
+      document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+    });
+  }
+
   // ---- one event, in the side panel ------------------------------------------------------------------
   function calFind(id, src) {
     var list = src === "hive" ? (calState.layer === "hive" ? (calState.hive && calState.hive.hive && calState.hive.hive.events) : (calState.data && calState.data.hive && calState.data.hive.events)) : (calState.data && calState.data.calendar && calState.data.calendar.events);
     return (list || []).filter(function (e) { return e.id === id; })[0] || null;
   }
-  function calOpenEvent(id, src, date, hour) {
+  function calOpenEvent(id, src, date, hour, seed) {
     var hiveLayer = calState.layer === "hive";
     var ev = id ? calFind(id, src || (hiveLayer ? "hive" : "school")) : null;
     var editable = hiveLayer ? calCanEdit() : (calCanEdit() && (!ev || src !== "hive"));
     if (id && !ev) return;
     var d = hiveLayer ? calState.hive : calState.data;
     var zone = (ev && ev.timeZone) || (hiveLayer ? calBrowserZone() : ((d && d.calendar && d.calendar.timezone) || calBrowserZone()));
-    var e = ev || { title: "", allDay: false, start: (date || calToday()) + "T" + calPad(hour == null ? 19 : hour) + ":00", end: (date || calToday()) + "T" + (hour == null ? "20:00" : hour < 23 ? calPad(hour + 1) + ":00" : "23:59"), timeZone: zone, audience: [], location: "", description: "", link: "", meeting: "link", reminder: (d && d.defaults && d.defaults.reminder) != null ? d.defaults.reminder : 15, showAs: "free", targets: [] };
+    var e = ev || Object.assign({ title: "", allDay: false, start: (date || calToday()) + "T" + calPad(hour == null ? 19 : hour) + ":00", end: (date || calToday()) + "T" + (hour == null ? "20:00" : hour < 23 ? calPad(hour + 1) + ":00" : "23:59"), timeZone: zone, audience: [], location: "", description: "", link: "", meeting: "link", reminder: (d && d.defaults && d.defaults.reminder) != null ? d.defaults.reminder : 15, showAs: "free", targets: [] }, seed || {});
     var schoolName = hiveLayer ? "" : " · " + esc(dname(calState.domain));
     if (!editable) {
       panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + esc(e.title) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
