@@ -132,9 +132,19 @@ function managedDomains(roles) {
 //   people   — 身份 / 关联账号 / 备注                (IT 管理员, staff)
 //   plan     — the school's 课程方案 (graduation credits, curriculum map)
 //                                                   (教育领袖, 课程总监, sysadmin)
+//   calendar — see the school's 校历 and the Hive events aimed at it
+//                                                   (教育领袖, IT 管理员, sysadmin)
+//   calendarEdit — change the school's 校历: its 教育领袖 ONLY. The system administrator
+//              may not overwrite a school's calendar (Rick, 2026-10-16); what it adds
+//              goes into the separate Hive layer (api/shared/calendar.js), which only
+//              the system administrator edits.
 //   admin    — 角色分配, 数据同步, anything                    (sysadmin)
 function can(roles, action, domain) {
   roles = roles || [];
+  if (action === "calendarEdit") {
+    const dd = String(domain || "").toLowerCase();
+    return roles.some((r) => { const m = DOMAIN_LEADER_RE.exec(r); return !!m && m[1] === dd; });
+  }
   if (isAdmin(roles)) return true;
   if (action === "admin") return false;
   const d = String(domain || "").toLowerCase();
@@ -142,6 +152,7 @@ function can(roles, action, domain) {
   const it = holds(DOMAIN_IT_RE) || holds(DOMAIN_ADMIN_RE);
   const staff = isStaff(roles);
   if (action === "plan") return holds(DOMAIN_LEADER_RE) || staffFunctions(roles).includes("curriculum");
+  if (action === "calendar") return holds(DOMAIN_LEADER_RE) || it;
   if (action === "view") return it || staff;
   if (action === "methods") return it;
   if (action === "people") return it || staff;

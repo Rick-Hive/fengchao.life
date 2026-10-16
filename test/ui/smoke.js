@@ -38,13 +38,18 @@ const groups = {
     { id: "g6", name: "Science Grade 6", description: "Sixth-grade science lab", kind: "team", visibility: "Public", members: 22, channels: 5, owner: false, created: "2026-09-01T00:00:00Z" }
   ]
 };
-const CAN = { view: true, methods: true, people: true, plan: true, full: true, groups: true, groupTenant: false, groupScope: true };
+const CAN = { view: true, methods: true, people: true, plan: true, calendar: true, calendarEdit: false, full: true, groups: true, groupTenant: false, groupScope: true };
 // 课程方案 (2026-10-12): what /api/school-plan?domain= answers the editor, and the PUTs it makes.
 const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, { id: "recSci", nameEn: "Science", nameZh: "科学" }];
 const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }],
   map: { grammar: { grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"], rows: [] }, dialectic: { grades: ["G7", "G8"], rows: [] }, rhetoric: { grades: ["G9", "G10", "G11", "G12"], rows: [{ id: "recA", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G9: [{ en: "Geometry", zh: "几何" }], G10: [{ en: "Algebra 2", zh: "代数2" }] } }] } } };
 let PLAN_DOC = { domain: "bes.qiaoliang.online", draft: { tracks: {}, map: {} }, published: null, updatedAt: null, updatedBy: "" };
 const planPuts = [];
+// 校历 (2026-10-16): the school's own events and the Hive layer, kept in memory; every POST is recorded.
+const CAL_SEED = { id: "h-seed", title: "联合教师培训", allDay: false, start: "2026-12-05T19:00", end: "2026-12-05T20:30", timeZone: "America/New_York", audience: ["老师"], location: "", description: "", link: "https://zoom.us/j/123456", meeting: "link", reminder: 15, showAs: "free", targets: ["*"], createdBy: "hive.admin@fengchao.life" };
+let CAL_SCHOOL = { domain: "bes.qiaoliang.online", timezone: "", events: [], updatedAt: null, updatedBy: "" };
+let CAL_HIVE = { events: [CAL_SEED], updatedAt: null, updatedBy: "" };
+const calPosts = [];
 const domains = { user: summary.profile.upn, roles: ["admin"], all: true, mine: "bes.qiaoliang.online", domains: [{ domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", isDefault: true, isInitial: false, can: CAN }, { domain: "demo.fengchao.life", name: "", isDefault: false, isInitial: false, can: CAN }], showDomains: true };
 function mkUser(i) {
   const names = ["Elaine Chen", "Lei Dong", "Rick Zhang", "Mei Wang", "Tom Li", "Anna Zhao", "Kevin Wu", "Sophie Liu", "Jack Sun", "Lily Huang", "Mark Zhou", "Grace Xu"];
@@ -178,7 +183,20 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
       if (p === "/api/me/summary") body = me;
       else if (p === "/api/me/groups") body = groups;
-      else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : rolesList.some(x => /^domain_leader:/.test(x)) ? { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [Object.assign({}, domains.domains[0], { can: { view: false, methods: false, people: false, plan: true, full: false, institutions: false } })], showDomains: false } : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
+      else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : rolesList.some(x => /^domain_leader:/.test(x)) ? { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [Object.assign({}, domains.domains[0], { can: { view: false, methods: false, people: false, plan: true, calendar: true, calendarEdit: true, full: false, institutions: false } })], showDomains: false } : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
+      else if (p === "/api/calendar" && r.request().method() === "GET") {
+        const REM = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080];
+        if (u.searchParams.get("layer") === "hive") body = { layer: "hive", hive: CAL_HIVE, canEdit: isAdm, reminders: REM, defaults: { reminder: 15, timeZone: "America/New_York" } };
+        else body = { layer: "school", domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, calendar: CAL_SCHOOL, hive: { events: CAL_HIVE.events.filter(e => e.targets.indexOf("*") >= 0 || e.targets.indexOf("bes.qiaoliang.online") >= 0) }, canEdit: rolesList.some(x => /^domain_leader:/.test(x)), reminders: REM, defaults: { reminder: 15, timeZone: CAL_SCHOOL.timezone || "America/New_York" } };
+      }
+      else if (p === "/api/calendar" && r.request().method() === "POST") {
+        const b = JSON.parse(r.request().postData()); calPosts.push(b);
+        const doc = b.layer === "hive" ? CAL_HIVE : CAL_SCHOOL;
+        if (b.op === "delete") doc.events = doc.events.filter(e => e.id !== b.id);
+        else if (b.op === "zone") doc.timezone = b.timezone;
+        else { const ev = Object.assign({}, b.event, { id: b.event.id || "e-" + (doc.events.length + 1), createdBy: me.profile.upn }); const i = doc.events.findIndex(e => e.id === ev.id); if (i >= 0) doc.events[i] = ev; else doc.events.push(ev); if (b.layer !== "hive" && b.timezone && !doc.timezone) doc.timezone = b.timezone; }
+        body = b.layer === "hive" ? { ok: true, hive: CAL_HIVE } : { ok: true, calendar: CAL_SCHOOL };
+      }
       else if (p === "/api/school-plan" && r.request().method() === "GET") body = { domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS, canEdit: true, isAdmin: isAdm };
       else if (p === "/api/school-plan" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); planPuts.push(b); const at = new Date().toISOString(); if (b.unpublish) PLAN_DOC = Object.assign({}, PLAN_DOC, { published: null, updatedAt: at }); else { const map = {}; Object.keys(b.map || {}).forEach(st => { map[st] = { grades: PLAN_DEFAULTS.map[st].grades, rows: (b.map[st].rows || []).map((row, i) => ({ id: row.id || "s" + i, order: i + 1, subjects: row.subjects, trackIds: row.trackIds || [], pedagogy: row.pedagogy || null, spanAll: !!row.spanAll, cells: Object.fromEntries(Object.entries(row.cells || {}).filter(([, v]) => String(v).trim()).map(([g, v]) => [g, String(v).split(/[;；\n]+/).map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf("/"); return i < 0 ? { en: x, zh: null } : { en: x.slice(0, i).trim(), zh: x.slice(i + 1).trim() }; })])) })) }; }); PLAN_DOC = Object.assign({}, PLAN_DOC, { draft: { tracks: b.tracks || {}, map }, updatedAt: at, updatedBy: me.profile.upn }); if (b.publish) PLAN_DOC.published = Object.assign({}, PLAN_DOC.draft, { at, by: me.profile.upn }); } body = { ok: true, domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS }; }
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
@@ -842,6 +860,68 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     const m1 = await p.$$eval('#plbody textarea[data-cell="G9"]', es => es.map(e => e.value)); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("map after save: " + JSON.stringify(m1));
     await p.click("#plUnpub"); await p.waitForTimeout(500);
     if (planPuts.length !== 3 || planPuts[2].unpublish !== true || !/未发布/.test(await p.$eval("#plstatus", e => e.innerText))) throw new Error("unpublish: " + JSON.stringify(planPuts[2]));
+  });
+  // 校历 (Rick, 2026-10-16): the 教育领袖 edits the school's calendar and sees Hive's events read-only.
+  await shot("calendar-leader", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForTimeout(800);
+    const nv = await p.$eval("#nav", e => e.innerText);
+    assert.ok(/校历/.test(nv) && /课程方案/.test(nv) && !/Teams 群组|操作手册/.test(nv), "leader nav: " + nv);
+    assert.ok(await p.$eval("#calAdd", e => !e.hidden), "the leader may add events");
+    assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 1, "a leader has the school calendar only, no Hive tab");
+    await p.click('#calbody .chip[data-filter="all"]'); await p.waitForTimeout(200);
+    let body = await p.$eval("#calbody", e => e.innerText);
+    assert.ok(/联合教师培训/.test(body) && /蜂巢/.test(body), "Hive's event aimed at the school is listed: " + body.slice(0, 200));
+    await p.click('#caltable tr[data-src="hive"]'); await p.waitForTimeout(300);
+    assert.ok(/只读/.test(await p.$eval("#panel .pb", e => e.innerText)) && !(await p.$("#cef")), "a Hive event opens read-only");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+    await p.click("#calAdd"); await p.waitForSelector("#cef");
+    await p.fill("#ceTitle", "家长会"); await p.click("#ceAll");
+    assert.strictEqual(await p.$eval("#ceStart", e => e.type), "date", "all day switches the inputs to dates");
+    await p.fill("#ceStart", "2026-11-14"); await p.fill("#ceEnd", "2026-11-14");
+    await p.click('#ceAud input[data-aud="家长"]'); await p.fill("#ceLink", "https://teams.microsoft.com/l/meetup-join/xyz"); await p.selectOption("#ceRem", "60");
+    await p.screenshot({ path: OUT + "/calendar-form.png" });
+    await p.click("#ceSave"); await p.waitForTimeout(900);
+    const sent = calPosts[0];
+    assert.deepStrictEqual([sent.domain, sent.op, sent.event.title, sent.event.allDay, sent.event.start, sent.event.end, sent.event.audience, sent.event.link, sent.event.reminder, sent.event.meeting], ["bes.qiaoliang.online", "save", "家长会", true, "2026-11-14", "2026-11-14", ["家长"], "https://teams.microsoft.com/l/meetup-join/xyz", 60, "link"], JSON.stringify(sent));
+    body = await p.$eval("#calbody", e => e.innerText); assert.ok(/家长会/.test(body) && /校历/.test(body), "the saved event is listed: " + body.slice(0, 200));
+    await p.screenshot({ path: OUT + "/calendar-list.png" });
+    // an event with no title is not sent
+    await p.click("#calAdd"); await p.waitForSelector("#cef"); await p.click("#ceSave"); await p.waitForTimeout(200);
+    assert.ok(/标题/.test(await p.$eval("#ceMsg", e => e.innerText)) && calPosts.length === 1, "a title is required before anything is sent");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+    // change it, then delete it
+    await p.click('#caltable tr[data-src="school"]'); await p.waitForSelector("#cef");
+    await p.fill("#ceTitle", "家长会（改）"); await p.click("#ceSave"); await p.waitForTimeout(900);
+    assert.ok(calPosts.length === 2 && calPosts[1].event.id === "e-1" && calPosts[1].event.title === "家长会（改）", JSON.stringify(calPosts[1]));
+    p.on("dialog", d => d.accept());
+    await p.click('#caltable tr[data-src="school"]'); await p.waitForSelector("#ceDel"); await p.click("#ceDel"); await p.waitForTimeout(700);
+    assert.ok(calPosts[2].op === "delete" && calPosts[2].id === "e-1", JSON.stringify(calPosts[2]));
+    assert.ok(!/家长会/.test(await p.$eval("#calbody", e => e.innerText)), "deleted");
+  });
+  // The system administrator: sees a school's calendar read-only, adds events to the Hive layer aimed at schools.
+  await shot("calendar-admin", 1280, 900, "#/domain/calendar", "en", ["admin"], async p => {
+    await p.waitForTimeout(800);
+    assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 2, "both tabs");
+    assert.ok(await p.$("#calsel"), "the school picker");
+    assert.ok(await p.$eval("#calAdd", e => e.hidden), "the system administrator cannot add to a school's own calendar");
+    await p.click('#calbody .chip[data-filter="all"]'); await p.waitForTimeout(200);
+    await p.click('#caltable tr[data-src="hive"]'); await p.waitForTimeout(300);
+    assert.ok(/read-only/.test(await p.$eval("#panel .pb", e => e.innerText)), "a Hive event is read-only in a school's list");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+    await p.click('#caltabs a[data-layer="hive"]'); await p.waitForSelector("#caltable");
+    assert.ok(await p.$eval("#calAdd", e => !e.hidden), "the Hive tab has an add button");
+    await p.click("#calAdd"); await p.waitForSelector("#cef");
+    await p.fill("#ceTitle", "Extra training");
+    await p.click("#ceSave"); await p.waitForTimeout(200);
+    assert.ok(/school/.test(await p.$eval("#ceMsg", e => e.innerText)) && calPosts.length === 3, "a Hive event must name a school: " + calPosts.length);
+    await p.fill("#ceStart", "2026-12-12T19:00"); await p.fill("#ceEnd", "2026-12-12T20:00");
+    await p.click("#ceTgAll");
+    assert.ok(await p.$$eval("#ceTg input[data-tg]", es => es.every(e => e.disabled)), "all schools disables the single ones");
+    await p.screenshot({ path: OUT + "/calendar-hive-form.png" });
+    await p.click("#ceSave"); await p.waitForTimeout(900);
+    const sent = calPosts[3];
+    assert.deepStrictEqual([sent.layer, sent.op, sent.event.title, sent.event.targets, sent.event.allDay, sent.event.start], ["hive", "save", "Extra training", ["*"], false, "2026-12-12T19:00"], JSON.stringify(sent));
+    const body = await p.$eval("#calbody", e => e.innerText); assert.ok(/Extra training/.test(body) && /All schools/.test(body), body.slice(0, 300));
   });
   // The sysadmin: 课程方案 beside the accounts pages, the school picker; 角色分配 offers 教育领袖.
   await shot("plan-admin", 1280, 800, "#/domain/plan", "en", ["admin"], async p => {

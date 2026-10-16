@@ -109,6 +109,15 @@
       }
     },
     {
+      "route": "/api/calendar",
+      "allowedRoles": [
+        "authenticated"
+      ],
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    },
+    {
       "route": "/api/school-plan",
       "headers": {
         "Cache-Control": "no-store"

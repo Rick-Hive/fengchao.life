@@ -185,7 +185,7 @@ async function handler(context, req) {
       domains = domains.map((d) => Object.assign({}, d, {
         name: (inst[d.domain] && inst[d.domain].name) || "",
         nameEn: (inst[d.domain] && inst[d.domain].nameEn) || "",
-        can: { view: can(roles, "view", d.domain), methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), plan: can(roles, "plan", d.domain), full: isAdmin, institutions: isAdmin, groups: can(roles, "methods", d.domain), groupTenant: isAdmin || (inst[d.domain] || {}).groupTenant === true, groupScope: isAdmin },
+        can: { view: can(roles, "view", d.domain), methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), plan: can(roles, "plan", d.domain), calendar: can(roles, "calendar", d.domain), calendarEdit: can(roles, "calendarEdit", d.domain), full: isAdmin, institutions: isAdmin, groups: can(roles, "methods", d.domain), groupTenant: isAdmin || (inst[d.domain] || {}).groupTenant === true, groupScope: isAdmin },
       }));
       context.res = { status: 200, body: { user: actor, roles, all, domains, mine: domainOf(actor), showDomains: isAdmin } };
       return;
