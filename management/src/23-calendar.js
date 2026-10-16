@@ -1,4 +1,4 @@
-// management/src/23-calendar.js — 本域管理 › 校历: the school's calendar (edited by its 教育领袖), and the
+// management/src/23-calendar.js — 学校管理 › 校历: the school's calendar (edited by its 教育领袖), and the
 // events the system administrator adds on top (蜂巢追加). Two layers, never overwriting each other.
 // Part of management.js: scripts/build-management.js concatenates management/src/*.js in name order
 // into management/management.js (one closure; every part sees every other's functions). Edit here, not the built file.
@@ -52,8 +52,8 @@
     if (calState.layer === "hive" && !isAdmin()) calState.layer = "school";
     if (calState.layer === "school" && !ds.length) calState.layer = "hive";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
-    setTitle(domainsInfo && domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("校历", "School calendar"), '<button class="btn sm" id="calAdd" hidden>' + t("＋ 添加事件", "+ Add event") + "</button>",
-      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖编辑；系统管理员可以另外添加「蜂巢追加」的事件（如联合培训），推送给选定的学校，但不能改动学校自己的校历。学校的列表里会同时显示发给本校的蜂巢事件（只读）。列表下方的「同步到大家的日历」把事件写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader; the system administrator can add Hive events (such as a joint training) aimed at chosen schools, but never changes a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). The “Write to everyone's calendar” card below the list writes the events into the school accounts' Outlook / Teams calendars (no invitation mail).") });
+    setTitle(domainGroupTitle(), t("校历", "School calendar"), '<button class="btn sm" id="calAdd" hidden>' + t("＋ 添加事件", "+ Add event") + "</button>",
+      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员可以另外添加「蜂巢追加」的事件（如联合培训），推送给选定的学校，但不能改动学校自己的校历。学校的列表里会同时显示发给本校的蜂巢事件（只读）。列表下方的「同步到大家的日历」把事件写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator can add Hive events (such as a joint training) aimed at chosen schools, but never changes a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). The “Write to everyone's calendar” card below the list writes the events into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     $("content").innerHTML =
       '<div class="pagetabs" role="tablist" id="caltabs">' + (ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
         (isAdmin() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("蜂巢追加", "Hive additions") + "</a>" : "") +
@@ -107,7 +107,7 @@
     var note = '<p class="sub" style="margin:4px 0 8px">' + (hive
       ? t("系统管理员追加的事件：每个事件选择发给哪些学校。学校自己的校历不会被这里改动。保存后，用下方的「同步到大家的日历」推送给选定的学校。", "Events the system administrator adds, each aimed at chosen schools. A school's own calendar is never changed from here. After saving, use the card below to push them to the chosen schools.")
       : edit ? t("点一行修改，或用右上角「＋ 添加事件」。「蜂巢」标记的事件是系统管理员发给本校的，只读。保存后用下方的「同步到大家的日历」写入大家的日历。", "Click a row to change it, or use “+ Add event”. Events tagged Hive were sent to this school by the system administrator and are read-only. After saving, use the card below to write them into everyone's calendar.")
-        : t("你可以查看本校校历；编辑和发布由本校教育领袖负责。", "You can look at the school's calendar; editing and publishing are the school's education leader's.")) + "</p>";
+        : t("你可以查看本校校历；编辑和发布由本校教育领袖、教育社区经理和课程总监负责。", "You can look at the school's calendar; editing and publishing are for the school's education leader, education community manager and curriculum director.")) + "</p>";
     var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + (hive ? t("发给", "Aimed at") : t("对象", "For")) + "</th>" + (hive ? "<th>" + t("对象", "For") + "</th>" : "") + "<th>" + t("提醒", "Reminder") + "</th><th>" + t("会议链接", "Meeting link") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
     var body = rows.length ? rows.map(function (x) {
       var e = x.e;
@@ -143,7 +143,7 @@
         '<span class="k">' + t("显示为", "Shown as") + "</span><span>" + (e.showAs === "busy" ? t("忙碌", "Busy") : t("空闲", "Free")) + "</span>" +
         (e.targets ? '<span class="k">' + t("发给", "Aimed at") + "</span><span>" + esc(calTargetsText(e)) + "</span>" : "") + "</div>" +
         (e.description ? '<p style="white-space:pre-wrap;margin-top:10px">' + esc(e.description) + "</p>" : "") +
-        '<p class="muted" style="font-size:12px;margin-top:10px">' + (e.targets ? t("这是系统管理员发给本校的蜂巢事件，只读。", "A Hive event sent to this school by the system administrator — read-only.") : t("你没有编辑本校校历的权限（由本校教育领袖编辑）。", "You may not edit the school's calendar (the school's education leader does).")) + "</p></div>");
+        '<p class="muted" style="font-size:12px;margin-top:10px">' + (e.targets ? t("这是系统管理员发给本校的蜂巢事件，只读。", "A Hive event sent to this school by the system administrator — read-only.") : t("你没有编辑本校校历的权限（由本校教育领袖、教育社区经理和课程总监编辑）。", "You may not edit the school's calendar (its education leader, education community manager and curriculum director do).")) + "</p></div>");
       return;
     }
     var tgAll = (e.targets || []).indexOf("*") >= 0;

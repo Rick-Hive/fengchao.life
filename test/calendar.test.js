@@ -46,7 +46,9 @@ const timed = { title: "教师培训", start: "2026-10-20T19:00", end: "2026-10-
   assert.ok(!can(IT, "calendar", "a.edu") && !can(IT, "calendarEdit", "a.edu"), "the IT 管理员 has no part in the calendar (the 教育领袖 publishes directly)");
   assert.ok(can(SYS, "calendar", "a.edu") && !can(SYS, "calendarEdit", "a.edu"), "the system administrator sees every school's calendar but may not overwrite it");
   assert.ok(can(["admin"], "calendar", "zz.edu") && !can(["admin"], "calendarEdit", "zz.edu"), "also the bootstrap admin");
-  assert.ok(!can([], "calendar", "a.edu") && !can(["staff:community"], "calendar", "a.edu"), "an ordinary user or other staff does not");
+  for (const f of ["community", "curriculum"]) assert.ok(can(["staff:" + f], "calendar", "a.edu") && can(["staff:" + f], "calendarEdit", "zz.edu"), `the ${f} staff function sees and edits every school's calendar (Rick, 2026-10-16)`);
+  assert.ok(!can([], "calendar", "a.edu") && !can(["staff:finance"], "calendar", "a.edu") && !can(["staff:sales"], "calendarEdit", "a.edu") && !can(["staff:consultant"], "calendar", "a.edu"), "an ordinary user or other staff does not");
+  assert.ok(!can(["staff:community"], "admin", "a.edu"), "and it gives nothing more than the calendar");
 
   // ---- validation ----
   const bad = (ev, layer, re) => assert.throws(() => CAL.cleanEvent(ev, layer || "school"), (e) => e.status === 400 && e.problems.some((p) => re.test(p)), JSON.stringify(ev));

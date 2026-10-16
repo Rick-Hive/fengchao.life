@@ -1,4 +1,4 @@
-// management/src/22-plan.js — 本域管理 › 课程方案: a school's own graduation credit requirements
+// management/src/22-plan.js — 学校管理 › 课程方案: a school's own graduation credit requirements
 // and curriculum map, edited by its 教育领袖 (domain_leader) and published to the school's families.
 // Part of management.js: scripts/build-management.js concatenates management/src/*.js in name order
 // into management/management.js (one closure; every part sees every other's functions). Edit here, not the built file.
@@ -44,7 +44,7 @@
     // in the top bar beside the title; the tabs row carries the school picker and the
     // status on its right; the track / stage chips follow. No extra toolbar row.
     var plActions = '<button class="btn secondary sm" id="plReset">' + t("重置为蜂巢默认", "Reset to Hive defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <button class="btn secondary sm" id="plSave">' + t("保存草稿", "Save draft") + '</button> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>";
-    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("课程方案", "Curriculum plan"), plActions,
+    setTitle(domainGroupTitle(), t("课程方案", "Curriculum plan"), plActions,
       { info: t("本校的毕业学分要求和课程地图。家长在网站的选课向导里看到的是「学校版本」：每条毕业路径的学分要求可以改成本校的数字（留空沿用蜂巢默认，勾「不要求」则隐藏该行），课程地图可以按阶段自己编排（科目 × 年级，格子里写课程名，英文 / 中文 用斜线分开，多项用分号）。地图行选的是蜂巢的科目，所以家长点格子仍能看到蜂巢能提供的课程。先保存草稿，确认后「发布」，本校家庭才会看到；「撤回发布」后家长重新看到蜂巢默认版本。", "The school's graduation credit requirements and curriculum map. Families see the “school edition” in the website's course wizard: each graduation track's credits can be set to the school's own figures (blank = Hive's default; “not required” hides the row), and the curriculum map can be laid out per stage (subject × grade; course names in a cell, English / 中文 split by a slash, several items by semicolons). Map rows pick Hive's subjects, so parents still see the courses Hive offers when they tap a cell. Save a draft, then Publish for the school's families to see it; Unpublish returns them to Hive's defaults.") });
     $("content").innerHTML =
       '<div class="pagetabs" role="tablist" id="pltabs"><a class="ptab' + (plState.tab === "credits" ? " on" : "") + '" href="#/domain/plan" data-tab="credits" role="tab">' + t("毕业学分要求", "Graduation credits") + '</a><a class="ptab' + (plState.tab === "map" ? " on" : "") + '" href="#/domain/plan" data-tab="map" role="tab">' + t("课程地图", "Curriculum map") + "</a>" +

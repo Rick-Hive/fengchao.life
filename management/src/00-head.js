@@ -4,8 +4,8 @@
 // 蜂巢 管理中心 (/management/) — one page, hash-routed. Views:
 //   #/account          我的账号: profile, password links, sign-in methods, log downloads
 //   #/teams            我的 Teams: a Teams-style list with filter chips and live search
-//   #/domain/users     本域管理 › 用户: Entra-style table of the domain's accounts
-//   #/domain/groups    本域管理 › Teams 群组: domain → groups, collapsible
+//   #/domain/users     学校管理 › 用户: Entra-style table of the domain's accounts
+//   #/domain/groups    学校管理 › Teams 群组: domain → groups, collapsible
 //   #/system/roles     系统 › 角色分配
 //   #/system/sync      系统 › 数据同步
 // What a person sees in the sidebar follows their roles (/api/me/summary →

@@ -50,7 +50,7 @@
   // standalone page still exists for anyone who has the address.
   var handbookHtml = null;
   function viewHandbook() {
-    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("操作手册", "Handbook"), "", t("IT 管理员在管理中心能做什么、怎么做、要注意什么。", "What an IT administrator can do in the Management Center, how, and what to watch."));
+    setTitle(domainGroupTitle(), t("操作手册", "Handbook"), "", t("IT 管理员在管理中心能做什么、怎么做、要注意什么。", "What an IT administrator can do in the Management Center, how, and what to watch."));
     $("content").innerHTML = '<div class="handbook" id="handbook"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     var p = handbookHtml ? Promise.resolve(handbookHtml) : fetch("/help/domain-admin.html", { credentials: "same-origin" }).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); }).then(function (h) { handbookHtml = h; return h; });
     p.then(function (html) {

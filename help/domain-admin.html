@@ -177,7 +177,7 @@
 <script src="/assets/site-header.js"></script>
 <div class="wrap">
   <!-- No Teams help tabs here: this page is for administrators and is reached from the
-       Management Center's 本域管理 menu; section 9 links the Teams help pages. -->
+       Management Center's 学校管理 menu; section 9 links the Teams help pages. -->
 
   <div class="mast-top"><span class="eyebrow" data-en="HIVE MANAGEMENT CENTER">蜂巢管理中心</span></div>
   <h1 data-en="IT administrator handbook">IT 管理员操作手册</h1>
@@ -227,7 +227,7 @@
   <!-- ===================== 3 ===================== -->
   <h2 class="cat" id="s3" data-en="3　The Users page and where its data comes from">3　「用户」页与数据来源</h2>
   <div class="case" style="padding:14px 18px">
-    <p data-en="Left menu → My domain → Users. You see only the school(s) you manage. The table lists every account of the school: account name, display name and last sign-in, whether an authenticator is registered (Authentication Yes/No), the device, Teams groups, Identity and linked accounts.">左侧菜单 →「本域管理」→「用户」。你只会看到自己管理的学校。表格列出本校所有账号：账号、显示名与最近登录、是否登记了验证器（验证 Yes/No）、设备、Teams 群组、身份、关联账号。</p>
+    <p data-en="Left menu → School admin → Users. You see only the school(s) you manage. The table lists every account of the school: account name, display name and last sign-in, whether an authenticator is registered (Authentication Yes/No), the device, Teams groups, Identity and linked accounts.">左侧菜单 →「学校管理」→「用户」。你只会看到自己管理的学校。表格列出本校所有账号：账号、显示名与最近登录、是否登记了验证器（验证 Yes/No）、设备、Teams 群组、身份、关联账号。</p>
     <h3 data-en="Where the data comes from">数据从哪里来</h3>
     <p data-en="The page reads a <strong>cache</strong> in Hive, not Microsoft live — that is why it opens instantly even for a large school. The cache is refreshed every night at 01:00 Beijing time; the line under the table says when it was last synced.">页面读的是蜂巢里的一份<strong>缓存</strong>，不是实时去问微软——所以即使学校很大也能秒开。缓存每天北京时间 01:00 自动刷新；表格下方一行字写着上次同步时间。</p>
     <h3 data-en="Sync changes — when to press it">「同步变动」——什么时候点</h3>
@@ -325,7 +325,7 @@
   <!-- ===================== 6 ===================== -->
   <h2 class="cat" id="s6" data-en="6　Teams groups">6　Teams 群组</h2>
   <div class="case" style="padding:14px 18px">
-    <p data-en="Left menu → My domain → Teams groups: every team and group that has members from your school, with its kind (Class team = a class team created from the Education template; Team; Group = a Microsoft 365, mail or security group without Teams on top), visibility and the number of members from your school. View members lists them; clicking a member opens their panel.">左侧菜单 →「本域管理」→「Teams 群组」：所有含本校成员的团队和群组，标明类型（班级团队 = 用教育版班级模板创建的团队；普通团队；群组 = 没有 Teams 的 Microsoft 365 / 邮件 / 安全组）、可见性、本校成员数。「查看成员」列出成员，点成员可打开其面板。</p>
+    <p data-en="Left menu → School admin → Teams groups: every team and group that has members from your school, with its kind (Class team = a class team created from the Education template; Team; Group = a Microsoft 365, mail or security group without Teams on top), visibility and the number of members from your school. View members lists them; clicking a member opens their panel.">左侧菜单 →「学校管理」→「Teams 群组」：所有含本校成员的团队和群组，标明类型（班级团队 = 用教育版班级模板创建的团队；普通团队；群组 = 没有 Teams 的 Microsoft 365 / 邮件 / 安全组）、可见性、本校成员数。「查看成员」列出成员，点成员可打开其面板。</p>
     <p data-en="<strong>New Teams group</strong> (top right) creates a team of your school in Microsoft Teams. Pick the type as in Teams for Education — Class, Professional learning community (PLC), Staff or Other — then the name, an optional description, the owners (at least one) and, if you like, the first members. A class, PLC or staff team is always private; an <strong>Other</strong> team is Private or Public — a public team can be found and joined by anyone in the whole tenant, every school included, so use it with care. The owner of a class, PLC or staff team must be a teacher or staff member, not a student.">「<strong>新建 Teams 群组</strong>」（右上角）在 Microsoft Teams 里为本校建一个团队。像在 Teams 教育版里一样先选类型——班级、教师学习社区（PLC）、教职员工、其它——再填名称、可选的描述、所有者（至少一位），也可以顺便加第一批成员。班级、PLC、教职员工团队一律私有；「<strong>其它</strong>」可选私有或公开——公开团队整个租户（包括其他学校）的任何人都能搜到并加入，请谨慎。班级、PLC、教职员工团队的所有者必须是老师或行政，不能是学生。</p>
     <p data-en="<strong>Manage</strong> on a team's line (or opening the team) shows its live owners and members from Microsoft. You can add people as members or owners, make a member an owner, take ownership back, and remove a member (a second click confirms). A team always keeps at least one owner. <strong>Only accounts of your own school can be added</strong> — the system administrator can allow your school to add other schools' accounts; guests are never added here. You manage the teams your school owns, not another school's, and not security groups or mailing lists.">团队所在行的「<strong>管理</strong>」（或打开团队）显示 Microsoft 里实时的所有者和成员。可以把人加为成员或所有者、把成员设为所有者、取消所有者、移除成员（第二次点击确认）。团队至少保留一位所有者。<strong>只能添加本校账号</strong>——系统管理员可以允许你的学校添加其他学校的账号；访客账号一律不能在这里添加。你只管理本校拥有的团队，不能管理其他学校的团队，也不能管理安全组和邮件列表。</p>
     <p data-en="Why this exists: the school's ordinary users cannot create groups themselves (that is switched off for the tenant); the IT administrator creates the teams they need. A teacher who needs a team asks you. Teams appear for the owner within minutes; membership can take up to 24 hours to reach the Teams app.">为什么有这个功能：学校的普通用户不能自己创建群组（租户里已关闭）；他们需要的团队由 IT 管理员来建。老师需要团队就找你。团队通常几分钟内出现在所有者的 Teams 里；成员名单同步到 Teams 客户端最长可能需要 24 小时。</p>

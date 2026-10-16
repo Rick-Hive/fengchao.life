@@ -24,6 +24,8 @@
   // ---- helpers -------------------------------------------------------------------
   function $(id) { return document.getElementById(id); }
   function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  // The sidebar group and page crumb for the school pages: "学校管理" for a school's own people, "各校管理" for the system administrator.
+  function domainGroupTitle() { return domainsInfo && domainsInfo.all ? t("各校管理", "All schools") : t("学校管理", "School admin"); }
   function api(path, opts) {
     return fetch("/api/" + path, Object.assign({ credentials: "same-origin", cache: "no-store", redirect: "manual" }, opts || {})).then(function (r) {
       // The platform itself found no sign-in (its cookie is gone) and answered with a
@@ -99,7 +101,7 @@
       // Accounts pages for whoever may view a school's accounts (IT 管理员, staff); 课程方案
       // for an 教育领袖 (who sees nothing else of the school), 课程总监 and the sysadmin.
       var seesAccounts = domainsInfo.domains.some(function (d) { return d.can && d.can.view; });
-      groups.push({ title: domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), items: (seesAccounts ? [
+      groups.push({ title: domainGroupTitle(), items: (seesAccounts ? [
         { hash: "#/domain/users", icon: "users", zh: "用户", en: "Users" },
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 群组", en: "Teams groups" },
         { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },

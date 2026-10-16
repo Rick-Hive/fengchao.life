@@ -1,10 +1,10 @@
 // /api/calendar — 校历 (api/shared/calendar.js): the school's own calendar and what Hive adds.
 //
 //   GET  /api/calendar?domain=<d>          a school's calendar: its own events, the Hive events aimed
-//                                          at it (read-only), who may edit            (教育领袖 of d,
-//                                          sysadmin; not the IT 管理员)
+//                                          at it (read-only), who may edit            (教育领袖 of d, 教育社区经理,
+//                                          课程总监, sysadmin; not the IT 管理员)
 //   POST /api/calendar {domain, op: "save", event, timezone?}   add or change one event of the school's
-//                                          calendar                                    (教育领袖 of d ONLY)
+//                                          calendar                                    (教育领袖 of d, 教育社区经理, 课程总监)
 //   POST /api/calendar {domain, op: "delete", id}               remove one                (same)
 //   POST /api/calendar {domain, op: "zone", timezone}           the school's default time zone (same)
 //   GET  /api/calendar?layer=hive          the Hive layer                              (sysadmin)
@@ -18,7 +18,7 @@
 //                                          one batch (the page repeats until remaining = 0, fresh on the
 //                                          first request); withdraw removes what this layer wrote. `only` =
 //                                          accounts of the school to limit it to (the test run). School
-//                                          layer: its 教育领袖. Hive layer (domain = the school pushed to):
+//                                          layer: its 教育领袖, 教育社区经理, 课程总监. Hive layer (domain = the school pushed to):
 //                                          the system administrator.
 // The system administrator may not change a school's own calendar: the two layers never overwrite
 // each other, and a layer's withdrawal never touches the other layer's events.
@@ -98,7 +98,7 @@ module.exports = async function (context, req) {
 
     const domain = String(q.domain || body.domain || "").trim().toLowerCase();
     if (!DOMAIN_RE.test(domain)) return done(400, { error: "domain missing or malformed" });
-    if (!can(roles, "calendar", domain)) return done(403, { error: `the 校历 of ${domain} is seen by its 教育领袖 (and the system administrator)`, code: "forbidden" });
+    if (!can(roles, "calendar", domain)) return done(403, { error: `the 校历 of ${domain} is seen by its 教育领袖, the 教育社区经理 and 课程总监 (and the system administrator)`, code: "forbidden" });
     const canEdit = can(roles, "calendarEdit", domain);
 
     if (method === "GET") {
@@ -106,7 +106,7 @@ module.exports = async function (context, req) {
       return done(200, { layer: "school", domain, school, calendar, hive: { events: CAL.hiveFor(hive, domain) }, canEdit, reminders: CAL.REMINDERS, defaults: { reminder: CAL.DEFAULT_REMINDER, timeZone: calendar.timezone || CAL.DEFAULT_TZ } });
     }
     if (method !== "POST") return done(405, { error: "method not allowed" });
-    if (!canEdit) return done(403, { error: `the 校历 of ${domain} is edited by its 教育领袖${isAdmin(roles) ? "; the system administrator adds events in the Hive layer instead" : ""}`, code: "forbidden" });
+    if (!canEdit) return done(403, { error: `the 校历 of ${domain} is edited by its 教育领袖, the 教育社区经理 and 课程总监${isAdmin(roles) ? "; the system administrator adds events in the Hive layer instead" : ""}`, code: "forbidden" });
     if (SYNC_OPS.includes(body.op)) return syncOp(done, context, "school", domain, body, by);
     if (body.op === "delete") {
       const id = String(body.id || "");

@@ -1,4 +1,4 @@
-// /api/domain/{action} — 本域管理 / 机构管理: what a domain administrator or
+// /api/domain/{action} — 学校管理 / 各校管理: what a domain administrator or
 // Hive staff may see and do about the accounts of a school's domain.
 //
 //   GET    domain/domains                 the tenant's domains, flagged with the ones the caller manages

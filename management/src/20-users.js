@@ -1,4 +1,4 @@
-// management/src/20-users.js — 本域管理: 用户 (table, role filter, 所有学校), the person panel, new account, Teams 群组.
+// management/src/20-users.js — 学校管理: 用户 (table, role filter, 所有学校), the person panel, new account, Teams 群组.
 // Part of management.js: scripts/build-management.js concatenates management/src/*.js in name order
 // into management/management.js (one closure; every part sees every other's functions). Edit here, not the built file.
   // ================================================================================
@@ -94,7 +94,7 @@
   }
 
   // ================================================================================
-  // 本域管理 › 用户
+  // 学校管理 › 用户
   // ================================================================================
   // A school is shown by the name the system administrator gave it (系统 › 机构名称);
   // the domain itself is shown only to the system administrator (Rick, 2026-10-02).
@@ -180,7 +180,7 @@
     var canAll = allDomainList().length > 1;
     if (!canAll) state.allDomains = false;
     var all = state.allDomains;
-    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("用户", "Users"),
+    setTitle(domainGroupTitle(), t("用户", "Users"),
       (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>",
       t("本校的每一个账号：验证器与设备、Teams 群组、身份、关联账号。数据来自每夜刷新的目录缓存；点一行打开人员面板。身份未填时按许可证推断：学生版 A1 为学生，其余为家长；身份与许可证对不上的账号标为异常。", "Every account of the school: authenticator and devices, Teams groups, identity, linked accounts. From the directory cache refreshed nightly; click a row for the person's panel. An unset identity is inferred from the licence: A1 for students → student, otherwise parent; an identity that contradicts the licence is flagged."));
     // Role filter (Rick, 2026-10-08): identity (家长/学生/老师/行政/教育顾问), Hive roles
@@ -662,7 +662,7 @@
   }
 
   // ================================================================================
-  // 本域管理 › Teams 群组 (domain → groups, collapsible)
+  // 学校管理 › Teams 群组 (domain → groups, collapsible)
   // ================================================================================
   // A group, in the side panel: what it is and who of this school is in it; each
   // member opens their own panel (Rick, 2026-10-02).
@@ -719,7 +719,7 @@
 
   function viewGroups() {
     var canNewGroup = ((domainsInfo.domains || []).some(function (d) { return d.can && d.can.groups; }));
-    setTitle(domainsInfo.all ? t("机构管理", "Institutions") : t("本域管理", "My domain"), t("Teams 群组", "Teams groups"),
+    setTitle(domainGroupTitle(), t("Teams 群组", "Teams groups"),
       (canNewGroup ? '<button class="btn sm" id="newGroup">' + t("＋ 新建 Teams 群组", "+ New Teams group") + "</button> " : "") + syncButtons("gs"),
       t("本校的 Teams 群组。IT 管理员可以新建团队（班级、教师学习社区、教职员工、其它）并管理所有者和成员——这样租户里可以禁止普通用户自己建群组。", "The school's Teams groups. The IT administrator creates teams (class, PLC, staff, other) and manages their owners and members — so ordinary users can be stopped from creating groups in the tenant."));
     var ds = domainsInfo.domains || [];
