@@ -194,7 +194,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
       if (p === "/api/me/summary") body = me;
       else if (p === "/api/me/groups") body = groups;
-      else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : rolesList.some(x => /^domain_leader:/.test(x)) ? { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [Object.assign({}, domains.domains[0], { can: { view: false, methods: false, people: false, plan: true, calendar: true, calendarEdit: true, full: false, institutions: false } })], showDomains: false } : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
+      else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : rolesList.some(x => /^domain_leader:/.test(x)) ? { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [Object.assign({}, domains.domains[0], { can: { view: false, methods: false, people: false, plan: true, calendar: true, calendarEdit: true, broadcastOptout: true, full: false, institutions: false } })], showDomains: false } : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
       else if (p === "/api/calendar" && r.request().method() === "GET") {
         const REM = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080];
         const calStaff = rolesList.some(x => /^staff:(community|curriculum)$/.test(x));
@@ -902,6 +902,9 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click("#calAdd"); await p.waitForSelector("#cef");
     assert.ok(await p.$("#cewho") && !(await p.$("#ceTg")), "a school's form has the who-section but no school list");
     assert.ok(/本校所有人/.test(await p.$eval("#cesum", e => e.innerText)), "nothing narrowed: everyone at the school");
+    assert.ok(!(await p.$("#ceLoc")), "there is no location field");
+    assert.ok(!(await p.$eval("#ceAll", e => e.checked)) && (await whenVal(p, "#cewhen"))[0].endsWith("T09:00"), "a new event is timed, not all-day, starting at 9:00");
+    assert.ok(/显示为/.test(await p.$eval("#cef", e => e.innerText)) && /详细信息/.test(await p.$eval("#cef", e => e.innerText)) && /联机会议链接/.test(await p.$eval("#cef", e => e.innerText)), "Outlook-style labels");
     await p.fill("#ceTitle", "家长会"); await p.click("#ceAll");
     assert.ok(await p.$eval("#cewhen", e => e.classList.contains("allday")) && !(await p.isVisible("#cewhen .wst")), "all day hides the times");
     await p.fill("#cewhen .wsd", "2026-11-14"); await p.fill("#cewhen .wed", "2026-11-14");
@@ -1022,10 +1025,11 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/All schools/.test(sm) && /on the Broadcast opt-out list/.test(sm) && /≈ 0 people/.test(sm), "the only parent is on the list, so none receive it, and the form says so: " + sm);
     await p.keyboard.press("Escape"); await p.waitForTimeout(300);
   });
-  // a school's leader has no part in the list
-  await shot("broadcast-leader", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+  // a school's 教育领袖 keeps the list of their own school
+  await shot("broadcast-leader", 1280, 900, "#/domain/broadcast", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(800);
-    assert.ok(!/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "a school leader does not see the list");
+    assert.ok(/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "a school leader sees the list entry");
+    assert.ok(!(await p.$("#bcsel")) && /Parent One|parent1@/.test(await p.$eval("#bcbody", e => e.innerText)), "their own school only, no school picker");
   });
   // 教育社区经理 (and 课程总监): every school's calendar, and the Hive layer for chosen schools, roles, Teams groups and people.
   await shot("calendar-community", 1280, 900, "#/domain/calendar", "en", ["staff:community"], async p => {
@@ -1053,7 +1057,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click('.calcell[data-day="2026-12-09"] .calnum'); await p.waitForTimeout(150);
     assert.ok(/12月9日/.test(await p.$eval(".calagh b", e => e.innerText)) && /没有事件/.test(await p.$eval(".calagenda", e => e.innerText)), "a day shows its agenda");
     await p.click("#calAddDay"); await p.waitForSelector("#cef");
-    assert.deepStrictEqual(await whenVal(p, "#cewhen"), ["2026-12-09T19:00", "2026-12-09T20:00"], "the form starts on the chosen day");
+    assert.deepStrictEqual(await whenVal(p, "#cewhen"), ["2026-12-09T09:00", "2026-12-09T10:00"], "the form starts on the chosen day");
     await p.keyboard.press("Escape"); await p.waitForTimeout(300);
     await p.screenshot({ path: OUT + "/calendar-month-view.png" });
     await p.click('[data-nav="next"]'); await p.waitForTimeout(150);

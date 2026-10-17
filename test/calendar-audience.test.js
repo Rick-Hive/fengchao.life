@@ -166,7 +166,11 @@ const accts = async (d) => SYNC.accountsOf(d, { lenient: true });
   // ---- 广播名单: accounts that do not receive 管理员广播 ----
   const optout = (body, user, roles) => call({ body: Object.assign({ op: "optout" }, body), user, roles });
   const IT_B = ["domain_it:b.edu"];
-  r = await optout({ upn: "p1@a.edu", on: true, reason: "家长要求" }, "lead@a.edu", LEADER); assert.strictEqual(r.status, 403, "a school leader does not keep the list");
+  r = await optout({ upn: "p3@b.edu", on: true, reason: "x" }, "lead@a.edu", LEADER); assert.strictEqual(r.status, 403, "a school leader keeps only their own school's list");
+  r = await optout({ upn: "s1@a.edu", on: true, reason: "x" }, "lead@a.edu", LEADER); assert.strictEqual(r.status, 200, "and may keep their own school's");
+  r = await optout({ upn: "s1@a.edu", on: false }, "lead@a.edu", LEADER); assert.strictEqual(r.status, 200);
+  r = await call({ method: "GET", query: { optout: "1", domain: "a.edu" }, user: "lead@a.edu", roles: LEADER }); assert.strictEqual(r.status, 200, "a leader reads their school's list");
+  r = await call({ method: "GET", query: { optout: "1", domain: "*" }, user: "lead@a.edu", roles: LEADER }); assert.strictEqual(r.status, 403, "not the whole list");
   r = await optout({ upn: "p1@a.edu", on: true }, "it@b.edu", IT_B); assert.strictEqual(r.status, 403, "a school's IT 管理员 only keeps their own school's accounts");
   r = await optout({ upn: "ghost@a.edu", on: true }, "comm@fengchao.life", COMM); assert.strictEqual(r.status, 400, "an account Hive does not know cannot be put on the list");
   r = await optout({ upn: "p1@a.edu", on: true, reason: "家长要求" }, "it@a.edu", IT); assert.strictEqual(r.status, 200, JSON.stringify(r.body));

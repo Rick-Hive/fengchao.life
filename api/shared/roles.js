@@ -142,7 +142,7 @@ function managedDomains(roles) {
 //   hive     — the Hive layer (管理员广播): events for chosen schools, roles, teams and named people of
 //              any school                            (sysadmin, 教育社区经理, 课程总监)
 //   optout   — the 广播名单 of accounts that do not receive 管理员广播: sysadmin, 教育社区经理, 课程总监 (any
-//              school); a school's IT 管理员 (that school's accounts)
+//              school); a school's IT 管理员 and 教育领袖 (that school's accounts)
 //   admin    — 角色分配, 数据同步, anything                    (sysadmin)
 // Staff functions that work across schools and may edit any school's 校历 (Rick, 2026-10-16).
 const CALENDAR_STAFF = ["community", "curriculum"];
@@ -156,7 +156,7 @@ function can(roles, action, domain) {
   // 教育社区经理 and 课程总监 (Rick, 2026-10-17: they may also send to chosen schools, roles, teams and people).
   if (action === "hive") return isAdmin(roles) || staffFunctions(roles).some((f) => CALENDAR_STAFF.includes(f));
   // optout — the 广播名单 (accounts that do not receive 管理员广播): the same staff for every school, and a school's
-  // IT 管理员 for that school's accounts (Rick, 2026-10-17).
+  // IT 管理员 and 教育领袖 for that school's accounts (Rick, 2026-10-17).
   if (action === "optout" && staffFunctions(roles).some((f) => CALENDAR_STAFF.includes(f))) return true;
   if (isAdmin(roles)) return true;
   if (action === "admin") return false;
@@ -166,7 +166,7 @@ function can(roles, action, domain) {
   const staff = isStaff(roles);
   if (action === "plan") return holds(DOMAIN_LEADER_RE) || staffFunctions(roles).includes("curriculum");
   if (action === "calendar") return holds(DOMAIN_LEADER_RE) || staffFunctions(roles).some((f) => CALENDAR_STAFF.includes(f));
-  if (action === "optout") return it;
+  if (action === "optout") return it || holds(DOMAIN_LEADER_RE);
   if (action === "view") return it || staff;
   if (action === "methods") return it;
   if (action === "people") return it || staff;

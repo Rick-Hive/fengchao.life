@@ -291,7 +291,7 @@
     var rows = all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return calState.filter === "all" || (calState.filter === "past" ? end < today : end >= today); });
     var cnt = function (f) { return all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return f === "past" ? end < today : f === "upcoming" ? end >= today : true; }).length; };
     var chips = '<div class="toolbar sub">' + [["upcoming", "即将到来", "Upcoming"], ["past", "已过去", "Past"], ["all", "全部", "All"]].map(function (f) { return '<button type="button" class="chip" data-filter="' + f[0] + '" aria-pressed="' + (calState.filter === f[0]) + '">' + t(f[1], f[2]) + ' <span class="cnt">' + cnt(f[0]) + "</span></button>"; }).join("") + "</div>";
-    var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + t("发给", "For") + "</th><th>" + t("提醒", "Reminder") + "</th><th>" + t("会议链接", "Meeting link") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
+    var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + t("发给", "For") + "</th><th>" + t("提醒", "Reminder") + "</th><th>" + t("联机会议", "Online meeting") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
     var body = rows.length ? rows.map(function (x) {
       var e = x.e;
       return '<tr class="pick" data-ev="' + esc(e.id) + '" data-src="' + x.src + '"><td style="white-space:nowrap">' + calWhen(e) + "</td><td><b>" + esc(e.title) + "</b>" + (e.location ? '<div class="faint" style="font-size:12px">' + esc(e.location) + "</div>" : "") + "</td>" +
@@ -494,14 +494,14 @@
     if (id && !ev) return;
     var d = hiveLayer ? calState.hive : calState.data;
     var zone = (ev && ev.timeZone) || calDefaultZone();
-    var e = ev || Object.assign({ title: "", allDay: false, start: (date || calToday()) + "T" + calPad(hour == null ? 19 : hour) + ":00", end: (date || calToday()) + "T" + (hour == null ? "20:00" : hour < 23 ? calPad(hour + 1) + ":00" : "23:59"), timeZone: zone, audience: [], location: "", description: "", link: "", meeting: "link", reminder: (d && d.defaults && d.defaults.reminder) != null ? d.defaults.reminder : 15, showAs: "free", targets: [] }, seed || {});
+    var e = ev || Object.assign({ title: "", allDay: false, start: (date || calToday()) + "T" + calPad(hour == null ? 9 : hour) + ":00", end: (date || calToday()) + "T" + (hour == null ? "10:00" : hour < 23 ? calPad(hour + 1) + ":00" : "23:59"), timeZone: zone, audience: [], location: "", description: "", link: "", meeting: "link", reminder: (d && d.defaults && d.defaults.reminder) != null ? d.defaults.reminder : 15, showAs: "free", targets: [] }, seed || {});
     var schoolName = hiveLayer ? "" : " · " + esc(dname(calState.domain));
     if (!editable) {
       panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + esc(e.title) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
         '<div class="kv"><span class="k">' + t("时间", "When") + "</span><span>" + calWhen(e) + "</span>" +
         '<span class="k">' + t("发给", "For") + "</span><span>" + esc(calForText(e, src === "hive" ? "hive" : "school")) + "</span>" +
         (e.location ? '<span class="k">' + t("地点", "Where") + "</span><span>" + esc(e.location) + "</span>" : "") +
-        (e.link ? '<span class="k">' + t("会议链接", "Meeting link") + '</span><span><a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.link) + "</a></span>" : "") +
+        (e.link ? '<span class="k">' + t("联机会议", "Online meeting") + '</span><span><a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.link) + "</a></span>" : "") +
         '<span class="k">' + t("提醒", "Reminder") + "</span><span>" + esc(calRemindText(e.reminder)) + "</span>" +
         '<span class="k">' + t("显示为", "Shown as") + "</span><span>" + (e.showAs === "busy" ? t("忙碌", "Busy") : t("空闲", "Free")) + "</span>" +
         "</div>" +
@@ -519,10 +519,9 @@
       '<p class="muted calallhint" id="ceAllHint" style="font-size:12px;margin:-4px 0 8px"' + (e.allDay ? "" : " hidden") + ">" + t("全天事件没有具体时间。要选开始和结束时间，请取消勾选「全天」。", "An all-day event has no times. Untick “All day” to choose a start and end time.") + "</p>" +
       '<label class="f" id="ceZoneBox"' + (e.allDay ? " hidden" : "") + ">" + t("时区", "Time zone") + '<select id="ceZone">' + calZoneOptions(zone) + "</select></label>" +
       calWhoHTML(e, hiveLayer, schools, tgAll) +
-      '<label class="f">' + t("地点（可选）", "Location (optional)") + '<input type="text" id="ceLoc" maxlength="200" value="' + esc(e.location) + '" /></label>' +
-      '<label class="f">' + t("会议链接（可选）", "Meeting link (optional)") + '<input type="url" id="ceLink" maxlength="500" placeholder="https://" value="' + esc(e.link) + '" /><small>' + t("Teams、Zoom 等会议的完整网址（https://…）。写入日历后，大家点开事件就能加入。", "The full address of a Teams, Zoom… meeting (https://…). Once events reach people's calendars they open the event and join from it.") + "</small></label>" +
-      '<label class="f">' + t("说明（可选）", "Description (optional)") + '<textarea id="ceDesc" rows="3" maxlength="2000">' + esc(e.description) + "</textarea></label>" +
-      '<div class="grid2"><label class="f">' + t("提醒", "Reminder") + '<select id="ceRem">' + CAL_REMIND.map(function (k) { return '<option value="' + (k[0] == null ? "" : k[0]) + '"' + (k[0] === e.reminder ? " selected" : "") + ">" + esc(t(k[1], k[2])) + "</option>"; }).join("") + '</select></label><label class="f">' + t("在日历里显示为", "Shown in calendars as") + '<select id="ceShow"><option value="free"' + (e.showAs !== "busy" ? " selected" : "") + ">" + t("空闲", "Free") + '</option><option value="busy"' + (e.showAs === "busy" ? " selected" : "") + ">" + t("忙碌", "Busy") + "</option></select></label></div>" +
+      '<label class="f">' + t("联机会议链接", "Online meeting link") + '<input type="url" id="ceLink" maxlength="500" placeholder="https://" value="' + esc(e.link) + '" /><small>' + t("可选。粘贴 Teams、Zoom 等会议的完整网址；事件写入日历后，大家点开就能加入。", "Optional. Paste the full address of a Teams, Zoom… meeting; people open the event in their calendar and join from it.") + "</small></label>" +
+      '<label class="f">' + t("详细信息", "Details") + '<textarea id="ceDesc" rows="3" maxlength="2000" placeholder="' + esc(t("添加详细信息", "Add details")) + '">' + esc(e.description) + "</textarea></label>" +
+      '<div class="grid2"><label class="f">' + t("提醒", "Reminder") + '<select id="ceRem">' + CAL_REMIND.map(function (k) { return '<option value="' + (k[0] == null ? "" : k[0]) + '"' + (k[0] === e.reminder ? " selected" : "") + ">" + esc(t(k[1], k[2])) + "</option>"; }).join("") + '</select></label><label class="f">' + t("显示为", "Show as") + '<select id="ceShow"><option value="free"' + (e.showAs !== "busy" ? " selected" : "") + ">" + t("空闲", "Free") + '</option><option value="busy"' + (e.showAs === "busy" ? " selected" : "") + ">" + t("忙碌", "Busy") + "</option></select><small>" + t("忙碌：这段时间在别人安排会议时显示为已占用。空闲：只显示在日历里，不挡会议安排（培训、通知一般选空闲）。", "Busy: the time shows as taken when people schedule meetings. Free: it only appears on the calendar and does not block scheduling (use Free for notices and training days).") + "</small></label></div>" +
       '<div class="actions"><button class="btn" type="submit" id="ceSave">' + t("保存", "Save") + "</button>" + (ev ? ' <button class="btn secondary sm" type="button" id="ceDel">' + t("删除", "Delete") + "</button>" : "") + '</div><div id="ceMsg"></div></form></div>');
     var wh = calWhenBind($("cewhen"));
     $("ceAll").addEventListener("change", function () {
@@ -534,7 +533,7 @@
     $("cef").addEventListener("submit", function (ev2) {
       ev2.preventDefault();
       var allDay = $("ceAll").checked, rem = $("ceRem").value;
-      var out = { id: ev ? ev.id : undefined, title: $("ceTitle").value.trim(), allDay: allDay, start: calWhenValue($("cewhen")).start, end: calWhenValue($("cewhen")).end || calWhenValue($("cewhen")).start, timeZone: $("ceZone").value, audience: who.value().audience, teams: who.value().teams, people: who.value().people, location: $("ceLoc").value.trim(), description: $("ceDesc").value.trim(), link: $("ceLink").value.trim(), meeting: "link", reminder: rem === "" ? null : Number(rem), showAs: $("ceShow").value };
+      var out = { id: ev ? ev.id : undefined, title: $("ceTitle").value.trim(), allDay: allDay, start: calWhenValue($("cewhen")).start, end: calWhenValue($("cewhen")).end || calWhenValue($("cewhen")).start, timeZone: $("ceZone").value, audience: who.value().audience, teams: who.value().teams, people: who.value().people, location: ev ? ev.location || "" : "", description: $("ceDesc").value.trim(), link: $("ceLink").value.trim(), meeting: "link", reminder: rem === "" ? null : Number(rem), showAs: $("ceShow").value };
       if (hiveLayer) out.targets = who.value().targets;
       var missing = [];
       if (!out.title) missing.push(t("标题", "title"));
