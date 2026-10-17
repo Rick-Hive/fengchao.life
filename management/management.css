@@ -962,16 +962,15 @@ table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 .calwhen { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 4px; }
 .calwhen .wrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px; }
 .calwhen .wl { font-size: 12.5px; color: var(--muted); }
-.calwhen input[type="date"], .calwhen select { height: 34px; font-size: 13px; padding: 0 8px; min-width: 0; width: 100%; }
+.calwhen input[type="date"], .calwhen input[type="time"] { height: 34px; font-size: 13px; padding: 0 8px; min-width: 0; width: 100%; }
 .calwhen.allday .wrow { grid-template-columns: 40px minmax(0, 1fr); }
-.calwhen.allday select { display: none; }
+.calwhen.allday input[type="time"] { display: none; }
 .calwhen .wdur { font-size: 12px; color: var(--faint); padding-left: 48px; min-height: 16px; font-variant-numeric: tabular-nums; }
 .calwhen .wdur.bad { color: var(--bad); }
 .calquick .qzone { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; margin: 0; font-size: 12.5px; color: var(--muted); }
 .calquick .qzone select { height: 32px; font-size: 12.5px; width: 100%; }
 .calquick .qzone[hidden] { display: none; }
 .calquick { width: 340px; }
-.calhint { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin: var(--s3) 0 0; padding: 10px var(--s3); border: 1px solid var(--accent-soft-line); background: var(--accent-soft); color: var(--accent-dark); border-radius: 10px; font-size: 13px; }
 
 #ceZoneBox[hidden], .calallhint[hidden] { display: none; }
 /* 校历: who gets an event — role / Teams group / named account pickers (Rick, 2026-10-17) */
@@ -993,3 +992,22 @@ table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 .calsum { margin: 2px 0 12px; padding: 9px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 8%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line)); font-size: 13px; line-height: 1.5; }
 .calsumn { display: inline-block; margin-left: 6px; font-weight: 600; color: var(--accent); white-space: nowrap; }
 #cef label.f input[type=url], #cef label.f input[type=text], #cef label.f select, #cef label.f textarea { display: block; width: 100%; margin-top: 4px; box-sizing: border-box; }
+
+/* ---- page head: no row of its own (Rick, 2026-10-17; applies to every page, now and later) ----
+   The sidebar already names the page, so on a computer the title row is gone: a page without actions has
+   no head at all, a page with actions gets one slim row of buttons. The page's ⓘ sits on its sidebar item. */
+.nav-item .navinfo { margin-left: auto; flex: none; }
+.nav-item .navinfo:hover::after, .nav-item .navinfo:focus::after { left: auto; right: -2px; top: calc(100% + 4px); bottom: auto; z-index: 60; }
+@media (min-width: 901px) {
+  .topbar .crumb, .topbar .ttl { display: none; }
+  .topbar { justify-content: flex-end; min-height: 0; padding: 8px var(--s6) 2px; }
+  .topbar.noact { display: none; }
+  .topbar.noact ~ .content { padding-top: var(--s3); }
+}
+
+/* ⓘ tooltips: placed by tipPlace() near the window edges */
+.info:hover::after, .info:focus::after { max-width: 280px; }
+.info.flip:hover::after, .info.flip:focus::after { left: auto; right: -2px; }
+.info.down:hover::after, .info.down:focus::after { top: calc(100% + 4px); bottom: auto; }
+.info + .info { margin-left: 4px; }
+.calbar .calchips { display: inline-flex; gap: 6px; flex-wrap: wrap; }

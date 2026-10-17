@@ -69,15 +69,16 @@
     if (calState.layer === "hive" && !canHive()) calState.layer = "school";
     if (calState.layer === "school" && !ds.length) calState.layer = "hive";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
-    setTitle(domainGroupTitle(), t("校历", "School calendar"), '<button class="btn secondary sm" id="calAdd" hidden>' + t("＋ 添加事件", "+ Add event") + '</button> <button class="btn sm" id="calPublish" hidden>' + t("发布", "Publish") + "</button>",
+    setTitle(domainGroupTitle(), t("校历", "School calendar"), "",
       { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「管理员广播」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的广播事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     $("content").innerHTML =
       '<div class="pagetabs" role="tablist" id="caltabs">' + (ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
         (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("管理员广播", "Admin broadcast") + "</a>" : "") +
         '<div class="tabsRight" id="calright"></div></div><div id="calmsg"></div><div id="calbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
-    $("caltabs").addEventListener("click", function (e) { var a = e.target.closest("a[data-layer]"); if (!a) return; e.preventDefault(); calState.layer = a.getAttribute("data-layer"); viewCalendar(); });
-    $("calPublish").addEventListener("click", function () { calSyncOpen(); });
-    $("calAdd").addEventListener("click", function () { calOpenEvent(null, undefined, calState.view !== "list" ? calState.selected : undefined); });
+    $("caltabs").addEventListener("click", function (e) {
+      if (e.target.closest("#calPublish")) { calSyncOpen(); return; }
+      if (e.target.closest("#calAdd")) { calOpenEvent(null, undefined, calState.view !== "list" ? calState.selected : undefined); return; }
+      var a = e.target.closest("a[data-layer]"); if (!a) return; e.preventDefault(); calState.layer = a.getAttribute("data-layer"); viewCalendar(); });
     $("calbody").addEventListener("click", function (e) {
       var chip = e.target.closest(".chip[data-filter]"); if (chip) { calState.filter = chip.getAttribute("data-filter"); calRender(); return; }
       var lg = e.target.closest("[data-layer-go]"); if (lg) { calState.layer = lg.getAttribute("data-layer-go"); viewCalendar(); return; }
@@ -129,22 +130,24 @@
     var hive = calState.layer === "hive", d = hive ? calState.hive : calState.data, ds = calDomains();
     if (!d) return;
     var edit = calCanEdit();
-    $("calAdd").hidden = !edit; $("calPublish").hidden = !edit;
     // right side of the tabs row: the school picker (school layer) and the school's default time zone
     var right = "";
     if (!hive) right = (ds.length > 1 ? '<select id="calsel">' + ds.map(function (x) { return '<option value="' + esc(x.domain) + '"' + (x.domain === calState.domain ? " selected" : "") + ">" + esc(dname(x.domain)) + "</option>"; }).join("") + "</select>" : '<span class="tag accent">' + esc(dname(calState.domain)) + "</span>") +
       (edit ? '<label class="muted" style="font-size:12px;white-space:nowrap">' + t("默认时区", "Default time zone") + ' <select id="calzone" class="sm" style="width:auto;max-width:210px">' + calZoneOptions((d.calendar && d.calendar.timezone) || (d.defaults && d.defaults.timeZone) || CAL_DEFAULT_ZONE) + "</select></label>" : "");
+    // one short ⓘ instead of a paragraph of explanation (Rick, 2026-10-17); the buttons live on this row too
+    var tip = hive
+      ? t("可按学校、身份、Teams 群组筛选，也可加任意学校的账号；不会改动学校自己的校历。保存后点「发布」才写入日历。", "Pick schools, roles and Teams groups, or add accounts of any school; a school's own calendar is never changed. Press Publish after saving to write it into calendars.")
+      : edit ? t("点事件可修改。带「广播」标记的来自校外，只读。保存后点「发布」才写入大家的日历。", "Click an event to change it. Events tagged Broadcast come from outside and are read-only. Press Publish after saving to write them into calendars.")
+      : isAdmin() ? t("系统管理员在这里只能查看；要给学校加事件，请用「管理员广播」。", "As the system administrator you can only look here; to add events for schools use Admin broadcast.")
+      : t("只能查看；编辑和发布由本校教育领袖、教育社区经理和课程总监负责。", "View only; editing and publishing are for the school's education leader, education community manager and curriculum director.");
+    right += tipI(tip) + (edit ? "" : '<span class="tag">' + t("只读", "View only") + "</span>") +
+      (edit ? '<button class="btn secondary sm" id="calAdd">' + t("＋ 添加事件", "+ Add event") + '</button><button class="btn sm" id="calPublish">' + t("发布", "Publish") + "</button>" : "");
     $("calright").innerHTML = right;
     var sel = $("calsel"); if (sel) sel.addEventListener("change", function () { calState.domain = this.value; currentDomain = this.value; calLoad(); });
     var zs = $("calzone"); if (zs) zs.addEventListener("change", function () { post("calendar", "POST", { domain: calState.domain, op: "zone", timezone: zs.value }).then(function (r) { if (!r.ok) { calMsg(errText(r), true); return; } calState.data.calendar = r.body.calendar; flashOk(t("默认时区已保存。", "Default time zone saved.")); }); });
     var all = calRows();
-    var note = '<p class="sub" style="margin:8px 0 8px">' + (hive
-      ? t("跨校的事件：每个事件可以选学校、按身份（如家长）和 Teams 群组筛选，也可以另外输入账号（任何学校的都行）。学校自己的校历不会被这里改动。保存后，点右上角「发布」写入收件人的日历。", "Cross-school events: pick schools, narrow by role (such as parents) and Teams group, and add named accounts of any school. A school's own calendar is never changed from here. After saving, use Publish (top right) to put them into the recipients' calendars.")
-      : edit ? t("点一个事件修改，或用右上角「＋ 添加事件」。「广播」标记的事件是从校外发给本校的，只读。保存后点右上角「发布」写入大家的日历。", "Click an event to change it, or use “+ Add event”. Events tagged Broadcast were sent to this school from outside and are read-only. After saving, use Publish (top right) to put them into everyone's calendar.")
-        : t("你可以查看本校校历；编辑和发布由本校教育领袖、教育社区经理和课程总监负责。", "You can look at the school's calendar; editing and publishing are for the school's education leader, education community manager and curriculum director.")) + "</p>";
     var main = calState.view === "month" ? calMonthHTML(all, edit) : calState.view === "week" ? calWeekHTML(all, edit) : calListHTML(all, hive, edit);
-    var hint = !edit && !hive && isAdmin() ? '<div class="calhint"><span>' + t("你以系统管理员身份查看本校校历，这里只能查看。要给学校加培训等事件，请用「管理员广播」。", "You are looking at this school's calendar as the system administrator, so it is view-only here. To add training or notices for schools, use Admin broadcast.") + '</span><button type="button" class="btn secondary sm" data-layer-go="hive">' + t("去「管理员广播」", "Go to Admin broadcast") + "</button></div>" : "";
-    $("calbody").innerHTML = hint + calBarHTML(all) + note + main;
+    $("calbody").innerHTML = calBarHTML(all) + main;
     if (calState.view === "week" && $("calwk")) {
       // open the week at its first timed event (an hour earlier), or at 8:00 when it has none
       var firstMin = Infinity; $("calwk").querySelectorAll(".calblk").forEach(function (b) { firstMin = Math.min(firstMin, parseFloat(b.style.top) / CAL_HOUR * 60); });
@@ -203,6 +206,12 @@
     all.forEach(function (x) { var s = calSpan(x.e); set[+s[0].slice(0, 4)] = 1; set[+s[1].slice(0, 4)] = 1; });
     return Object.keys(set).map(Number).filter(function (y) { return y > 1999 && y < 2100; }).sort();
   }
+  // the Upcoming / Past / All filter, on the same row as the view switch
+  function calChipsHTML(all) {
+    var today = calToday();
+    var cnt = function (f) { return all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return f === "past" ? end < today : f === "upcoming" ? end >= today : true; }).length; };
+    return '<span class="calchips">' + [["upcoming", "即将到来", "Upcoming"], ["past", "已过去", "Past"], ["all", "全部", "All"]].map(function (f) { return '<button type="button" class="chip" data-filter="' + f[0] + '" aria-pressed="' + (calState.filter === f[0]) + '">' + t(f[1], f[2]) + ' <span class="cnt">' + cnt(f[0]) + "</span></button>"; }).join("") + "</span>";
+  }
   function calBarHTML(all) {
     var v = calState.view, h = '<div class="calbar">';
     if (v !== "list") {
@@ -212,6 +221,7 @@
         '<select id="calyear" class="sm" aria-label="' + t("年份", "Year") + '">' + calYearsFor(all).map(function (yy) { return '<option value="' + yy + '"' + (yy === y ? " selected" : "") + ">" + yy + t(" 年", "") + "</option>"; }).join("") + "</select>" +
         '<select id="calmon" class="sm" aria-label="' + t("月份", "Month") + '">' + CAL_MON_EN.map(function (mm, i) { return '<option value="' + (i + 1) + '"' + (i + 1 === m ? " selected" : "") + ">" + (EN ? mm : (i + 1) + " 月") + "</option>"; }).join("") + "</select>";
     }
+    if (v === "list") h += calChipsHTML(all);
     h += '<span class="calgap"></span><div class="calseg" id="calview" role="group" aria-label="' + t("视图", "View") + '">' + [["month", "月", "Month"], ["week", "周", "Week"], ["list", "列表", "List"]].map(function (k) { return '<button type="button" data-view="' + k[0] + '" aria-pressed="' + (v === k[0]) + '">' + t(k[1], k[2]) + "</button>"; }).join("") + "</div></div>";
     return h;
   }
@@ -289,41 +299,31 @@
   function calListHTML(all, hive, edit) {
     var today = calToday();
     var rows = all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return calState.filter === "all" || (calState.filter === "past" ? end < today : end >= today); });
-    var cnt = function (f) { return all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return f === "past" ? end < today : f === "upcoming" ? end >= today : true; }).length; };
-    var chips = '<div class="toolbar sub">' + [["upcoming", "即将到来", "Upcoming"], ["past", "已过去", "Past"], ["all", "全部", "All"]].map(function (f) { return '<button type="button" class="chip" data-filter="' + f[0] + '" aria-pressed="' + (calState.filter === f[0]) + '">' + t(f[1], f[2]) + ' <span class="cnt">' + cnt(f[0]) + "</span></button>"; }).join("") + "</div>";
-    var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + t("发给", "For") + "</th><th>" + t("提醒", "Reminder") + "</th><th>" + t("联机会议", "Online meeting") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
+    var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + t("发给", "For") + "</th><th>" + t("提醒", "Reminder") + "</th><th>" + t("会议链接", "Meeting link") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
     var body = rows.length ? rows.map(function (x) {
       var e = x.e;
       return '<tr class="pick" data-ev="' + esc(e.id) + '" data-src="' + x.src + '"><td style="white-space:nowrap">' + calWhen(e) + "</td><td><b>" + esc(e.title) + "</b>" + (e.location ? '<div class="faint" style="font-size:12px">' + esc(e.location) + "</div>" : "") + "</td>" +
         "<td>" + esc(calForText(e, x.src)) + "</td><td>" + esc(calRemindText(e.reminder)) + "</td><td>" + (e.link ? "✓" : "—") + "</td>" +
         (hive ? "" : '<td><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("广播", "Broadcast") : t("校历", "School")) + "</span></td>") + "</tr>";
     }).join("") : '<tr><td colspan="' + (hive ? 5 : 6) + '" class="muted">' + (all.length ? t("这一类里没有事件。", "No events in this view.") : t("还没有事件。", "No events yet.") + (edit ? " " + t("点右上角「＋ 添加事件」开始。", "Use “+ Add event” to start.") : "")) + "</td></tr>";
-    return chips + '<div class="tbl-wrap"><table class="data" id="caltable">' + head + "<tbody>" + body + "</tbody></table></div>";
+    return '<div class="tbl-wrap"><table class="data" id="caltable">' + head + "<tbody>" + body + "</tbody></table></div>";
   }
 
-  // ---- start / end: a date and a time picker each, like Outlook and Teams (Rick, 2026-10-17: 「不能选择事件发生的时间，
-  // 比如 8:00 a.m. – 8:45 a.m.」). The time is a list in 15-minute steps; moving the start moves the end with it, so the
+  // ---- start / end: a date and a time field each, like Outlook and Teams (Rick, 2026-10-17: 「不能选择事件发生的时间，
+  // 比如 8:00 a.m. – 8:45 a.m.」). The time is typed or picked to the minute (8:14 works); moving the start moves the end with it, so the
   // length of the event is kept; the length is shown beside the end. All-day events show the dates only.
   var CAL_DEFAULT_ZONE = "Asia/Shanghai"; // 北京时间, until a school saves its own default
   function calTimeLabel(hhmm) {
     var h = +hhmm.slice(0, 2), m = hhmm.slice(3, 5);
     return EN ? ((h % 12) || 12) + ":" + m + " " + (h < 12 ? "AM" : "PM") : (h < 12 ? "上午 " : "下午 ") + ((h % 12) || 12) + ":" + m;
   }
-  function calTimeOptions(sel) {
-    var list = [], i;
-    for (i = 0; i < 96; i++) list.push(calPad(Math.floor(i / 4)) + ":" + calPad((i % 4) * 15));
-    if (sel && list.indexOf(sel) < 0) { list.push(sel); list.sort(); }
-    return list.map(function (v) { return '<option value="' + v + '"' + (v === sel ? " selected" : "") + ">" + esc(calTimeLabel(v)) + "</option>"; }).join("");
-  }
-  function calSetTime(select, v) {
-    if (!select.querySelector('option[value="' + v + '"]')) { var o = document.createElement("option"); o.value = v; o.textContent = calTimeLabel(v); select.appendChild(o); }
-    select.value = v;
-  }
+  // A native time field with a one-minute step: type 8:14 or pick from the browser's clock.
+  function calSetTime(input, v) { input.value = v; }
   function calWhenHTML(id, allDay, start, end) {
     var sd = (start || "").slice(0, 10), ed = (end || start || "").slice(0, 10), st = allDay ? "09:00" : (start || "").slice(11, 16) || "09:00", et = allDay ? "10:00" : (end || "").slice(11, 16) || "10:00";
     return '<div class="calwhen' + (allDay ? " allday" : "") + '" id="' + id + '">' +
-      '<div class="wrow"><span class="wl">' + t("开始", "Starts") + '</span><input type="date" class="wsd" value="' + esc(sd) + '" aria-label="' + t("开始日期", "Start date") + '" /><select class="wst" aria-label="' + t("开始时间", "Start time") + '">' + calTimeOptions(st) + "</select></div>" +
-      '<div class="wrow"><span class="wl">' + t("结束", "Ends") + '</span><input type="date" class="wed" value="' + esc(ed) + '" aria-label="' + t("结束日期", "End date") + '" /><select class="wet" aria-label="' + t("结束时间", "End time") + '">' + calTimeOptions(et) + "</select></div>" +
+      '<div class="wrow"><span class="wl">' + t("开始", "Starts") + '</span><input type="date" class="wsd" value="' + esc(sd) + '" aria-label="' + t("开始日期", "Start date") + '" /><input type="time" step="60" class="wst" value="' + esc(st) + '" aria-label="' + t("开始时间", "Start time") + '" /></div>' +
+      '<div class="wrow"><span class="wl">' + t("结束", "Ends") + '</span><input type="date" class="wed" value="' + esc(ed) + '" aria-label="' + t("结束日期", "End date") + '" /><input type="time" step="60" class="wet" value="' + esc(et) + '" aria-label="' + t("结束时间", "End time") + '" /></div>' +
       '<div class="wdur" aria-live="polite"></div></div>';
   }
   function calWhenValue(root) {
@@ -387,7 +387,7 @@
     var zone = calQuickZone(), el = document.createElement("div");
     el.className = "calquick"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", t("新事件", "New event"));
     el.innerHTML = '<input type="text" class="qtitle" maxlength="120" placeholder="' + t("添加标题", "Add a title") + '" aria-label="' + t("标题", "Title") + '" />' +
-      '<label class="chk qall"><input type="checkbox" class="qallday"' + (seed.allDay ? " checked" : "") + " /> " + t("全天", "All day") + "</label>" +
+      '<label class="chk qall"><input type="checkbox" class="qallday"' + (seed.allDay ? " checked" : "") + " /> " + t("全天", "All day") + tipI(t("全天事件没有具体时间；要选开始和结束时间，请取消勾选。", "An all-day event has no times; untick to choose a start and end time.")) + "</label>" +
       calWhenHTML("cqwhen", seed.allDay, seed.start, seed.end) +
       '<label class="qzone"><span>' + t("时区", "Time zone") + '</span><select class="qzonesel">' + calZoneOptions(zone) + '</select></label><div class="qmsg"></div>' +
       '<div class="qact"><button type="button" class="btn sm qsave">' + t("保存", "Save") + '</button><button type="button" class="btn secondary sm qmore">' + t("更多选项", "More options") + '</button><button type="button" class="qclose" aria-label="' + t("关闭", "Close") + '">✕</button></div>';
@@ -501,12 +501,12 @@
         '<div class="kv"><span class="k">' + t("时间", "When") + "</span><span>" + calWhen(e) + "</span>" +
         '<span class="k">' + t("发给", "For") + "</span><span>" + esc(calForText(e, src === "hive" ? "hive" : "school")) + "</span>" +
         (e.location ? '<span class="k">' + t("地点", "Where") + "</span><span>" + esc(e.location) + "</span>" : "") +
-        (e.link ? '<span class="k">' + t("联机会议", "Online meeting") + '</span><span><a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.link) + "</a></span>" : "") +
+        (e.link ? '<span class="k">' + t("会议链接", "Meeting link") + '</span><span><a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.link) + "</a></span>" : "") +
         '<span class="k">' + t("提醒", "Reminder") + "</span><span>" + esc(calRemindText(e.reminder)) + "</span>" +
         '<span class="k">' + t("显示为", "Shown as") + "</span><span>" + (e.showAs === "busy" ? t("忙碌", "Busy") : t("空闲", "Free")) + "</span>" +
         "</div>" +
         (e.description ? '<p style="white-space:pre-wrap;margin-top:10px">' + esc(e.description) + "</p>" : "") +
-        '<p class="muted" style="font-size:12px;margin-top:10px">' + (e.targets ? t("这是从校外（系统管理员、教育社区经理或课程总监）发给本校的广播事件，只读。", "A broadcast sent to this school from outside (the system administrator, community manager or curriculum director) — read-only.") : t("你没有编辑本校校历的权限（由本校教育领袖、教育社区经理和课程总监编辑）。", "You may not edit the school's calendar (its education leader, education community manager and curriculum director do).")) + "</p></div>");
+        '<p class="muted" data-keep style="font-size:12px;margin-top:10px">' + (e.targets ? t("来自校外的广播，只读。", "Broadcast from outside; read-only.") : t("只读：你没有编辑本校校历的权限。", "Read-only: you may not edit this calendar.")) + "</p></div>");
       return;
     }
     var tgAll = (e.targets || []).indexOf("*") >= 0;
@@ -516,16 +516,15 @@
       '<label class="f">' + t("标题", "Title") + ' <span class="req">*</span><input type="text" id="ceTitle" maxlength="120" value="' + esc(e.title) + '" /></label>' +
       '<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" id="ceAll"' + (e.allDay ? " checked" : "") + " /> " + t("全天", "All day") + "</label>" +
       calWhenHTML("cewhen", e.allDay, e.start, e.end) +
-      '<p class="muted calallhint" id="ceAllHint" style="font-size:12px;margin:-4px 0 8px"' + (e.allDay ? "" : " hidden") + ">" + t("全天事件没有具体时间。要选开始和结束时间，请取消勾选「全天」。", "An all-day event has no times. Untick “All day” to choose a start and end time.") + "</p>" +
       '<label class="f" id="ceZoneBox"' + (e.allDay ? " hidden" : "") + ">" + t("时区", "Time zone") + '<select id="ceZone">' + calZoneOptions(zone) + "</select></label>" +
       calWhoHTML(e, hiveLayer, schools, tgAll) +
-      '<label class="f">' + t("联机会议链接", "Online meeting link") + '<input type="url" id="ceLink" maxlength="500" placeholder="https://" value="' + esc(e.link) + '" /><small>' + t("可选。粘贴 Teams、Zoom 等会议的完整网址；事件写入日历后，大家点开就能加入。", "Optional. Paste the full address of a Teams, Zoom… meeting; people open the event in their calendar and join from it.") + "</small></label>" +
+      '<label class="f">' + t("会议链接", "Meeting link") + '<input type="url" id="ceLink" maxlength="500" placeholder="https://" value="' + esc(e.link) + '" /><small>' + t("可选。粘贴 Teams、Zoom 等会议的完整网址；事件写入日历后，大家点开就能加入。", "Optional. Paste the full address of a Teams, Zoom… meeting; people open the event in their calendar and join from it.") + "</small></label>" +
       '<label class="f">' + t("详细信息", "Details") + '<textarea id="ceDesc" rows="3" maxlength="2000" placeholder="' + esc(t("添加详细信息", "Add details")) + '">' + esc(e.description) + "</textarea></label>" +
       '<div class="grid2"><label class="f">' + t("提醒", "Reminder") + '<select id="ceRem">' + CAL_REMIND.map(function (k) { return '<option value="' + (k[0] == null ? "" : k[0]) + '"' + (k[0] === e.reminder ? " selected" : "") + ">" + esc(t(k[1], k[2])) + "</option>"; }).join("") + '</select></label><label class="f">' + t("显示为", "Show as") + '<select id="ceShow"><option value="free"' + (e.showAs !== "busy" ? " selected" : "") + ">" + t("空闲", "Free") + '</option><option value="busy"' + (e.showAs === "busy" ? " selected" : "") + ">" + t("忙碌", "Busy") + "</option></select><small>" + t("忙碌：这段时间在别人安排会议时显示为已占用。空闲：只显示在日历里，不挡会议安排（培训、通知一般选空闲）。", "Busy: the time shows as taken when people schedule meetings. Free: it only appears on the calendar and does not block scheduling (use Free for notices and training days).") + "</small></label></div>" +
       '<div class="actions"><button class="btn" type="submit" id="ceSave">' + t("保存", "Save") + "</button>" + (ev ? ' <button class="btn secondary sm" type="button" id="ceDel">' + t("删除", "Delete") + "</button>" : "") + '</div><div id="ceMsg"></div></form></div>');
     var wh = calWhenBind($("cewhen"));
     $("ceAll").addEventListener("change", function () {
-      wh.allDay(this.checked); $("ceZoneBox").hidden = this.checked; $("ceAllHint").hidden = !this.checked;
+      wh.allDay(this.checked); $("ceZoneBox").hidden = this.checked;
       // an all-day event keeps whatever zone it was saved with, which proves nothing: a timed one starts in the default (北京时间)
       if (!this.checked && ev && ev.allDay) $("ceZone").value = calDefaultZone();
     });

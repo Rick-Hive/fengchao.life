@@ -131,6 +131,7 @@
         return '<a class="nav-item' + (active ? " active" : "") + '" href="' + esc(it.hash || it.href) + '">' + ICON[it.icon] + "<span>" + esc(t(it.zh, it.en)) + "</span>" + (it.href ? '<span class="ext">↗</span>' : "") + "</a>";
       }).join("") + "</div>";
     }).join("");
+    navInfo();
   }
   function isAdmin() { var r = (me && me.roles) || []; return r.indexOf("admin") >= 0 || r.indexOf("staff:sysadmin") >= 0; }
   // What the signed-in person may do in the current domain (from /api/domain/domains).
@@ -277,13 +278,73 @@
   // desc: the page's description — a string or { info: "…" } — shown behind an ⓘ beside
   // the title, never as a line under it (Rick, 2026-10-08: 「Use little i to hint. Apply
   // with all headings」; earlier the same for the People Hub's long description).
+  // The one way to explain something (Rick, 2026-10-17, for every page): a short summary of the goal and the
+  // cautions in a small ⓘ that shows on hover or focus, never a paragraph that takes page space.
+  function tipI(text, cls) { return text ? '<span class="info' + (cls ? " " + cls : "") + '" tabindex="0" data-tip="' + esc(text) + '">i</span>' : ""; }
+  // Explanations never take page space (Rick, 2026-10-17: applies to every page, present and future). Pages
+  // may still write a hint as <p class="hint">, a <small> under a field, or a small grey <p class="muted">;
+  // after every render this turns each into a short ⓘ placed on the heading, the field label or the bold
+  // line it explains. Warnings that must stay in view (.note, .bad, .msg) and anything with a link or a button
+  // inside are left alone, as is anything marked data-keep.
+  var TIP_SEL = 'label small, .devrow .m small, p.hint, p.muted[style*="font-size:12px"], .calallhint';
+  function tipAnchor(el) {
+    var lab = el.closest("label");
+    if (lab && lab.contains(el)) {
+      var c = lab.querySelector("input:not([type=checkbox]):not([type=radio]), select, textarea");
+      if (c && c.parentNode === lab) return { before: c, host: lab };
+      return { host: lab };
+    }
+    var h = el.parentNode, prev = el.previousElementSibling;
+    if (el.tagName === "SMALL") { var b = el.parentNode.querySelector("b, strong"); return b ? { host: b } : null; }
+    while (prev && !/^(H2|H3|H4|B|STRONG)$/.test(prev.tagName) && !(prev.matches && prev.matches(".ph h3, .ph h2"))) prev = prev.previousElementSibling;
+    if (prev) return { host: prev };
+    var top = el.closest(".card, .panel, .modal, .box") || h, hd = top && top.querySelector("h2, h3, h4");
+    return hd ? { host: hd } : null;
+  }
+  function tipify(root) {
+    var els = (root || document).querySelectorAll(TIP_SEL), i;
+    for (i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.id || el.hasAttribute("data-keep") || el.classList.contains("bad") || (el.tagName === "SMALL" && el.className) || el.querySelector("a, button, input")) continue;
+      var txt = (el.textContent || "").trim(); if (!txt) continue;
+      var a = tipAnchor(el); if (!a) continue;
+      var tip = document.createElement("span"); tip.className = "info"; tip.tabIndex = 0; tip.setAttribute("data-tip", txt); tip.textContent = "i";
+      if (a.before) a.host.insertBefore(tip, a.before); else a.host.appendChild(tip);
+      el.parentNode.removeChild(el);
+    }
+  }
+  var tipQueued = false;
+  function tipSoon() { if (tipQueued) return; tipQueued = true; (window.requestAnimationFrame || setTimeout)(function () { tipQueued = false; tipify(document.body); }); }
+  if (window.MutationObserver) new MutationObserver(tipSoon).observe(document.body, { childList: true, subtree: true });
+  // keep a tooltip inside the window: flip to the left near the right edge, below near the top
+  function tipPlace(e) {
+    var n = e.target && e.target.closest && e.target.closest(".info[data-tip]"); if (!n) return;
+    var r = n.getBoundingClientRect();
+    n.classList.toggle("flip", r.left > window.innerWidth - 300);
+    n.classList.toggle("down", r.top < 150);
+  }
+  document.addEventListener("mouseover", tipPlace); document.addEventListener("focusin", tipPlace);
   function setTitle(crumb, title, actionsHtml, desc) {
     var info = desc && typeof desc === "object" ? desc.info : (desc || "");
     // Crumb and title now share a line; a crumb that already ends with the title ("经营 › 人员库" + 人员库) loses that tail.
     if (crumb && title) { var tail = " › " + title; if (crumb === title) crumb = ""; else if (crumb.slice(-tail.length) === tail) crumb = crumb.slice(0, -tail.length); }
     $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + (info ? ' <span class="info big" tabindex="0" data-tip="' + esc(info) + '">i</span>' : "") + "</span>" : "") + "";
     $("topActions").innerHTML = actionsHtml || "";
-    document.querySelector(".topbar").classList.toggle("bare", !title && !crumb && !actionsHtml);
+    var tb = document.querySelector(".topbar");
+    tb.classList.toggle("bare", !title && !crumb && !actionsHtml);
+    // UI principle (Rick, 2026-10-17): the page head never takes a row of its own. On a computer the sidebar
+    // already says where you are, so the title row is gone: no actions = no row; actions = one slim row of
+    // buttons. The ⓘ with the page's explanation moves onto the active sidebar item. A phone keeps the title.
+    tb.classList.toggle("noact", !actionsHtml);
+    pageInfo = info || "";
+    navInfo();
+    if (title) document.title = title + " · " + t("蜂巢管理中心", "Hive Management Center");
+  }
+  var pageInfo = "";
+  function navInfo() {
+    var old = document.querySelectorAll("#nav .navinfo"); for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
+    var a = document.querySelector("#nav .nav-item.active");
+    if (a && pageInfo) { var s = document.createElement("span"); s.className = "info navinfo"; s.tabIndex = 0; s.setAttribute("data-tip", pageInfo); s.textContent = "i"; a.appendChild(s); }
   }
   function panelOpen(html, which) {
     var p = $(which === "second" ? "panel2" : "panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false");

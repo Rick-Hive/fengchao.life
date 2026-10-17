@@ -317,7 +317,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     const row = await p.$eval('#otable tbody tr[data-id="FC-20261002-KXC-002"]', e => e.innerText); if (!/已确认/.test(row)) throw new Error("row not updated: " + row);
   });
   await shot("orders-en-finance", 1280, 900, "#/ops/orders/hive", "en", ["staff:finance"], async p => {
-    const title = await p.$eval("#title", e => e.innerText); if (!/Orders/.test(title)) throw new Error("title " + title);
+    const title = await p.$eval("#title", e => e.textContent); if (!/Orders/.test(title)) throw new Error("title " + title);
     const cell = await p.$eval('#otable tbody tr[data-id="FC-20261001-KXC-001"]', e => e.innerText);
     if (!/…@gmail\.com/.test(cell)) throw new Error("finance should see a masked email: " + cell);
     if (!/¥2,100/.test(cell)) throw new Error("finance should see amounts: " + cell);
@@ -385,7 +385,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click(".pagetabs a[href='#/ops/orders/hive']"); await p.waitForTimeout(500);
     if (!(await p.$("#otable"))) throw new Error("course tab did not open");
     if (!(await p.$eval("#flash", e => e.hidden))) throw new Error("sync notice survived the page change");
-    const title = await p.$eval("#title", e => e.innerText); if (!/蜂巢课程订单/.test(title)) throw new Error("title " + title);
+    const title = await p.$eval("#title", e => e.textContent); if (!/蜂巢课程订单/.test(title)) throw new Error("title " + title);
   });
   await shot("orders-equip-tall", 1280, 1700, "#/ops/orders", "zh", ["admin", "staff:sysadmin"], async p => { await p.waitForTimeout(500); });
   await shot("orders-equip-card", 1280, 900, "#/ops/orders", "zh", ["admin", "staff:sysadmin"], async p => { await p.waitForTimeout(400); });
@@ -532,7 +532,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/不能是学生/.test(await p.$eval("#ngOwnNote", e => e.innerText)), "warns that a student cannot own it");
     await p.click('#ngTypes input[value="standard"]'); await p.waitForTimeout(100);
     assert.strictEqual(await p.$$eval("#ngPriv input[name=ngVis]", es => es.map(e => e.value).join()), "Private,Public", "other chooses private or public");
-    assert.ok(/整个租户/.test(await p.$eval("#ngPriv", e => e.innerText)), "warns that public is tenant-wide");
+    assert.ok(/整个租户/.test(await p.$eval("#ngPriv", e => e.innerText + [...e.querySelectorAll("[data-tip]")].map(x => x.dataset.tip).join(" "))), "warns that public is tenant-wide");
     // submit without owner → asked to fill in
     await p.fill("#ngName", "Chess club"); await p.click("#ngSave"); await p.waitForTimeout(200);
     assert.ok(/所有者/.test(await p.$eval("#ngMsg", e => e.innerText)) && teamCreates.length === 0, "an owner is required before anything is sent");
@@ -588,7 +588,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     if (acctEdits.length !== 1 || acctEdits[0].jobTitle !== "数学老师" || Object.keys(acctEdits[0]).length !== 3) throw new Error("PATCH body (only what changed): " + JSON.stringify(acctEdits));
     if (!/已保存到 Microsoft 365/.test(await p.$eval("#acctMsg", e => e.innerText))) throw new Error("no saved note");
     await p.click("#licOpen"); await p.waitForTimeout(500);
-    const txt = await p.$eval("#pacct", e => e.innerText);
+    const txt = await p.$eval("#pacct", e => e.innerText + [...e.querySelectorAll("[data-tip]")].map(x => x.dataset.tip).join(" "));
     if (!/→/.test(txt) || !/剩余/.test(txt)) throw new Error("licence form: " + txt);
     const disabled = await p.$eval("#licGo", e => e.disabled);
     if (!disabled) { await p.click("#licGo"); await p.waitForTimeout(600); if (licChanges.length !== 1) throw new Error("licence call: " + JSON.stringify(licChanges)); }
@@ -633,7 +633,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
   await shot("dashboard-sales", 1280, 1700, "", "zh", SALES, async p => {
     await p.waitForTimeout(900);
     const h = await p.evaluate(() => location.hash); if (h !== "#/dashboard" && h !== "") throw new Error("staff should land on the dashboard: " + h);
-    const title = await p.$eval("#title", e => e.innerText); if (!/仪表盘/.test(title)) throw new Error("title: " + title);
+    const title = await p.$eval("#title", e => e.textContent); if (!/仪表盘/.test(title)) throw new Error("title: " + title);
     const nav = await p.$eval("#nav", e => e.innerText); if (!/仪表盘/.test(nav)) throw new Error("nav: " + nav);
     const k = await p.$eval("#dkpi", e => e.innerText); if (!/本月 · 教材销售额\s*¥1,296/.test(k) || !/本月 · 课程订单\s*\d/.test(k) || !/人员库\s*\d/.test(k) || !/待处理\s*\d/.test(k)) throw new Error("tiles: " + k);
     const ids = await p.$$eval("#dgrid .card", es => es.map(e => e.id || e.className)); if (ids.indexOf("dTrend") < 0 || ids.indexOf("dFunnel") < 0 || ids.indexOf("dPub") < 0 || ids.indexOf("dTop") < 0 || ids.indexOf("dSchools") < 0 || ids.indexOf("dSeminar") < 0 || ids.indexOf("dTodo") < 0) throw new Error("panels: " + ids);
@@ -904,7 +904,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/本校所有人/.test(await p.$eval("#cesum", e => e.innerText)), "nothing narrowed: everyone at the school");
     assert.ok(!(await p.$("#ceLoc")), "there is no location field");
     assert.ok(!(await p.$eval("#ceAll", e => e.checked)) && (await whenVal(p, "#cewhen"))[0].endsWith("T09:00"), "a new event is timed, not all-day, starting at 9:00");
-    assert.ok(/显示为/.test(await p.$eval("#cef", e => e.innerText)) && /详细信息/.test(await p.$eval("#cef", e => e.innerText)) && /联机会议链接/.test(await p.$eval("#cef", e => e.innerText)), "Outlook-style labels");
+    assert.ok(/显示为/.test(await p.$eval("#cef", e => e.innerText)) && /详细信息/.test(await p.$eval("#cef", e => e.innerText)) && /会议链接/.test(await p.$eval("#cef", e => e.innerText)), "Outlook-style labels");
     await p.fill("#ceTitle", "家长会"); await p.click("#ceAll");
     assert.ok(await p.$eval("#cewhen", e => e.classList.contains("allday")) && !(await p.isVisible("#cewhen .wst")), "all day hides the times");
     await p.fill("#cewhen .wsd", "2026-11-14"); await p.fill("#cewhen .wed", "2026-11-14");
@@ -926,8 +926,8 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.keyboard.press("Escape"); await p.waitForTimeout(300);
     // change it, then delete it
     await p.click('#caltable tr[data-src="school"]'); await p.waitForSelector("#cef");
-    assert.ok(!(await p.isVisible("#ceZoneBox")) && await p.isVisible("#ceAllHint"), "an all-day event hides the zone and says how to get times");
-    await p.click("#ceAll"); assert.ok(await p.isVisible("#cewhen .wst") && await p.isVisible("#ceZoneBox") && !(await p.isVisible("#ceAllHint")), "unticking all day shows the times and the zone");
+    assert.ok(!(await p.isVisible("#ceZoneBox")), "an all-day event hides the zone");
+    await p.click("#ceAll"); assert.ok(await p.isVisible("#cewhen .wst") && await p.isVisible("#ceZoneBox"), "unticking all day shows the times and the zone");
     assert.strictEqual(await p.$eval("#ceZone", e => e.value), "Asia/Shanghai", "and the zone starts as 北京时间"); await p.click("#ceAll");
     await p.fill("#ceTitle", "家长会（改）"); await p.click("#ceSave"); await p.waitForTimeout(900);
     assert.ok(calPosts.length === 2 && calPosts[1].event.id === "e-1" && calPosts[1].event.title === "家长会（改）", JSON.stringify(calPosts[1]));
@@ -957,8 +957,8 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
     assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 2, "both tabs");
     assert.ok(await p.$("#calsel"), "the school picker");
-    assert.ok(await p.$eval("#calAdd", e => e.hidden) && await p.$eval("#calPublish", e => e.hidden), "the system administrator cannot add to or publish a school's own calendar");
-    assert.ok(/view-only/.test(await p.$eval(".calhint", e => e.innerText)), "the page says why it is view-only");
+    assert.ok(!(await p.$("#calAdd")) && !(await p.$("#calPublish")), "the system administrator cannot add to or publish a school's own calendar");
+    assert.ok(/View only/.test(await p.$eval("#calright", e => e.innerText)) && /Admin broadcast/.test(await p.$eval("#calright .info", e => e.dataset.tip)), "the page says it is view-only, and why, in a small tip");
     await p.click('#calbody .chip[data-filter="all"]'); await p.waitForTimeout(200);
     await p.click('#caltable tr[data-src="hive"]'); await p.waitForTimeout(300);
     assert.ok(/read-only/.test(await p.$eval("#panel .pb", e => e.innerText)), "a Hive event is read-only in a school's list");
@@ -969,7 +969,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.fill("#ceTitle", "Extra training");
     await p.click("#ceSave"); await p.waitForTimeout(200);
     assert.ok(/who it is for/.test(await p.$eval("#ceMsg", e => e.innerText)) && calPosts.length === 3, "a Hive event must say who it is for: " + calPosts.length);
-    await p.fill("#cewhen .wsd", "2026-12-12"); await p.selectOption("#cewhen .wst", "19:00"); await p.selectOption("#cewhen .wet", "20:00");
+    await p.fill("#cewhen .wsd", "2026-12-12"); await p.fill("#cewhen .wst", "19:00"); await p.fill("#cewhen .wet", "20:00");
     await p.click("#ceTgAll");
     assert.ok(await p.$$eval("#ceTg input[data-tg]", es => es.every(e => e.disabled)), "all schools disables the single ones");
     // roles, a Teams group, and named accounts of any school
@@ -1109,7 +1109,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.deepStrictEqual(await whenVal(p, ".calquick .calwhen"), ["2026-12-16T10:00", "2026-12-16T11:30"], "dragging 10:00-11:30 fills the times");
     assert.ok(/1 小时 30 分钟/.test(await p.$eval(".calquick .wdur", e => e.innerText)), "the length is shown");
     assert.ok(await p.$(".calghost"), "the selection stays drawn while the card is open");
-    await p.fill(".calquick .qtitle", "家长会"); await p.selectOption(".calquick .wet", "12:00");
+    await p.fill(".calquick .qtitle", "家长会"); await p.fill(".calquick .wet", "12:00");
     assert.ok(/2 小时/.test(await p.$eval(".calquick .wdur", e => e.innerText)), "the length follows the end time");
     await p.screenshot({ path: OUT + "/calendar-quick-week.png" });
     await p.click(".calquick .qsave"); await p.waitForTimeout(700);
@@ -1123,14 +1123,16 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.deepStrictEqual(await whenVal(p, ".calquick .calwhen"), ["2026-12-15T14:00", "2026-12-15T15:00"], "a double-click makes a one-hour slot");
     assert.strictEqual(await p.$eval(".calquick .qzonesel", e => e.value), "Asia/Shanghai", "the time zone starts as Beijing time");
     // choose the time like in Outlook: 8:00 – 8:45; moving the start moves the end, the length is shown
-    await p.selectOption(".calquick .wst", "08:00");
+    await p.fill(".calquick .wst", "08:00");
     assert.deepStrictEqual(await whenVal(p, ".calquick .calwhen"), ["2026-12-15T08:00", "2026-12-15T09:00"], "moving the start keeps the length");
-    await p.selectOption(".calquick .wet", "08:45");
+    await p.fill(".calquick .wet", "08:45");
     assert.ok(/45 分钟/.test(await p.$eval(".calquick .wdur", e => e.innerText)), "45 minutes");
-    assert.ok(/上午 8:00/.test(await p.$eval(".calquick .wst option:checked", e => e.innerText)), "the list reads 上午 8:00");
-    await p.selectOption(".calquick .wet", "07:30");
+    await p.fill(".calquick .wst", "08:14"); // minute precision: 8:14 works, the end follows by the same length
+    assert.deepStrictEqual(await whenVal(p, ".calquick .calwhen"), ["2026-12-15T08:14", "2026-12-15T08:59"], "8:14 can be entered");
+    await p.fill(".calquick .wst", "08:00"); await p.fill(".calquick .wet", "08:45");
+    await p.fill(".calquick .wet", "07:30");
     assert.ok(/晚于/.test(await p.$eval(".calquick .wdur", e => e.innerText)), "an end before the start is flagged");
-    await p.selectOption(".calquick .wet", "08:45");
+    await p.fill(".calquick .wet", "08:45");
     await p.fill(".calquick .qtitle", "教师培训"); await p.click(".calquick .qmore"); await p.waitForSelector("#cef");
     assert.deepStrictEqual([await p.$eval("#ceTitle", e => e.value), await whenVal(p, "#cewhen")], ["教师培训", ["2026-12-15T08:00", "2026-12-15T08:45"]], "the full form has what was typed");
     assert.ok(!(await p.$(".calquick")), "the card closes");

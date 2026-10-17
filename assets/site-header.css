@@ -315,3 +315,20 @@ html[lang="en"] .brand-tag { font-size: 0.76em; letter-spacing: 0; }
   .nav-toggle span { display: none; }
   .nav-toggle { padding: 6px 8px; }
 }
+
+/* ---- compact header (Rick, 2026-10-17: 「head 占据太多空间 … 适用于以后所有页面设计」) ----
+   The working pages — the management center and the help pages — carry the same brand header in a
+   slim one-line form: a 34px mark, the wordmark and values on one line, no tagline, tighter menus.
+   About 50px instead of 98px; the public course site keeps the full lockup. */
+.site-header.compact { box-shadow: 0 1px 0 rgba(224, 168, 32, 0.28); }
+.site-header.compact .header-inner { padding: 7px 20px; gap: 12px; }
+.site-header.compact .logo-mark { width: 34px; height: 34px; filter: none; }
+.site-header.compact .brand-home { gap: 9px; }
+.site-header.compact .brand-lockup { flex-direction: row; align-items: baseline; gap: 10px; }
+.site-header.compact .brand-name { font-size: 1.12em; }
+.site-header.compact .brand-tag { display: none; }
+.site-header.compact .brand-values { font-size: 0.72em; }
+.site-header.compact .menu-btn { padding: 5px 11px; }
+.site-header.compact .nav-toggle { padding: 4px 11px; }
+@media (min-width: 901px) and (max-width: 1180px) { .site-header.compact .brand-values { display: none; } }
+@media (max-width: 560px) { .site-header.compact .header-inner { padding: 6px 12px; } .site-header.compact .logo-mark { width: 30px; height: 30px; } }
