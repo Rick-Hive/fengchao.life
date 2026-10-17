@@ -199,7 +199,10 @@ async function run(domain, layer, opts) {
     }
     d.lastRun = { at: now, layer, by: o.by || "", created: ok.filter((r) => r.op.op === "create").length, updated: ok.filter((r) => r.op.op === "update").length, deleted: ok.filter((r) => r.op.op === "delete").length, failed: bad.length };
   });
-  if (denied) throw Object.assign(new Error("Microsoft refused every write: Hive's app does not have access to these mailboxes yet. It needs the Exchange application role “Application Calendars.ReadWrite” limited to the school mailboxes (Exchange RBAC for Applications); it can take up to 2 hours to take effect."), { status: 403, code: "app_permission" });
+  if (denied) {
+    const ms = String((bad[0].err && bad[0].err.message) || "").replace(/^Graph [A-Z]+ \S+ -> /, "").slice(0, 160);
+    throw Object.assign(new Error("Microsoft refused every write: Hive's app does not have access to these mailboxes yet. It needs the Exchange application role “Application Calendars.ReadWrite” limited to the school mailboxes (Exchange RBAC for Applications); it can take up to 2 hours to take effect." + (ms ? " Microsoft said: " + ms : "")), { status: 403, code: "app_permission" });
+  }
   const after = await plan(domain, layer, { only: o.only, withdraw: o.withdraw });
   return { done: ok.length, failedNow: bad.length, remaining: after.ops.length, counts: after.counts, failed: after.failed, gone: after.gone, created: ok.filter((r) => r.op.op === "create").length, updated: ok.filter((r) => r.op.op === "update").length, deleted: ok.filter((r) => r.op.op === "delete").length };
 }

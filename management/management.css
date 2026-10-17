@@ -957,3 +957,18 @@ table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 .calquick .qclose { margin-left: auto; border: 0; background: none; color: var(--faint); font-size: 14px; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; }
 .calquick .qclose:hover { background: var(--bg); color: var(--ink); }
 .calcell, .calalc { -webkit-user-select: none; user-select: none; }
+
+/* ---- 校历: start / end pickers (date + time list, Outlook style) and the view-only hint ---- */
+.calwhen { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 4px; }
+.calwhen .wrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px; }
+.calwhen .wl { font-size: 12.5px; color: var(--muted); }
+.calwhen input[type="date"], .calwhen select { height: 34px; font-size: 13px; padding: 0 8px; min-width: 0; width: 100%; }
+.calwhen.allday .wrow { grid-template-columns: 40px minmax(0, 1fr); }
+.calwhen.allday select { display: none; }
+.calwhen .wdur { font-size: 12px; color: var(--faint); padding-left: 48px; min-height: 16px; font-variant-numeric: tabular-nums; }
+.calwhen .wdur.bad { color: var(--bad); }
+.calquick .qzone { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 8px; margin: 0; font-size: 12.5px; color: var(--muted); }
+.calquick .qzone select { height: 32px; font-size: 12.5px; width: 100%; }
+.calquick .qzone[hidden] { display: none; }
+.calquick { width: 340px; }
+.calhint { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin: var(--s3) 0 0; padding: 10px var(--s3); border: 1px solid var(--accent-soft-line); background: var(--accent-soft); color: var(--accent-dark); border-radius: 10px; font-size: 13px; }
