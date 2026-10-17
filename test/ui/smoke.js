@@ -38,7 +38,7 @@ const groups = {
     { id: "g6", name: "Science Grade 6", description: "Sixth-grade science lab", kind: "team", visibility: "Public", members: 22, channels: 5, owner: false, created: "2026-09-01T00:00:00Z" }
   ]
 };
-const CAN = { view: true, methods: true, people: true, plan: true, calendar: true, calendarEdit: false, full: true, groups: true, groupTenant: false, groupScope: true };
+const CAN = { view: true, methods: true, people: true, plan: true, calendar: true, calendarEdit: false, broadcastOptout: true, full: true, groups: true, groupTenant: false, groupScope: true };
 // 课程方案 (2026-10-12): what /api/school-plan?domain= answers the editor, and the PUTs it makes.
 const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, { id: "recSci", nameEn: "Science", nameZh: "科学" }];
 const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }],
@@ -53,6 +53,8 @@ const CAL_AUD = { people: [
   { u: "kid1@bes.qiaoliang.online", n: "Kid One", d: "bes.qiaoliang.online", i: "学生", t: [0] },
   { u: "teacher9@other.edu", n: "Teacher Nine", d: "other.edu", i: "老师", t: [] },
 ], teams: [{ id: TEAM_G5, name: "Grade 5 Team", kind: "team", count: 2, domains: ["bes.qiaoliang.online"] }] };
+const BC_ITEMS = [{ upn: "parent1@bes.qiaoliang.online", reason: "家长要求", at: "2026-10-16T08:00:00Z", by: "it@bes.qiaoliang.online" }];
+const bcPosts = [];
 const CAL_SEED = { id: "h-seed", title: "联合教师培训", allDay: false, start: "2026-12-05T19:00", end: "2026-12-05T20:30", timeZone: "America/New_York", audience: ["老师"], location: "", description: "", link: "https://zoom.us/j/123456", meeting: "link", reminder: 15, showAs: "free", targets: ["*"], createdBy: "hive.admin@fengchao.life" };
 let CAL_SCHOOL = { domain: "bes.qiaoliang.online", timezone: "", events: [], updatedAt: null, updatedBy: "" };
 let CAL_HIVE = { events: [CAL_SEED], updatedAt: null, updatedBy: "" };
@@ -196,13 +198,15 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
       else if (p === "/api/calendar" && r.request().method() === "GET") {
         const REM = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080];
         const calStaff = rolesList.some(x => /^staff:(community|curriculum)$/.test(x));
-        if (u.searchParams.get("lookup") === "audience") body = { layer: u.searchParams.get("layer") || "school", people: CAL_AUD.people.filter(x => u.searchParams.get("layer") === "hive" || x.d === "bes.qiaoliang.online"), teams: CAL_AUD.teams };
+        if (u.searchParams.get("optout")) body = { domain: u.searchParams.get("domain"), items: BC_ITEMS, people: CAL_AUD.people.filter(x => u.searchParams.get("domain") === "*" || x.d === u.searchParams.get("domain")), canEdit: true };
+        else if (u.searchParams.get("lookup") === "audience") body = { layer: u.searchParams.get("layer") || "school", optout: BC_ITEMS.map(x => x.upn), people: CAL_AUD.people.filter(x => u.searchParams.get("layer") === "hive" || x.d === "bes.qiaoliang.online"), teams: CAL_AUD.teams };
         else if (u.searchParams.get("layer") === "hive") body = { layer: "hive", hive: CAL_HIVE, canEdit: isAdm || calStaff, reminders: REM, defaults: { reminder: 15, timeZone: "Asia/Shanghai" } };
         else body = { layer: "school", domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, calendar: CAL_SCHOOL, hive: { events: CAL_HIVE.events.filter(e => e.targets.indexOf("*") >= 0 || e.targets.indexOf("bes.qiaoliang.online") >= 0) }, canEdit: rolesList.some(x => /^domain_leader:/.test(x)) || calStaff, reminders: REM, defaults: { reminder: 15, timeZone: CAL_SCHOOL.timezone || "Asia/Shanghai" } };
       }
       else if (p === "/api/calendar" && r.request().method() === "POST") {
         const b = JSON.parse(r.request().postData());
-        if (b.op === "syncdomains") body = { ok: true, domains: ["bes.qiaoliang.online"] };
+        if (b.op === "optout") { bcPosts.push(b); const i = BC_ITEMS.findIndex(x => x.upn === b.upn); if (b.on === false) { if (i >= 0) BC_ITEMS.splice(i, 1); body = { ok: true, item: null }; } else { const it = { upn: b.upn, reason: b.reason || "", at: new Date().toISOString(), by: me.profile.upn }; if (i >= 0) BC_ITEMS[i] = it; else BC_ITEMS.push(it); body = { ok: true, item: it }; } }
+        else if (b.op === "syncdomains") body = { ok: true, domains: ["bes.qiaoliang.online"] };
         else if (["syncplan", "sync", "withdraw"].includes(b.op)) {
           syncPosts.push(b);
           const failed = [{ key: "school:e-1", upn: "nomail@bes.qiaoliang.online", title: "家长会", reason: "no_mailbox", message: "" }];
@@ -891,7 +895,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 1, "a leader has the school calendar only, no Hive tab");
     await p.click('#calbody .chip[data-filter="all"]'); await p.waitForTimeout(200);
     let body = await p.$eval("#calbody", e => e.innerText);
-    assert.ok(/联合教师培训/.test(body) && /蜂巢/.test(body), "Hive's event aimed at the school is listed: " + body.slice(0, 200));
+    assert.ok(/联合教师培训/.test(body) && /广播/.test(body), "Hive's event aimed at the school is listed: " + body.slice(0, 200));
     await p.click('#caltable tr[data-src="hive"]'); await p.waitForTimeout(300);
     assert.ok(/只读/.test(await p.$eval("#panel .pb", e => e.innerText)) && !(await p.$("#cef")), "a Hive event opens read-only");
     await p.keyboard.press("Escape"); await p.waitForTimeout(300);
@@ -919,6 +923,9 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.keyboard.press("Escape"); await p.waitForTimeout(300);
     // change it, then delete it
     await p.click('#caltable tr[data-src="school"]'); await p.waitForSelector("#cef");
+    assert.ok(!(await p.isVisible("#ceZoneBox")) && await p.isVisible("#ceAllHint"), "an all-day event hides the zone and says how to get times");
+    await p.click("#ceAll"); assert.ok(await p.isVisible("#cewhen .wst") && await p.isVisible("#ceZoneBox") && !(await p.isVisible("#ceAllHint")), "unticking all day shows the times and the zone");
+    assert.strictEqual(await p.$eval("#ceZone", e => e.value), "Asia/Shanghai", "and the zone starts as 北京时间"); await p.click("#ceAll");
     await p.fill("#ceTitle", "家长会（改）"); await p.click("#ceSave"); await p.waitForTimeout(900);
     assert.ok(calPosts.length === 2 && calPosts[1].event.id === "e-1" && calPosts[1].event.title === "家长会（改）", JSON.stringify(calPosts[1]));
     p.on("dialog", d => d.accept());
@@ -987,6 +994,39 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/add 5/.test(await p.$eval("#calsyncout", e => e.innerText)), "plan shown");
     await p.screenshot({ path: OUT + "/calendar-hive-sync.png" });
   });
+  // 广播名单: the accounts that do not receive 管理员广播.
+  await shot("broadcast-optout", 1280, 900, "#/domain/broadcast", "zh", ["staff:community"], async p => {
+    await p.waitForTimeout(800);
+    assert.ok(/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "the nav has the list");
+    let body = await p.$eval("#bcbody", e => e.innerText);
+    assert.ok(/Parent One|parent1@/.test(body) && /家长要求/.test(body) && /1 个账号不接收广播/.test(body), "the list is shown with its reason: " + body.slice(0, 300));
+    await p.fill("#bcpick input", "teacher n"); await p.waitForSelector("#bcpick .calpickopt"); await p.click("#bcpick .calpickopt"); await p.waitForTimeout(100);
+    assert.ok(/Teacher Nine/.test(await p.$eval("#bcpick .chips", e => e.innerText)), "a person is picked");
+    await p.fill("#bcreason", "教师不参加联合培训"); await p.click("#bcadd"); await p.waitForTimeout(800);
+    assert.deepStrictEqual([bcPosts[0].op, bcPosts[0].upn, bcPosts[0].on, bcPosts[0].reason], ["optout", "teacher9@other.edu", true, "教师不参加联合培训"], JSON.stringify(bcPosts[0]));
+    body = await p.$eval("#bcbody", e => e.innerText); assert.ok(/Teacher Nine/.test(body) && /2 个账号不接收广播/.test(body), "listed after adding: " + body.slice(0, 300));
+    await p.screenshot({ path: OUT + "/broadcast-optout.png" });
+    // an unknown account is refused by name
+    await p.fill("#bcpick input", "ghost@nowhere.org"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+    assert.ok(/ghost@nowhere\.org/.test(await p.$eval("#bcnote", e => e.innerText)), "unknown account named");
+    // the Admin broadcast form tells how many are left out
+    await p.click('#bcbody [data-bcrm="teacher9@other.edu"]'); await p.waitForTimeout(700);
+    assert.strictEqual(bcPosts[1].on, false); assert.ok(!/Teacher Nine/.test(await p.$eval("#bctable", e => e.innerText)), "removed from the list");
+  });
+  await shot("broadcast-form-skipped", 1280, 900, "#/domain/calendar", "en", ["staff:community"], async p => {
+    await p.waitForTimeout(800);
+    await p.click('#caltabs a[data-layer="hive"]'); await p.waitForSelector(".calmonth");
+    await p.click("#calAdd"); await p.waitForSelector("#cewho");
+    await p.click("#ceTgAll"); await p.click('#ceAud input[data-aud="家长"]'); await p.waitForTimeout(100);
+    const sm = await p.$eval("#cesum", e => e.innerText);
+    assert.ok(/All schools/.test(sm) && /on the Broadcast opt-out list/.test(sm) && /≈ 0 people/.test(sm), "the only parent is on the list, so none receive it, and the form says so: " + sm);
+    await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+  });
+  // a school's leader has no part in the list
+  await shot("broadcast-leader", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForTimeout(800);
+    assert.ok(!/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "a school leader does not see the list");
+  });
   // 教育社区经理 (and 课程总监): every school's calendar, and the Hive layer for chosen schools, roles, Teams groups and people.
   await shot("calendar-community", 1280, 900, "#/domain/calendar", "en", ["staff:community"], async p => {
     await p.waitForTimeout(800);
@@ -1038,15 +1078,16 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.waitForTimeout(800);
     await p.selectOption("#calyear", "2026"); await p.selectOption("#calmon", "12"); await p.waitForTimeout(150);
     const before = calPosts.length;
-    // month: a double-click on a day opens the card as an all-day event on that day
+    // month: a double-click on a day opens the card as a timed event (9:00–10:00) on that day, so the time can be chosen
     await p.dblclick('.calcell[data-day="2026-12-16"]'); await p.waitForSelector(".calquick");
-    assert.ok(await p.$eval(".calquick .qallday", e => e.checked) && (await whenVal(p, ".calquick .calwhen"))[0] === "2026-12-16", "all-day card for the clicked day");
+    assert.ok(!(await p.$eval(".calquick .qallday", e => e.checked)) && (await whenVal(p, ".calquick .calwhen")).join() === "2026-12-16T09:00,2026-12-16T10:00", "a timed card for the clicked day: " + (await whenVal(p, ".calquick .calwhen")).join());
+    assert.ok(await p.isVisible(".calquick .wst"), "the time lists are there");
     assert.ok(await p.$eval(".calquick .qtitle", e => e === document.activeElement), "the title is ready to type");
     await p.click(".calquick .qsave"); await p.waitForTimeout(150);
     assert.ok(/标题/.test(await p.$eval(".calquick .qmsg", e => e.innerText)) && calPosts.length === before, "a title is required");
     await p.fill(".calquick .qtitle", "圣诞假期"); await p.keyboard.press("Enter"); await p.waitForTimeout(700);
     const sent = calPosts[before];
-    assert.deepStrictEqual([sent.op, sent.event.title, sent.event.allDay, sent.event.start, sent.event.end, sent.event.audience, sent.event.reminder], ["save", "圣诞假期", true, "2026-12-16", "2026-12-16", [], 15], JSON.stringify(sent));
+    assert.deepStrictEqual([sent.op, sent.event.title, sent.event.allDay, sent.event.start, sent.event.end, sent.event.audience, sent.event.reminder], ["save", "圣诞假期", false, "2026-12-16T09:00", "2026-12-16T10:00", [], 15], JSON.stringify(sent));
     assert.ok(!(await p.$(".calquick")) && /圣诞假期/.test(await p.$eval('.calcell[data-day="2026-12-16"]', e => e.innerText)), "saved and drawn in the cell");
     await p.screenshot({ path: OUT + "/calendar-quick-month.png" });
     // Escape cancels

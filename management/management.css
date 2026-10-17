@@ -973,6 +973,7 @@ table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 .calquick { width: 340px; }
 .calhint { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; margin: var(--s3) 0 0; padding: 10px var(--s3); border: 1px solid var(--accent-soft-line); background: var(--accent-soft); color: var(--accent-dark); border-radius: 10px; font-size: 13px; }
 
+#ceZoneBox[hidden], .calallhint[hidden] { display: none; }
 /* 校历: who gets an event — role / Teams group / named account pickers (Rick, 2026-10-17) */
 .whobox { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: var(--card); }
 .whotitle { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }

@@ -15,6 +15,11 @@
 //   GET  /api/calendar?lookup=audience&layer=hive | &domain=<d>   the accounts and Teams the event form
 //                                          offers for picking (all schools on the Hive layer, one school
 //                                          otherwise)                          (whoever may edit that layer)
+//   GET  /api/calendar?optout=1&domain=<d | *>   the 广播名单 (accounts that do not receive the broadcasts), with
+//                                          that school's accounts to pick from (* = every school: sysadmin,
+//                                          教育社区经理, 课程总监; a school: also its IT 管理员)
+//   POST /api/calendar {op: "optout", upn, on: true|false, reason?}   put an account on / take it off the list
+//                                          (same people, for that account's school)
 //   POST /api/calendar {layer: "hive", op: "syncdomains", only?}  the schools a Hive publish has to visit
 //   POST /api/calendar {domain, layer?, op: "syncplan" | "sync" | "withdraw", only?, fresh?, limit?}
 //                                          write the layer's events into the school's accounts' default
@@ -77,7 +82,7 @@ async function checkPeople(layer, domain, people) {
   const byDomain = new Map();
   for (const u of people || []) { const d = String(u).split("@")[1]; if (!byDomain.has(d)) byDomain.set(d, []); byDomain.get(d).push(u); }
   for (const [d, list] of byDomain) {
-    if (layer !== "hive" && d !== domain) { bad.push(...list.map((u) => `${u} (not an account of ${domain}; use Hive additions to reach other schools)`)); continue; }
+    if (layer !== "hive" && d !== domain) { bad.push(...list.map((u) => `${u} (not an account of ${domain}; use Admin broadcast to reach other schools)`)); continue; }
     if (!known.has(d)) { bad.push(...list.map((u) => `${u} (${d} is not one of the schools in Hive)`)); continue; }
     const have = new Set((((await dir.readDomain(d)) || {}).users || []).map((x) => String(x.upn || "").toLowerCase()));
     for (const u of list) if (!have.has(u)) bad.push(`${u} (no such account in ${d}'s list — if it is new, sync the school's accounts first)`);
@@ -121,9 +126,32 @@ module.exports = async function (context, req) {
     const by = normUser(user);
     const layer = String(q.layer || body.layer || "school");
 
+    // 广播名单 (Rick, 2026-10-17): accounts that do not receive 管理员广播.
+    if (q.optout || body.op === "optout") {
+      const dom = String(q.domain || body.domain || "*").trim().toLowerCase();
+      if (method === "GET") {
+        if (dom === "*" ? !can(roles, "hive") : (!DOMAIN_RE.test(dom) || !can(roles, "optout", dom))) return done(403, { error: "the broadcast opt-out list is kept by the system administrator, the 教育社区经理, the 课程总监 and the school's IT 管理员", code: "forbidden" });
+        const [doc, look] = await Promise.all([CAL.readOptout(), audienceLookup(dom === "*" ? ((await dir.cachedDomains()) || []).map((x) => x.domain).sort() : [dom])]);
+        const items = Object.entries(doc.items || {}).filter(([u]) => dom === "*" || u.endsWith("@" + dom)).map(([upn, v]) => Object.assign({ upn }, v)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+        return done(200, { domain: dom, items, people: look.people, canEdit: true });
+      }
+      if (method !== "POST") return done(405, { error: "method not allowed" });
+      const upn = String(body.upn || "").trim().toLowerCase(), d = upn.split("@")[1] || "";
+      if (!CAL.UPN_RE.test(upn)) return done(400, { error: "not an account address" });
+      if (!can(roles, "optout", d)) return done(403, { error: `the broadcast opt-out list of ${d} is kept by the system administrator, the 教育社区经理, the 课程总监 and that school's IT 管理员`, code: "forbidden" });
+      const on = body.on !== false;
+      if (on) {
+        const have = new Set((((await dir.readDomain(d)) || {}).users || []).map((x) => String(x.upn || "").toLowerCase()));
+        if (!have.has(upn)) return done(400, { error: `no such account in ${d}'s list — if it is new, sync the school's accounts first` });
+      }
+      const doc = await CAL.setOptout(upn, on, body.reason, by);
+      await audit(context, { actor: by, action: on ? "broadcast.optout" : "broadcast.optin", target: upn, reason: String(body.reason || "").slice(0, 200), result: "ok" });
+      return done(200, { ok: true, item: doc.items[upn] ? Object.assign({ upn }, doc.items[upn]) : null });
+    }
+
     if (layer === "hive") {
-      if (!can(roles, "hive")) return done(403, { error: "the Hive events are added by the system administrator, the 教育社区经理 and the 课程总监", code: "forbidden" });
-      if (method === "GET" && q.lookup === "audience") return done(200, Object.assign({ layer: "hive" }, await audienceLookup(((await dir.cachedDomains()) || []).map((x) => x.domain).sort())));
+      if (!can(roles, "hive")) return done(403, { error: "broadcasts are added by the system administrator, the 教育社区经理 and the 课程总监", code: "forbidden" });
+      if (method === "GET" && q.lookup === "audience") return done(200, Object.assign({ layer: "hive", optout: Object.keys((await CAL.readOptout()).items || {}) }, await audienceLookup(((await dir.cachedDomains()) || []).map((x) => x.domain).sort())));
       if (method === "GET") {
         const hive = await CAL.readHive();
         return done(200, { layer: "hive", hive, canEdit: true, reminders: CAL.REMINDERS, defaults: { reminder: CAL.DEFAULT_REMINDER, timeZone: CAL.DEFAULT_TZ } });

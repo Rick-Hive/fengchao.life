@@ -1,5 +1,5 @@
 // management/src/23-calendar.js — 学校管理 › 校历: the school's calendar (edited by its 教育领袖), and the
-// events the system administrator adds on top (蜂巢追加). Two layers, never overwriting each other.
+// events the system administrator adds on top (管理员广播). Two layers, never overwriting each other.
 // Part of management.js: scripts/build-management.js concatenates management/src/*.js in name order
 // into management/management.js (one closure; every part sees every other's functions). Edit here, not the built file.
 
@@ -12,7 +12,7 @@
   // calendars is api/shared/calendarSync.js — the 发布 panel drives it in batches).
   //   学校校历  the school's own events — the 教育领袖 adds, changes and deletes them; the IT
   //             管理员 and the system administrator only look.
-  //   蜂巢追加  events of the system administrator, 教育社区经理 and 课程总监 for chosen schools (or all), roles,
+  //   管理员广播  events of the system administrator, 教育社区经理 and 课程总监 for chosen schools (or all), roles,
   //             Teams groups and named accounts of any school (Rick, 2026-10-17); a school sees the ones
   //             aimed at it in its list, read-only.
   // ================================================================================
@@ -70,10 +70,10 @@
     if (calState.layer === "school" && !ds.length) calState.layer = "hive";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
     setTitle(domainGroupTitle(), t("校历", "School calendar"), '<button class="btn secondary sm" id="calAdd" hidden>' + t("＋ 添加事件", "+ Add event") + '</button> <button class="btn sm" id="calPublish" hidden>' + t("发布", "Publish") + "</button>",
-      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「蜂巢追加」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的蜂巢事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
+      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「管理员广播」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的广播事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     $("content").innerHTML =
       '<div class="pagetabs" role="tablist" id="caltabs">' + (ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
-        (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("蜂巢追加", "Hive additions") + "</a>" : "") +
+        (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("管理员广播", "Admin broadcast") + "</a>" : "") +
         '<div class="tabsRight" id="calright"></div></div><div id="calmsg"></div><div id="calbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     $("caltabs").addEventListener("click", function (e) { var a = e.target.closest("a[data-layer]"); if (!a) return; e.preventDefault(); calState.layer = a.getAttribute("data-layer"); viewCalendar(); });
     $("calPublish").addEventListener("click", function () { calSyncOpen(); });
@@ -140,10 +140,10 @@
     var all = calRows();
     var note = '<p class="sub" style="margin:8px 0 8px">' + (hive
       ? t("跨校的事件：每个事件可以选学校、按身份（如家长）和 Teams 群组筛选，也可以另外输入账号（任何学校的都行）。学校自己的校历不会被这里改动。保存后，点右上角「发布」写入收件人的日历。", "Cross-school events: pick schools, narrow by role (such as parents) and Teams group, and add named accounts of any school. A school's own calendar is never changed from here. After saving, use Publish (top right) to put them into the recipients' calendars.")
-      : edit ? t("点一个事件修改，或用右上角「＋ 添加事件」。「蜂巢」标记的事件是从校外发给本校的，只读。保存后点右上角「发布」写入大家的日历。", "Click an event to change it, or use “+ Add event”. Events tagged Hive were sent to this school from outside and are read-only. After saving, use Publish (top right) to put them into everyone's calendar.")
+      : edit ? t("点一个事件修改，或用右上角「＋ 添加事件」。「广播」标记的事件是从校外发给本校的，只读。保存后点右上角「发布」写入大家的日历。", "Click an event to change it, or use “+ Add event”. Events tagged Broadcast were sent to this school from outside and are read-only. After saving, use Publish (top right) to put them into everyone's calendar.")
         : t("你可以查看本校校历；编辑和发布由本校教育领袖、教育社区经理和课程总监负责。", "You can look at the school's calendar; editing and publishing are for the school's education leader, education community manager and curriculum director.")) + "</p>";
     var main = calState.view === "month" ? calMonthHTML(all, edit) : calState.view === "week" ? calWeekHTML(all, edit) : calListHTML(all, hive, edit);
-    var hint = !edit && !hive && isAdmin() ? '<div class="calhint"><span>' + t("你以系统管理员身份查看本校校历，这里只能查看。要给学校加培训等事件，请用「蜂巢追加」。", "You are looking at this school's calendar as the system administrator, so it is view-only here. To add training or notices for schools, use Hive additions.") + '</span><button type="button" class="btn secondary sm" data-layer-go="hive">' + t("去「蜂巢追加」", "Go to Hive additions") + "</button></div>" : "";
+    var hint = !edit && !hive && isAdmin() ? '<div class="calhint"><span>' + t("你以系统管理员身份查看本校校历，这里只能查看。要给学校加培训等事件，请用「管理员广播」。", "You are looking at this school's calendar as the system administrator, so it is view-only here. To add training or notices for schools, use Admin broadcast.") + '</span><button type="button" class="btn secondary sm" data-layer-go="hive">' + t("去「管理员广播」", "Go to Admin broadcast") + "</button></div>" : "";
     $("calbody").innerHTML = hint + calBarHTML(all) + note + main;
     if (calState.view === "week" && $("calwk")) {
       // open the week at its first timed event (an hour earlier), or at 8:00 when it has none
@@ -238,7 +238,7 @@
     h += '<div class="calagenda"><div class="calagh"><b>' + esc(calDayLong(sel)) + "</b>" + (edit ? '<button type="button" class="btn secondary sm" id="calAddDay">' + t("＋ 添加事件", "+ Add event") + "</button>" : "") + "</div>" +
       (list.length ? list.map(function (x) {
         var e = x.e;
-        return '<div class="calagrow" data-ev="' + esc(e.id) + '" data-src="' + x.src + '" tabindex="0"><span class="calagbar ' + x.src + '"></span><div class="calagtime">' + calWhenShort(e, sel) + '</div><div class="calagmain"><b>' + esc(e.title) + "</b>" + (e.location ? '<div class="faint">' + esc(e.location) + "</div>" : "") + '</div><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("蜂巢", "Hive") : t("校历", "School")) + "</span></div>";
+        return '<div class="calagrow" data-ev="' + esc(e.id) + '" data-src="' + x.src + '" tabindex="0"><span class="calagbar ' + x.src + '"></span><div class="calagtime">' + calWhenShort(e, sel) + '</div><div class="calagmain"><b>' + esc(e.title) + "</b>" + (e.location ? '<div class="faint">' + esc(e.location) + "</div>" : "") + '</div><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("广播", "Broadcast") : t("校历", "School")) + "</span></div>";
       }).join("") : '<p class="muted calempty">' + t("这天没有事件。", "No events this day.") + "</p>") + "</div>";
     return h;
   }
@@ -296,7 +296,7 @@
       var e = x.e;
       return '<tr class="pick" data-ev="' + esc(e.id) + '" data-src="' + x.src + '"><td style="white-space:nowrap">' + calWhen(e) + "</td><td><b>" + esc(e.title) + "</b>" + (e.location ? '<div class="faint" style="font-size:12px">' + esc(e.location) + "</div>" : "") + "</td>" +
         "<td>" + esc(calForText(e, x.src)) + "</td><td>" + esc(calRemindText(e.reminder)) + "</td><td>" + (e.link ? "✓" : "—") + "</td>" +
-        (hive ? "" : '<td><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("蜂巢", "Hive") : t("校历", "School")) + "</span></td>") + "</tr>";
+        (hive ? "" : '<td><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("广播", "Broadcast") : t("校历", "School")) + "</span></td>") + "</tr>";
     }).join("") : '<tr><td colspan="' + (hive ? 5 : 6) + '" class="muted">' + (all.length ? t("这一类里没有事件。", "No events in this view.") : t("还没有事件。", "No events yet.") + (edit ? " " + t("点右上角「＋ 添加事件」开始。", "Use “+ Add event” to start.") : "")) + "</td></tr>";
     return chips + '<div class="tbl-wrap"><table class="data" id="caltable">' + head + "<tbody>" + body + "</tbody></table></div>";
   }
@@ -457,7 +457,8 @@
       var day = alc ? alc.getAttribute("data-newday") : cell ? cell.getAttribute("data-day") : "";
       if (!day) return;
       if (cell) calSelectDay(day); else calState.selected = day;
-      calQuickOpen(alc || cell, { allDay: true, start: day, end: day });
+      // the all-day strip makes an all-day event; a day in the month grid makes a timed one (9:00–10:00, easy to change) so the time is there to choose (Rick, 2026-10-17: 「只有日期，没有时间选择」)
+      calQuickOpen(alc || cell, alc ? { allDay: true, start: day, end: day } : { allDay: false, start: day + "T09:00", end: day + "T10:00" });
     });
     // drag over a stretch of a day column (mouse or pen; touch keeps scrolling)
     body.addEventListener("pointerdown", function (e) {
@@ -505,16 +506,17 @@
         '<span class="k">' + t("显示为", "Shown as") + "</span><span>" + (e.showAs === "busy" ? t("忙碌", "Busy") : t("空闲", "Free")) + "</span>" +
         "</div>" +
         (e.description ? '<p style="white-space:pre-wrap;margin-top:10px">' + esc(e.description) + "</p>" : "") +
-        '<p class="muted" style="font-size:12px;margin-top:10px">' + (e.targets ? t("这是从校外（系统管理员、教育社区经理或课程总监）发给本校的蜂巢事件，只读。", "A Hive event sent to this school from outside (the system administrator, community manager or curriculum director) — read-only.") : t("你没有编辑本校校历的权限（由本校教育领袖、教育社区经理和课程总监编辑）。", "You may not edit the school's calendar (its education leader, education community manager and curriculum director do).")) + "</p></div>");
+        '<p class="muted" style="font-size:12px;margin-top:10px">' + (e.targets ? t("这是从校外（系统管理员、教育社区经理或课程总监）发给本校的广播事件，只读。", "A broadcast sent to this school from outside (the system administrator, community manager or curriculum director) — read-only.") : t("你没有编辑本校校历的权限（由本校教育领袖、教育社区经理和课程总监编辑）。", "You may not edit the school's calendar (its education leader, education community manager and curriculum director do).")) + "</p></div>");
       return;
     }
     var tgAll = (e.targets || []).indexOf("*") >= 0;
     var schools = ((domainsInfo && domainsInfo.domains) || []);
-    panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + (ev ? t("修改事件", "Change event") : t("添加事件", "Add event")) + (hiveLayer ? " · " + t("蜂巢追加", "Hive") : schoolName) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+    panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + (ev ? t("修改事件", "Change event") : t("添加事件", "Add event")) + (hiveLayer ? " · " + t("管理员广播", "Admin broadcast") : schoolName) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
       '<div class="pb"><form id="cef" autocomplete="off">' +
       '<label class="f">' + t("标题", "Title") + ' <span class="req">*</span><input type="text" id="ceTitle" maxlength="120" value="' + esc(e.title) + '" /></label>' +
       '<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" id="ceAll"' + (e.allDay ? " checked" : "") + " /> " + t("全天", "All day") + "</label>" +
       calWhenHTML("cewhen", e.allDay, e.start, e.end) +
+      '<p class="muted calallhint" id="ceAllHint" style="font-size:12px;margin:-4px 0 8px"' + (e.allDay ? "" : " hidden") + ">" + t("全天事件没有具体时间。要选开始和结束时间，请取消勾选「全天」。", "An all-day event has no times. Untick “All day” to choose a start and end time.") + "</p>" +
       '<label class="f" id="ceZoneBox"' + (e.allDay ? " hidden" : "") + ">" + t("时区", "Time zone") + '<select id="ceZone">' + calZoneOptions(zone) + "</select></label>" +
       calWhoHTML(e, hiveLayer, schools, tgAll) +
       '<label class="f">' + t("地点（可选）", "Location (optional)") + '<input type="text" id="ceLoc" maxlength="200" value="' + esc(e.location) + '" /></label>' +
@@ -523,7 +525,11 @@
       '<div class="grid2"><label class="f">' + t("提醒", "Reminder") + '<select id="ceRem">' + CAL_REMIND.map(function (k) { return '<option value="' + (k[0] == null ? "" : k[0]) + '"' + (k[0] === e.reminder ? " selected" : "") + ">" + esc(t(k[1], k[2])) + "</option>"; }).join("") + '</select></label><label class="f">' + t("在日历里显示为", "Shown in calendars as") + '<select id="ceShow"><option value="free"' + (e.showAs !== "busy" ? " selected" : "") + ">" + t("空闲", "Free") + '</option><option value="busy"' + (e.showAs === "busy" ? " selected" : "") + ">" + t("忙碌", "Busy") + "</option></select></label></div>" +
       '<div class="actions"><button class="btn" type="submit" id="ceSave">' + t("保存", "Save") + "</button>" + (ev ? ' <button class="btn secondary sm" type="button" id="ceDel">' + t("删除", "Delete") + "</button>" : "") + '</div><div id="ceMsg"></div></form></div>');
     var wh = calWhenBind($("cewhen"));
-    $("ceAll").addEventListener("change", function () { wh.allDay(this.checked); $("ceZoneBox").hidden = this.checked; });
+    $("ceAll").addEventListener("change", function () {
+      wh.allDay(this.checked); $("ceZoneBox").hidden = this.checked; $("ceAllHint").hidden = !this.checked;
+      // an all-day event keeps whatever zone it was saved with, which proves nothing: a timed one starts in the default (北京时间)
+      if (!this.checked && ev && ev.allDay) $("ceZone").value = calDefaultZone();
+    });
     var who = calWhoBind(e, hiveLayer);
     $("cef").addEventListener("submit", function (ev2) {
       ev2.preventDefault();
@@ -575,13 +581,15 @@
     var data = calAud.data; if (!data) return null;
     var idx = [];
     v.teams.forEach(function (x) { data.teams.forEach(function (y, i) { if (y.id === x.id) idx.push(i); }); });
-    var base = !hive || v.targets.length || v.audience.length || v.teams.length, set = {};
+    var base = !hive || v.targets.length || v.audience.length || v.teams.length, set = {}, opt = {};
+    ((hive && data.optout) || []).forEach(function (u) { opt[u] = 1; });
     data.people.forEach(function (p) {
       var inScope = !hive || !v.targets.length || v.targets.indexOf("*") >= 0 || v.targets.indexOf(p.d) >= 0;
       if (base && inScope && (!v.audience.length || v.audience.indexOf(p.i) >= 0) && (!v.teams.length || p.t.some(function (i) { return idx.indexOf(i) >= 0; }))) set[p.u] = 1;
     });
     v.people.forEach(function (u) { set[u] = 1; });
-    return Object.keys(set).length;
+    var all = Object.keys(set), skipped = all.filter(function (u) { return opt[u]; }).length;
+    return { n: all.length - skipped, skipped: skipped };
   }
   function calWhoHTML(e, hive, schools, tgAll) {
     var h = '<div id="cewho"><div class="f-title">' + t("发给谁", "Who gets it") + (hive ? ' <span class="req">*</span>' : "") + "</div>" +
@@ -664,9 +672,9 @@
     }
     function refresh() {
       var v = value(), fake = { targets: v.targets, audience: v.audience, teams: v.teams, people: v.people };
-      var n = calAudCount(v, hive), words = calForText(fake, hive ? "hive" : "school");
+      var cnt = calAudCount(v, hive), n = cnt ? cnt.n : null, words = calForText(fake, hive ? "hive" : "school");
       var none = hive && !v.targets.length && !v.audience.length && !v.teams.length && !v.people.length;
-      sum.innerHTML = none ? '<span class="muted">' + t("请选择发给谁。", "Choose who it is for.") + "</span>" : "<b>" + t("发给：", "For: ") + "</b>" + esc(words) + (n == null ? "" : ' <span class="calsumn">≈ ' + n + " " + t("人", n === 1 ? "person" : "people") + "</span>") + (note ? '<div class="msg err" style="margin-top:6px">' + esc(note) + "</div>" : "");
+      sum.innerHTML = none ? '<span class="muted">' + t("请选择发给谁。", "Choose who it is for.") + "</span>" : "<b>" + t("发给：", "For: ") + "</b>" + esc(words) + (n == null ? "" : ' <span class="calsumn">≈ ' + n + " " + t("人", n === 1 ? "person" : "people") + "</span>") + (cnt && cnt.skipped ? '<div class="faint" style="font-size:12px;margin-top:3px">' + t("另有 " + cnt.skipped + " 人在「广播名单」里，不会收到。", cnt.skipped + (cnt.skipped === 1 ? " person is" : " people are") + " on the Broadcast opt-out list and will not receive it.") + "</div>" : "") + (note ? '<div class="msg err" style="margin-top:6px">' + esc(note) + "</div>" : "");
     }
     var tgAll = $("ceTgAll");
     if (tgAll) tgAll.addEventListener("change", function () { $("ceTg").querySelectorAll("input[data-tg]").forEach(function (c) { c.disabled = tgAll.checked; if (tgAll.checked) c.checked = false; }); refresh(); });
@@ -718,7 +726,7 @@
   // 发布: the panel opened by the button at the top right
   function calSyncOpen() {
     calSync.out = []; calSync.progress = null;
-    panelOpen('<div class="ph"><span class="avatar">📤</span><h3>' + t("发布到大家的日历", "Publish to everyone's calendar") + (calState.layer === "hive" ? " · " + t("蜂巢追加", "Hive") : " · " + esc(dname(calState.domain))) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div id="calsync"></div></div>');
+    panelOpen('<div class="ph"><span class="avatar">📤</span><h3>' + t("发布到大家的日历", "Publish to everyone's calendar") + (calState.layer === "hive" ? " · " + t("管理员广播", "Admin broadcast") : " · " + esc(dname(calState.domain))) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div id="calsync"></div></div>');
     calSyncRender();
   }
   function calSyncOnly() { return (calSync.only || "").trim(); }
@@ -726,7 +734,7 @@
     var hive = calState.layer === "hive";
     var h = '<div id="calsynccard">' +
       '<p class="sub">' + (hive
-        ? t("把「蜂巢追加」的事件写进收件人的 Outlook / Teams 日历（只写这一层，不会碰学校自己的校历）。每个事件的「发给谁」（学校、身份、Teams 群组、账号）决定谁收到，涉及的学校会逐个处理；不发邀请邮件。事件改了、删了，再点一次「发布」就会更新或从日历里移除。", "Writes the Hive events into the recipients' Outlook / Teams calendars (only this layer — a school's own calendar is untouched). Each event's “Who gets it” (schools, roles, Teams groups, accounts) decides who gets it, and every school involved is handled in turn; no invitation mail. After you change or delete an event, publish again to update or remove it.")
+        ? t("把「管理员广播」的事件写进收件人的 Outlook / Teams 日历（只写这一层，不会碰学校自己的校历）。每个事件的「发给谁」（学校、身份、Teams 群组、账号）决定谁收到，涉及的学校会逐个处理；不发邀请邮件。事件改了、删了，再点一次「发布」就会更新或从日历里移除。", "Writes the broadcasts into the recipients' Outlook / Teams calendars (only this layer — a school's own calendar is untouched). Each event's “Who gets it” (schools, roles, Teams groups, accounts) decides who gets it, and every school involved is handled in turn; no invitation mail. After you change or delete an event, publish again to update or remove it.")
         : t("把本校校历写进本校账号的 Outlook / Teams 日历，不发邀请邮件；按每个事件的「对象」决定谁收到。事件改了、删了，再点一次「发布」就会更新或从日历里移除。用户自己删掉的副本不会被放回去。", "Writes this school's calendar into its accounts' Outlook / Teams calendars, with no invitation mail; each event's “For” decides who gets it. After you change or delete an event, publish again to update or remove it. A copy a person deleted for themselves is not put back.")) + "</p>";
     h += '<label class="f">' + t("只发布给这些账号（测试用，可留空）", "Only these accounts (for a test run — may be empty)") + '<input type="text" id="calonly" placeholder="' + (hive ? "name@school.edu, name2@other.edu" : "teacher1@" + esc(calState.domain)) + '" value="' + esc(calSync.only) + '" /><small>' + t("填一两个账号（用逗号隔开）先试；确认日历里的样子没问题，再清空、发布给全部账号。", "Name one or two accounts (comma-separated) to try first; once the calendar looks right, clear it and publish to everyone.") + "</small></label>" +
       '<div class="actions"><button class="btn secondary sm" type="button" id="calPlan"' + (calSync.busy ? " disabled" : "") + ">" + t("查看待发布", "Preview") + '</button> <button class="btn" type="button" id="calGo"' + (calSync.busy ? " disabled" : "") + ">" + t("发布", "Publish") + '</button> <button class="btn secondary sm" type="button" id="calWithdraw"' + (calSync.busy ? " disabled" : "") + ">" + t("撤回已写入的", "Withdraw what was written") + "</button></div>" +
@@ -742,7 +750,7 @@
       var c = o.counts || {};
       if (o.kind === "plan") {
         var n = (c.create || 0) + (c.update || 0) + (c.delete || 0);
-        h += esc(t("待发布：新增 ", "To publish: add ") + (c.create || 0) + t("、更新 ", ", update ") + (c.update || 0) + t("、移除 ", ", remove ") + (c.delete || 0)) + (n ? "" : " " + t("— 已经是最新的。", "— already up to date.")) + '<div class="faint" style="font-size:12px">' + esc(t("账号 ", "Accounts ") + o.accounts + t(" 个，事件 ", ", events ") + o.events + t(" 个，已写入 ", ", written ") + o.written + (o.gone ? t("；用户自己删除的副本 ", "; copies people deleted ") + o.gone : "")) + "</div>";
+        h += esc(t("待发布：新增 ", "To publish: add ") + (c.create || 0) + t("、更新 ", ", update ") + (c.update || 0) + t("、移除 ", ", remove ") + (c.delete || 0)) + (n ? "" : " " + t("— 已经是最新的。", "— already up to date.")) + '<div class="faint" style="font-size:12px">' + esc(t("账号 ", "Accounts ") + o.accounts + t(" 个，事件 ", ", events ") + o.events + t(" 个，已写入 ", ", written ") + o.written + (o.gone ? t("；用户自己删除的副本 ", "; copies people deleted ") + o.gone : "") + (o.excluded ? t("；因「广播名单」排除 ", "; left out by the opt-out list ") + o.excluded : "")) + "</div>";
       } else if (o.t) {
         h += esc((o.withdraw ? t("已撤回 ", "Withdrawn ") + o.t.deleted : t("已新增 ", "Added ") + o.t.created + t("、更新 ", ", updated ") + o.t.updated + t("、移除 ", ", removed ") + o.t.deleted) + (o.remaining ? t("；还剩 ", "; left ") + o.remaining : "")) + (o.gone ? '<div class="faint" style="font-size:12px">' + esc(t("用户自己删除的副本（不会放回）：", "Copies people deleted for themselves (not put back): ") + o.gone) + "</div>" : "");
       }
@@ -759,7 +767,7 @@
     $("calGo").addEventListener("click", function () { calSyncRun("sync"); });
     $("calWithdraw").addEventListener("click", function () {
       var only = calSyncOnly();
-      if (!window.confirm(only ? t("从这些账号的日历里撤回这一层写入的事件？", "Withdraw the events this layer wrote from these accounts' calendars?") : t("从所有账号的日历里撤回这一层写入的事件？（学校自己的校历和蜂巢追加互不影响。）", "Withdraw the events this layer wrote from all the accounts' calendars? (The school calendar and the Hive additions never touch each other.)"))) return;
+      if (!window.confirm(only ? t("从这些账号的日历里撤回这一层写入的事件？", "Withdraw the events this layer wrote from these accounts' calendars?") : t("从所有账号的日历里撤回这一层写入的事件？（学校自己的校历和管理员广播互不影响。）", "Withdraw the events this layer wrote from all the accounts' calendars? (The school calendar and the Admin broadcast never touch each other.)"))) return;
       calSyncRun("withdraw");
     });
   }

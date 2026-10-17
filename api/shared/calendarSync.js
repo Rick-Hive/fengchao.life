@@ -26,7 +26,7 @@ const CAL = require("./calendar");
 const peopleMod = require("./people");
 
 const BATCH = 30, CONCURRENCY = 5;
-const CATEGORY = { school: "校历", hive: "蜂巢通知" };
+const CATEGORY = { school: "校历", hive: "管理员广播" };
 const syncBlob = (domain) => `crm/calendar-sync/${domain}.json`;
 const EMPTY = (domain) => ({ domain, items: {}, failures: {}, lastRun: null });
 const sha = (s) => crypto.createHash("sha1").update(s).digest("hex");
@@ -54,7 +54,7 @@ function graphBody(ev, layer) {
   const parts = [];
   if (ev.link) parts.push(`<p>会议链接 Meeting link：<a href="${esc(ev.link)}">${esc(ev.link)}</a></p>`);
   if (ev.description) parts.push(`<p>${esc(ev.description).replace(/\r?\n/g, "<br>")}</p>`);
-  parts.push(`<p style="color:#888;font-size:12px">${layer === "hive" ? "蜂巢通知 Hive notice" : "学校校历 School calendar"} · 由蜂巢写入 written by Hive</p>`);
+  parts.push(`<p style="color:#888;font-size:12px">${layer === "hive" ? "管理员广播 Admin broadcast" : "学校校历 School calendar"} · 由蜂巢写入 written by Hive</p>`);
   const body = {
     subject: ev.title,
     body: { contentType: "html", content: parts.join("") },
@@ -101,7 +101,7 @@ function audienceOf(ev, accounts) {
 // and team, plus the named accounts of the school. Hive layer: when schools, a role or a team is given — the
 // accounts of the chosen schools (none chosen = every school) narrowed by role and team — plus the named
 // accounts of this school. Returns a Set of upns.
-function recipientsOf(ev, layer, domain, accounts) {
+function recipientsOf(ev, layer, domain, accounts, optout, skipped) {
   const roles = ev.audience || [], teamIds = (ev.teams || []).map((t) => t.id);
   const targets = ev.targets || [];
   let base = true, inScope = true;
@@ -116,6 +116,8 @@ function recipientsOf(ev, layer, domain, accounts) {
     out.add(a.upn);
   }
   for (const u of ev.people || []) if (String(u).toLowerCase().endsWith("@" + domain)) out.add(String(u).toLowerCase());
+  // 广播名单: on the Hive layer, accounts on the list get nothing (what they already hold is withdrawn by the next publish).
+  if (layer === "hive" && optout) for (const u of Array.from(out)) if (optout[u]) { out.delete(u); if (skipped) skipped.add(u); }
   return out;
 }
 
@@ -134,11 +136,12 @@ async function hiveDomains(only) {
 // `only` (a Set of accounts) limits it to those accounts (the test run); `withdraw` wants nothing.
 async function plan(domain, layer, opts) {
   const o = opts || {};
-  const [wanted, accounts, doc] = await Promise.all([layerEvents(domain, layer), accountsOf(domain, { lenient: layer === "hive" }), store.read(syncBlob(domain), () => EMPTY(domain))]);
+  const [wanted, accounts, doc, optDoc] = await Promise.all([layerEvents(domain, layer), accountsOf(domain, { lenient: layer === "hive" }), store.read(syncBlob(domain), () => EMPTY(domain)), layer === "hive" ? CAL.readOptout() : Promise.resolve(null)]);
+  const optout = (optDoc && optDoc.items) || null, skipped = new Set();
   const only = o.only && o.only.size ? o.only : null;
   const ops = [], gone = [], failed = [];
   const desired = new Map();
-  if (!o.withdraw) for (const w of wanted) desired.set(w.key, { w, upns: recipientsOf(w.ev, layer, domain, accounts) });
+  if (!o.withdraw) for (const w of wanted) desired.set(w.key, { w, upns: recipientsOf(w.ev, layer, domain, accounts, optout, skipped) });
   const prefix = `${layer}:`;
   const failures = doc.failures || {};
   const stuck = (fk, key, upn, title) => { const f = failures[fk]; if (f && !o.retry) { failed.push({ key, upn, title, reason: f.reason, message: f.message }); return true; } return false; };
@@ -163,7 +166,7 @@ async function plan(domain, layer, opts) {
   const counts = { create: 0, update: 0, delete: 0 };
   for (const x of ops) counts[x.op]++;
   const titleOf = new Map(wanted.map((w) => [w.key, w.ev.title]));
-  return { ops, counts, gone: gone.length, failed: failed.map((f) => Object.assign({}, f, { title: titleOf.get(f.key) || f.title })), accounts: accounts.length, events: layer === "hive" ? Array.from(desired.values()).filter((d) => d.upns.size).length : wanted.length, doc };
+  return { ops, counts, gone: gone.length, failed: failed.map((f) => Object.assign({}, f, { title: titleOf.get(f.key) || f.title })), accounts: accounts.length, excluded: skipped.size, events: layer === "hive" ? Array.from(desired.values()).filter((d) => d.upns.size).length : wanted.length, doc };
 }
 
 function classify(err) {
@@ -250,7 +253,7 @@ async function summary(domain, layer, opts) {
   const p = await plan(domain, layer, opts);
   const doc = p.doc;
   const written = Object.entries(doc.items || {}).filter(([k]) => k.startsWith(`${layer}:`)).reduce((n, [, u]) => n + Object.keys(u).length, 0);
-  return { counts: p.counts, remaining: p.ops.length, gone: p.gone, failed: p.failed, accounts: p.accounts, events: p.events, written, lastRun: doc.lastRun && doc.lastRun.layer === layer ? doc.lastRun : null };
+  return { counts: p.counts, remaining: p.ops.length, gone: p.gone, excluded: p.excluded, failed: p.failed, accounts: p.accounts, events: p.events, written, lastRun: doc.lastRun && doc.lastRun.layer === layer ? doc.lastRun : null };
 }
 
 module.exports = { BATCH, CATEGORY, WINDOWS_ZONE, graphBody, guid, nextDay, plan, run, summary, accountsOf, audienceOf, recipientsOf, hiveDomains, syncBlob };

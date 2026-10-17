@@ -70,6 +70,7 @@
     camera: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     cart: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/><circle cx="9.5" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>',
     book: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5V5.5M8 7h8M8 10.5h8"/></svg>',
+    mute: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 9.5-4.9M18 8c0 3 .8 5 2 6.5H4c.9-1.1 1.6-2.4 1.9-4"/><path d="M10 19a2 2 0 0 0 4 0M3 3l18 18"/></svg>',
     cal: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
     user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c1.3-3.9 4.2-5.9 7.5-5.9s6.2 2 7.5 5.9"/></svg>',
     teams: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><circle cx="17" cy="9" r="2.6"/><path d="M3 19c.9-3.3 3.2-5 6-5s5.1 1.7 6 5M15.5 14.5c2.6 0 4.5 1.3 5.5 4"/></svg>',
@@ -105,7 +106,7 @@
         { hash: "#/domain/users", icon: "users", zh: "用户", en: "Users" },
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 群组", en: "Teams groups" },
         { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },
-      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "校历", en: "School calendar" }] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "课程方案", en: "Curriculum plan" }] : []) });
+      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "校历", en: "School calendar" }] : []).concat(canSeeOptout() ? [{ hash: "#/domain/broadcast", icon: "mute", zh: "广播名单", en: "Broadcast opt-out" }] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "课程方案", en: "Curriculum plan" }] : []) });
     }
     if (canSeeOrders() || isStaff()) {
       groups.push({ title: t("经营", "Operations"), items: [

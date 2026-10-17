@@ -7,7 +7,7 @@
 //             edited by the school's 教育领袖 (roles.can "calendarEdit"); the system
 //             administrator sees it, does not change it; the IT 管理员 has no part in it (Rick,
 //             2026-10-16: the 教育领袖 publishes directly).
-//   蜂巢追加  crm/hive-calendar.json                { events: [... + targets], updatedAt, updatedBy }
+//   管理员广播  crm/hive-calendar.json                { events: [... + targets], updatedAt, updatedBy }
 //             edited by the system administrator alone; each event names the schools it is for
 //             (["*"] = every school). A school sees the Hive events aimed at it, read-only.
 // Step 1 stores and edits the events. Writing them into people's Outlook / Teams calendars
@@ -47,6 +47,8 @@ const DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 
 const schoolBlob = (domain) => `crm/school-calendars/${domain}.json`;
 const HIVE_BLOB = "crm/hive-calendar.json";
+const OPTOUT_BLOB = "crm/broadcast-optout.json"; // 广播名单: { items: { "<upn>": { reason, at, by } }, updatedAt }
+const EMPTY_OPTOUT = () => ({ items: {}, updatedAt: null, updatedBy: "" });
 const EMPTY_SCHOOL = (domain) => ({ domain, timezone: "", events: [], updatedAt: null, updatedBy: "" });
 const EMPTY_HIVE = () => ({ events: [], updatedAt: null, updatedBy: "" });
 
@@ -217,9 +219,23 @@ async function deleteHiveEvent(id, by) {
   return { doc, found };
 }
 
+// 广播名单 (Rick, 2026-10-17): accounts that do not receive 管理员广播. It only concerns that layer — a school's own
+// calendar is the school's daily business. The sync leaves these accounts out and withdraws what they already hold.
+async function readOptout() { return store.read(OPTOUT_BLOB, EMPTY_OPTOUT); }
+async function setOptout(upn, on, reason, by) {
+  const at = new Date().toISOString(), u = String(upn || "").trim().toLowerCase();
+  if (!UPN_RE.test(u)) throw Object.assign(new Error("not an account address"), { status: 400 });
+  const { doc } = await store.update(OPTOUT_BLOB, EMPTY_OPTOUT, (d) => {
+    d.items = d.items || {};
+    if (on) d.items[u] = { reason: str(reason, 200), at, by }; else if (d.items[u]) delete d.items[u]; else return false;
+    d.updatedAt = at; d.updatedBy = by;
+  });
+  return doc;
+}
+
 // The Hive events a school sees (read-only): those aimed at all schools or at this one.
 function hiveFor(hive, domain) {
   return ((hive && hive.events) || []).filter((e) => (e.targets || []).includes("*") || (e.targets || []).includes(domain));
 }
 
-module.exports = { UPN_RE, GUID_RE, LIMITS, REMINDERS, DEFAULT_REMINDER, DEFAULT_TZ, IDENTITIES, validZone, cleanEvent, putEvent, readSchool, readHive, saveSchoolEvent, deleteSchoolEvent, setSchoolZone, saveHiveEvent, deleteHiveEvent, hiveFor };
+module.exports = { UPN_RE, GUID_RE, LIMITS, REMINDERS, DEFAULT_REMINDER, DEFAULT_TZ, IDENTITIES, validZone, cleanEvent, putEvent, readSchool, readHive, saveSchoolEvent, deleteSchoolEvent, setSchoolZone, saveHiveEvent, deleteHiveEvent, hiveFor, readOptout, setOptout };
