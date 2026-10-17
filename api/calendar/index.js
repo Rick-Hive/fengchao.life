@@ -7,10 +7,15 @@
 //                                          calendar                                    (教育领袖 of d, 教育社区经理, 课程总监)
 //   POST /api/calendar {domain, op: "delete", id}               remove one                (same)
 //   POST /api/calendar {domain, op: "zone", timezone}           the school's default time zone (same)
-//   GET  /api/calendar?layer=hive          the Hive layer                              (sysadmin)
-//   POST /api/calendar {layer: "hive", op: "save", event}       add or change a Hive event, with the
-//                                          schools it is for (targets: ["*"] or domains)   (sysadmin)
-//   POST /api/calendar {layer: "hive", op: "delete", id}        remove one                (sysadmin)
+//   GET  /api/calendar?layer=hive          the Hive layer                    (sysadmin, 教育社区经理, 课程总监)
+//   POST /api/calendar {layer: "hive", op: "save", event}       add or change a Hive event: schools
+//                                          (targets: ["*"] or domains), roles (audience), Teams (teams) and
+//                                          named accounts of any school (people)          (same)
+//   POST /api/calendar {layer: "hive", op: "delete", id}        remove one                (same)
+//   GET  /api/calendar?lookup=audience&layer=hive | &domain=<d>   the accounts and Teams the event form
+//                                          offers for picking (all schools on the Hive layer, one school
+//                                          otherwise)                          (whoever may edit that layer)
+//   POST /api/calendar {layer: "hive", op: "syncdomains", only?}  the schools a Hive publish has to visit
 //   POST /api/calendar {domain, layer?, op: "syncplan" | "sync" | "withdraw", only?, fresh?, limit?}
 //                                          write the layer's events into the school's accounts' default
 //                                          Outlook / Teams calendar (api/shared/calendarSync.js): syncplan
@@ -36,6 +41,49 @@ async function schoolOf(domain) {
   try { const i = (await readInstitutions()).institutions[domain] || {}; return { domain, name: i.name || "", nameEn: i.nameEn || "" }; } catch { return { domain, name: "", nameEn: "" }; }
 }
 
+
+const dir = require("../shared/directory");
+const { readPeople, identityOf } = require("../shared/people");
+
+// The accounts and Teams the form offers for picking, from the directory cache (no Graph call).
+// Compact keys keep a 15-school list small: u = account, n = name, d = school, i = identity, t = the numbers
+// (positions in `teams`) of the Teams / classes the account belongs to.
+async function audienceLookup(domains) {
+  const peopleDoc = ((await readPeople()) || {}).people || {};
+  const accounts = [], teams = new Map();
+  for (const d of domains) {
+    const doc = await dir.readDomain(d);
+    for (const u of (doc && doc.users) || []) {
+      if (!u.upn || u.enabled === false) continue;
+      const upn = u.upn.toLowerCase(), mine = [];
+      for (const g of u.groups || []) {
+        if (!g || !g.id || (g.kind !== "team" && g.kind !== "class")) continue;
+        const t = teams.get(g.id) || { id: g.id, name: g.name || "", kind: g.kind, count: 0, domains: new Set() };
+        t.count++; t.domains.add(d); teams.set(g.id, t); mine.push(g.id);
+      }
+      accounts.push({ u: upn, n: u.displayName || "", d, i: identityOf(peopleDoc[u.upn] || peopleDoc[upn] || null, { department: u.department, jobTitle: u.jobTitle, plan: u.plan || "" }), t: mine });
+    }
+  }
+  const list = Array.from(teams.values()).sort((a, b) => a.name.localeCompare(b.name));
+  const at = new Map(list.map((t, i) => [t.id, i]));
+  for (const a of accounts) a.t = a.t.map((id) => at.get(id)); // team numbers (positions in `teams`) keep the list small
+  return { people: accounts, teams: list.map((t) => Object.assign({}, t, { domains: Array.from(t.domains).sort() })) };
+}
+// Named accounts must belong to a school Hive knows and be accounts of it; on the school layer, of that school.
+async function checkPeople(layer, domain, people) {
+  const bad = [];
+  if (!people || !people.length) return bad;
+  const known = new Set(((await dir.cachedDomains()) || []).map((x) => x.domain));
+  const byDomain = new Map();
+  for (const u of people || []) { const d = String(u).split("@")[1]; if (!byDomain.has(d)) byDomain.set(d, []); byDomain.get(d).push(u); }
+  for (const [d, list] of byDomain) {
+    if (layer !== "hive" && d !== domain) { bad.push(...list.map((u) => `${u} (not an account of ${domain}; use Hive additions to reach other schools)`)); continue; }
+    if (!known.has(d)) { bad.push(...list.map((u) => `${u} (${d} is not one of the schools in Hive)`)); continue; }
+    const have = new Set((((await dir.readDomain(d)) || {}).users || []).map((x) => String(x.upn || "").toLowerCase()));
+    for (const u of list) if (!have.has(u)) bad.push(`${u} (no such account in ${d}'s list — if it is new, sync the school's accounts first)`);
+  }
+  return bad;
+}
 
 const SYNC_OPS = ["syncplan", "sync", "withdraw"];
 // One of the sync operations for `layer` in `domain`; the caller has already checked who may.
@@ -74,12 +122,17 @@ module.exports = async function (context, req) {
     const layer = String(q.layer || body.layer || "school");
 
     if (layer === "hive") {
-      if (!isAdmin(roles)) return done(403, { error: "the Hive events are added by the system administrator", code: "forbidden" });
+      if (!can(roles, "hive")) return done(403, { error: "the Hive events are added by the system administrator, the 教育社区经理 and the 课程总监", code: "forbidden" });
+      if (method === "GET" && q.lookup === "audience") return done(200, Object.assign({ layer: "hive" }, await audienceLookup(((await dir.cachedDomains()) || []).map((x) => x.domain).sort())));
       if (method === "GET") {
         const hive = await CAL.readHive();
         return done(200, { layer: "hive", hive, canEdit: true, reminders: CAL.REMINDERS, defaults: { reminder: CAL.DEFAULT_REMINDER, timeZone: CAL.DEFAULT_TZ } });
       }
       if (method !== "POST") return done(405, { error: "method not allowed" });
+      if (body.op === "syncdomains") {
+        const only = body.only ? new Set((Array.isArray(body.only) ? body.only : String(body.only).split(/[\s,;，；]+/)).map((x) => String(x || "").trim().toLowerCase()).filter(Boolean)) : null;
+        return done(200, { ok: true, domains: await SYNC.hiveDomains(only) });
+      }
       if (SYNC_OPS.includes(body.op)) return syncOp(done, context, "hive", String(body.domain || "").trim().toLowerCase(), body, by);
       if (body.op === "delete") {
         const id = String(body.id || "");
@@ -90,6 +143,7 @@ module.exports = async function (context, req) {
       }
       if (body.op !== "save") return done(400, { error: "op must be save or delete" });
       let doc;
+      try { const chk = CAL.cleanEvent(body.event, "hive", body.timezone); const bad = await checkPeople("hive", "", chk.people); if (bad.length) return done(400, { error: "please check the named accounts", problems: bad }); } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
       try { doc = await CAL.saveHiveEvent(body.event, by, body.timezone); } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
       const ev = (doc.events || []).find((x) => x.id === (body.event && body.event.id)) || doc.events[doc.events.length - 1];
       await audit(context, { actor: by, action: "calendar.save", target: "hive", id: ev && ev.id, title: ev && ev.title, schools: ev && ev.targets, result: "ok" });
@@ -103,6 +157,7 @@ module.exports = async function (context, req) {
 
     if (method === "GET") {
       const [calendar, hive, school] = await Promise.all([CAL.readSchool(domain), CAL.readHive(), schoolOf(domain)]);
+      if (q.lookup === "audience") { if (!canEdit) return done(403, { error: "not allowed", code: "forbidden" }); return done(200, Object.assign({ layer: "school", domain }, await audienceLookup([domain]))); }
       return done(200, { layer: "school", domain, school, calendar, hive: { events: CAL.hiveFor(hive, domain) }, canEdit, reminders: CAL.REMINDERS, defaults: { reminder: CAL.DEFAULT_REMINDER, timeZone: calendar.timezone || CAL.DEFAULT_TZ } });
     }
     if (method !== "POST") return done(405, { error: "method not allowed" });
@@ -123,6 +178,7 @@ module.exports = async function (context, req) {
     }
     if (body.op !== "save") return done(400, { error: "op must be save, delete, zone, syncplan, sync or withdraw" });
     let doc;
+    try { const chk = CAL.cleanEvent(body.event, "school", body.timezone); const bad = await checkPeople("school", domain, chk.people); if (bad.length) return done(400, { error: "please check the named accounts", problems: bad }); } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
     try { doc = await CAL.saveSchoolEvent(domain, body.event, by, body.timezone); } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
     const ev = (doc.events || []).find((x) => x.id === (body.event && body.event.id)) || doc.events[doc.events.length - 1];
     await audit(context, { actor: by, action: "calendar.save", target: domain, id: ev && ev.id, title: ev && ev.title, result: "ok" });

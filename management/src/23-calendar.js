@@ -12,17 +12,20 @@
   // calendars is api/shared/calendarSync.js — the 发布 panel drives it in batches).
   //   学校校历  the school's own events — the 教育领袖 adds, changes and deletes them; the IT
   //             管理员 and the system administrator only look.
-  //   蜂巢追加  the system administrator's events, each aimed at chosen schools (or all); a school
-  //             sees the ones aimed at it in its list, read-only.
+  //   蜂巢追加  events of the system administrator, 教育社区经理 and 课程总监 for chosen schools (or all), roles,
+  //             Teams groups and named accounts of any school (Rick, 2026-10-17); a school sees the ones
+  //             aimed at it in its list, read-only.
   // ================================================================================
-  var calSync = { only: "", busy: false, out: [], progress: null, picked: {} };
+  var calSync = { only: "", busy: false, out: [], progress: null };
   var calState = { layer: "school", domain: "", data: null, hive: null, filter: "upcoming", view: "month", cursor: "", selected: "" };
   var CAL_AUDIENCE = ["老师", "行政", "学生", "家长"];
   var CAL_AUDIENCE_EN = { "老师": "Teachers", "行政": "Staff", "学生": "Students", "家长": "Parents" };
   var CAL_REMIND = [[null, "不提醒", "No reminder"], [0, "开始时", "At start"], [5, "提前 5 分钟", "5 minutes before"], [10, "提前 10 分钟", "10 minutes before"], [15, "提前 15 分钟", "15 minutes before"], [30, "提前 30 分钟", "30 minutes before"], [60, "提前 1 小时", "1 hour before"], [120, "提前 2 小时", "2 hours before"], [1440, "提前 1 天", "1 day before"], [2880, "提前 2 天", "2 days before"], [10080, "提前 1 周", "1 week before"]];
   var CAL_ZONES = [["America/New_York", "美东", "Eastern"], ["America/Chicago", "美中", "Central"], ["America/Denver", "美山地", "Mountain"], ["America/Phoenix", "亚利桑那", "Arizona"], ["America/Los_Angeles", "美西", "Pacific"], ["America/Anchorage", "阿拉斯加", "Alaska"], ["Pacific/Honolulu", "夏威夷", "Hawaii"], ["America/Toronto", "多伦多", "Toronto"], ["America/Vancouver", "温哥华", "Vancouver"], ["Europe/London", "伦敦", "London"], ["Asia/Shanghai", "北京 / 上海", "China"], ["Asia/Hong_Kong", "香港", "Hong Kong"], ["Asia/Taipei", "台北", "Taipei"], ["Asia/Singapore", "新加坡", "Singapore"], ["UTC", "UTC", "UTC"]];
   function calDomains() { return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return d.can && d.can.calendar; }); }
-  function canSeeCalendar() { return calDomains().length > 0 || isAdmin(); }
+  // The cross-school layer: the system administrator, 教育社区经理 and 课程总监.
+  function canHive() { var r = (me && me.roles) || []; return isAdmin() || r.indexOf("staff:community") >= 0 || r.indexOf("staff:curriculum") >= 0 || r.indexOf("coordinator") >= 0; }
+  function canSeeCalendar() { return calDomains().length > 0 || canHive(); }
   function calBrowserZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"; } catch (e) { return "America/New_York"; } }
   function calZoneLabel(z) { var k = CAL_ZONES.filter(function (x) { return x[0] === z; })[0]; return k && z !== "UTC" ? t(k[1], k[2]) + " · " + z : z; }
   function calZoneShort(z) { var k = CAL_ZONES.filter(function (x) { return x[0] === z; })[0]; return k ? t(k[1], k[2]) : z; }
@@ -33,6 +36,19 @@
   }
   function calRemindText(m) { var k = CAL_REMIND.filter(function (x) { return x[0] === m; })[0]; return k ? t(k[1], k[2]) : m == null ? "—" : String(m); }
   function calAudText(a) { return a && a.length ? a.map(function (x) { return EN ? CAL_AUDIENCE_EN[x] || x : x; }).join(EN ? ", " : "、") : t("所有人", "Everyone"); }
+  // Who an event is for, in words: schools · roles · Teams · named accounts.
+  function calForText(e, layer) {
+    var hive = layer ? layer === "hive" : !!e.targets, parts = [], roles = e.audience || [], teams = e.teams || [], people = e.people || [], tg = e.targets || [];
+    if (hive) {
+      if (tg.indexOf("*") >= 0 || (!tg.length && (roles.length || teams.length))) parts.push(t("所有学校", "All schools"));
+      else if (tg.length) parts.push(calTargetsText(e));
+    } else if (!roles.length && !teams.length && !people.length) return t("本校所有人", "Everyone at this school");
+    else parts.push(t("本校", "This school"));
+    if (roles.length) parts.push(calAudText(roles));
+    if (teams.length) parts.push("Teams: " + teams.map(function (x) { return x.name || x.id.slice(0, 8); }).join(EN ? ", " : "、"));
+    if (people.length) parts.push(people.length === 1 ? people[0] : t("另加 " + people.length + " 位账号", "+ " + people.length + " named accounts"));
+    return parts.join(" · ") || "—";
+  }
   function calToday() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
   function calWhen(e) {
     var s = e.start || "", n = e.end || e.start || "";
@@ -49,15 +65,15 @@
   function viewCalendar() {
     var ds = calDomains();
     if (!calState.cursor) { calState.cursor = calToday(); calState.selected = calToday(); }
-    if (!ds.length && !isAdmin()) { location.hash = "#/account"; return; }
-    if (calState.layer === "hive" && !isAdmin()) calState.layer = "school";
+    if (!ds.length && !canHive()) { location.hash = "#/account"; return; }
+    if (calState.layer === "hive" && !canHive()) calState.layer = "school";
     if (calState.layer === "school" && !ds.length) calState.layer = "hive";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
     setTitle(domainGroupTitle(), t("校历", "School calendar"), '<button class="btn secondary sm" id="calAdd" hidden>' + t("＋ 添加事件", "+ Add event") + '</button> <button class="btn sm" id="calPublish" hidden>' + t("发布", "Publish") + "</button>",
-      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员可以另外添加「蜂巢追加」的事件（如联合培训），推送给选定的学校，但不能改动学校自己的校历。学校的列表里会同时显示发给本校的蜂巢事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator can add Hive events (such as a joint training) aimed at chosen schools, but never changes a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
+      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「蜂巢追加」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的蜂巢事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     $("content").innerHTML =
       '<div class="pagetabs" role="tablist" id="caltabs">' + (ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
-        (isAdmin() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("蜂巢追加", "Hive additions") + "</a>" : "") +
+        (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("蜂巢追加", "Hive additions") + "</a>" : "") +
         '<div class="tabsRight" id="calright"></div></div><div id="calmsg"></div><div id="calbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     $("caltabs").addEventListener("click", function (e) { var a = e.target.closest("a[data-layer]"); if (!a) return; e.preventDefault(); calState.layer = a.getAttribute("data-layer"); viewCalendar(); });
     $("calPublish").addEventListener("click", function () { calSyncOpen(); });
@@ -89,7 +105,7 @@
   function calMsg(text, bad) { if ($("calmsg")) $("calmsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '">' + esc(text) + "</div>" : ""; }
   function calLoad() {
     var hive = calState.layer === "hive";
-    calSync = { only: "", busy: false, out: [], progress: null, picked: calSync.picked || {} };
+    calSync = { only: "", busy: false, out: [], progress: null };
     $("calbody").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     return api(hive ? "calendar?layer=hive" : "calendar?domain=" + encodeURIComponent(calState.domain)).then(function (r) {
       if (!r.ok) { $("calbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
@@ -123,8 +139,8 @@
     var zs = $("calzone"); if (zs) zs.addEventListener("change", function () { post("calendar", "POST", { domain: calState.domain, op: "zone", timezone: zs.value }).then(function (r) { if (!r.ok) { calMsg(errText(r), true); return; } calState.data.calendar = r.body.calendar; flashOk(t("默认时区已保存。", "Default time zone saved.")); }); });
     var all = calRows();
     var note = '<p class="sub" style="margin:8px 0 8px">' + (hive
-      ? t("系统管理员追加的事件：每个事件选择发给哪些学校。学校自己的校历不会被这里改动。保存后，点右上角「发布」推送给选定的学校。", "Events the system administrator adds, each aimed at chosen schools. A school's own calendar is never changed from here. After saving, use Publish (top right) to push them to the chosen schools.")
-      : edit ? t("点一个事件修改，或用右上角「＋ 添加事件」。「蜂巢」标记的事件是系统管理员发给本校的，只读。保存后点右上角「发布」写入大家的日历。", "Click an event to change it, or use “+ Add event”. Events tagged Hive were sent to this school by the system administrator and are read-only. After saving, use Publish (top right) to put them into everyone's calendar.")
+      ? t("跨校的事件：每个事件可以选学校、按身份（如家长）和 Teams 群组筛选，也可以另外输入账号（任何学校的都行）。学校自己的校历不会被这里改动。保存后，点右上角「发布」写入收件人的日历。", "Cross-school events: pick schools, narrow by role (such as parents) and Teams group, and add named accounts of any school. A school's own calendar is never changed from here. After saving, use Publish (top right) to put them into the recipients' calendars.")
+      : edit ? t("点一个事件修改，或用右上角「＋ 添加事件」。「蜂巢」标记的事件是从校外发给本校的，只读。保存后点右上角「发布」写入大家的日历。", "Click an event to change it, or use “+ Add event”. Events tagged Hive were sent to this school from outside and are read-only. After saving, use Publish (top right) to put them into everyone's calendar.")
         : t("你可以查看本校校历；编辑和发布由本校教育领袖、教育社区经理和课程总监负责。", "You can look at the school's calendar; editing and publishing are for the school's education leader, education community manager and curriculum director.")) + "</p>";
     var main = calState.view === "month" ? calMonthHTML(all, edit) : calState.view === "week" ? calWeekHTML(all, edit) : calListHTML(all, hive, edit);
     var hint = !edit && !hive && isAdmin() ? '<div class="calhint"><span>' + t("你以系统管理员身份查看本校校历，这里只能查看。要给学校加培训等事件，请用「蜂巢追加」。", "You are looking at this school's calendar as the system administrator, so it is view-only here. To add training or notices for schools, use Hive additions.") + '</span><button type="button" class="btn secondary sm" data-layer-go="hive">' + t("去「蜂巢追加」", "Go to Hive additions") + "</button></div>" : "";
@@ -275,13 +291,13 @@
     var rows = all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return calState.filter === "all" || (calState.filter === "past" ? end < today : end >= today); });
     var cnt = function (f) { return all.filter(function (x) { var end = (x.e.end || x.e.start || "").slice(0, 10); return f === "past" ? end < today : f === "upcoming" ? end >= today : true; }).length; };
     var chips = '<div class="toolbar sub">' + [["upcoming", "即将到来", "Upcoming"], ["past", "已过去", "Past"], ["all", "全部", "All"]].map(function (f) { return '<button type="button" class="chip" data-filter="' + f[0] + '" aria-pressed="' + (calState.filter === f[0]) + '">' + t(f[1], f[2]) + ' <span class="cnt">' + cnt(f[0]) + "</span></button>"; }).join("") + "</div>";
-    var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + (hive ? t("发给", "Aimed at") : t("对象", "For")) + "</th>" + (hive ? "<th>" + t("对象", "For") + "</th>" : "") + "<th>" + t("提醒", "Reminder") + "</th><th>" + t("会议链接", "Meeting link") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
+    var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + t("发给", "For") + "</th><th>" + t("提醒", "Reminder") + "</th><th>" + t("会议链接", "Meeting link") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
     var body = rows.length ? rows.map(function (x) {
       var e = x.e;
       return '<tr class="pick" data-ev="' + esc(e.id) + '" data-src="' + x.src + '"><td style="white-space:nowrap">' + calWhen(e) + "</td><td><b>" + esc(e.title) + "</b>" + (e.location ? '<div class="faint" style="font-size:12px">' + esc(e.location) + "</div>" : "") + "</td>" +
-        (hive ? "<td>" + esc(calTargetsText(e)) + "</td><td>" + esc(calAudText(e.audience)) + "</td>" : "<td>" + esc(calAudText(e.audience)) + "</td>") + "<td>" + esc(calRemindText(e.reminder)) + "</td><td>" + (e.link ? "✓" : "—") + "</td>" +
+        "<td>" + esc(calForText(e, x.src)) + "</td><td>" + esc(calRemindText(e.reminder)) + "</td><td>" + (e.link ? "✓" : "—") + "</td>" +
         (hive ? "" : '<td><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("蜂巢", "Hive") : t("校历", "School")) + "</span></td>") + "</tr>";
-    }).join("") : '<tr><td colspan="' + (hive ? 6 : 6) + '" class="muted">' + (all.length ? t("这一类里没有事件。", "No events in this view.") : t("还没有事件。", "No events yet.") + (edit ? " " + t("点右上角「＋ 添加事件」开始。", "Use “+ Add event” to start.") : "")) + "</td></tr>";
+    }).join("") : '<tr><td colspan="' + (hive ? 5 : 6) + '" class="muted">' + (all.length ? t("这一类里没有事件。", "No events in this view.") : t("还没有事件。", "No events yet.") + (edit ? " " + t("点右上角「＋ 添加事件」开始。", "Use “+ Add event” to start.") : "")) + "</td></tr>";
     return chips + '<div class="tbl-wrap"><table class="data" id="caltable">' + head + "<tbody>" + body + "</tbody></table></div>";
   }
 
@@ -393,7 +409,7 @@
       if (v.allDay ? v.end < v.start : v.end <= v.start) { msg.innerHTML = '<span class="err">' + t("结束时间必须晚于开始时间。", "The end must be after the start.") + "</span>"; return; }
       var zoneNow = q(".qzonesel").value;
       var d = calState.data, rem = d && d.defaults && d.defaults.reminder != null ? d.defaults.reminder : 15;
-      var out = { title: v.title, allDay: v.allDay, start: v.start, end: v.end, timeZone: zoneNow, audience: [], location: "", description: "", link: "", meeting: "link", reminder: rem, showAs: "free" };
+      var out = { title: v.title, allDay: v.allDay, start: v.start, end: v.end, timeZone: zoneNow, audience: [], teams: [], people: [], location: "", description: "", link: "", meeting: "link", reminder: rem, showAs: "free" };
       var b = q(".qsave"); b.disabled = true; b.textContent = t("保存中…", "Saving…");
       post("calendar", "POST", { domain: calState.domain, op: "save", event: out, timezone: zoneNow }).then(function (r) {
         if (!r.ok) { b.disabled = false; b.textContent = t("保存", "Save"); msg.innerHTML = '<span class="err">' + esc(errText(r)).replace(/\n/g, "<br>") + "</span>"; return; }
@@ -482,14 +498,14 @@
     if (!editable) {
       panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + esc(e.title) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
         '<div class="kv"><span class="k">' + t("时间", "When") + "</span><span>" + calWhen(e) + "</span>" +
-        '<span class="k">' + t("对象", "For") + "</span><span>" + esc(calAudText(e.audience)) + "</span>" +
+        '<span class="k">' + t("发给", "For") + "</span><span>" + esc(calForText(e, src === "hive" ? "hive" : "school")) + "</span>" +
         (e.location ? '<span class="k">' + t("地点", "Where") + "</span><span>" + esc(e.location) + "</span>" : "") +
         (e.link ? '<span class="k">' + t("会议链接", "Meeting link") + '</span><span><a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.link) + "</a></span>" : "") +
         '<span class="k">' + t("提醒", "Reminder") + "</span><span>" + esc(calRemindText(e.reminder)) + "</span>" +
         '<span class="k">' + t("显示为", "Shown as") + "</span><span>" + (e.showAs === "busy" ? t("忙碌", "Busy") : t("空闲", "Free")) + "</span>" +
-        (e.targets ? '<span class="k">' + t("发给", "Aimed at") + "</span><span>" + esc(calTargetsText(e)) + "</span>" : "") + "</div>" +
+        "</div>" +
         (e.description ? '<p style="white-space:pre-wrap;margin-top:10px">' + esc(e.description) + "</p>" : "") +
-        '<p class="muted" style="font-size:12px;margin-top:10px">' + (e.targets ? t("这是系统管理员发给本校的蜂巢事件，只读。", "A Hive event sent to this school by the system administrator — read-only.") : t("你没有编辑本校校历的权限（由本校教育领袖、教育社区经理和课程总监编辑）。", "You may not edit the school's calendar (its education leader, education community manager and curriculum director do).")) + "</p></div>");
+        '<p class="muted" style="font-size:12px;margin-top:10px">' + (e.targets ? t("这是从校外（系统管理员、教育社区经理或课程总监）发给本校的蜂巢事件，只读。", "A Hive event sent to this school from outside (the system administrator, community manager or curriculum director) — read-only.") : t("你没有编辑本校校历的权限（由本校教育领袖、教育社区经理和课程总监编辑）。", "You may not edit the school's calendar (its education leader, education community manager and curriculum director do).")) + "</p></div>");
       return;
     }
     var tgAll = (e.targets || []).indexOf("*") >= 0;
@@ -500,8 +516,7 @@
       '<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" id="ceAll"' + (e.allDay ? " checked" : "") + " /> " + t("全天", "All day") + "</label>" +
       calWhenHTML("cewhen", e.allDay, e.start, e.end) +
       '<label class="f" id="ceZoneBox"' + (e.allDay ? " hidden" : "") + ">" + t("时区", "Time zone") + '<select id="ceZone">' + calZoneOptions(zone) + "</select></label>" +
-      (hiveLayer ? '<div class="f-title">' + t("发给哪些学校", "Schools") + ' <span class="req">*</span></div><label class="chk" style="display:flex"><input type="checkbox" id="ceTgAll"' + (tgAll ? " checked" : "") + " /> <b>" + t("所有学校", "All schools") + '</b></label><div id="ceTg" class="plans">' + schools.map(function (s) { return '<label class="chk" style="display:flex"><input type="checkbox" data-tg="' + esc(s.domain) + '"' + (tgAll ? " disabled" : "") + ((e.targets || []).indexOf(s.domain) >= 0 ? " checked" : "") + " /> " + esc(dname(s.domain)) + "</label>"; }).join("") + "</div>" : "") +
-      '<div class="f-title">' + t("对象（不勾 = 所有人）", "For (none ticked = everyone)") + '</div><div id="ceAud" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">' + CAL_AUDIENCE.map(function (a) { return '<label class="chk"><input type="checkbox" data-aud="' + a + '"' + ((e.audience || []).indexOf(a) >= 0 ? " checked" : "") + " /> " + esc(EN ? CAL_AUDIENCE_EN[a] : a) + "</label>"; }).join("") + "</div>" +
+      calWhoHTML(e, hiveLayer, schools, tgAll) +
       '<label class="f">' + t("地点（可选）", "Location (optional)") + '<input type="text" id="ceLoc" maxlength="200" value="' + esc(e.location) + '" /></label>' +
       '<label class="f">' + t("会议链接（可选）", "Meeting link (optional)") + '<input type="url" id="ceLink" maxlength="500" placeholder="https://" value="' + esc(e.link) + '" /><small>' + t("Teams、Zoom 等会议的完整网址（https://…）。写入日历后，大家点开事件就能加入。", "The full address of a Teams, Zoom… meeting (https://…). Once events reach people's calendars they open the event and join from it.") + "</small></label>" +
       '<label class="f">' + t("说明（可选）", "Description (optional)") + '<textarea id="ceDesc" rows="3" maxlength="2000">' + esc(e.description) + "</textarea></label>" +
@@ -509,22 +524,21 @@
       '<div class="actions"><button class="btn" type="submit" id="ceSave">' + t("保存", "Save") + "</button>" + (ev ? ' <button class="btn secondary sm" type="button" id="ceDel">' + t("删除", "Delete") + "</button>" : "") + '</div><div id="ceMsg"></div></form></div>');
     var wh = calWhenBind($("cewhen"));
     $("ceAll").addEventListener("change", function () { wh.allDay(this.checked); $("ceZoneBox").hidden = this.checked; });
-    var tgAllBox = $("ceTgAll");
-    if (tgAllBox) tgAllBox.addEventListener("change", function () { $("ceTg").querySelectorAll("input[data-tg]").forEach(function (c) { c.disabled = tgAllBox.checked; if (tgAllBox.checked) c.checked = false; }); });
+    var who = calWhoBind(e, hiveLayer);
     $("cef").addEventListener("submit", function (ev2) {
       ev2.preventDefault();
       var allDay = $("ceAll").checked, rem = $("ceRem").value;
-      var out = { id: ev ? ev.id : undefined, title: $("ceTitle").value.trim(), allDay: allDay, start: calWhenValue($("cewhen")).start, end: calWhenValue($("cewhen")).end || calWhenValue($("cewhen")).start, timeZone: $("ceZone").value, audience: Array.prototype.slice.call($("ceAud").querySelectorAll("input[data-aud]:checked")).map(function (c) { return c.getAttribute("data-aud"); }), location: $("ceLoc").value.trim(), description: $("ceDesc").value.trim(), link: $("ceLink").value.trim(), meeting: "link", reminder: rem === "" ? null : Number(rem), showAs: $("ceShow").value };
-      if (hiveLayer) out.targets = tgAllBox && tgAllBox.checked ? ["*"] : Array.prototype.slice.call($("ceTg").querySelectorAll("input[data-tg]:checked")).map(function (c) { return c.getAttribute("data-tg"); });
+      var out = { id: ev ? ev.id : undefined, title: $("ceTitle").value.trim(), allDay: allDay, start: calWhenValue($("cewhen")).start, end: calWhenValue($("cewhen")).end || calWhenValue($("cewhen")).start, timeZone: $("ceZone").value, audience: who.value().audience, teams: who.value().teams, people: who.value().people, location: $("ceLoc").value.trim(), description: $("ceDesc").value.trim(), link: $("ceLink").value.trim(), meeting: "link", reminder: rem === "" ? null : Number(rem), showAs: $("ceShow").value };
+      if (hiveLayer) out.targets = who.value().targets;
       var missing = [];
       if (!out.title) missing.push(t("标题", "title"));
       if (!out.start) missing.push(t("开始时间", "start"));
-      if (hiveLayer && !out.targets.length) missing.push(t("至少一所学校", "at least one school"));
+      if (hiveLayer && !out.targets.length && !out.audience.length && !out.teams.length && !out.people.length) missing.push(t("发给谁（学校、身份、Teams 群组或账号）", "who it is for (a school, role, Teams group or account)"));
       if (missing.length) { $("ceMsg").innerHTML = '<div class="msg err">' + t("请填写：", "Please fill in: ") + esc(missing.join(EN ? ", " : "、")) + "</div>"; return; }
       var b = $("ceSave"); savingButton(b); $("ceMsg").innerHTML = "";
       var req = hiveLayer ? { layer: "hive", op: "save", event: out } : { domain: calState.domain, op: "save", event: out, timezone: out.timeZone };
       post("calendar", "POST", req).then(function (r) {
-        if (!r.ok) { restoreButton(b); $("ceMsg").innerHTML = '<div class="msg err">' + esc(errText(r)).replace(/\n/g, "<br>") + "</div>"; return; }
+        if (!r.ok) { restoreButton(b); $("ceMsg").innerHTML = '<div class="msg err">' + esc(errText(r)).replace(/\n/g, "<br>") + ((r.body && r.body.problems && r.body.problems.length) ? "<ul style=\"margin:4px 0 0 18px\">" + r.body.problems.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" : "") + "</div>"; return; }
         if (hiveLayer) calState.hive = Object.assign({}, calState.hive, { hive: r.body.hive }); else calState.data = Object.assign({}, calState.data, { calendar: r.body.calendar });
         calRender(); savedAndClose(b, t("事件已保存。", "Event saved."));
       });
@@ -541,6 +555,144 @@
     });
   }
 
+  // ---- 发给谁: schools · roles · Teams groups · named accounts (Rick, 2026-10-17: 「选择学校、按角色、按 Teams 群组
+  // 筛选，再加上输入账号」). Hive layer: schools (none = all schools when a role or group is chosen), roles and
+  // groups narrow them, named accounts are added on top and may belong to any school. School layer: the school's
+  // people narrowed by role and group, plus named accounts of the school. The lists come from the directory cache
+  // (GET /api/calendar?lookup=audience); the count below is worked out here the way the server will.
+  var calAud = { key: "", data: null, err: "" };
+  function calAudKey() { return calState.layer === "hive" ? "hive" : "s:" + calState.domain; }
+  function calAudLoad() {
+    var key = calAudKey();
+    if (calAud.key === key && calAud.data) return Promise.resolve(calAud.data);
+    return api("calendar?lookup=audience&" + (calState.layer === "hive" ? "layer=hive" : "domain=" + encodeURIComponent(calState.domain))).then(function (r) {
+      if (!r.ok) { calAud = { key: "", data: null, err: errText(r) }; return null; }
+      calAud = { key: key, data: r.body, err: "" }; return r.body;
+    });
+  }
+  function calAudEmpty() { return calAud.err ? calAud.err : calAud.data ? "" : t("正在载入…", "Loading…"); }
+  function calAudCount(v, hive) {
+    var data = calAud.data; if (!data) return null;
+    var idx = [];
+    v.teams.forEach(function (x) { data.teams.forEach(function (y, i) { if (y.id === x.id) idx.push(i); }); });
+    var base = !hive || v.targets.length || v.audience.length || v.teams.length, set = {};
+    data.people.forEach(function (p) {
+      var inScope = !hive || !v.targets.length || v.targets.indexOf("*") >= 0 || v.targets.indexOf(p.d) >= 0;
+      if (base && inScope && (!v.audience.length || v.audience.indexOf(p.i) >= 0) && (!v.teams.length || p.t.some(function (i) { return idx.indexOf(i) >= 0; }))) set[p.u] = 1;
+    });
+    v.people.forEach(function (u) { set[u] = 1; });
+    return Object.keys(set).length;
+  }
+  function calWhoHTML(e, hive, schools, tgAll) {
+    var h = '<div id="cewho"><div class="f-title">' + t("发给谁", "Who gets it") + (hive ? ' <span class="req">*</span>' : "") + "</div>" +
+      '<p class="muted" style="font-size:12px;margin:0 0 8px">' + (hive
+        ? t("学校、身份、Teams 群组是一起筛选的（都要满足）；下面「另外加入的账号」不受筛选限制，可以来自任何学校。", "Schools, roles and Teams groups narrow each other (a person must match all you set); the named accounts below are added on top and may belong to any school.")
+        : t("默认是本校所有人；选身份或 Teams 群组可以缩小范围，「另外加入的账号」再补上个别人。", "Everyone at this school by default; pick a role or Teams group to narrow it, and add individuals below.")) + "</p>";
+    if (hive) h += '<div class="whobox"><b class="whotitle">' + t("学校", "Schools") + '</b><label class="chk" style="display:flex"><input type="checkbox" id="ceTgAll"' + (tgAll ? " checked" : "") + " /> <b>" + t("所有学校", "All schools") + '</b></label><div id="ceTg" class="whoschools">' + schools.map(function (s) { return '<label class="chk" style="display:flex"><input type="checkbox" data-tg="' + esc(s.domain) + '"' + (tgAll ? " disabled" : "") + ((e.targets || []).indexOf(s.domain) >= 0 ? " checked" : "") + " /> " + esc(dname(s.domain)) + "</label>"; }).join("") + "</div></div>";
+    h += '<div class="whobox"><b class="whotitle">' + t("身份（不勾 = 不限）", "Role (none ticked = any)") + '</b><div id="ceAud" style="display:flex;gap:14px;flex-wrap:wrap">' + CAL_AUDIENCE.map(function (a) { return '<label class="chk"><input type="checkbox" data-aud="' + a + '"' + ((e.audience || []).indexOf(a) >= 0 ? " checked" : "") + " /> " + esc(EN ? CAL_AUDIENCE_EN[a] : a) + "</label>"; }).join("") + "</div></div>" +
+      '<div class="whobox"><b class="whotitle">' + t("Teams 群组（可多选）", "Teams groups (any number)") + '</b><div class="calpick" id="ceTeams"><div class="chips"></div><input type="text" placeholder="' + esc(t("搜索 Teams 群组 / 班级…", "Search Teams groups / classes…")) + '" autocomplete="off" /><div class="calpickdd" hidden></div></div></div>' +
+      '<div class="whobox"><b class="whotitle">' + t("另外加入的账号", "Named accounts") + '</b><div class="calpick" id="cePeople"><div class="chips"></div><input type="text" placeholder="' + esc(t("输入姓名或 Teams 账号，回车添加；可粘贴多个", "Type a name or Teams account, Enter to add; paste several")) + '" autocomplete="off" /><div class="calpickdd" hidden></div></div></div>' +
+      '<div id="cesum" class="calsum" aria-live="polite"></div></div>';
+    return h;
+  }
+  // A chip box with a suggestion list. opts: items() → the pickable things [{key,label,sub}], chips = the
+  // selected [{key,label}], free(text) → keys typed in full (or null when typing is not allowed), onChange().
+  function calPicker(box, opts) {
+    var chipsEl = box.querySelector(".chips"), input = box.querySelector("input"), dd = box.querySelector(".calpickdd"), hi = -1, shown = [];
+    function paint() {
+      chipsEl.innerHTML = opts.chips.map(function (c, i) { return '<span class="calchip" title="' + esc(c.title || c.label) + '">' + esc(c.label) + ' <button type="button" data-rm="' + i + '" aria-label="' + esc(t("移除", "Remove")) + '">×</button></span>'; }).join("");
+    }
+    function close() { dd.hidden = true; hi = -1; }
+    function add(item) { if (!opts.chips.some(function (c) { return c.key === item.key; })) { opts.chips.push(item); paint(); opts.onChange(); } input.value = ""; close(); }
+    function list() {
+      var q = input.value.trim().toLowerCase();
+      var have = {}; opts.chips.forEach(function (c) { have[c.key] = 1; });
+      shown = opts.items().filter(function (x) { return !have[x.key] && (!q || (x.label + " " + (x.sub || "") + " " + x.key).toLowerCase().indexOf(q) >= 0); }).slice(0, 8);
+      var emptyMsg = opts.empty ? opts.empty() : "";
+      if (!opts.items().length && emptyMsg) { dd.innerHTML = '<div class="calpickmsg">' + esc(emptyMsg) + "</div>"; dd.hidden = false; return; }
+      if (!shown.length) { dd.innerHTML = q ? '<div class="calpickmsg">' + esc(t("没有匹配的结果", "No match")) + "</div>" : ""; dd.hidden = !q; return; }
+      hi = Math.min(Math.max(hi, 0), shown.length - 1);
+      dd.innerHTML = shown.map(function (x, i) { return '<div class="calpickopt' + (i === hi ? " on" : "") + '" data-i="' + i + '"><span>' + esc(x.label) + "</span>" + (x.sub ? '<small>' + esc(x.sub) + "</small>" : "") + "</div>"; }).join("");
+      dd.hidden = false;
+    }
+    function typed(text) {
+      if (!opts.free) return false;
+      var r = opts.free(text); if (!r) return false;
+      r.added.forEach(function (it) { if (!opts.chips.some(function (c) { return c.key === it.key; })) opts.chips.push(it); });
+      if (r.added.length) { paint(); opts.onChange(); }
+      input.value = ""; close();
+      if (opts.note) opts.note(r.unknown);
+      return true;
+    }
+    chipsEl.addEventListener("click", function (ev) { var b = ev.target.closest("button[data-rm]"); if (!b) return; opts.chips.splice(+b.getAttribute("data-rm"), 1); paint(); opts.onChange(); });
+    input.addEventListener("input", function () { hi = 0; list(); });
+    input.addEventListener("focus", function () { list(); });
+    input.addEventListener("blur", function () { setTimeout(close, 120); });
+    input.addEventListener("keydown", function (ev) {
+      if (ev.key === "ArrowDown") { ev.preventDefault(); hi = Math.min(shown.length - 1, hi + 1); list(); }
+      else if (ev.key === "ArrowUp") { ev.preventDefault(); hi = Math.max(0, hi - 1); list(); }
+      else if (ev.key === "Escape") { close(); }
+      else if (ev.key === "Enter" || ev.key === "," || ev.key === ";") {
+        var txt = input.value.trim();
+        ev.preventDefault(); // Enter in these boxes never submits the form
+        if (!txt) return;
+        if (/@/.test(txt) && typed(txt)) return;
+        if (shown[hi] && !dd.hidden) add(shown[hi]);
+      }
+      else if (ev.key === "Backspace" && !input.value && opts.chips.length) { opts.chips.pop(); paint(); opts.onChange(); }
+    });
+    input.addEventListener("paste", function (ev) {
+      var txt = (ev.clipboardData && ev.clipboardData.getData("text")) || "";
+      if (opts.free && /[\s,;，；]/.test(txt.trim()) && /@/.test(txt)) { ev.preventDefault(); typed(txt); }
+    });
+    dd.addEventListener("mousedown", function (ev) { var o = ev.target.closest(".calpickopt"); if (o) { ev.preventDefault(); add(shown[+o.getAttribute("data-i")]); } });
+    paint();
+    return { paint: paint, list: list };
+  }
+  function calWhoBind(e, hive) {
+    var teamsSel = (e.teams || []).map(function (x) { return { key: x.id, label: x.name || x.id.slice(0, 8), name: x.name || "" }; });
+    var peopleSel = (e.people || []).map(function (u) { return { key: u, label: u }; });
+    var sum = $("cesum"), note = "";
+    function value() {
+      var tgAll = $("ceTgAll");
+      return {
+        targets: !$("ceTg") ? [] : tgAll && tgAll.checked ? ["*"] : Array.prototype.slice.call($("ceTg").querySelectorAll("input[data-tg]:checked")).map(function (c) { return c.getAttribute("data-tg"); }),
+        audience: Array.prototype.slice.call($("ceAud").querySelectorAll("input[data-aud]:checked")).map(function (c) { return c.getAttribute("data-aud"); }),
+        teams: teamsSel.map(function (x) { return { id: x.key, name: x.name }; }),
+        people: peopleSel.map(function (x) { return x.key; })
+      };
+    }
+    function refresh() {
+      var v = value(), fake = { targets: v.targets, audience: v.audience, teams: v.teams, people: v.people };
+      var n = calAudCount(v, hive), words = calForText(fake, hive ? "hive" : "school");
+      var none = hive && !v.targets.length && !v.audience.length && !v.teams.length && !v.people.length;
+      sum.innerHTML = none ? '<span class="muted">' + t("请选择发给谁。", "Choose who it is for.") + "</span>" : "<b>" + t("发给：", "For: ") + "</b>" + esc(words) + (n == null ? "" : ' <span class="calsumn">≈ ' + n + " " + t("人", n === 1 ? "person" : "people") + "</span>") + (note ? '<div class="msg err" style="margin-top:6px">' + esc(note) + "</div>" : "");
+    }
+    var tgAll = $("ceTgAll");
+    if (tgAll) tgAll.addEventListener("change", function () { $("ceTg").querySelectorAll("input[data-tg]").forEach(function (c) { c.disabled = tgAll.checked; if (tgAll.checked) c.checked = false; }); refresh(); });
+    $("cewho").addEventListener("change", function (ev) { if (ev.target.matches("input[type=checkbox]")) refresh(); });
+    refresh();
+    var tp = calPicker($("ceTeams"), { chips: teamsSel, onChange: refresh, items: function () { return calAud.data ? calAud.data.teams.map(function (x) { return { key: x.id, label: x.name || x.id.slice(0, 8), name: x.name, sub: (x.kind === "class" ? t("班级", "class") : "Team") + " · " + x.count + t(" 人", " members") + (x.domains.length > 1 || hive ? " · " + x.domains.map(function (d) { return dname(d); }).join(EN ? ", " : "、") : "") }; }) : []; }, empty: calAudEmpty });
+    var pp = calPicker($("cePeople"), {
+      chips: peopleSel, onChange: refresh,
+      items: function () { return calAud.data ? calAud.data.people.map(function (x) { return { key: x.u, label: x.n ? x.n + " · " + x.u : x.u, sub: (hive ? dname(x.d) + " · " : "") + (x.i || "") }; }) : []; },
+      empty: calAudEmpty,
+      free: function (text) {
+        var known = {}; if (calAud.data) calAud.data.people.forEach(function (x) { known[x.u] = x; });
+        var added = [], unknown = [];
+        text.split(/[\s,;，；]+/).map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean).forEach(function (u) {
+          if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(u)) { unknown.push(u); return; }
+          if (calAud.data && !known[u]) { unknown.push(u); return; }
+          added.push({ key: u, label: u });
+        });
+        return { added: added, unknown: unknown };
+      },
+      note: function (unknown) { note = unknown.length ? t("找不到这些账号（只能发给蜂巢里已有的账号）：", "Not found among the accounts Hive knows: ") + unknown.join(", ") : ""; refresh(); }
+    });
+    calAudLoad().then(function () { refresh(); });
+    return { value: value };
+  }
+
   // ---- 同步到大家的日历 -------------------------------------------------------------------------------
   // The card under the list. School layer: the 教育领袖 writes this school's calendar into its accounts'
   // default calendar. Hive layer: the system administrator ticks the schools to push to. The server does
@@ -554,9 +706,14 @@
     if (r === "time_zone") return t("Microsoft 不接受这个事件的时区", "Microsoft does not accept the event's time zone");
     return f.message || r || "?";
   }
-  function calSyncJobs() {
+  // The schools a run visits. School layer: this school. Hive layer: the server names them (every school with a
+  // cached account list plus those with named accounts); with a test-run list, only the schools of those accounts.
+  async function calSyncJobs() {
     if (calState.layer !== "hive") return [{ layer: "school", domain: calState.domain }];
-    return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return calSync.picked[d.domain]; }).map(function (d) { return { layer: "hive", domain: d.domain }; });
+    var only = calSyncOnly();
+    var r = await post("calendar", "POST", { layer: "hive", op: "syncdomains", only: only || undefined });
+    if (!r.ok) throw new Error(errText(r));
+    return (r.body.domains || []).map(function (d) { return { layer: "hive", domain: d }; });
   }
   // 发布: the panel opened by the button at the top right
   function calSyncOpen() {
@@ -569,14 +726,9 @@
     var hive = calState.layer === "hive";
     var h = '<div id="calsynccard">' +
       '<p class="sub">' + (hive
-        ? t("把「蜂巢追加」的事件写进选中学校的 Outlook / Teams 日历（只写这一层，不会碰学校自己的校历）。按每个事件的「发给」和「对象」决定谁收到；不发邀请邮件。事件改了、删了，再点一次「发布」就会更新或从日历里移除。", "Writes the Hive events into the chosen schools' Outlook / Teams calendars (only this layer — a school's own calendar is untouched). Each event's “Aimed at” and “For” decide who gets it; no invitation mail. After you change or delete an event, publish again to update or remove it.")
+        ? t("把「蜂巢追加」的事件写进收件人的 Outlook / Teams 日历（只写这一层，不会碰学校自己的校历）。每个事件的「发给谁」（学校、身份、Teams 群组、账号）决定谁收到，涉及的学校会逐个处理；不发邀请邮件。事件改了、删了，再点一次「发布」就会更新或从日历里移除。", "Writes the Hive events into the recipients' Outlook / Teams calendars (only this layer — a school's own calendar is untouched). Each event's “Who gets it” (schools, roles, Teams groups, accounts) decides who gets it, and every school involved is handled in turn; no invitation mail. After you change or delete an event, publish again to update or remove it.")
         : t("把本校校历写进本校账号的 Outlook / Teams 日历，不发邀请邮件；按每个事件的「对象」决定谁收到。事件改了、删了，再点一次「发布」就会更新或从日历里移除。用户自己删掉的副本不会被放回去。", "Writes this school's calendar into its accounts' Outlook / Teams calendars, with no invitation mail; each event's “For” decides who gets it. After you change or delete an event, publish again to update or remove it. A copy a person deleted for themselves is not put back.")) + "</p>";
-    if (hive) {
-      var ds = ((domainsInfo && domainsInfo.domains) || []);
-      h += '<div class="f-title">' + t("发布到哪些学校", "Schools") + '</div><div id="calpick" class="plans"><label class="chk" style="display:flex"><input type="checkbox" id="calpickAll"' + (ds.length && ds.every(function (d) { return calSync.picked[d.domain]; }) ? " checked" : "") + " /> <b>" + t("所有学校", "All schools") + "</b></label>" +
-        ds.map(function (d) { return '<label class="chk" style="display:flex"><input type="checkbox" data-pick="' + esc(d.domain) + '"' + (calSync.picked[d.domain] ? " checked" : "") + " /> " + esc(dname(d.domain)) + "</label>"; }).join("") + "</div>";
-    }
-    h += '<label class="f">' + t("只发布给这些账号（测试用，可留空）", "Only these accounts (for a test run — may be empty)") + '<input type="text" id="calonly" placeholder="' + (hive ? "name@school.edu" : "teacher1@" + esc(calState.domain)) + '" value="' + esc(calSync.only) + '" /><small>' + t("填一两个账号（用逗号隔开）先试；确认日历里的样子没问题，再清空、发布给全部账号。", "Name one or two accounts (comma-separated) to try first; once the calendar looks right, clear it and publish to everyone.") + "</small></label>" +
+    h += '<label class="f">' + t("只发布给这些账号（测试用，可留空）", "Only these accounts (for a test run — may be empty)") + '<input type="text" id="calonly" placeholder="' + (hive ? "name@school.edu, name2@other.edu" : "teacher1@" + esc(calState.domain)) + '" value="' + esc(calSync.only) + '" /><small>' + t("填一两个账号（用逗号隔开）先试；确认日历里的样子没问题，再清空、发布给全部账号。", "Name one or two accounts (comma-separated) to try first; once the calendar looks right, clear it and publish to everyone.") + "</small></label>" +
       '<div class="actions"><button class="btn secondary sm" type="button" id="calPlan"' + (calSync.busy ? " disabled" : "") + ">" + t("查看待发布", "Preview") + '</button> <button class="btn" type="button" id="calGo"' + (calSync.busy ? " disabled" : "") + ">" + t("发布", "Publish") + '</button> <button class="btn secondary sm" type="button" id="calWithdraw"' + (calSync.busy ? " disabled" : "") + ">" + t("撤回已写入的", "Withdraw what was written") + "</button></div>" +
       '<div id="calsyncout">' + calSyncOut() + "</div></div>";
     return h;
@@ -602,9 +754,6 @@
   function calSyncRender() {
     var box = $("calsync"); if (!box) return;
     box.innerHTML = calSyncCard();
-    var all = $("calpickAll");
-    if (all) all.addEventListener("change", function () { ((domainsInfo && domainsInfo.domains) || []).forEach(function (d) { calSync.picked[d.domain] = all.checked; }); calSyncRender(); });
-    var pk = $("calpick"); if (pk) pk.addEventListener("change", function (e) { var c = e.target.closest("input[data-pick]"); if (c) { calSync.picked[c.getAttribute("data-pick")] = c.checked; calSyncRender(); } });
     var on = $("calonly"); if (on) on.addEventListener("input", function () { calSync.only = on.value; });
     $("calPlan").addEventListener("click", function () { calSyncRun("syncplan"); });
     $("calGo").addEventListener("click", function () { calSyncRun("sync"); });
@@ -618,14 +767,15 @@
   function calSyncButtons(off) { ["calPlan", "calGo", "calWithdraw"].forEach(function (id) { if ($(id)) $(id).disabled = off; }); }
   // One school and layer at a time; the loop ends when nothing is left or a batch moved nothing.
   async function calSyncRun(op) {
-    var jobs = calSyncJobs();
-    if (!jobs.length) { calMsg(t("请先勾选要发布的学校。", "Tick at least one school first."), true); return; }
     calMsg("");
     calSync.busy = true; calSync.out = []; calSync.progress = null; calSyncButtons(true);
+    var jobs;
+    try { jobs = await calSyncJobs(); } catch (err) { calSync.busy = false; calSyncButtons(false); calMsg(String((err && err.message) || err), true); return; }
+    if (!jobs.length) { calSync.busy = false; calSyncButtons(false); calMsg(t("没有可发布的学校：账号列表还没读取，或填写的账号不在任何学校里。", "No school to publish to: no account list has been read yet, or the accounts you named belong to no school."), true); return; }
     var only = calSyncOnly();
     for (var i = 0; i < jobs.length; i++) {
       var j = jobs[i], base = { domain: j.domain, layer: j.layer };
-      if (only) base.only = only;
+      if (only) { var mine = only.split(/[\s,;，；]+/).map(function (x) { return x.trim().toLowerCase(); }).filter(function (x) { return x && x.slice(x.indexOf("@") + 1) === j.domain; }); if (!mine.length) continue; base.only = mine.join(","); }
       var res = { domain: j.domain, kind: op === "syncplan" ? "plan" : "run", withdraw: op === "withdraw", t: { created: 0, updated: 0, deleted: 0 } };
       calSync.out.push(res);
       try {

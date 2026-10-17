@@ -66,7 +66,7 @@ const timed = { title: "教师培训", start: "2026-10-20T19:00", end: "2026-10-
   bad(Object.assign({}, timed, { meeting: "teams" }), "school", /only a meeting link/);
   bad(Object.assign({}, timed, { reminder: 7 }), "school", /reminder must be/);
   bad(Object.assign({}, timed, { title: "t".repeat(121) }), "school", /title is longer/);
-  bad(timed, "hive", /choose at least one school/);
+  bad(timed, "hive", /choose who it is for/);
   bad(Object.assign({}, timed, { targets: ["not a domain"] }), "hive", /unknown school/);
   const ok = CAL.cleanEvent(Object.assign({}, timed, { audience: ["老师", "老师", "行政"], reminder: 30, showAs: "busy" }), "school");
   assert.deepStrictEqual([ok.title, ok.allDay, ok.timeZone, ok.audience, ok.reminder, ok.showAs, ok.meeting, ok.link], ["教师培训", false, "America/Chicago", ["老师", "行政"], 30, "busy", "link", "https://teams.microsoft.com/l/meetup-join/abc"]);

@@ -17,15 +17,27 @@
 // An event:
 //   { id, title, allDay, start, end, timeZone, audience: [], location, description, link,
 //     meeting: "link", reminder: null | minutes, showAs: "free" | "busy",
+//     teams: [{ id, name }]   members of any of these Teams / classes narrow the audience,
+//     people: [upn…]          named accounts that get it in addition (any school on the Hive layer),
 //     targets?: ["*"] | [domain…]  (Hive layer only),
 //     createdAt, createdBy, updatedAt, updatedBy }
 // allDay: start / end are dates "YYYY-MM-DD", end INCLUSIVE (a one-day event has start == end).
 // timed:  start / end are local wall-clock "YYYY-MM-DDTHH:mm" in `timeZone` (an IANA name).
 // audience: identities from the People Hub (老师 / 行政 / 学生 / 家长); empty = every account.
+//
+// Who gets an event (Rick, 2026-10-17: 「选择学校、按角色、按 teams 群组筛选，再加上输入账号」) —
+//   School layer: the school's accounts, narrowed by `audience` (roles) and `teams` when given, plus
+//                 `people` of that school.
+//   Hive layer:   the accounts of `targets` (empty = every school when a role or team is given), narrowed
+//                 by `audience` and `teams` when given, plus `people` of any school. At least one of
+//                 targets / audience / teams / people must be given.
+// Resolved per school in api/shared/calendarSync.js (recipientsOf).
 const store = require("./jsonstore");
 const { IDENTITIES } = require("./people");
 
-const LIMITS = { events: 400, title: 120, description: 2000, location: 200, link: 500, spanDays: 62 };
+const UPN_RE = /^[a-z0-9._%+'-]+@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/;
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LIMITS = { people: 300, teams: 30, events: 400, title: 120, description: 2000, location: 200, link: 500, spanDays: 62 };
 const REMINDERS = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080];
 const DEFAULT_REMINDER = 15;
 const DEFAULT_TZ = "Asia/Shanghai"; // 北京时间 until a school saves its own default (Rick, 2026-10-17)
@@ -88,6 +100,22 @@ function cleanEvent(input, layer, fallbackZone) {
     if (!IDENTITIES.includes(x)) { problems.push(`unknown audience ${JSON.stringify(x)}`); continue; }
     if (!audience.includes(x)) audience.push(x);
   }
+  const teams = [];
+  for (const x of Array.isArray(e.teams) ? e.teams : []) {
+    const id = str(x && x.id, 40).toLowerCase();
+    if (!GUID_RE.test(id)) { problems.push("a team has no valid id"); continue; }
+    if (!teams.some((t) => t.id === id)) teams.push({ id, name: str(x.name, 120) });
+  }
+  if (teams.length > LIMITS.teams) problems.push(`at most ${LIMITS.teams} teams per event`);
+  const people = [];
+  const rawPeople = Array.isArray(e.people) ? e.people : String(e.people || "").split(/[\s,;，；]+/);
+  for (const x of rawPeople) {
+    const u = str(x, 200).toLowerCase();
+    if (!u) continue;
+    if (!UPN_RE.test(u)) { problems.push(`${JSON.stringify(u)} is not an account address`); continue; }
+    if (!people.includes(u)) people.push(u);
+  }
+  if (people.length > LIMITS.people) problems.push(`at most ${LIMITS.people} named accounts per event`);
   const description = str(e.description, LIMITS.description + 1);
   if (description.length > LIMITS.description) problems.push(`description is longer than ${LIMITS.description} characters`);
   const location = str(e.location, LIMITS.location + 1);
@@ -105,7 +133,7 @@ function cleanEvent(input, layer, fallbackZone) {
     else reminder = n;
   }
   const showAs = e.showAs === "busy" ? "busy" : "free";
-  const out = { id: ID_RE.test(String(e.id || "")) ? String(e.id) : "", title, allDay, start: str(e.start, 16), end: str(e.end || e.start, 16), timeZone, audience, location, description, link: link || "", meeting, reminder, showAs };
+  const out = { id: ID_RE.test(String(e.id || "")) ? String(e.id) : "", title, allDay, start: str(e.start, 16), end: str(e.end || e.start, 16), timeZone, audience, teams, people, location, description, link: link || "", meeting, reminder, showAs };
   if (layer === "hive") {
     const raw = Array.isArray(e.targets) ? e.targets.map((x) => String(x || "").trim().toLowerCase()).filter(Boolean) : [];
     const targets = [];
@@ -114,14 +142,14 @@ function cleanEvent(input, layer, fallbackZone) {
       if (!DOMAIN_RE.test(t)) { problems.push(`unknown school ${JSON.stringify(t)}`); continue; }
       if (!targets.includes(t)) targets.push(t);
     }
-    if (!targets.length && !problems.length) problems.push("choose at least one school (or all schools)");
+    if (!targets.length && !audience.length && !teams.length && !people.length && !problems.length) problems.push("choose who it is for: a school, a role, a team or named people");
     out.targets = targets;
   }
   if (problems.length) throw Object.assign(new Error("please check the event"), { status: 400, problems });
   return out;
 }
 
-const core = (e) => JSON.stringify([e.title, e.allDay, e.start, e.end, e.timeZone, e.audience, e.location, e.description, e.link, e.meeting, e.reminder, e.showAs, e.targets || null]);
+const core = (e) => JSON.stringify([e.title, e.allDay, e.start, e.end, e.timeZone, e.audience, e.teams || [], e.people || [], e.location, e.description, e.link, e.meeting, e.reminder, e.showAs, e.targets || null]);
 
 // Add or change one event inside `doc` (mutates). Returns the stored event.
 function putEvent(doc, ev, by, at) {
@@ -194,4 +222,4 @@ function hiveFor(hive, domain) {
   return ((hive && hive.events) || []).filter((e) => (e.targets || []).includes("*") || (e.targets || []).includes(domain));
 }
 
-module.exports = { LIMITS, REMINDERS, DEFAULT_REMINDER, DEFAULT_TZ, IDENTITIES, validZone, cleanEvent, putEvent, readSchool, readHive, saveSchoolEvent, deleteSchoolEvent, setSchoolZone, saveHiveEvent, deleteHiveEvent, hiveFor };
+module.exports = { UPN_RE, GUID_RE, LIMITS, REMINDERS, DEFAULT_REMINDER, DEFAULT_TZ, IDENTITIES, validZone, cleanEvent, putEvent, readSchool, readHive, saveSchoolEvent, deleteSchoolEvent, setSchoolZone, saveHiveEvent, deleteHiveEvent, hiveFor };

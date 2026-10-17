@@ -71,20 +71,25 @@ function graphBody(ev, layer) {
 }
 const guid = (s) => { const h = sha(s); return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`; };
 
-// The events a layer wants in this school's accounts: [{ key, ev, body, hash }].
+// The events a layer wants in this school's accounts: [{ key, ev, body, hash }]. For the Hive layer these are
+// all its events; recipientsOf decides, school by school, which accounts of the school get each one.
 async function layerEvents(domain, layer) {
   let events;
-  if (layer === "hive") events = CAL.hiveFor(await CAL.readHive(), domain);
+  if (layer === "hive") events = (await CAL.readHive()).events || [];
   else events = (await CAL.readSchool(domain)).events || [];
   return events.map((ev) => { const body = graphBody(ev, layer); return { key: `${layer}:${ev.id}`, ev, body, hash: sha(JSON.stringify(body)) }; });
 }
 
 // The enabled accounts of the school with their identity, from the directory cache.
-async function accountsOf(domain) {
+async function accountsOf(domain, opts) {
   const doc = await dir.readDomain(domain);
-  if (!doc || !(doc.users || []).length) throw Object.assign(new Error(`the account list of ${domain} has not been read yet — ask the system administrator to sync the school's accounts first`), { status: 409, code: "no_accounts" });
+  if (!doc || !(doc.users || []).length) {
+    // The Hive layer may still reach a school whose list is not read yet (named accounts only).
+    if (opts && opts.lenient) return [];
+    throw Object.assign(new Error(`the account list of ${domain} has not been read yet — ask the system administrator to sync the school's accounts first`), { status: 409, code: "no_accounts" });
+  }
   const people = ((await peopleMod.readPeople()) || {}).people || {};
-  return doc.users.filter((u) => u.enabled !== false && u.upn).map((u) => ({ upn: u.upn.toLowerCase(), identity: peopleMod.identityOf(people[u.upn] || people[u.upn.toLowerCase()] || null, { department: u.department, jobTitle: u.jobTitle, plan: u.plan || "" }) }));
+  return doc.users.filter((u) => u.enabled !== false && u.upn).map((u) => ({ upn: u.upn.toLowerCase(), identity: peopleMod.identityOf(people[u.upn] || people[u.upn.toLowerCase()] || null, { department: u.department, jobTitle: u.jobTitle, plan: u.plan || "" }), name: u.displayName || "", teams: new Set((u.groups || []).map((g) => g && g.id).filter(Boolean)) }));
 }
 
 function audienceOf(ev, accounts) {
@@ -92,15 +97,48 @@ function audienceOf(ev, accounts) {
   return accounts.filter((x) => !a.length || a.includes(x.identity)).map((x) => x.upn);
 }
 
+// Who of this school gets the event (Rick, 2026-10-17). School layer: the school's accounts narrowed by role
+// and team, plus the named accounts of the school. Hive layer: when schools, a role or a team is given — the
+// accounts of the chosen schools (none chosen = every school) narrowed by role and team — plus the named
+// accounts of this school. Returns a Set of upns.
+function recipientsOf(ev, layer, domain, accounts) {
+  const roles = ev.audience || [], teamIds = (ev.teams || []).map((t) => t.id);
+  const targets = ev.targets || [];
+  let base = true, inScope = true;
+  if (layer === "hive") {
+    base = !!(targets.length || roles.length || teamIds.length);
+    inScope = !targets.length || targets.includes("*") || targets.includes(domain);
+  }
+  const out = new Set();
+  if (base && inScope) for (const a of accounts) {
+    if (roles.length && !roles.includes(a.identity)) continue;
+    if (teamIds.length && !teamIds.some((id) => a.teams && a.teams.has(id))) continue;
+    out.add(a.upn);
+  }
+  for (const u of ev.people || []) if (String(u).toLowerCase().endsWith("@" + domain)) out.add(String(u).toLowerCase());
+  return out;
+}
+
+// The schools a Hive run has to visit: every school with a cached account list, those with named accounts, and
+// those that already hold Hive events Hive wrote (so a narrowed event is withdrawn from the schools it left).
+async function hiveDomains(only) {
+  const set = new Set();
+  try { for (const d of (await dir.cachedDomains()) || []) if (d && d.domain) set.add(d.domain); } catch { /* cache not listable */ }
+  for (const ev of ((await CAL.readHive()).events) || []) for (const u of ev.people || []) { const d = String(u).split("@")[1]; if (d) set.add(d.toLowerCase()); }
+  const out = Array.from(set).sort();
+  if (only && only.size) { const want = new Set(Array.from(only).map((u) => u.split("@")[1])); return out.filter((d) => want.has(d)); }
+  return out;
+}
+
 // The plan: every create / update / delete this layer still needs for this school.
 // `only` (a Set of accounts) limits it to those accounts (the test run); `withdraw` wants nothing.
 async function plan(domain, layer, opts) {
   const o = opts || {};
-  const [wanted, accounts, doc] = await Promise.all([layerEvents(domain, layer), accountsOf(domain), store.read(syncBlob(domain), () => EMPTY(domain))]);
+  const [wanted, accounts, doc] = await Promise.all([layerEvents(domain, layer), accountsOf(domain, { lenient: layer === "hive" }), store.read(syncBlob(domain), () => EMPTY(domain))]);
   const only = o.only && o.only.size ? o.only : null;
   const ops = [], gone = [], failed = [];
   const desired = new Map();
-  if (!o.withdraw) for (const w of wanted) desired.set(w.key, { w, upns: new Set(audienceOf(w.ev, accounts)) });
+  if (!o.withdraw) for (const w of wanted) desired.set(w.key, { w, upns: recipientsOf(w.ev, layer, domain, accounts) });
   const prefix = `${layer}:`;
   const failures = doc.failures || {};
   const stuck = (fk, key, upn, title) => { const f = failures[fk]; if (f && !o.retry) { failed.push({ key, upn, title, reason: f.reason, message: f.message }); return true; } return false; };
@@ -125,7 +163,7 @@ async function plan(domain, layer, opts) {
   const counts = { create: 0, update: 0, delete: 0 };
   for (const x of ops) counts[x.op]++;
   const titleOf = new Map(wanted.map((w) => [w.key, w.ev.title]));
-  return { ops, counts, gone: gone.length, failed: failed.map((f) => Object.assign({}, f, { title: titleOf.get(f.key) || f.title })), accounts: accounts.length, events: wanted.length, doc };
+  return { ops, counts, gone: gone.length, failed: failed.map((f) => Object.assign({}, f, { title: titleOf.get(f.key) || f.title })), accounts: accounts.length, events: layer === "hive" ? Array.from(desired.values()).filter((d) => d.upns.size).length : wanted.length, doc };
 }
 
 function classify(err) {
@@ -215,4 +253,4 @@ async function summary(domain, layer, opts) {
   return { counts: p.counts, remaining: p.ops.length, gone: p.gone, failed: p.failed, accounts: p.accounts, events: p.events, written, lastRun: doc.lastRun && doc.lastRun.layer === layer ? doc.lastRun : null };
 }
 
-module.exports = { BATCH, CATEGORY, WINDOWS_ZONE, graphBody, guid, nextDay, plan, run, summary, accountsOf, audienceOf, syncBlob };
+module.exports = { BATCH, CATEGORY, WINDOWS_ZONE, graphBody, guid, nextDay, plan, run, summary, accountsOf, audienceOf, recipientsOf, hiveDomains, syncBlob };
