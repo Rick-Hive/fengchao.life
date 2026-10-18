@@ -57,7 +57,7 @@
     });
     listEl.addEventListener("click", function (e) { var b = e.target.closest(".ppitem"); if (!b) return; var u = items[+b.getAttribute("data-i")]; if (u) { add(u.upn, u.name); inp.value = ""; hide(); inp.focus(); } });
     chips.addEventListener("click", function (e) { var b = e.target.closest("button[data-i]"); if (!b) return; chosen.splice(+b.getAttribute("data-i"), 1); paint(); });
-    return { get: function () { return chosen.map(function (c) { return c.upn; }); }, add: add, clear: function () { chosen = []; paint(); inp.value = ""; hide(); }, setDomain: function (d) { dom = d; } };
+    return { get: function () { return chosen.map(function (c) { return c.upn; }); }, names: function () { var m = {}; chosen.forEach(function (c) { m[c.upn] = c.name; }); return m; }, add: add, clear: function () { chosen = []; paint(); inp.value = ""; hide(); }, setDomain: function (d) { dom = d; } };
   }
 
   // ---- 新建 Teams 群组 -----------------------------------------------------------------------------
@@ -160,7 +160,7 @@
     api("domain/group?domain=" + encodeURIComponent(dom) + "&id=" + encodeURIComponent(id)).then(function (r) {
       // If Microsoft cannot be read (the app lacks a permission, say) the cached list stays, with the reason above it.
       if (!r.ok) { host.innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>" + cached; return; }
-      data = r.body; paint();
+      data = r.body; host._gm.data = data; paint();
     });
     function row(p, isOwnerRow) {
       return '<div class="gmrow"><span class="avatar sm" style="background:' + hue(p.upn) + '">' + esc(initials(p.name || p.upn)) + '</span><span class="mname">' + esc(p.name || "") + '</span><span class="mupn">' + esc(p.upn) + "</span>" +
@@ -177,23 +177,57 @@
         '<h4>' + t("添加", "Add") + '</h4><div id="gmPick"></div>' +
         '<div class="actions"><select id="gmRole"><option value="m">' + t("作为成员", "As members") + '</option><option value="o">' + t("作为所有者", "As owners") + '</option></select><button class="btn sm" type="button" id="gmAdd">' + t("添加", "Add") + "</button></div>" +
         '<p class="muted" style="font-size:12px;margin:4px 0">' + (data.tenantUsers ? t("可以添加其他学校的账号（系统管理员已批准）。", "Other schools' accounts can be added (approved by the system administrator).") : t("只能添加本校账号。", "Only this school's accounts can be added.")) + "</p>" +
-        '<div id="gmMsg"></div>';
+        '<div id="gmMsg"></div><p class="muted" id="gmNote" style="font-size:12px;margin:4px 0"></p>';
       picker = peoplePicker($("gmPick"), dom, { exclude: function () { return data.members.map(function (m) { return m.upn; }); } });
     }
-    function send(change, okText) {
+    // Apply a change to the lists we hold, so the panel shows it at once (Rick, 2026-10-18: nothing moved
+    // after 取消所有者 / 设为所有者 — Microsoft's lists lag a change by seconds, and the re-read came too soon).
+    function applyLocal(change) {
+      var byUpn = {}; data.members.concat(data.owners).forEach(function (p) { byUpn[p.upn] = p; });
+      var mk = function (u) { return byUpn[u] || { upn: u, name: (picker && picker.names && picker.names()[u]) || "", editable: true }; };
+      var inList = function (list, u) { return list.some(function (p) { return p.upn === u; }); };
+      (change.addOwners || []).forEach(function (u) { if (!inList(data.owners, u)) data.owners.push(mk(u)); if (!inList(data.members, u)) data.members.push(mk(u)); });
+      (change.addMembers || []).forEach(function (u) { if (!inList(data.members, u)) data.members.push(mk(u)); });
+      (change.removeOwners || []).forEach(function (u) { data.owners = data.owners.filter(function (p) { return p.upn !== u; }); });
+      (change.removeMembers || []).forEach(function (u) { data.owners = data.owners.filter(function (p) { return p.upn !== u; }); data.members = data.members.filter(function (p) { return p.upn !== u; }); });
+      data.members.forEach(function (p) { p.owner = inList(data.owners, p.upn); });
+    }
+    // Does a fresh read from Microsoft show the change yet?
+    function reflects(fresh, change) {
+      var has = function (list, u) { return list.some(function (p) { return p.upn === u; }); };
+      return (change.addOwners || []).every(function (u) { return has(fresh.owners, u); }) && (change.addMembers || []).every(function (u) { return has(fresh.members, u); }) &&
+        (change.removeOwners || []).every(function (u) { return !has(fresh.owners, u); }) && (change.removeMembers || []).every(function (u) { return !has(fresh.members, u); });
+    }
+    var reconcileTimer = null;
+    function reconcile(change, delays) {
+      clearTimeout(reconcileTimer);
+      if (!delays.length) { if ($("gmNote")) $("gmNote").textContent = t("Microsoft 还在同步这项改动；稍后重新打开可看到最终名单。", "Microsoft is still applying the change; reopen later for the final list."); return; }
+      reconcileTimer = setTimeout(function () {
+        if (!host.isConnected || host._gm.data !== data) return;      // the panel moved on
+        api("domain/group?domain=" + encodeURIComponent(dom) + "&id=" + encodeURIComponent(id)).then(function (r) {
+          if (!r.ok || host._gm.data !== data) return;
+          if (reflects(r.body, change)) { data = r.body; host._gm.data = data; paint(); return; }
+          reconcile(change, delays.slice(1));
+        });
+      }, delays[0]);
+    }
+    function send(change, okText, btn) {
+      if (btn) savingButton(btn);
       $("gmMsg").innerHTML = '<div class="loading">' + t("保存中…", "Saving…") + "</div>";
       post("domain/groupmembers", "POST", Object.assign({ domain: dom, id: id }, change)).then(function (r) {
-        if (!r.ok) { $("gmMsg").innerHTML = '<div class="msg err">' + esc(errText(r)).replace(/\n/g, "<br>") + "</div>"; return; }
+        if (!r.ok) { if (btn) restoreButton(btn); $("gmMsg").innerHTML = '<div class="msg err">' + esc(errText(r)).replace(/\n/g, "<br>") + "</div>"; return; }
         delete state.domainGroups[dom]; delete state.domainUsers[dom]; delete state.domainUsers["*"];
         flashOk(okText);
-        // Microsoft's lists lag a moment behind a change: re-read them after a short pause.
-        host.innerHTML = '<div class="loading">' + t("更新中…", "Refreshing…") + "</div>";
-        setTimeout(function () { openGroupManager(host, dom, id); if (location.hash.indexOf("#/domain/groups") === 0 && $("gtree")) ensureGroups(dom, true); }, 1200);
+        applyLocal(change); paint();
+        if ($("gpCount")) $("gpCount").textContent = data.members.filter(function (m) { return (m.domain || "").toLowerCase() === dom.toLowerCase(); }).length;
+        $("gmNote").textContent = t("正在与 Microsoft 核对…", "Checking with Microsoft…");
+        reconcile(change, [1500, 3000, 5000, 8000]);
+        if (location.hash.indexOf("#/domain/groups") === 0 && $("gtree")) setTimeout(function () { ensureGroups(dom, true); }, 1500);
       });
     }
     // One listener per host, whatever number of times the manager is re-opened after a change
     // (a second listener would fire the confirm step of "移除" twice); it talks to the latest call.
-    host._gm = { send: send, picker: function () { return picker; } };
+    host._gm = { send: send, picker: function () { return picker; }, data: null };
     if (host.getAttribute("data-bound") === "1") return;
     host.setAttribute("data-bound", "1");
     host.addEventListener("click", function (e) {
@@ -202,16 +236,16 @@
       if (b) {
         var upn = b.getAttribute("data-upn"), act = b.getAttribute("data-act");
         if (act === "remove" && b.getAttribute("data-sure") !== "1") { b.setAttribute("data-sure", "1"); b.textContent = t("确认移除？", "Confirm?"); setTimeout(function () { if (b.isConnected) { b.removeAttribute("data-sure"); b.textContent = t("移除", "Remove"); } }, 4000); return; }
-        if (act === "remove") send({ removeMembers: [upn] }, t("已移除。", "Removed."));
-        else if (act === "promote") send({ addOwners: [upn] }, t("已设为所有者。", "Made owner."));
-        else if (act === "demote") send({ removeOwners: [upn] }, t("已取消所有者。", "No longer an owner."));
+        if (act === "remove") send({ removeMembers: [upn] }, t("已移除。", "Removed."), b);
+        else if (act === "promote") send({ addOwners: [upn] }, t("已设为所有者。", "Made owner."), b);
+        else if (act === "demote") send({ removeOwners: [upn] }, t("已取消所有者。", "No longer an owner."), b);
         return;
       }
       if (e.target.id === "gmAdd") {
         var list = picker ? picker.get() : [];
         if (!list.length) { $("gmMsg").innerHTML = '<div class="msg err">' + t("先搜索并选择要添加的人。", "Search and pick who to add first.") + "</div>"; return; }
         var asOwner = $("gmRole").value === "o";
-        send(asOwner ? { addOwners: list } : { addMembers: list }, t("已添加 ", "Added ") + list.length + (EN ? "." : " 人。"));
+        send(asOwner ? { addOwners: list } : { addMembers: list }, t("已添加 ", "Added ") + list.length + (EN ? "." : " 人。"), $("gmAdd"));
       }
     });
   }

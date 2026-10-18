@@ -690,7 +690,7 @@
             (g.visibility ? '<span class="k">' + t("可见性", "Visibility") + "</span><span>" + (g.visibility === "Public" ? t("公开", "Public") : t("私密", "Private")) + "</span>" : "") +
             (g.mail ? '<span class="k">' + t("邮箱", "Mail") + "</span><span>" + esc(g.mail) + "</span>" : "") +
             '<span class="k">' + t("学校", "School") + "</span><span>" + dlabel(dom) + "</span>" +
-            '<span class="k">' + t("本校成员", "Members here") + "</span><span>" + g.domainMembers + "</span>" +
+            '<span class="k">' + t("本校成员", "Members here") + "</span><span id=\"gpCount\">" + g.domainMembers + "</span>" +
             (g.description ? '<span class="k">' + t("简介", "About") + "</span><span>" + esc(g.description) + "</span>" : "") + "</div>" +
           (canManageTeam
             ? '<div id="gmgr">' + membersHtml + "</div>"

@@ -608,12 +608,21 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/other\.example\.edu/.test(rows[2]) && !/移除/.test(rows[2]), "another school's account is shown without remove: " + rows[2]);
     await p.click('#gmgr button[data-act="promote"]'); await p.waitForTimeout(300);
     assert.deepStrictEqual(memberOps[0], { domain: "bes.qiaoliang.online", id: "g1", addOwners: [users.users[1].upn] }, JSON.stringify(memberOps));
-    await p.waitForSelector(".gmrow", { timeout: 4000 }); await p.waitForTimeout(1500);
+    // the panel shows the change at once (Rick, 2026-10-18: nothing moved after 设为所有者 — Microsoft's list lags),
+    // and keeps showing it while Microsoft's read-back is still the old list
+    const heads = async () => p.$$eval("#gmgr h4", es => es.map(e => e.textContent));
+    assert.ok(/所有者 \(2\)/.test((await heads())[0]) && /成员 \(1\)/.test((await heads())[1]), "two owners, one plain member right after the click: " + (await heads()));
+    assert.strictEqual(await p.$$eval('#gmgr button[data-act="demote"]', es => es.length), 2, "both owners offer 取消所有者");
+    await p.waitForTimeout(2000);
+    assert.ok(/所有者 \(2\)/.test((await heads())[0]), "the stale read-back from Microsoft does not undo what the panel shows");
+    await (await p.$$('#gmgr button[data-act="demote"]'))[1].click(); await p.waitForTimeout(300);
+    assert.ok(/所有者 \(1\)/.test((await heads())[0]) && /成员 \(2\)/.test((await heads())[1]), "取消所有者 moves the person back at once: " + (await heads()));
+    await p.waitForSelector(".gmrow", { timeout: 4000 }); await p.waitForTimeout(300);
     await p.click('#gmgr button[data-act="remove"]'); await p.waitForTimeout(200);
-    assert.strictEqual(memberOps.length, 1, "remove needs a second click");
+    assert.strictEqual(memberOps.length, 2, "remove needs a second click");
     assert.ok(/确认/.test(await p.$eval('#gmgr button[data-act="remove"]', e => e.textContent)));
     await p.click('#gmgr button[data-act="remove"]'); await p.waitForTimeout(300);
-    assert.strictEqual(memberOps.length, 2); assert.ok(memberOps[1].removeMembers && memberOps[1].removeMembers.length === 1, JSON.stringify(memberOps[1]));
+    assert.strictEqual(memberOps.length, 3); assert.ok(memberOps[2].removeMembers && memberOps[2].removeMembers.length === 1, JSON.stringify(memberOps[2]));
   });
   await shot("orders-phone", 390, 800, "#/ops/orders/hive", "zh", SALES, async p => { await p.waitForTimeout(300); });
   // Sticky headings (Rick 2026-10-06): scroll the users list and the column headings stay at the top of the pane.
