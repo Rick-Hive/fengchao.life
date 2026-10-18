@@ -25,7 +25,7 @@
   function calDomains() { return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return d.can && d.can.calendar; }); }
   // The cross-school layer: the system administrator, 教育社区经理 and 课程总监.
   function canHive() { var r = (me && me.roles) || []; return isAdmin() || r.indexOf("staff:community") >= 0 || r.indexOf("staff:curriculum") >= 0 || r.indexOf("coordinator") >= 0; }
-  function canSeeCalendar() { return calDomains().length > 0 || canHive(); }
+  function canSeeCalendar() { return calDomains().length > 0 || canHive() || canSeeOptout(); }
   function calBrowserZone() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York"; } catch (e) { return "America/New_York"; } }
   function calZoneLabel(z) { var k = CAL_ZONES.filter(function (x) { return x[0] === z; })[0]; return k && z !== "UTC" ? t(k[1], k[2]) + " · " + z : z; }
   function calZoneShort(z) { var k = CAL_ZONES.filter(function (x) { return x[0] === z; })[0]; return k ? t(k[1], k[2]) : z; }
@@ -65,14 +65,16 @@
   function viewCalendar() {
     var ds = calDomains();
     if (!calState.cursor) { calState.cursor = calToday(); calState.selected = calToday(); }
-    if (!ds.length && !canHive()) { location.hash = "#/account"; return; }
-    if (calState.layer === "mine" || (calState.layer === "hive" && !canHive())) calState.layer = "school";
-    if (calState.layer === "school" && !ds.length) calState.layer = "hive";
+    if (!ds.length && !canHive() && !canSeeOptout()) { location.hash = "#/account"; return; }
+    if (calState.layer === "mine" || (calState.layer === "hive" && !canHive()) || (calState.layer === "optout" && !canSeeOptout())) calState.layer = "school";
+    if (calState.layer === "school" && !ds.length) calState.layer = canHive() ? "hive" : "optout";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
     setTitle(domainGroupTitle(), t("校历", "School calendar"), "",
       { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「管理员广播」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的广播事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     calMount((ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
-        (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("管理员广播", "Admin broadcast") + "</a>" : ""));
+        (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("管理员广播", "Admin broadcast") + "</a>" : "") +
+        // 不接收广播的名单 (Rick, 2026-10-18: a tab here, not a page of its own; ordinary users never see this page)
+        (canSeeOptout() ? '<a class="ptab' + (calState.layer === "optout" ? " on" : "") + '" href="#/domain/calendar" data-layer="optout" role="tab">' + t("不接收广播的名单", "Not receiving broadcasts") + "</a>" : ""));
   }
   // 我的校历 (Rick, 2026-10-18): every signed-in account sees, read-only, the school events and 管理员广播 that are
   // addressed to it — the same list a publish would write into its own Outlook / Teams calendar — with a mark on
@@ -120,6 +122,7 @@
   function calLoad() {
     var hive = calState.layer === "hive";
     calSync = { only: "", busy: false, out: [], progress: null };
+    if (calState.layer === "optout") return bcMount();
     $("calbody").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     return api(hive ? "calendar?layer=hive" : calState.layer === "mine" ? "calendar?mine=1" : "calendar?domain=" + encodeURIComponent(calState.domain)).then(function (r) {
       if (!r.ok) { $("calbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
@@ -797,7 +800,7 @@
       var v = value(), fake = { targets: v.targets, audience: v.audience, teams: v.teams, people: v.people };
       var cnt = calAudCount(v, hive), n = cnt ? cnt.n : null, words = calForText(fake, hive ? "hive" : "school");
       var none = hive && !v.targets.length && !v.audience.length && !v.teams.length && !v.people.length;
-      sum.innerHTML = none ? '<span class="muted">' + t("请选择发给谁。", "Choose who it is for.") + "</span>" : "<b>" + t("发给：", "For: ") + "</b>" + esc(words) + (n == null ? "" : ' <span class="calsumn">≈ ' + n + " " + t("人", n === 1 ? "person" : "people") + "</span>") + (cnt && cnt.skipped ? '<div class="faint" style="font-size:12px;margin-top:3px">' + t("另有 " + cnt.skipped + " 人在「广播名单」里，不会收到。", cnt.skipped + (cnt.skipped === 1 ? " person is" : " people are") + " on the Broadcast opt-out list and will not receive it.") + "</div>" : "") + (note ? '<div class="msg err" style="margin-top:6px">' + esc(note) + "</div>" : "");
+      sum.innerHTML = none ? '<span class="muted">' + t("请选择发给谁。", "Choose who it is for.") + "</span>" : "<b>" + t("发给：", "For: ") + "</b>" + esc(words) + (n == null ? "" : ' <span class="calsumn">≈ ' + n + " " + t("人", n === 1 ? "person" : "people") + "</span>") + (cnt && cnt.skipped ? '<div class="faint" style="font-size:12px;margin-top:3px">' + t("另有 " + cnt.skipped + " 人在「不接收广播的名单」上，不会收到。", cnt.skipped + (cnt.skipped === 1 ? " person is" : " people are") + " on the Not receiving broadcasts list and will not receive it.") + "</div>" : "") + (note ? '<div class="msg err" style="margin-top:6px">' + esc(note) + "</div>" : "");
     }
     var tgAll = $("ceTgAll");
     if (tgAll) tgAll.addEventListener("change", function () { $("ceTg").querySelectorAll("input[data-tg]").forEach(function (c) { c.disabled = tgAll.checked; if (tgAll.checked) c.checked = false; }); refresh(); });
@@ -873,7 +876,7 @@
       var c = o.counts || {};
       if (o.kind === "plan") {
         var n = (c.create || 0) + (c.update || 0) + (c.delete || 0);
-        h += esc(t("待发布：新增 ", "To publish: add ") + (c.create || 0) + t("、更新 ", ", update ") + (c.update || 0) + t("、移除 ", ", remove ") + (c.delete || 0)) + (n ? "" : " " + t("— 已经是最新的。", "— already up to date.")) + '<div class="faint" style="font-size:12px">' + esc(t("账号 ", "Accounts ") + o.accounts + t(" 个，事件 ", ", events ") + o.events + t(" 个，已写入 ", ", written ") + o.written + (o.gone ? t("；用户自己删除的副本 ", "; copies people deleted ") + o.gone : "") + (o.excluded ? t("；因「广播名单」排除 ", "; left out by the opt-out list ") + o.excluded : "")) + "</div>";
+        h += esc(t("待发布：新增 ", "To publish: add ") + (c.create || 0) + t("、更新 ", ", update ") + (c.update || 0) + t("、移除 ", ", remove ") + (c.delete || 0)) + (n ? "" : " " + t("— 已经是最新的。", "— already up to date.")) + '<div class="faint" style="font-size:12px">' + esc(t("账号 ", "Accounts ") + o.accounts + t(" 个，事件 ", ", events ") + o.events + t(" 个，已写入 ", ", written ") + o.written + (o.gone ? t("；用户自己删除的副本 ", "; copies people deleted ") + o.gone : "") + (o.excluded ? t("；在「不接收广播的名单」上 ", "; on the Not receiving broadcasts list ") + o.excluded : "")) + "</div>";
       } else if (o.t) {
         h += esc((o.withdraw ? t("已撤回 ", "Withdrawn ") + o.t.deleted : t("已新增 ", "Added ") + o.t.created + t("、更新 ", ", updated ") + o.t.updated + t("、移除 ", ", removed ") + o.t.deleted) + (o.remaining ? t("；还剩 ", "; left ") + o.remaining : "")) + (o.gone ? '<div class="faint" style="font-size:12px">' + esc(t("用户自己删除的副本（不会放回）：", "Copies people deleted for themselves (not put back): ") + o.gone) + "</div>" : "");
       }

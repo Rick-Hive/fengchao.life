@@ -896,7 +896,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     const nv = await p.$eval("#nav", e => e.innerText);
     assert.ok(/校历/.test(nv) && /课程方案/.test(nv) && !/Teams 群组|操作手册/.test(nv), "leader nav: " + nv);
     assert.ok(await p.$eval("#calAdd", e => !e.hidden), "the leader may add events");
-    assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 1, "a leader has the school calendar only, no Hive tab");
+    assert.ok(!(await p.$('#caltabs a[data-layer="hive"]')) && (await p.$$("#caltabs a[data-layer]")).length === 2, "a leader has the school calendar and the list tab, no Hive tab");
     await p.click('#calbody .chip[data-filter="all"]'); await p.waitForTimeout(200);
     let body = await p.$eval("#calbody", e => e.innerText);
     assert.ok(/联合教师培训/.test(body) && /广播/.test(body), "Hive's event aimed at the school is listed: " + body.slice(0, 200));
@@ -959,7 +959,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
   await shot("calendar-admin", 1280, 900, "#/domain/calendar", "en", ["admin"], async p => {
     await p.waitForTimeout(800);
     await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
-    assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 2, "both tabs");
+    assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 3, "all three tabs (school, broadcast, the list)");
     assert.ok(await p.$("#calsel"), "the school picker");
     assert.ok(!(await p.$("#calAdd")) && !(await p.$("#calPublish")), "the system administrator cannot add to or publish a school's own calendar");
     assert.ok(/View only/.test(await p.$eval("#calright", e => e.innerText)) && /Admin broadcast/.test(await p.$eval("#calright .info", e => e.dataset.tip)), "the page says it is view-only, and why, in a small tip");
@@ -1001,10 +1001,11 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/add 5/.test(await p.$eval("#calsyncout", e => e.innerText)), "plan shown");
     await p.screenshot({ path: OUT + "/calendar-hive-sync.png" });
   });
-  // 广播名单: the accounts that do not receive 管理员广播.
+  // 不接收广播的名单: the accounts that do not receive 管理员广播 — a tab of the calendar page (2026-10-18); the old link still lands there.
   await shot("broadcast-optout", 1280, 900, "#/domain/broadcast", "zh", ["staff:community"], async p => {
     await p.waitForTimeout(800);
-    assert.ok(/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "the nav has the list");
+    assert.ok(!/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "no sidebar entry of its own any more");
+    assert.ok(await p.$('#caltabs a[data-layer="optout"].on') && /不接收广播的名单/.test(await p.$eval("#caltabs", e => e.innerText)), "the list is the third tab of 校历, open");
     let body = await p.$eval("#bcbody", e => e.innerText);
     assert.ok(/Parent One|parent1@/.test(body) && /家长要求/.test(body) && /1 个账号不接收广播/.test(body), "the list is shown with its reason: " + body.slice(0, 300));
     await p.fill("#bcpick input", "teacher n"); await p.waitForSelector("#bcpick .calpickopt"); await p.click("#bcpick .calpickopt"); await p.waitForTimeout(100);
@@ -1026,19 +1027,23 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click("#calAdd"); await p.waitForSelector("#cewho");
     await p.click("#ceTgAll"); await p.click('#ceAud input[data-aud="家长"]'); await p.waitForTimeout(100);
     const sm = await p.$eval("#cesum", e => e.innerText);
-    assert.ok(/All schools/.test(sm) && /on the Broadcast opt-out list/.test(sm) && /≈ 0 people/.test(sm), "the only parent is on the list, so none receive it, and the form says so: " + sm);
+    assert.ok(/All schools/.test(sm) && /on the Not receiving broadcasts list/.test(sm) && /≈ 0 people/.test(sm), "the only parent is on the list, so none receive it, and the form says so: " + sm);
     await p.keyboard.press("Escape"); await p.waitForTimeout(300);
   });
-  // a school's 教育领袖 keeps the list of their own school
-  await shot("broadcast-leader", 1280, 900, "#/domain/broadcast", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+  // a school's 教育领袖 keeps the list of their own school, from the calendar page's tab
+  await shot("broadcast-leader", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(800);
-    assert.ok(/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "a school leader sees the list entry");
+    assert.ok(await p.$('#caltabs a[data-layer="school"].on') && await p.$('#caltabs a[data-layer="optout"]') && !(await p.$('#caltabs a[data-layer="hive"]')), "a leader has the school tab and the list tab, no broadcast tab");
+    await p.click('#caltabs a[data-layer="optout"]'); await p.waitForSelector("#bcbody table"); await p.waitForTimeout(200);
     assert.ok(!(await p.$("#bcsel")) && /Parent One|parent1@/.test(await p.$eval("#bcbody", e => e.innerText)), "their own school only, no school picker");
+    assert.ok(await p.$('#bcbody [data-bcrm]'), "with a Remove button per account");
+    await p.click('#caltabs a[data-layer="school"]'); await p.waitForSelector(".calmonth, #caltable");
+    assert.ok(await p.$("#calAdd"), "back on the school calendar with its buttons");
   });
   // 教育社区经理 (and 课程总监): every school's calendar, and the Hive layer for chosen schools, roles, Teams groups and people.
   await shot("calendar-community", 1280, 900, "#/domain/calendar", "en", ["staff:community"], async p => {
     await p.waitForTimeout(800);
-    assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 2, "the community manager has both tabs");
+    assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 3, "the community manager has all three tabs (school, broadcast, the list)");
     assert.ok(await p.$eval("#calAdd", e => !e.hidden) && await p.$eval("#calPublish", e => !e.hidden), "and may add to and publish a school's calendar");
     await p.click('#caltabs a[data-layer="hive"]'); await p.waitForSelector(".calmonth");
     assert.ok(await p.$eval("#calAdd", e => !e.hidden) && await p.$eval("#calPublish", e => !e.hidden), "and on the Hive layer");

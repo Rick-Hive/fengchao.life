@@ -173,13 +173,14 @@ const accts = async (d) => SYNC.accountsOf(d, { lenient: true });
   r = await call({ method: "GET", query: { optout: "1", domain: "*" }, user: "lead@a.edu", roles: LEADER }); assert.strictEqual(r.status, 403, "not the whole list");
   r = await optout({ upn: "p1@a.edu", on: true }, "it@b.edu", IT_B); assert.strictEqual(r.status, 403, "a school's IT 管理员 only keeps their own school's accounts");
   r = await optout({ upn: "ghost@a.edu", on: true }, "comm@fengchao.life", COMM); assert.strictEqual(r.status, 400, "an account Hive does not know cannot be put on the list");
-  r = await optout({ upn: "p1@a.edu", on: true, reason: "家长要求" }, "it@a.edu", IT); assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  r = await optout({ upn: "p1@a.edu", on: true, reason: "家长要求" }, "it@a.edu", IT); assert.strictEqual(r.status, 403, "the IT 管理员 has no part in it (2026-10-18: the list is a tab of the calendar page)");
+  r = await optout({ upn: "p1@a.edu", on: true, reason: "家长要求" }, "lead@a.edu", LEADER); assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.item.reason, "家长要求");
   r = await optout({ upn: "p3@b.edu", on: true, reason: "x" }, "comm@fengchao.life", COMM); assert.strictEqual(r.status, 200, "the community manager keeps any school's");
   r = await optout({ upn: "p3@b.edu", on: false }, "sys@fengchao.life", SYS); assert.strictEqual(r.status, 200, "the system administrator too; taking one off");
-  r = await call({ method: "GET", query: { optout: "1", domain: "a.edu" }, user: "it@a.edu", roles: IT });
-  assert.strictEqual(r.status, 200); assert.deepStrictEqual(r.body.items.map((x) => x.upn), ["p1@a.edu"], "the IT 管理员 sees their school's list"); assert.ok(r.body.people.every((x) => x.d === "a.edu"), "and picks from its accounts only");
-  r = await call({ method: "GET", query: { optout: "1", domain: "*" }, user: "it@a.edu", roles: IT }); assert.strictEqual(r.status, 403, "the whole list is not the IT 管理员's");
+  r = await call({ method: "GET", query: { optout: "1", domain: "a.edu" }, user: "it@a.edu", roles: IT }); assert.strictEqual(r.status, 403, "nor does the IT 管理员 read it");
+  r = await call({ method: "GET", query: { optout: "1", domain: "a.edu" }, user: "lead@a.edu", roles: LEADER });
+  assert.strictEqual(r.status, 200); assert.deepStrictEqual(r.body.items.map((x) => x.upn), ["p1@a.edu"], "the 教育领袖 sees their school's list"); assert.ok(r.body.people.every((x) => x.d === "a.edu"), "and picks from its accounts only");
   r = await call({ method: "GET", query: { optout: "1", domain: "*" }, user: "comm@fengchao.life", roles: COMM }); assert.strictEqual(r.status, 200); assert.strictEqual(r.body.people.length, 7);
   r = await call({ method: "GET", query: { layer: "hive", lookup: "audience" }, user: "comm@fengchao.life", roles: COMM }); assert.deepStrictEqual(r.body.optout, ["p1@a.edu"], "the form is told who is on the list, to show the count");
   // the broadcast leaves p1 out and takes back what p1 already holds; naming p1 does not override the list
@@ -194,7 +195,7 @@ const accts = async (d) => SYNC.accountsOf(d, { lenient: true });
   r = await lead({ op: "syncplan" }); assert.strictEqual(r.status, 200);
   assert.ok(r.body.counts.create >= 1 && !r.body.excluded, "the school layer ignores the list");
   // taken off the list, p1 receives the broadcasts again
-  await optout({ upn: "p1@a.edu", on: false }, "it@a.edu", IT);
+  await optout({ upn: "p1@a.edu", on: false }, "lead@a.edu", LEADER);
   r = await comm({ domain: "a.edu", op: "syncplan" }); assert.ok(r.body.counts.create >= 1 && r.body.excluded === 0, "back on: " + JSON.stringify(r.body));
   console.log("calendar-audience: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -15,7 +15,7 @@
 //   GET  /api/calendar?lookup=audience&layer=hive | &domain=<d>   the accounts and Teams the event form
 //                                          offers for picking (all schools on the Hive layer, one school
 //                                          otherwise)                          (whoever may edit that layer)
-//   GET  /api/calendar?optout=1&domain=<d | *>   the 广播名单 (accounts that do not receive the broadcasts), with
+//   GET  /api/calendar?optout=1&domain=<d | *>   the 不接收广播的名单 (accounts that do not receive the broadcasts), with
 //                                          that school's accounts to pick from (* = every school: sysadmin,
 //                                          教育社区经理, 课程总监; a school: also its IT 管理员)
 //   POST /api/calendar {op: "optout", upn, on: true|false, reason?}   put an account on / take it off the list
@@ -126,11 +126,11 @@ module.exports = async function (context, req) {
     const by = normUser(user);
     const layer = String(q.layer || body.layer || "school");
 
-    // 广播名单 (Rick, 2026-10-17): accounts that do not receive 管理员广播.
+    // 不接收广播的名单 (Rick, 2026-10-17): accounts that do not receive 管理员广播.
     if (q.optout || body.op === "optout") {
       const dom = String(q.domain || body.domain || "*").trim().toLowerCase();
       if (method === "GET") {
-        if (dom === "*" ? !can(roles, "hive") : (!DOMAIN_RE.test(dom) || !can(roles, "optout", dom))) return done(403, { error: "the broadcast opt-out list is kept by the system administrator, the 教育社区经理, the 课程总监 and the school's IT 管理员", code: "forbidden" });
+        if (dom === "*" ? !can(roles, "hive") : (!DOMAIN_RE.test(dom) || !can(roles, "optout", dom))) return done(403, { error: "the list of accounts not receiving broadcasts is kept by the system administrator, the 教育社区经理, the 课程总监 and the school's 教育领袖", code: "forbidden" });
         const [doc, look] = await Promise.all([CAL.readOptout(), audienceLookup(dom === "*" ? ((await dir.cachedDomains()) || []).map((x) => x.domain).sort() : [dom])]);
         const items = Object.entries(doc.items || {}).filter(([u]) => dom === "*" || u.endsWith("@" + dom)).map(([upn, v]) => Object.assign({ upn }, v)).sort((a, b) => String(b.at).localeCompare(String(a.at)));
         return done(200, { domain: dom, items, people: look.people, canEdit: true });
@@ -138,7 +138,7 @@ module.exports = async function (context, req) {
       if (method !== "POST") return done(405, { error: "method not allowed" });
       const upn = String(body.upn || "").trim().toLowerCase(), d = upn.split("@")[1] || "";
       if (!CAL.UPN_RE.test(upn)) return done(400, { error: "not an account address" });
-      if (!can(roles, "optout", d)) return done(403, { error: `the broadcast opt-out list of ${d} is kept by the system administrator, the 教育社区经理, the 课程总监 and that school's IT 管理员`, code: "forbidden" });
+      if (!can(roles, "optout", d)) return done(403, { error: `the list of accounts not receiving broadcasts of ${d} is kept by the system administrator, the 教育社区经理, the 课程总监 and that school's 教育领袖`, code: "forbidden" });
       const on = body.on !== false;
       if (on) {
         const have = new Set((((await dir.readDomain(d)) || {}).users || []).map((x) => String(x.upn || "").toLowerCase()));

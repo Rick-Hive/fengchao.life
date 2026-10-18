@@ -107,7 +107,7 @@
         { hash: "#/domain/users", icon: "users", zh: "用户", en: "Users" },
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 群组", en: "Teams groups" },
         { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },
-      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "校历", en: "School calendar" }] : []).concat(canSeeOptout() ? [{ hash: "#/domain/broadcast", icon: "mute", zh: "广播名单", en: "Broadcast opt-out" }] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "课程方案", en: "Curriculum plan" }] : []) });
+      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "校历", en: "School calendar" }] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "课程方案", en: "Curriculum plan" }] : []) });
     }
     if (canSeeOrders() || isStaff()) {
       groups.push({ title: t("经营", "Operations"), items: [

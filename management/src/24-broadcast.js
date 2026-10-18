@@ -1,21 +1,25 @@
-// management/src/24-broadcast.js — 学校管理 › 广播名单: the accounts that do not receive 管理员广播 (Rick, 2026-10-17).
+// management/src/24-broadcast.js — 学校管理 › 校历 › 不接收广播的名单: the accounts that do not receive 管理员广播 (Rick,
+// 2026-10-17; a tab of the calendar page since 2026-10-18).
 // Part of management.js (see scripts/build-management.js). Server: GET/POST /api/calendar with `optout`
 // (api/shared/calendar.js keeps crm/broadcast-optout.json; the sync leaves these accounts out of every broadcast
 // and withdraws what they already hold). It concerns the broadcasts only — a school's own 校历 is the school's
-// daily business. Kept by the system administrator, 教育社区经理, 课程总监 (any school) and a school's IT 管理员
-// (that school). There is deliberately no switch for ordinary users.
+// daily business. Kept by the system administrator, 教育社区经理, 课程总监 (any school) and a school's 教育领袖 (that
+// school's accounts only; the IT 管理员 has no part in the calendar). There is deliberately no switch for ordinary users.
 
   var bcState = { domain: "", data: null, chips: [], reason: "", err: "" };
   function bcDomains() { return ((domainsInfo && domainsInfo.domains) || []).filter(function (d) { return d.can && d.can.broadcastOptout; }); }
   function canSeeOptout() { return bcDomains().length > 0; }
   function bcWhen(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
 
-  function viewBroadcast() {
+  // The old link #/domain/broadcast opens the calendar page on this tab.
+  function viewBroadcast() { calState.layer = "optout"; viewCalendar(); }
+  // The tab's body, inside the calendar page (calLoad hands over here when the layer is "optout").
+  function bcMount() {
     var ds = bcDomains(), all = canHive();
-    if (!ds.length) { location.hash = "#/account"; return; }
+    if (!ds.length) { calState.layer = "school"; viewCalendar(); return; }
     if (!bcState.domain || (bcState.domain !== "*" && !ds.some(function (d) { return d.domain === bcState.domain; })) || (bcState.domain === "*" && !all)) bcState.domain = all && ds.length > 1 ? "*" : ds[0].domain;
-    setTitle(domainGroupTitle(), t("广播名单", "Broadcast opt-out"), "", { info: t("不接收「管理员广播」的账号。名单里的账号不会收到任何管理员广播（即使被点名）；已经写进他们日历的广播，下次发布时会撤回。只管广播，不影响学校自己的校历。", "Accounts that do not receive Admin broadcasts. They get none (even when named), and broadcasts already in their calendar are withdrawn at the next publish. It concerns broadcasts only — a school's own calendar is not affected.") });
-    $("content").innerHTML = '<div class="toolbar sub" id="bcbar"></div><div id="bcmsg"></div><div id="bcbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
+    $("calright").innerHTML = tipI(t("名单上的账号不会收到任何管理员广播（即使被点名）；已经写进他们日历的广播，下次发布时会撤回。只管广播，不影响学校自己的校历。教育领袖只能加入本校的账号。", "Accounts on this list receive no admin broadcasts (even when named); broadcasts already in their calendars are withdrawn at the next publish. Broadcasts only — a school's own calendar is not affected. An education leader adds their own school's accounts only."));
+    $("calbody").innerHTML = '<div class="toolbar sub" id="bcbar"></div><div id="bcmsg"></div><div id="bcbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     bcLoad();
   }
   function bcMsg(text, bad) { if ($("bcmsg")) $("bcmsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '">' + esc(text) + "</div>" : ""; }
