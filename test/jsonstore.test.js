@@ -7,7 +7,7 @@ const path = require("path");
 const Module = require("module");
 
 // A fake blob: content + etag; upload with a stale If-Match fails like Azure does.
-let content = null, etag = 0, uploads = 0, interfere = null;
+let content = null, etag = 0, uploads = 0, interfere = null, flaky = 0;
 const realResolve = Module._resolveFilename;
 Module._resolveFilename = function (request, parent, ...rest) { if (request === "@azure/storage-blob") return "@azure/storage-blob"; return realResolve.call(this, request, parent, ...rest); };
 require.cache["@azure/storage-blob"] = { id: "@azure/storage-blob", filename: "@azure/storage-blob", loaded: true, exports: { BlobServiceClient: { fromConnectionString: () => ({ getContainerClient: () => ({
@@ -15,7 +15,7 @@ require.cache["@azure/storage-blob"] = { id: "@azure/storage-blob", filename: "@
   getBlockBlobClient: () => ({
     exists: async () => content !== null,
     getProperties: async () => ({ etag: '"' + etag + '"' }),
-    downloadToBuffer: async () => Buffer.from(content),
+    downloadToBuffer: async () => { if (flaky > 0) { flaky--; const e = new Error("socket hang up"); e.statusCode = 0; throw e; } return Buffer.from(content); },
     upload: async (body, len, opts) => {
       if (interfere) { const f = interfere; interfere = null; f(); } // someone else writes first
       if (opts && opts.conditions && opts.conditions.ifMatch !== '"' + etag + '"') { const e = new Error("The condition specified using HTTP conditional header(s) is not met."); e.statusCode = 412; throw e; }
@@ -53,6 +53,12 @@ const store = require(path.join(__dirname, "..", "api", "shared", "jsonstore.js"
   let n = 0; const keep = () => { content = JSON.stringify({ items: [n++] }); etag++; interfere = keep; }; interfere = keep;
   await assert.rejects(() => store.update("x.json", fb, (d) => { d.items.push("x"); }), (e) => e.code === "conflict");
   interfere = null;
+
+  // A download that fails for a moment is retried, never mistaken for a missing blob (Rick, 2026-10-18:
+  // "open the course first" while the course was open); a download that keeps failing is an error, not the fallback.
+  content = JSON.stringify({ items: ["kept"] }); flaky = 2;
+  r = await store.update("x.json", fb, (d) => { d.items.push("more"); }); assert.deepStrictEqual(JSON.parse(content).items, ["kept", "more"], "retried, then applied to the real document");
+  flaky = 5; await assert.rejects(() => store.read("x.json", fb), (e) => /could not be read/.test(e.message)); flaky = 0;
 
   // read() returns the document or the fallback.
   assert.deepStrictEqual(await store.read("x.json", fb), JSON.parse(content));

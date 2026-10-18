@@ -1491,6 +1491,12 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.screenshot({ path: OUT + "/courses-teacher-list.png" });
     await p.click(".cocard"); await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
     assert.ok(await p.evaluate(() => document.body.classList.contains("cofocus")) && !(await p.$eval("#side", e => e.offsetWidth)), "focus layout: the sidebar is hidden");
+    // the sidebar can be kept open while editing (Rick, 2026-10-18); the choice is remembered
+    await p.click("#coSide"); await p.waitForTimeout(150);
+    assert.ok(await p.$eval("#side", e => e.offsetWidth > 0) && await p.$eval("#coSide", e => e.classList.contains("on")) && !(await p.$eval(".topbar", e => e.offsetHeight)), "the sidebar shows, the empty topbar does not");
+    assert.strictEqual(await p.evaluate(() => localStorage.getItem("fc-course-side")), "1");
+    await p.screenshot({ path: OUT + "/courses-editor-sidebar.png" });
+    await p.click("#coSide"); await p.waitForTimeout(150); assert.ok(!(await p.$eval("#side", e => e.offsetWidth)), "and hides again");
     assert.strictEqual(await p.$eval(".colang button.on", e => e.textContent), "EN", "editing language follows the source language (English)");
     assert.ok(await p.$('.cof[data-k="nameEn"]') && !(await p.$('.cof[data-k="nameZh"]')), "only one language is shown");
     assert.ok(/只读/.test(await p.$eval('.corowf[data-row="price"]', e => e.innerText)) && await p.$eval('.cof[data-k="price"]', e => e.readOnly), "price is read-only for a teacher");
@@ -1583,6 +1589,13 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(coOps.some(o => o.op === "publish"), "published"); assert.ok(/已写入 Airtable/.test(await p.$eval("#coPubOut", e => e.innerText)) && /网站已更新/.test(await p.$eval("#coPubOut", e => e.innerText)), "both steps shown: " + await p.$eval("#coPubOut", e => e.innerText));
     assert.ok(await p.$(".costeps li:nth-child(4).cur"), "step 4 current");
     await p.screenshot({ path: OUT + "/courses-published.png" });
+  });
+  await shot("courses-narrow", 414, 896, "#/courses/" + CO_ID, "zh", ["staff:curriculum"], async p => {
+    await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
+    await p.evaluate(() => { document.getElementById("content").scrollTop = 99999; }); await p.waitForTimeout(300);
+    const foot = await p.$eval(".pvfoot", e => { const r = e.getBoundingClientRect(); return { bottom: r.bottom, h: innerHeight }; });
+    assert.ok(foot.bottom < foot.h - 40, "on a phone the preview's price line is fully reachable: " + JSON.stringify(foot));
+    await p.screenshot({ path: OUT + "/courses-narrow.png", fullPage: false });
   });
   await shot("courses-phone", 390, 800, "#/courses/" + CO_ID, "zh", [], async p => {
     await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);

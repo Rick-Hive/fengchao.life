@@ -48,7 +48,7 @@
   // the lists: 我的课程 (teacher) and 课程管理 (approver)
   // ================================================================================
   function viewCourses() {
-    document.body.classList.remove("cofocus");
+    document.body.classList.remove("cofocus"); document.body.classList.remove("coedit");
     var h = location.hash, m = /^#\/courses\/(rec[A-Za-z0-9]{14})/.exec(h);
     if (m) return viewCourseEditor(m[1]);
     if (!coHasCourses()) { location.hash = "#/account"; return; }
@@ -156,7 +156,7 @@
   // the editor
   // ================================================================================
   function viewCourseEditor(id) {
-    document.body.classList.add("cofocus");
+    document.body.classList.add("coedit"); document.body.classList.toggle("cofocus", !coSideOpen());   // the focus layout, unless this person keeps the sidebar
     co.id = id; co.course = null; co.pending = {}; co.timers = {}; co.saving = 0; co.failed = false;
     setTitle("", "", "", { info: "" });
     $("content").innerHTML = '<div id="coed" class="coed"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
@@ -181,6 +181,17 @@
     coBindEditor();
     tipify($("coed"));
   }
+  // ---- the sidebar while editing: hidden by default (focus layout); a person can keep it open (Rick, 2026-10-18) ----
+  function coSideOpen() { try { return localStorage.getItem("fc-course-side") === "1"; } catch (e) { return false; } }
+  function coSideToggle() {
+    var open = document.body.classList.contains("cofocus");       // hidden now → open it
+    document.body.classList.toggle("cofocus", !open);
+    try { localStorage.setItem("fc-course-side", open ? "1" : "0"); } catch (e) {}
+    var b = $("coSide"); if (b) { b.classList.toggle("on", open); b.title = coSideTitle(open); }
+    coSpy();
+  }
+  function coSideTitle(open) { return open ? t("隐藏左侧导航（专注编辑）", "Hide the sidebar (focus on editing)") : t("显示左侧导航", "Show the sidebar"); }
+  var CO_SIDE_ICON = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.5 3.5v13" stroke="currentColor" stroke-width="1.6"/></svg>';
   // ---- the status bar ----------------------------------------------------------------------
   function coBarHTML() {
     var c = co.course, appr = coIsApprover(), ro = coIsViewer() && !appr;
@@ -191,6 +202,7 @@
       else primary = '<button class="btn" id="coSubmit">' + t("提交审批", "Submit for approval") + "</button>";
     }
     return '<div class="cobar">' +
+      '<button type="button" class="coside' + (coSideOpen() ? " on" : "") + '" id="coSide" title="' + esc(coSideTitle(coSideOpen())) + '" aria-label="' + esc(t("左侧导航", "Sidebar")) + '">' + CO_SIDE_ICON + "</button>" +
       '<a class="coback" href="#/courses" title="' + esc(t("返回课程列表", "Back to the list")) + '">←</a>' +
       '<div class="cobar-t"><span class="cocode">' + esc(c.code || "") + '</span><b id="coTitle">' + esc(coName(c)) + '</b>' + coStatusTag(c.status) + '<span class="cosaved" id="coSaved">' + coSavedText() + "</span></div>" +
       '<div class="cobar-r">' +
@@ -398,6 +410,7 @@
       if (e.target.closest("#coMore")) { $("coMenu").hidden = !$("coMenu").hidden; return; }
       var mi = e.target.closest("#coMenu .mi[data-op]"); if (mi) { $("coMenu").hidden = true; coMenuOp(mi.getAttribute("data-op")); return; }
       if (!e.target.closest("#coMenu")) $("coMenu").hidden = true;
+      if (e.target.closest("#coSide")) return coSideToggle();
       if (e.target.closest("#coTranslate")) return coTranslate();
       if (e.target.closest("#coVersions")) return coVersionsPanel();
       if (e.target.closest("#coSubmit")) return coSubmit();
@@ -457,13 +470,22 @@
     q.value = ""; coChipsChanged(box); coChipMenu(q);
   }
   // ---- autosave --------------------------------------------------------------------------------
+  function coKeepLocal() { try { localStorage.setItem("fc-course-" + co.id, JSON.stringify({ at: new Date().toISOString(), pending: co.pending })); } catch (e) {} }
   function coQueue(k, v, ms) {
     co.pending[k] = v; co.course.fields[k] = v;
-    try { localStorage.setItem("fc-course-" + co.id, JSON.stringify({ at: new Date().toISOString(), pending: co.pending })); } catch (e) {}
+    coKeepLocal();
     clearTimeout(co.timers[k]);
     if (ms) co.timers[k] = setTimeout(function () { coFlush(k); }, ms); else coFlush(k);
     coPreviewSoon();
     if (k === "nameEn" || k === "nameZh") { if ($("coTitle")) $("coTitle").textContent = coName(co.course); }
+  }
+  // The server lost the working record (it answers "open the course first"): reopen the editor — open()
+  // rebuilds it from Airtable, and the localStorage safety net offers the unsaved edits back.
+  function coGone(r) {
+    if (!(r && r.status === 400 && /open the course first/i.test((r.body && r.body.error) || ""))) return false;
+    flash(esc(t("这门课的编辑记录需要重新打开，正在重新载入…", "The course's working record has to be reopened — reloading…")));
+    setTimeout(function () { viewCourseEditor(co.id); }, 600);
+    return true;
   }
   function coFlush(k) {
     clearTimeout(co.timers[k]);
@@ -473,6 +495,7 @@
     api("courses/field", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: co.id, key: k, value: v }) }).then(function (r) {
       co.saving--;
       if (!r.ok) {
+        if (coGone(r)) { co.pending[k] = co.pending[k] === undefined ? v : co.pending[k]; coKeepLocal(); return; }
         if (r.status === 400 || r.status === 403) { co.failed = false; flash(esc(errText(r))); coSavedPaint(); return; }
         co.failed = true; co.pending[k] = co.pending[k] === undefined ? v : co.pending[k]; coSavedPaint();
         setTimeout(function () { coFlush(k); }, 10000); return;
@@ -560,7 +583,7 @@
     savingButton(b); b.setAttribute("aria-busy", "1"); b.textContent = t("翻译中…", "Translating…");
     post("courses/op", "POST", { id: co.id, op: "translate", overwrite: !!opts.overwrite, all: !!opts.all, from: co.lang }).then(function (r) {
       b.removeAttribute("aria-busy");
-      if (!r.ok) { restoreButton(b); flash(esc(r.body && r.body.code === "no_translator" ? t("翻译服务尚未配置（AZURE_TRANSLATOR_KEY）。", "The translator is not configured (AZURE_TRANSLATOR_KEY).") : errText(r))); return; }
+      if (!r.ok) { restoreButton(b); if (coGone(r)) return; flash(esc(r.body && r.body.code === "no_translator" ? t("翻译服务尚未配置（AZURE_TRANSLATOR_KEY）。", "The translator is not configured (AZURE_TRANSLATOR_KEY).") : errText(r))); return; }
       coTake(r.body); coRepaintAll();
       var n = (r.body.done || []).length;
       flashOk(esc(n ? t("已生成 ", "Translated ") + n + t(" 个字段的译文；切换语言可以查看和修改。", " field(s); switch the language to read and edit them.") : t("双语已是最新。", "Both languages are up to date.")));
@@ -572,7 +595,7 @@
     if (btn) savingButton(btn);
     return post("courses/op", "POST", Object.assign({ id: co.id, op: op }, extra || {})).then(function (r) {
       if (btn) restoreButton(btn);
-      if (!r.ok) { flash(esc(errText(r))); return null; }
+      if (!r.ok) { if (!coGone(r)) flash(esc(errText(r))); return null; }
       coTake(r.body); coRefreshBar(); coRefreshTags();
       return r.body;
     });

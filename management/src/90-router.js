@@ -25,7 +25,7 @@
   }
   function route() {
     panelClose();
-    document.body.classList.remove("cofocus"); // the course editor's focus layout ends with the editor
+    document.body.classList.remove("cofocus"); document.body.classList.remove("coedit"); // the course editor's layout ends with the editor
     window.removeEventListener("beforeunload", coBeforeUnload);
     if ($("content")) $("content").onscroll = null;
     // A notice belongs to the page that raised it (Rick, 2026-10-07: a sync notice was still

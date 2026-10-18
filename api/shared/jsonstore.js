@@ -26,7 +26,16 @@ async function readWithTag(name, fallback) {
   if (!(await b.exists())) return { doc: fresh(), etag: null };
   let etag = null;
   try { if (typeof b.getProperties === "function") etag = (await b.getProperties()).etag || null; } catch { etag = null; }
-  try { return { doc: JSON.parse((await b.downloadToBuffer()).toString("utf8")), etag }; } catch { return { doc: fresh(), etag }; }
+  // A download that fails for a moment (throttling, a dropped connection) must not look like a missing
+  // blob: a caller like courses.update() would answer "open the course first" and, worse, could save over
+  // the real document with the fallback. Try three times; only unparseable content falls back.
+  let text = null, lastErr = null;
+  for (let i = 0; i < 3 && text === null; i++) {
+    try { text = (await b.downloadToBuffer()).toString("utf8"); }
+    catch (err) { lastErr = err; if (err && err.statusCode === 404) return { doc: fresh(), etag: null }; await new Promise((r) => setTimeout(r, 150 * (i + 1))); }
+  }
+  if (text === null) throw Object.assign(new Error(`${name}: could not be read — ${lastErr && lastErr.message}`), { status: 503, cause: lastErr });
+  try { return { doc: JSON.parse(text), etag }; } catch { return { doc: fresh(), etag }; }
 }
 async function read(name, fallback) { return (await readWithTag(name, fallback)).doc; }
 
