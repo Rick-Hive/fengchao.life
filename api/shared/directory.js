@@ -310,8 +310,8 @@ async function fetchGroupOwners(doc, log) {
 // no owners at all (an orphan a teacher made and left) — with only this domain's
 // people in it as far as we can see. A group owned elsewhere that the domain's
 // people merely belong to is counted (`elsewhere`) but not listed.
-function groupsOf(rows, groupOwners, domain) {
-  const owners = groupOwners || {};
+function groupsOf(rows, groupOwners, domain, groupArchived) {
+  const owners = groupOwners || {}, archived = groupArchived || {};
   const dom = String(domain || "").toLowerCase();
   const groups = new Map();
   for (const r of rows) for (const grp of r.groups || []) {
@@ -323,7 +323,7 @@ function groupsOf(rows, groupOwners, domain) {
     const here = (os || []).filter((u) => domainOf(u) === dom);
     const ownedHere = here.length > 0, orphan = Array.isArray(os) && os.length === 0, unknown = !Array.isArray(os);
     return {
-      id: group.id, name: group.name, description: group.description || "", mail: group.mail || "", kind: group.kind, visibility: group.visibility || "",
+      id: group.id, name: group.name, description: group.description || "", mail: group.mail || "", kind: group.kind, visibility: group.visibility || "", archived: !!archived[group.id],
       domainMembers: members.size, members: Array.from(members).sort(),
       owners: here.sort(), ownerDomains: Array.from(new Set((os || []).map(domainOf).filter((d) => d && d !== dom))).sort(), ownedHere, orphan,
       own: ownedHere || orphan || unknown, // unknown = owners never read (older copy): shown, as before
@@ -373,6 +373,36 @@ async function noteGroup(domain, group, change) {
   });
   if (Array.isArray(c.owners)) { doc.groupOwners = Object.assign({}, doc.groupOwners || {}, { [group.id]: c.owners.map((u) => String(u).toLowerCase()) }); touched = true; }
   if (touched) await store.write(`${domain}.json`, doc);
+}
+
+// A team archived or restored through Hive: remembered in every school's cache that lists it
+// (the nightly sync does not read the flag; an archive done inside Teams shows once the group panel is opened).
+async function noteGroupArchived(groupId, on) {
+  const domains = await store.listDomains().catch(() => []);
+  for (const d of domains) {
+    const domain = d.domain || d;
+    const doc = await readDomain(domain);
+    if (!doc.users.some((r) => (r.groups || []).some((g) => g && g.id === groupId))) continue;
+    doc.groupArchived = Object.assign({}, doc.groupArchived || {});
+    if (on) doc.groupArchived[groupId] = true; else delete doc.groupArchived[groupId];
+    await store.write(`${domain}.json`, doc);
+  }
+}
+// A deleted group leaves every school's cache at once (its members may be on several domains).
+async function forgetGroup(groupId) {
+  const domains = await store.listDomains().catch(() => []);
+  for (const d of domains) {
+    const domain = d.domain || d;
+    const doc = await readDomain(domain);
+    let touched = false;
+    doc.users = doc.users.map((r) => {
+      if (!(r.groups || []).some((g) => g && g.id === groupId)) return r;
+      touched = true;
+      return Object.assign({}, r, { groups: r.groups.filter((g) => g.id !== groupId) });
+    });
+    if (doc.groupOwners && doc.groupOwners[groupId]) { delete doc.groupOwners[groupId]; touched = true; }
+    if (touched) await store.write(`${domain}.json`, doc);
+  }
 }
 
 // A just-created account goes into the cache at once (rowOf of the Graph user,
@@ -809,4 +839,4 @@ async function verifiedDomains(opts) {
     .filter((d) => keepHidden || !(d.isInitial || hidden.has(d.domain)));
 }
 
-module.exports = { readDomain, syncSlice, refreshUser, readSnapshot, readLedger, reconcileRecycleBin, beijingDate, initDelta, status, groupsOf, touchUser, noteGroup, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };
+module.exports = { readDomain, syncSlice, refreshUser, readSnapshot, readLedger, reconcileRecycleBin, beijingDate, initDelta, status, groupsOf, touchUser, noteGroup, forgetGroup, noteGroupArchived, addUser, removeUser, verifiedDomains, cachedDomains: () => store.listDomains(), listAccounts, methodView, groupKind, domainOf, DOMAIN_RE, _store: store, _readJson: (n) => store.read(n), _writeJson: (n, o) => store.write(n, o) };

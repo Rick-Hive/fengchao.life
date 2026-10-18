@@ -162,7 +162,9 @@ function fakeTeams(method, p, u, opts, json) {
   let m = /^\/teams\/([^/]+)\/operations\/([^/]+)$/.exec(p);
   if (method === "GET" && m) return json(200, { id: m[2], status: opState });
   m = /^\/teams\/([^/]+)$/.exec(p);
-  if (method === "GET" && m) { const g = groupsDb[m[1]]; return g ? json(200, { id: g.id, specialization: g.specialization || "none" }) : json(404, { error: { code: "NotFound" } }); }
+  if (method === "GET" && m) { const g = groupsDb[m[1]]; return g ? json(200, { id: g.id, specialization: g.specialization || "none", isArchived: !!g.archived }) : json(404, { error: { code: "NotFound" } }); }
+  m = /^\/teams\/([^/]+)\/(archive|unarchive)$/.exec(p);
+  if (method === "POST" && m) { const g = groupsDb[m[1]]; if (!g) return json(404, { error: { code: "NotFound" } }); teamCalls.push({ method, path: p }); g.archived = m[2] === "archive"; return { ok: true, status: 202, headers: { get: () => null }, text: async () => "" }; }
   if (method === "GET" && p === "/users" && u.searchParams.get("$search")) {
     const q = u.searchParams.get("$search").match(/displayName:([^"]+)"/)[1].toLowerCase();
     return json(200, { value: users.filter((x) => (x.displayName + x.userPrincipalName).toLowerCase().includes(q)) });
@@ -186,6 +188,7 @@ function fakeTeams(method, p, u, opts, json) {
     list.push(rec(id)); return empty(204);
   }
   if (method === "DELETE" && m[2] && m[4] === "$ref") { const k = m[2]; g[k] = g[k].filter((x) => x.id !== m[3]); return empty(204); }
+  if (method === "DELETE" && !m[2]) { delete groupsDb[m[1]]; return empty(204); }
   return null;
 }
 
@@ -906,6 +909,34 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   r = await call({ action: "groupmembers", method: "POST", body: { domain: DOMAIN, id: G1, addMembers: [K1] }, user: `teacher@${DOMAIN}`, roles: [] });
   assert.strictEqual(r.status, 403, "no role, no management");
 
+  // 归档 / 删除团队 (Rick, 2026-10-18): the system administrator only; the exact name confirms a delete;
+  // the deleted group leaves every school's cache at once.
+  r = await call({ action: "group", query: { domain: DOMAIN, id: G1 }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.body.archived, false); assert.strictEqual(r.body.canDelete, true);
+  r = await call({ action: "group", query: { domain: DOMAIN, id: G1 }, user: DOMADMIN, roles: IT }); assert.strictEqual(r.body.canDelete, false, "the IT 管理员 sees no delete");
+  r = await post("grouparchive", { domain: DOMAIN, id: G1, archive: true });
+  assert.strictEqual(r.status, 403, "the IT 管理员 cannot archive");
+  r = await post("grouparchive", { domain: DOMAIN, id: G1, archive: true }, ADMIN, ["admin"]);
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body)); assert.strictEqual(groupsDb[G1].archived, true);
+  r = await call({ action: "group", query: { domain: DOMAIN, id: G1 }, user: ADMIN, roles: ["admin"] }); assert.strictEqual(r.body.archived, true);
+  r = await call({ action: "groups", query: { domain: DOMAIN }, user: ADMIN, roles: ["admin"] });
+  assert.ok(r.body.groups.some((g) => g.id === G1 && g.archived === true), "the list shows the archived team: " + JSON.stringify(r.body.groups.map((g) => [g.id, g.archived])));
+  r = await post("grouparchive", { domain: DOMAIN, id: G1, archive: false }, ADMIN, ["admin"]);
+  assert.strictEqual(r.status, 200); assert.strictEqual(groupsDb[G1].archived, false);
+  r = await post("grouparchive", { domain: DOMAIN, id: G2, archive: true }, ADMIN, ["admin"]); assert.strictEqual(r.status, 400, "a security group is not a team");
+  const G9 = "aaaaaaaa-aaaa-4aaa-8aaa-000000000009";
+  groupsDb[G9] = O365(G9, "Old club", { owners: [{ id: "u-lei", userPrincipalName: "lei@" + DOMAIN, displayName: "Lei Dong" }], members: [{ id: "u-lei", userPrincipalName: "lei@" + DOMAIN, displayName: "Lei Dong" }] });
+  { const d = JSON.parse(blobs[DOMAIN + ".json"]); d.users.forEach((x) => { if (x.upn === "lei@" + DOMAIN) x.groups = (x.groups || []).concat([{ id: G9, name: "Old club", kind: "team" }]); }); blobs[DOMAIN + ".json"] = JSON.stringify(d); }
+  r = await call({ action: "group", method: "DELETE", body: { domain: DOMAIN, id: G9 }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 403, "the IT 管理员 cannot delete"); assert.ok(groupsDb[G9]);
+  assert.ok(JSON.parse(blobs[DOMAIN + ".json"]).users.some((x) => (x.groups || []).some((g) => g.id === G9)), "the cache lists the team before");
+  r = await call({ action: "group", method: "DELETE", body: { domain: DOMAIN, id: G9 }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body)); assert.ok(!groupsDb[G9], "deleted at Microsoft"); assert.strictEqual(r.body.name, "Old club");
+  assert.ok(!JSON.parse(blobs[DOMAIN + ".json"]).users.some((x) => (x.groups || []).some((g) => g.id === G9)), "and gone from the school's cache at once");
+  assert.ok(auditLines.some((e) => e.action === "group.delete" && e.target === G9 && e.name === "Old club" && e.owners.includes("lei@" + DOMAIN)), "audited with the name and owners");
+  r = await call({ action: "group", method: "DELETE", body: { domain: DOMAIN, id: G9 }, user: ADMIN, roles: ["admin"] });
+  assert.strictEqual(r.status, 404, "deleting twice: Microsoft no longer knows it");
+
   // Searching for people to add: the school's own cache; tenant-wide only when allowed.
   r = await call({ action: "usersearch", query: { domain: DOMAIN, q: "lei" }, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200); assert.ok(r.body.tenant === false && r.body.users.some((x) => x.upn === "lei@" + DOMAIN) && r.body.users.every((x) => x.upn.endsWith("@" + DOMAIN)), JSON.stringify(r.body));
@@ -918,6 +949,13 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   assert.strictEqual(institutions.institutions[DOMAIN].groupTenant, true);
   r = await call({ action: "domains", user: DOMADMIN, roles: IT });
   assert.deepStrictEqual([r.body.domains[0].can.groups, r.body.domains[0].can.groupTenant, r.body.domains[0].can.groupScope], [true, true, false]);
+  // the switch shows the school's stored setting, not the caller's own reach (Rick, 2026-10-18: it looked
+  // ticked again for the system administrator, whose groupTenant is always true)
+  r = await call({ action: "groupscope", method: "PUT", body: { domain: DOMAIN, tenantUsers: false }, user: ADMIN, roles: ["admin"] });
+  r = await call({ action: "domains", user: ADMIN, roles: ["admin"] });
+  assert.deepStrictEqual([r.body.domains[0].can.groupTenant, r.body.domains[0].can.groupTenantSchool], [true, false], "admin may add anyone, yet the school's switch is off");
+  r = await call({ action: "groupscope", method: "PUT", body: { domain: DOMAIN, tenantUsers: true }, user: ADMIN, roles: ["admin"] });
+  r = await call({ action: "domains", user: ADMIN, roles: ["admin"] }); assert.strictEqual(r.body.domains[0].can.groupTenantSchool, true);
   r = await call({ action: "groupoptions", query: { domain: DOMAIN }, user: DOMADMIN, roles: IT });
   assert.ok(r.body.tenantUsers && r.body.allowedByAdmin && !r.body.canSetScope);
   r = await call({ action: "usersearch", query: { domain: DOMAIN, q: "xavier" }, user: DOMADMIN, roles: IT });

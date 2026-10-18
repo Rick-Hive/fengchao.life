@@ -191,6 +191,21 @@ async function readGroup(id) {
   const owners = (await list(`/groups/${g.id}/owners?$select=id,userPrincipalName,displayName&$top=100`, 200)).filter((x) => x.userPrincipalName);
   return { g, owners };
 }
+// Is the team archived (read-only)? Only a team has the flag; a plain Microsoft 365 group answers null.
+async function archivedState(g) {
+  if (!(g.resourceProvisioningOptions || []).includes("Team")) return null;
+  try { const t = await graph("GET", `/teams/${encodeURIComponent(g.id)}?$select=isArchived`); return !!(t && t.isArchived); }
+  catch (err) { if (err.status === 404) return null; throw err; }
+}
+// Archive (read-only, restorable any time) or unarchive. Graph answers 202 and finishes in seconds.
+async function setArchived(id, on) {
+  await graph("POST", `/teams/${encodeURIComponent(id)}/${on ? "archive" : "unarchive"}`, on ? {} : undefined);
+}
+// Delete the group and, with it, the team: its channels, files and chat. Microsoft keeps it
+// restorable for 30 days (Entra › Groups › Deleted groups).
+async function deleteGroup(id) {
+  await graph("DELETE", `/groups/${encodeURIComponent(id)}`);
+}
 async function readMembers(id) {
   return (await list(`/groups/${id}/members?$select=id,userPrincipalName,displayName&$top=500`, 1500)).filter((x) => x.userPrincipalName);
 }
@@ -208,4 +223,4 @@ function manageable(g, owners, domain, admin) {
 
 const kindOf = (g, cls) => ((g.resourceProvisioningOptions || []).includes("Team") ? (cls ? "class" : "team") : "m365");
 
-module.exports = { WAIT, TYPES, typeList, validateCreate, lookupUsers, createBody, createTeam, operation, waitFor, addPeople, addMembers, addOwner, readGroup, readMembers, manageable, kindOf, parseOperation, already };
+module.exports = { WAIT, TYPES, typeList, validateCreate, lookupUsers, createBody, createTeam, operation, waitFor, addPeople, addMembers, addOwner, readGroup, readMembers, archivedState, setArchived, deleteGroup, manageable, kindOf, parseOperation, already };

@@ -28,6 +28,20 @@
     var orig = m ? (EN ? "en" : "zh") : /[\u3400-\u9fff]/.test(name) ? "zh" : "en";
     return orig === "zh" ? zh + " · " + en : en + " · " + zh;
   }
+  // The group's description in the page's language, with the other language after it when both are known
+  // (Rick, 2026-10-18: 简介 bilingual too; the translation comes from api/shared/people.js, cached in groupnames.json).
+  function gdesc(g) {
+    if (!g || !g.description) return "";
+    var zh = g.descZh || "", en = g.descEn || "";
+    if (!zh || !en || zh === en) return g.description;
+    return EN ? en : zh;
+  }
+  function gdescOther(g) {
+    if (!g || !g.description) return "";
+    var zh = g.descZh || "", en = g.descEn || "";
+    if (!zh || !en || zh === en) return "";
+    return EN ? zh : en;
+  }
   var extraDraft = null; // the form's working copy, so adding a child does not lose typed values
   function readExtraForm() {
     var d = { roles: [], rolesOther: ($("xRolesOther") || {}).value || "", topics: [], topicsOther: ($("xTopicsOther") || {}).value || "", otherAccounts: [], children: [] };

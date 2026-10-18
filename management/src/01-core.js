@@ -25,7 +25,7 @@
   function $(id) { return document.getElementById(id); }
   function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   // The sidebar group and page crumb for the school pages: "学校管理" for a school's own people, "各校管理" for the system administrator.
-  function domainGroupTitle() { return domainsInfo && domainsInfo.all ? t("各校管理", "All schools") : t("学校管理", "School admin"); }
+  function domainGroupTitle() { return t("学校管理", "School management"); } // one name for everyone (Rick, 2026-10-18; it used to say 各校管理 for the sysadmin)
   function api(path, opts) {
     return fetch("/api/" + path, Object.assign({ credentials: "same-origin", cache: "no-store", redirect: "manual" }, opts || {})).then(function (r) {
       // The platform itself found no sign-in (its cookie is gone) and answered with a
@@ -103,11 +103,12 @@
       // Accounts pages for whoever may view a school's accounts (IT 管理员, staff); 课程方案
       // for an 教育领袖 (who sees nothing else of the school), 课程总监 and the sysadmin.
       var seesAccounts = domainsInfo.domains.some(function (d) { return d.can && d.can.view; });
+      // Order and wording (Rick, 2026-10-18): 用户管理 · Teams 团队管理 · 日历管理 · 毕业要求和课程地图 · 操作手册 last
       groups.push({ title: domainGroupTitle(), items: (seesAccounts ? [
-        { hash: "#/domain/users", icon: "users", zh: "用户", en: "Users" },
-        { hash: "#/domain/groups", icon: "tree", zh: "Teams 群组", en: "Teams groups" },
-        { hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" },
-      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "校历", en: "School calendar" }] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "课程方案", en: "Curriculum plan" }] : []) });
+        { hash: "#/domain/users", icon: "users", zh: "用户管理", en: "User management" },
+        { hash: "#/domain/groups", icon: "tree", zh: "Teams 团队管理", en: "Teams management" },
+      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "日历管理", en: "Calendar management" }] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "毕业要求和课程地图", en: "Graduation requirements & curriculum map" }] : [])
+        .concat(seesAccounts ? [{ hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" }] : []) });
     }
     if (canSeeOrders() || isStaff()) {
       groups.push({ title: t("经营", "Operations"), items: [

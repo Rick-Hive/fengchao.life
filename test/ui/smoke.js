@@ -38,7 +38,7 @@ const groups = {
     { id: "g6", name: "Science Grade 6", description: "Sixth-grade science lab", kind: "team", visibility: "Public", members: 22, channels: 5, owner: false, created: "2026-09-01T00:00:00Z" }
   ]
 };
-const CAN = { view: true, methods: true, people: true, plan: true, calendar: true, calendarEdit: false, broadcastOptout: true, full: true, groups: true, groupTenant: false, groupScope: true };
+const CAN = { view: true, methods: true, people: true, plan: true, calendar: true, calendarEdit: false, broadcastOptout: true, full: true, groups: true, groupTenant: true, groupTenantSchool: false, groupScope: true }; // the sysadmin may add anyone; the school's switch is off
 // 课程方案 (2026-10-12): what /api/school-plan?domain= answers the editor, and the PUTs it makes.
 const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, { id: "recSci", nameEn: "Science", nameZh: "科学" }];
 const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }],
@@ -195,7 +195,7 @@ function stmDetail(row) {
 }
 const acctEdits = [], licChanges = [];
 const deleted = []; const writebacks = []; const digests = [];
-const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 新建 Teams 群组 (2026-10-16)
+const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPending = 0; // 新建 Teams 群组 (2026-10-16)
   const whenVal = (p, sel) => p.$eval(sel, r => { const q = c => r.querySelector(c); return r.classList.contains("allday") ? [q(".wsd").value, q(".wed").value] : [q(".wsd").value + "T" + q(".wst").value, q(".wed").value + "T" + q(".wet").value]; });
   async function shot(name, w, h, hash, lang, rolesList, act) {
     if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return; // e.g. ONLY=calendar node test/ui/smoke.js
@@ -256,6 +256,8 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
       else if (p === "/api/domain/groupop") { const b = JSON.parse(r.request().postData()); teamPending = 0; body = { ok: true, id: b.id, name: "Chess club", owners: b.owners.length, members: b.members.length, failed: [] }; }
       else if (p === "/api/domain/group" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); teamCreates.push(b); body = b.name === "Slow team" ? { ok: true, pending: true, id: "55555555-5555-4555-8555-555555555555", op: "66666666-6666-4666-8666-666666666666", name: b.name } : { ok: true, id: "55555555-5555-4555-8555-555555555555", name: b.name, type: b.type, owners: b.owners.length, members: b.members.length, failed: [] }; }
       else if (p === "/api/domain/group" && r.request().method() === "GET") body = { domain: u.searchParams.get("domain"), tenantUsers: false, group: { id: u.searchParams.get("id"), name: "English Grade 5", description: "", visibility: "Private", kind: "team" }, owners: [{ id: "o1", upn: users.users[0].upn, name: users.users[0].displayName, domain: "bes.qiaoliang.online", editable: true }], members: [{ id: "o1", upn: users.users[0].upn, name: users.users[0].displayName, domain: "bes.qiaoliang.online", editable: true, owner: true }, { id: "m2", upn: users.users[1].upn, name: users.users[1].displayName, domain: "bes.qiaoliang.online", editable: true, owner: false }, { id: "m3", upn: "x@other.example.edu", name: "Xavier Other", domain: "other.example.edu", editable: false, owner: false }] };
+      else if (p === "/api/domain/grouparchive") { const b = JSON.parse(r.request().postData()); teamOps.push(Object.assign({ op: "archive" }, b)); body = { ok: true, id: b.id, name: "English Grade 5", archived: b.archive }; }
+      else if (p === "/api/domain/group" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); teamOps.push(Object.assign({ op: "delete" }, b)); body = { ok: true, id: b.id, name: "English Grade 5", deleted: true }; }
       else if (p === "/api/domain/groupmembers") { const b = JSON.parse(r.request().postData()); memberOps.push(b); body = { ok: true, id: b.id, added: (b.addMembers || []).length + (b.addOwners || []).length, removed: (b.removeMembers || []).length + (b.removeOwners || []).length }; }
       else if (p === "/api/domain/groups") body = dgroups;
       else if (p === "/api/roles" && r.request().method() === "GET" && u.searchParams.get("q")) body = { people: peopleHits };
@@ -568,6 +570,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.evaluate(() => { const d = document.querySelector("#gtree details"); if (d) d.open = true; }); await p.waitForTimeout(500);
     // the sysadmin's switch for what the IT 管理员 may add
     assert.ok(await p.$('#gtree input[data-scope]'), "the school-scope switch for the system administrator");
+    assert.ok(!(await p.$eval('#gtree input[data-scope]', e => e.checked)), "the switch shows the school's setting (off), not the sysadmin's own reach (Rick, 2026-10-18)");
     await p.click('#gtree input[data-scope]'); await p.waitForTimeout(300);
     assert.deepStrictEqual(scopePuts[0], { domain: "bes.qiaoliang.online", tenantUsers: true }, JSON.stringify(scopePuts));
     await p.click("#newGroup"); await p.waitForSelector("#ngTypes input[name=ngType]");
@@ -623,6 +626,26 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/确认/.test(await p.$eval('#gmgr button[data-act="remove"]', e => e.textContent)));
     await p.click('#gmgr button[data-act="remove"]'); await p.waitForTimeout(300);
     assert.strictEqual(memberOps.length, 3); assert.ok(memberOps[2].removeMembers && memberOps[2].removeMembers.length === 1, JSON.stringify(memberOps[2]));
+    await p.keyboard.press("Escape"); await p.waitForSelector("#panel:not(.open)"); await p.waitForTimeout(500);
+    // the system administrator's ⋯ on a team row: archive, then restore, then delete with one in-place confirmation (Rick, 2026-10-18)
+    const rowsBefore = await p.$$eval("#gtree .trow", es => es.length);
+    await p.click('#gtree button[data-gmore]'); await p.waitForTimeout(100);
+    assert.ok(await p.$('#gtree .gmore .comenu:not([hidden]) button[data-garchive]') && await p.$('#gtree .gmore .comenu:not([hidden]) button[data-gdelete]'), "archive and delete are offered");
+    await p.click('#gtree .comenu:not([hidden]) button[data-garchive]'); await p.waitForTimeout(300);
+    assert.deepStrictEqual(teamOps[0], { op: "archive", domain: "bes.qiaoliang.online", id: "g1", archive: true }, JSON.stringify(teamOps));
+    assert.ok(/已归档/.test(await p.$eval("#gtree .trow", e => e.innerText)), "the row shows 已归档 at once");
+    await p.click('#gtree button[data-gmore]'); await p.waitForTimeout(100);
+    assert.ok(/恢复/.test(await p.$eval('#gtree .comenu:not([hidden]) button[data-garchive]', e => e.textContent)), "an archived team offers 恢复");
+    await p.click('#gtree .comenu:not([hidden]) button[data-garchive]'); await p.waitForTimeout(300);
+    assert.strictEqual(teamOps[1].archive, false); assert.ok(!/已归档/.test(await p.$eval("#gtree .trow", e => e.innerText)));
+    await p.click('#gtree button[data-gmore]'); await p.waitForTimeout(100);
+    await p.click('#gtree .comenu:not([hidden]) button[data-gdelete]'); await p.waitForTimeout(100);
+    assert.strictEqual(teamOps.length, 2, "delete asks once more first");
+    assert.ok(/确认删除/.test(await p.$eval('#gtree .comenu:not([hidden]) button[data-gdelete]', e => e.textContent)));
+    await p.click('#gtree .comenu:not([hidden]) button[data-gdelete]'); await p.waitForTimeout(400);
+    assert.deepStrictEqual(teamOps[2], { op: "delete", domain: "bes.qiaoliang.online", id: "g1" });
+    assert.strictEqual(await p.$$eval("#gtree .trow", es => es.length), rowsBefore - 1, "the row is gone at once");
+    assert.ok(/已删除/.test(await p.$eval("#flash", e => e.innerText)));
   });
   await shot("orders-phone", 390, 800, "#/ops/orders/hive", "zh", SALES, async p => { await p.waitForTimeout(300); });
   // Sticky headings (Rick 2026-10-06): scroll the users list and the column headings stay at the top of the pane.
@@ -845,6 +868,14 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     if (!(await p.$("#dLic svg.viz-svg"))) throw new Error("licence chart not drawn");
   });
   // 对账单 (2026-10-12): the month's schools, the panel with the discount and the live amount, generate, mark sent, print.
+  // the dashboard's 对账单 panel (Rick, 2026-10-18): last month's statements, progress, total, a link to the page
+  await shot("dashboard-statements", 1280, 1400, "#/dashboard", "zh", ["staff:finance"], async p => {
+    await p.waitForSelector("#dStatements .vlegend", { timeout: 8000 });
+    const txt = await p.$eval("#dStatements", e => e.innerText);
+    assert.ok(/对账单/.test(txt) && /已生成 \d+ \/ \d+/.test(txt) && /已收款/.test(txt) && /全部对账单/.test(txt), "the statements panel: " + txt.slice(0, 300));
+    assert.ok(await p.$("#dStatements svg"), "schools as bars");
+    await p.$eval("#dStatements", e => e.scrollIntoView()); await p.waitForTimeout(200); await p.screenshot({ path: OUT + "/dashboard-statements.png", fullPage: false });
+  });
   await shot("statements", 1280, 900, "#/ops/statements", "zh", ["staff:finance"], async p => {
     await p.waitForTimeout(700);
     if (!/对账单/.test(await p.$eval("#nav", e => e.innerText))) throw new Error("no nav item for finance");
@@ -909,7 +940,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
   await shot("plan-leader", 1280, 900, "#/domain/users", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(800);
     const nv = await p.$eval("#nav", e => e.innerText);
-    if (!/课程方案/.test(nv) || /用户|Teams 群组|操作手册/.test(nv)) throw new Error("leader nav: " + nv);
+    if (!/毕业要求和课程地图/.test(nv) || /用户管理|Teams 团队管理|操作手册/.test(nv)) throw new Error("leader nav: " + nv);
     if (!/#\/domain\/plan$/.test(await p.evaluate(() => location.hash))) throw new Error("a leader at #/domain/users is not sent to the plan: " + await p.evaluate(() => location.hash));
     const st = await p.$eval("#plstatus", e => e.innerText); if (!/未发布/.test(st)) throw new Error("status: " + st);
     const body0 = await p.$eval("#plbody", e => e.innerText); if (!/国际·古典/.test(body0) || !/蜂巢默认/.test(body0) || !/总学分\s*24/.test(body0)) throw new Error("credits tab: " + body0.slice(0, 300));
@@ -945,7 +976,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.waitForTimeout(800);
     await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
     const nv = await p.$eval("#nav", e => e.innerText);
-    assert.ok(/校历/.test(nv) && /课程方案/.test(nv) && !/Teams 群组|操作手册/.test(nv), "leader nav: " + nv);
+    assert.ok(/日历管理/.test(nv) && /毕业要求和课程地图/.test(nv) && !/Teams 团队管理|操作手册/.test(nv), "leader nav: " + nv);
     assert.ok(await p.$eval("#calAdd", e => !e.hidden), "the leader may add events");
     assert.ok(!(await p.$('#caltabs a[data-layer="hive"]')) && (await p.$$("#caltabs a[data-layer]")).length === 2, "a leader has the school calendar and the list tab, no Hive tab");
     await p.click('#calbody .chip[data-filter="all"]'); await p.waitForTimeout(200);
@@ -1300,7 +1331,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
   // The sysadmin: 课程方案 beside the accounts pages, the school picker; 角色分配 offers 教育领袖.
   await shot("plan-admin", 1280, 800, "#/domain/plan", "en", ["admin"], async p => {
     await p.waitForTimeout(800);
-    const nv = await p.$eval("#nav", e => e.innerText); if (!/Curriculum plan/.test(nv) || !/Users/.test(nv)) throw new Error("admin nav: " + nv);
+    const nv = await p.$eval("#nav", e => e.innerText); if (!/Graduation requirements/.test(nv) || !/User management/.test(nv)) throw new Error("admin nav: " + nv);
     if (!(await p.$("#plsel"))) throw new Error("no school picker for the admin");
     if (!/Graduation credits/.test(await p.$eval("#pltabs", e => e.innerText))) throw new Error("tabs");
     // Header shape (Rick 2026-10-13): actions in the top bar, picker + status on the tabs row, no toolbar row above the tabs.

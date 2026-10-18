@@ -147,6 +147,8 @@
         (canDigest ? '<div class="digest" id="dDigest"><span class="muted">' + t("每日摘要：载入中…", "Daily digest: loading…") + "</span></div>" : "") + "</div>");
     }
     // 8 合作伙伴 · 9 许可: later phases, said plainly
+    // 对账单 (Rick, 2026-10-18: the dashboard had no statements panel): last month's IT service statements per school
+    if (canSeeStatements()) cards.push('<div class="card viz" id="dStatements"><div class="ch"><h2>' + t("对账单", "Statements") + ' <span class="n" id="dStmN">' + t("上月 IT 服务账单 · 各校进度与金额", "last month's IT service statements · progress and amount per school") + '</span></h2></div><div class="vbody"><p class="loading">' + t("载入中…", "Loading…") + "</p></div></div>");
     if (crmLevel("partners") !== "none") cards.push('<div class="card viz" id="dPartners"><div class="ch"><h2>' + t("合作伙伴", "Partners") + ' <span class="n">' + t("各机构 · 本学年教材销售与合作阶段", "institutions · this school year's textbook sales and partnership stage") + '</span></h2></div><div class="vbody"><p class="loading">' + t("载入中…", "Loading…") + "</p></div></div>");
     else cards.push('<div class="card soon"><div class="ch"><h2>' + t("合作伙伴", "Partners") + '</h2></div><p class="muted">' + esc(t("需要合作伙伴数据的查看权限。", "Needs read access to partner data.")) + "</p></div>");
     cards.push(
@@ -213,6 +215,18 @@
       card.querySelector(".vtable").innerHTML = dataTable(["SKU", t("名称", "Title"), t("出版社", "Publisher"), t("类别", "Category"), t("最近售出", "Last sold"), t("累计件数", "Units ever")], tail.map(function (k) { return [k.sku, EN ? (k.nameEn || k.nameZh) : (k.nameZh || k.nameEn), k.publisher, k.category, k.lastSale || t("从未", "never"), fmtNum(k.unitsEver)]; }));
     });
     // 合作伙伴: the institutions, this school year's sales (or accounts when amounts are hidden), stage chips.
+    if ($("dStatements")) api("crm/statements").then(function (r) {
+      var body = $("dStatements") && $("dStatements").querySelector(".vbody"); if (!body) return;
+      if (!r.ok) { body.innerHTML = '<p class="muted">' + esc(errText(r)) + "</p>"; return; }
+      var d = r.body, billed = d.rows.filter(function (x) { return x.relationship; });
+      var cur = (billed[0] && billed[0].currency) || d.currency || "USD";
+      var gen = billed.filter(function (x) { return x.saved; }).length, sent = billed.filter(function (x) { return x.status === "sent" || x.status === "paid"; }).length, paid = billed.filter(function (x) { return x.status === "paid"; }).length;
+      if ($("dStmN")) $("dStmN").textContent = monthLabel(d.month) + t(" · 各校进度与金额", " · progress and amount per school");
+      var st = function (x) { var m = STM_ST[x.status]; return x.saved && m ? t(m[0], m[1]) : t("未生成", "Not generated"); };
+      var bars = billed.slice().sort(function (a, b) { return (b.amount || 0) - (a.amount || 0); }).slice(0, 8).map(function (x) { return { label: stmSchool(x), value: x.amount || 0, sub: st(x) + " · " + fmtNum(x.billable || 0) + t(" 个可计费账号", " billable accounts") }; });
+      body.innerHTML = '<div class="vlegend"><span class="tag">' + t("已生成 ", "generated ") + gen + " / " + billed.length + '</span><span class="tag accent">' + t("已发送 ", "sent ") + sent + '</span><span class="tag ok">' + t("已收款 ", "paid ") + paid + "</span><b>" + esc(stmMoney(d.totals.amount, cur)) + '</b><a href="#/ops/statements" style="margin-left:auto">' + t("全部对账单 →", "All statements →") + "</a></div>" +
+        (bars.length ? barsChart(body.clientWidth, { rows: bars, fmt: function (v) { return stmMoney(v, cur); }, name: t("金额", "amount") }) : '<p class="muted">' + t("还没有签 IT 服务合作关系的学校。", "No school has an IT service relationship yet.") + "</p>");
+    }).catch(function () { var body = $("dStatements") && $("dStatements").querySelector(".vbody"); if (body) body.innerHTML = '<p class="muted">' + t("对账单数据暂不可用。", "Statement data is unavailable.") + "</p>"; });
     if ($("dPartners")) loadInstitutionsCrm(false).then(function (d) {
       var body = $("dPartners") && $("dPartners").querySelector(".vbody"); if (!body) return;
       var rows = d.rows.slice().sort(function (a, b) { return (b.fySales || 0) - (a.fySales || 0) || b.accounts - a.accounts; }).slice(0, 8);

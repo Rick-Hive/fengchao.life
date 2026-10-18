@@ -28,6 +28,8 @@
 //   POST   domain/group                    {domain, type: class|plc|staff|standard, name, description?, visibility?, owners[], members[]}
 //                                          → creates the team in Microsoft Teams (202; polls, or answers pending)      (IT 管理员, sysadmin)
 //   POST   domain/groupop                  {domain, id, op, owners[], members[]} → finishes a creation that was still pending
+//   POST   domain/grouparchive            {domain, id, archive: true|false}      archive / restore a team      (sysadmin)
+//   DELETE domain/group                    {domain, id}        delete a team (channels, files and chat with it; restorable 30 days)  (sysadmin)
 //   POST   domain/groupmembers             {domain, id, addMembers?, addOwners?, removeMembers?, removeOwners?}          (IT 管理员, sysadmin)
 //   PUT    domain/groupscope               {domain, tenantUsers: bool} → may this school's IT 管理员 add other schools' accounts  (sysadmin)
 //
@@ -185,7 +187,7 @@ async function handler(context, req) {
       domains = domains.map((d) => Object.assign({}, d, {
         name: (inst[d.domain] && inst[d.domain].name) || "",
         nameEn: (inst[d.domain] && inst[d.domain].nameEn) || "",
-        can: { view: can(roles, "view", d.domain), methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), plan: can(roles, "plan", d.domain), calendar: can(roles, "calendar", d.domain), calendarEdit: can(roles, "calendarEdit", d.domain), broadcastOptout: can(roles, "optout", d.domain), full: isAdmin, institutions: isAdmin, groups: can(roles, "methods", d.domain), groupTenant: isAdmin || (inst[d.domain] || {}).groupTenant === true, groupScope: isAdmin },
+        can: { view: can(roles, "view", d.domain), methods: can(roles, "methods", d.domain), people: can(roles, "people", d.domain), plan: can(roles, "plan", d.domain), calendar: can(roles, "calendar", d.domain), calendarEdit: can(roles, "calendarEdit", d.domain), broadcastOptout: can(roles, "optout", d.domain), full: isAdmin, institutions: isAdmin, groups: can(roles, "methods", d.domain), groupTenant: isAdmin || (inst[d.domain] || {}).groupTenant === true, groupTenantSchool: (inst[d.domain] || {}).groupTenant === true, groupScope: isAdmin },
       }));
       context.res = { status: 200, body: { user: actor, roles, all, domains, mine: domainOf(actor), showDomains: isAdmin } };
       return;
@@ -235,7 +237,7 @@ async function handler(context, req) {
     }
     if (method === "GET" && action === "groups") {
       const [doc, names] = await Promise.all([dir.readDomain(domain), people.readGroupNames()]);
-      const own = dir.groupsOf(doc.users, doc.groupOwners, domain);
+      const own = dir.groupsOf(doc.users, doc.groupOwners, domain, doc.groupArchived);
       context.res = { status: 200, body: { domain, groups: await people.translateGroupNames(own, names, actor), elsewhere: own.elsewhere, ownersKnown: !!doc.groupOwners, sync: dir.status(doc) } };
       return;
     }
@@ -333,9 +335,9 @@ async function handler(context, req) {
       const m = tg.manageable(read.g, read.owners, domain, isSysadmin());
       if (!m.ok) return fail(context, m.forbidden ? 403 : 400, m.why, { code: m.forbidden ? "forbidden" : "not_managed" });
       const tenant = await tenantScope();
-      const members = await tg.readMembers(id);
+      const [members, archived] = await Promise.all([tg.readMembers(id), tg.archivedState(read.g).catch(() => null)]);
       const ownerIds = new Set(read.owners.map((o) => o.id));
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain, tenantUsers: tenant, group: { id: read.g.id, name: read.g.displayName, description: read.g.description || "", visibility: read.g.visibility || "", kind: tg.kindOf(read.g, await classOf(read.g)) }, owners: peopleView(read.owners, tenant), members: peopleView(members, tenant, ownerIds) } };
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain, tenantUsers: tenant, archived, canDelete: isSysadmin(), group: { id: read.g.id, name: read.g.displayName, description: read.g.description || "", visibility: read.g.visibility || "", kind: tg.kindOf(read.g, await classOf(read.g)) }, owners: peopleView(read.owners, tenant), members: peopleView(members, tenant, ownerIds) } };
       return;
     }
 
@@ -393,6 +395,33 @@ async function handler(context, req) {
       return;
     }
 
+    // 归档 / 恢复 / 删除团队 — the system administrator only (Rick, 2026-10-18). Deleting removes the
+    // team with its channels, files and chat; the page asks twice, Microsoft keeps it 30 days.
+    if ((method === "POST" && action === "grouparchive") || (method === "DELETE" && action === "group")) {
+      if (!isSysadmin()) return fail(context, 403, "only the system administrator archives or deletes a team", { code: "forbidden" });
+      const b = req.body || {};
+      const id = String(b.id || "").trim();
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return fail(context, 400, "group id missing");
+      let read;
+      try { read = await tg.readGroup(id); } catch (err) { return groupFail(err, "read the group"); }
+      const m = tg.manageable(read.g, read.owners, domain, true);
+      if (!m.ok) return fail(context, 400, m.why, { code: "not_managed" });
+      const name = read.g.displayName || "";
+      if (action === "grouparchive") {
+        const on = b.archive !== false;
+        if (!(read.g.resourceProvisioningOptions || []).includes("Team")) return fail(context, 400, "only a team can be archived", { code: "not_team" });
+        try { await tg.setArchived(id, on); } catch (err) { return groupFail(err, on ? "archive the team" : "restore the team"); }
+        try { await dir.noteGroupArchived(id, on); } catch { /* the panel reads the live flag anyway */ }
+        await audit(context, { actor, action: on ? "group.archive" : "group.unarchive", target: id, domain, name, result: "ok" });
+        context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, id, name, archived: on } };
+        return;
+      }
+      try { await tg.deleteGroup(id); } catch (err) { return groupFail(err, "delete the team"); }
+      try { await dir.forgetGroup(id); } catch { /* the next sync drops it */ }
+      await audit(context, { actor, action: "group.delete", target: id, domain, name, owners: read.owners.map((o) => String(o.userPrincipalName).toLowerCase()), result: "ok" });
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, id, name, deleted: true } };
+      return;
+    }
     if (method === "POST" && action === "groupmembers") {
       if (!can(roles, "methods", domain)) return fail(context, 403, "team members are managed by the IT 管理员", { code: "forbidden" });
       const b = req.body || {};

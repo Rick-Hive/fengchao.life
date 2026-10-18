@@ -268,6 +268,14 @@ process.env.AIRTABLE_EQUIP_PAT = "pat_test";
   const again = await people.translateGroupNames(grows, doc, "test");
   assert.strictEqual(calls.length, 2, "the second read translates nothing");
   assert.strictEqual(again[0].nameEn, "EN(中阶整本书阅读1班)");
+  // descriptions too (Rick, 2026-10-18): translated once per text, re-translated when the text changes
+  const drows = [{ id: "a", name: "中阶整本书阅读1班", description: "以历史为线索" }, { id: "b", name: "Hive Orders", description: "Orders from the website" }, { id: "x", name: "2026", description: "" }];
+  let dout = await people.translateGroupNames(drows, doc, "test");
+  assert.strictEqual(dout[0].descEn, "EN(以历史为线索)"); assert.strictEqual(dout[0].descZh, "以历史为线索"); assert.strictEqual(dout[1].descZh, "ZH(Orders from the website)"); assert.strictEqual(dout[2].descZh, "");
+  assert.strictEqual(calls.length, 4, "one call per direction for the descriptions"); assert.ok(doc.groups.a.desc && doc.groups.a.desc.hash, "cached with the text's hash");
+  dout = await people.translateGroupNames(drows, doc, "test"); assert.strictEqual(calls.length, 4, "nothing re-translated while the text is the same");
+  drows[0].description = "以历史为线索，走进古希腊"; dout = await people.translateGroupNames(drows, doc, "test");
+  assert.strictEqual(calls.length, 5); assert.strictEqual(dout[0].descEn, "EN(以历史为线索，走进古希腊)", "a changed description is translated again");
   // The suspicious-drop guard: a table that comes back under half its last size is refused, force overrides.
   written.counts = Object.assign({}, written.counts, { customers: 20 });
   await assert.rejects(() => equip.syncEquip({}), (e) => e.code === "suspicious_drop" && /customers 20 → 1/.test(e.message));

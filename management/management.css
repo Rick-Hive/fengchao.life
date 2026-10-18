@@ -1079,6 +1079,9 @@ body.coedit .content > * { max-width: none; }
 .comenu { position: absolute; right: 0; top: calc(100% + 6px); background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: 0 12px 30px -12px rgba(15, 32, 60, 0.35); padding: 6px; min-width: 200px; z-index: 7; }
 .comenu .mi { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; color: var(--ink); font-size: 13px; text-decoration: none; }
 .comenu .mi:hover { background: var(--accent-soft); color: var(--accent-dark); }
+.comenu .mi.danger { color: var(--bad); } .comenu .mi.danger:hover { background: var(--bad-soft); color: var(--bad); }
+.comenu .mi[data-sure] { white-space: normal; max-width: 320px; font-weight: 600; }
+.gmore { position: relative; display: inline-block; } .gmore .comenu { top: calc(100% + 4px); }
 /* the four steps */
 .costeps { list-style: none; margin: var(--s3) 0 var(--s2); padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s2); counter-reset: s; }
 .costeps li { position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 8px 10px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); color: var(--faint); font-size: 13px; }

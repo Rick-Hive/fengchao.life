@@ -255,7 +255,7 @@
   function groupScopeSwitch(domain) {
     var d = ((domainsInfo && domainsInfo.domains) || []).filter(function (x) { return x.domain === domain; })[0];
     if (!d || !d.can || !d.can.groupScope) return "";
-    return '<label class="gscope"><input type="checkbox" data-scope="' + esc(domain) + '"' + (d.can.groupTenant ? " checked" : "") + " /> " + t("允许本校 IT 管理员把其他学校的账号加入团队", "Let this school's IT administrator add other schools' accounts to teams") + "</label>";
+    return '<label class="gscope"><input type="checkbox" data-scope="' + esc(domain) + '"' + (d.can.groupTenantSchool ? " checked" : "") + " /> " + t("允许本校 IT 管理员把其他学校的账号加入团队", "Let this school's IT administrator add other schools' accounts to teams") + "</label>";
   }
   function bindGroupScope(root) {
     root.addEventListener("change", function (e) {
@@ -265,7 +265,7 @@
       post("domain/groupscope", "PUT", { domain: dom, tenantUsers: on }).then(function (r) {
         c.disabled = false;
         if (!r.ok) { c.checked = !on; flash(esc(errText(r))); return; }
-        var d = ((domainsInfo && domainsInfo.domains) || []).filter(function (x) { return x.domain === dom; })[0]; if (d && d.can) d.can.groupTenant = on;
+        var d = ((domainsInfo && domainsInfo.domains) || []).filter(function (x) { return x.domain === dom; })[0]; if (d && d.can) { d.can.groupTenantSchool = on; if (!isAdmin()) d.can.groupTenant = on; }
         flashOk(esc(dname(dom)) + (on ? t("：IT 管理员现在可以添加其他学校的账号。", ": the IT administrator may now add other schools' accounts.") : t("：IT 管理员只能添加本校账号。", ": the IT administrator adds only this school's accounts.")));
       });
     });

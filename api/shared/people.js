@@ -123,11 +123,15 @@ async function writeGroupNames(doc) {
   await container.getBlockBlobClient(GROUPNAMES_BLOB).upload(body, Buffer.byteLength(body), { blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" } });
 }
 // Add nameZh / nameEn to group rows ({id, name, …}); a name not set falls back to the tenant's.
+const descHash = (t) => require("crypto").createHash("sha1").update(String(t || "")).digest("hex").slice(0, 12);
 function withGroupNames(rows, doc) {
   const g = (doc && doc.groups) || {};
   return (rows || []).map((r) => {
     const n = r && r.id && g[r.id];
-    return Object.assign({}, r, { nameZh: (n && n.zh) || "", nameEn: (n && n.en) || "" });
+    // the description's translation (Rick, 2026-10-18: 简介 bilingual too) is kept with the hash of the text it
+    // was made from; a changed description shows untranslated until the next read translates it again
+    const d = n && n.desc && r.description && n.desc.hash === descHash(r.description) ? n.desc : null;
+    return Object.assign({}, r, { nameZh: (n && n.zh) || "", nameEn: (n && n.en) || "", descZh: (d && d.zh) || "", descEn: (d && d.en) || "" });
   });
 }
 
@@ -161,6 +165,32 @@ async function translateGroupNames(rows, doc, actor) {
     const side = sideOfName(r.name);
     if (side === "zh" && !cur.en) todo.set(r.id, { name: r.name, to: "en", from: "zh" });
     else if (side === "en" && !cur.zh) todo.set(r.id, { name: r.name, to: "zh", from: "en" });
+  }
+  // descriptions: one language, no stored translation for this exact text → translate as well
+  const dtodo = new Map();
+  for (const r of rows || []) {
+    if (!r || !r.id || !r.description) continue;
+    const text = String(r.description).trim().slice(0, 1000); if (!text) continue;
+    const cur = (g[r.id] && g[r.id].desc) || null;
+    if (cur && cur.hash === descHash(r.description)) continue;
+    const side = sideOfName(text); if (!side) continue;
+    dtodo.set(r.id, { text, to: side === "zh" ? "en" : "zh", from: side, hash: descHash(r.description) });
+  }
+  if (dtodo.size) {
+    try {
+      const list = Array.from(dtodo.entries());
+      const toEn = list.filter(([, x]) => x.to === "en"), toZh = list.filter(([, x]) => x.to === "zh");
+      const [en, zh] = await Promise.all([
+        toEn.length ? translate.translate(toEn.map(([, x]) => x.text), "en", "zh") : [],
+        toZh.length ? translate.translate(toZh.map(([, x]) => x.text), "zh", "en") : [],
+      ]);
+      const at = new Date().toISOString(), fresh = {};
+      toEn.forEach(([id, x], i) => { if (en[i]) fresh[id] = { zh: x.text, en: en[i], hash: x.hash, at }; });
+      toZh.forEach(([id, x], i) => { if (zh[i]) fresh[id] = { zh: zh[i], en: x.text, hash: x.hash, at }; });
+      for (const [id, v] of Object.entries(fresh)) g[id] = Object.assign({}, g[id] || {}, { desc: v });
+      doc.groups = g;
+      await updateGroupNames((d) => { for (const [id, v] of Object.entries(fresh)) d.groups[id] = Object.assign({}, d.groups[id] || {}, { desc: v }); });
+    } catch { /* shown untranslated this time */ }
   }
   if (todo.size) {
     try {
