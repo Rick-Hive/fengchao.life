@@ -213,7 +213,19 @@ async function saveField(id, key, value, who) {
     if (JSON.stringify(before) === JSON.stringify(v)) return false;
     d.draft.fields[key] = v; d.draft.at = now(); d.draft.by = who.user;
     const m = d.draft.meta = d.draft.meta || { machine: {}, translatedFrom: {} };
-    if (f.lang) { m.machine[key] = false; if (!m.sourceLang) m.sourceLang = f.lang; }
+    if (f.lang) {
+      const wasMachine = !!m.machine[key];
+      m.machine[key] = false; if (!m.sourceLang) m.sourceLang = f.lang;
+      // pairedWith[X] = what the other language said when a person last wrote X. The other side's text that came
+      // from Airtable (no record yet) is taken to match the old text of this field, so changing this field
+      // now marks that text "原文已改".
+      const other = f.pair + (f.lang === "en" ? "Zh" : "En");
+      m.pairedWith = m.pairedWith || {};
+      m.pairedWith[key] = hash(String(d.draft.fields[other] || "").trim());
+      // fixing a machine translation by hand is a correction, not a new source: the other side stays in step
+      if (wasMachine) { if (!m.machine[other]) m.pairedWith[other] = hash(String(v || "").trim()); }
+      else if (m.pairedWith[other] === undefined && !m.machine[other] && String(d.draft.fields[other] || "").trim() && String(before || "").trim()) m.pairedWith[other] = hash(String(before).trim());
+    }
     (d.fieldHistory[key] = d.fieldHistory[key] || []).push({ at: d.draft.at, by: who.user, from: before, to: v });
     if (d.fieldHistory[key].length > FIELD_HISTORY_MAX) d.fieldHistory[key].splice(0, d.fieldHistory[key].length - FIELD_HISTORY_MAX);
     const last = d.history[d.history.length - 1];
@@ -306,25 +318,28 @@ async function saveVersion(id, who, note) {
 // ---- translation -----------------------------------------------------------------------------
 // 生成双语: fill the other language of every translatable pair whose target is empty, or machine-made
 // from a source that has changed since. Human text is never touched. Returns what it did.
-async function translateCourse(id, who, translator) {
+async function translateCourse(id, who, translator, opts) {
   const T = translator || require("./translate");
+  const o = opts || {};
   const pre = await readWork(id);
   if (!pre) throw bad("open the course first");
-  const jobs = [];
+  const jobs = [], kept = [];
+  const st = translationState(pre);
   for (const pair of TRANSLATABLE) {
     const en = pair + "En", zh = pair + "Zh";
     const fields = pre.draft.fields, meta = pre.draft.meta || { machine: {}, translatedFrom: {} };
     for (const [src, dst] of [[en, zh], [zh, en]]) {
       const s = String(fields[src] || "").trim();
       if (!s) continue;
-      const stale = meta.machine[dst] && meta.translatedFrom[dst] !== hash(s);
-      const targetEmpty = !String(fields[dst] || "").trim();
       const srcIsMachine = meta.machine[src];
       if (srcIsMachine) continue;                       // never translate a translation back
-      if (targetEmpty || stale) jobs.push({ src, dst, text: s, to: dst.endsWith("Zh") ? "zh" : "en", from: src.endsWith("Zh") ? "zh" : "en" });
+      const job = { src, dst, text: s, to: dst.endsWith("Zh") ? "zh" : "en", from: src.endsWith("Zh") ? "zh" : "en" };
+      if (o.all) { if (job.from === o.from) jobs.push(job); continue; }   // 重新翻译全部: from the chosen language, over everything
+      if (st[dst] === "empty" || st[dst] === "stale") jobs.push(job);
+      else if (st[dst] === "human-stale") { if (o.overwrite) jobs.push(job); else kept.push(dst); }
     }
   }
-  if (!jobs.length) return { done: [], skipped: "up to date" };
+  if (!jobs.length) return { done: [], kept, skipped: "up to date" };
   const byLang = {};
   for (const j of jobs) (byLang[j.to + "|" + j.from] = byLang[j.to + "|" + j.from] || []).push(j);
   for (const k of Object.keys(byLang)) {
@@ -345,7 +360,7 @@ async function translateCourse(id, who, translator) {
     d.draft.at = now(); d.updatedAt = d.draft.at;
   });
   await indexPut(doc);
-  return { done: jobs.map((j) => j.dst), fields: doc.draft.fields, meta: doc.draft.meta };
+  return { done: jobs.map((j) => j.dst), kept, fields: doc.draft.fields, meta: doc.draft.meta };
 }
 // Fixed renderings the site uses elsewhere (the trivium, credits), applied after machine translation.
 const GLOSSARY = {
@@ -360,7 +375,7 @@ function translationState(doc) {
   for (const pair of TRANSLATABLE) for (const [src, dst] of [[pair + "En", pair + "Zh"], [pair + "Zh", pair + "En"]]) {
     const s = String(fields[src] || "").trim();
     if (meta.machine[dst]) out[dst] = meta.translatedFrom[dst] === hash(s) ? "machine" : "stale";
-    else if (String(fields[dst] || "").trim()) out[dst] = "human";
+    else if (String(fields[dst] || "").trim()) out[dst] = s && meta.pairedWith && meta.pairedWith[dst] !== undefined && meta.pairedWith[dst] !== hash(s) ? "human-stale" : "human";
     else out[dst] = "empty";
   }
   return out;
@@ -371,7 +386,7 @@ function translationNeeds(doc) {
   let n = 0;
   for (const pair of TRANSLATABLE) for (const [src, dst] of [[pair + "En", pair + "Zh"], [pair + "Zh", pair + "En"]]) {
     if (!String(fields[src] || "").trim() || meta.machine[src]) continue;
-    if (st[dst] === "empty" || st[dst] === "stale") n++;
+    if (st[dst] === "empty" || st[dst] === "stale" || st[dst] === "human-stale") n++;
   }
   return n;
 }

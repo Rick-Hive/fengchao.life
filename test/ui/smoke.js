@@ -312,7 +312,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
         else if (act === "op") { const b = JSON.parse(r.request().postData()); coOps.push(b); const at = new Date().toISOString();
           if (b.op === "assign") { CO_ASSIGNED.push({ name: b.person.name, upn: b.person.upn, crmId: b.person.crmId }); body = { ok: true, assigned: CO_ASSIGNED }; }
           else if (b.op === "unassign") { CO_ASSIGNED = CO_ASSIGNED.filter(x => x.upn !== b.person.upn); body = { ok: true, assigned: CO_ASSIGNED }; }
-          else if (b.op === "translate") { const done = []; for (const [src, dst] of [["descriptionEn", "descriptionZh"], ["nameEn", "nameZh"], ["descriptionZh", "descriptionEn"], ["nameZh", "nameEn"]]) { if ((CO_DOC.fields[src] || "").trim() && !CO_DOC.meta.machine[src] && !(CO_DOC.fields[dst] || "").trim()) { CO_DOC.fields[dst] = (dst.endsWith("Zh") ? "【译】" : "[tr] ") + CO_DOC.fields[src]; CO_DOC.meta.machine[dst] = true; done.push(dst); } } CO_DOC.history.unshift({ at, by: me.profile.upn, action: "translate", fields: done }); body = { ok: true, done, course: view(), translation: coTranslation(), needs: coNeeds() }; }
+          else if (b.op === "translate") { const done = []; if (b.all) { for (const k of ["name", "description"]) { const src = k + (b.from === "en" ? "En" : "Zh"), dst = k + (b.from === "en" ? "Zh" : "En"); if ((CO_DOC.fields[src] || "").trim()) { CO_DOC.fields[dst] = (dst.endsWith("Zh") ? "【译】" : "[tr] ") + CO_DOC.fields[src]; CO_DOC.meta.machine[dst] = true; done.push(dst); } } } else for (const [src, dst] of [["descriptionEn", "descriptionZh"], ["nameEn", "nameZh"], ["descriptionZh", "descriptionEn"], ["nameZh", "nameEn"]]) { if ((CO_DOC.fields[src] || "").trim() && !CO_DOC.meta.machine[src] && !(CO_DOC.fields[dst] || "").trim()) { CO_DOC.fields[dst] = (dst.endsWith("Zh") ? "【译】" : "[tr] ") + CO_DOC.fields[src]; CO_DOC.meta.machine[dst] = true; done.push(dst); } } CO_DOC.history.unshift({ at, by: me.profile.upn, action: "translate", fields: done }); body = { ok: true, done, course: view(), translation: coTranslation(), needs: coNeeds() }; }
           else if (b.op === "submit") { if (coNeeds()) { status = 400; body = { error: "please complete the course first", problems: ["descriptionZh: Chinese text is missing"] }; } else { CO_DOC.status = "submitted"; CO_DOC.submitted = { at, by: me.profile.upn, note: b.note || "" }; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "submit", note: b.note || "", ref: "v:" + at }); body = { ok: true, course: view() }; } }
           else if (b.op === "withdraw") { CO_DOC.status = "draft"; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "withdraw" }); body = { ok: true, course: view() }; }
           else if (b.op === "return") { if (!b.comment) { status = 400; body = { error: "a comment is required" }; } else { CO_DOC.status = "returned"; CO_DOC.returned = { at, by: me.profile.upn, comment: b.comment }; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "return", note: b.comment, ref: "v:" + at }); body = { ok: true, course: view() }; } }
@@ -1516,7 +1516,25 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click("#coSubmit"); await p.waitForTimeout(300);
     assert.ok(/先按「生成双语」/.test(await p.$eval("#flash", e => e.innerText)), "submit asks for the translation first");
     await p.click("#coTrNow"); await p.waitForTimeout(400);
-    assert.ok(coOps.some(o => o.op === "translate"), "translate was called"); assert.ok(await p.$eval("#coTranslate", e => e.disabled), "nothing left to translate");
+    assert.ok(coOps.some(o => o.op === "translate"), "translate was called"); assert.ok(!(await p.$eval("#coTranslate", e => e.hasAttribute("data-needs"))) && !(await p.$eval("#coTranslate", e => e.disabled)), "nothing left to translate, yet the button stays clickable");
+    // 4 (Rick, 2026-10-18): the button always answers — up to date → it says so and offers a full re-translation
+    await p.click("#coTranslate"); await p.waitForTimeout(200);
+    assert.ok(/双语已是最新/.test(await p.$eval("#flash", e => e.innerText)) && await p.$("#coTrAll"), "an up-to-date course says so and offers 重新翻译全部");
+    await p.click("#coTrAll"); await p.waitForTimeout(400);
+    assert.ok(coOps.filter(o => o.op === "translate").pop().all === true, "the full re-translation is asked from the current language");
+    // 1: the price field says 人民币, the preview shows ¥ and the whole description (no 6-line cut), every website field, in the detail view by default
+    assert.ok(/人民币/.test(await p.$eval('.corowf[data-row="price"]', e => e.innerText)), "the price is in RMB");
+    const pv = await p.$eval("#coprevbody", e => e.innerText);
+    assert.ok(/¥\s?300/.test(pv) && /课时数|CLASSES/.test(pv) && /教材|TEXTBOOKS/.test(pv) && /课程提供方|COURSE DELIVERER/.test(pv) && /前置课程|PREREQUISITE/.test(pv), "the detail preview lists price in ¥ and the website's fields: " + pv.slice(0, 300));
+    assert.ok(await p.$(".pvdetail .pvfull"), "the description is shown in full");
+    await p.click('.pvmode [data-pv="card"]'); await p.waitForTimeout(100); assert.ok(await p.$("#coprevbody .pvdesc"), "the card view is one click away");
+    await p.click('.pvmode [data-pv="detail"]'); await p.waitForTimeout(100);
+    // 2: the section tabs live in the sticky bar and follow the scroll
+    assert.ok(await p.$(".cobar #cosecnav a.on"), "the section tabs sit in the bar with the current one lit");
+    await p.click('#cosecnav a[data-sec="ops"]'); await p.waitForTimeout(900);
+    const barPos = await p.evaluate(() => { const c = document.getElementById("content").getBoundingClientRect(), b = document.querySelector(".cobar").getBoundingClientRect(); return { content: c.top, bar: b.top, scroll: document.getElementById("content").scrollTop, on: (document.querySelector("#cosecnav a.on") || {}).dataset }; });
+    assert.ok(barPos.scroll > 100 && barPos.bar - barPos.content <= 1 && barPos.on && barPos.on.sec === "ops", "after jumping to 经营字段 the bar is still at the top and that tab is lit: " + JSON.stringify(barPos));
+    await p.click('#cosecnav a[data-sec="basic"]'); await p.waitForTimeout(900);
     await p.click('.colang button[data-lang="zh"]'); await p.waitForTimeout(200);
     assert.ok(/【译】Cells/.test(await p.$eval('.cof[data-k="descriptionZh"]', e => e.value)) && /译/.test(await p.$eval('.corowf[data-row="description"] .colab', e => e.innerText)), "the Chinese side shows the machine translation with its tag");
     await p.screenshot({ path: OUT + "/courses-editor.png" });

@@ -176,8 +176,8 @@
   function coRenderEditor() {
     var c = co.course;
     $("coed").innerHTML = coBarHTML() + '<div id="costeps">' + coStepsHTML() + '</div><div id="coreturned">' + coReturnedHTML() + "</div>" +
-      '<div class="coed-main"><div class="coform" id="coform">' + coSectionsNav() + CO_SECTIONS.map(coSectionHTML).join("") + "</div>" +
-      '<aside class="coprev" id="coprev"><div class="coprev-h">' + t("家长看到的样子", "As families see it") + ' <span class="faint">' + (co.lang === "en" ? "English" : "中文") + '</span></div><div id="coprevbody">' + coPreviewHTML() + "</div></aside></div>";
+      '<div class="coed-main"><div class="coform" id="coform">' + CO_SECTIONS.map(coSectionHTML).join("") + "</div>" +
+      '<aside class="coprev" id="coprev"><div class="coprev-h"><span>' + t("家长看到的样子", "As families see it") + ' <span class="faint">' + (co.lang === "en" ? "English" : "中文") + '</span></span><span class="pvmode" role="group"><button type="button" data-pv="detail"' + (co.pvmode !== "card" ? ' class="on"' : "") + '>' + t("详情", "Detail") + '</button><button type="button" data-pv="card"' + (co.pvmode === "card" ? ' class="on"' : "") + '>' + t("卡片", "Card") + '</button></span></div><div id="coprevbody">' + coPreviewHTML() + "</div></aside></div>";
     coBindEditor();
     tipify($("coed"));
   }
@@ -195,7 +195,7 @@
       '<div class="cobar-t"><span class="cocode">' + esc(c.code || "") + '</span><b id="coTitle">' + esc(coName(c)) + '</b>' + coStatusTag(c.status) + '<span class="cosaved" id="coSaved">' + coSavedText() + "</span></div>" +
       '<div class="cobar-r">' +
         '<span class="colang" role="group" aria-label="' + esc(t("编辑语言", "Editing language")) + '"><button type="button" data-lang="zh"' + (co.lang === "zh" ? ' class="on"' : "") + '>中文</button><button type="button" data-lang="en"' + (co.lang === "en" ? ' class="on"' : "") + '>EN</button></span>' +
-        (ro ? "" : '<button class="btn secondary sm" id="coTranslate"' + (co.needs ? "" : " disabled") + ' title="' + esc(t("把这门课的文字翻成另一种语言；只处理空的和原文已改的字段，人工改过的不动", "Translate this course's text into the other language; only empty or outdated fields are touched, never human-edited ones")) + '">' + t("生成双语", "Translate") + (co.needs ? ' <small>' + co.needs + "</small>" : "") + "</button>") +
+        (ro ? "" : '<button class="btn secondary sm" id="coTranslate"' + (co.needs ? ' data-needs="1"' : "") + ' title="' + esc(t("把这门课的文字翻成另一种语言；只处理空的和原文已改的字段，人工改过的不动", "Translate this course's text into the other language; only empty or outdated fields are touched, never human-edited ones")) + '">' + t("生成双语", "Translate") + (co.needs ? ' <small>' + co.needs + "</small>" : "") + "</button>") +
         '<button class="btn secondary sm" id="coVersions">' + t("版本", "Versions") + ' <small>' + (c.history || []).length + "</small></button>" +
         primary +
         '<button class="btn secondary sm comore" id="coMore" aria-label="more">⋯</button>' +
@@ -205,7 +205,7 @@
           '<button type="button" class="mi" data-op="preview">' + t("显示 / 隐藏预览", "Show / hide preview") + "</button>" +
           '<a class="mi" href="https://www.fengchao.life/" target="_blank" rel="noopener">' + t("在网站上查看 ↗", "Open the website ↗") + "</a>" +
         "</div>" +
-      "</div></div>";
+      "</div>" + coSectionsNav() + "</div>";
   }
   function coSavedText() {
     if (co.failed) return '<span class="warn">' + t("未保存，重试中…", "Not saved — retrying…") + "</span>";
@@ -234,7 +234,7 @@
     var c = co.course;
     return c.status === "returned" && c.returned ? '<div class="coreturn">' + t("退回意见", "Returned with a comment") + ' <small class="faint">' + esc((c.returned.by || "").split("@")[0]) + " · " + esc(when(c.returned.at)) + "</small><p>" + esc(c.returned.comment) + "</p></div>" : "";
   }
-  function coSectionsNav() { return '<nav class="cosecnav">' + CO_SECTIONS.map(function (s) { return '<a href="#sec-' + s.id + '" data-sec="' + s.id + '">' + esc(t(s.zh, s.en)) + "</a>"; }).join("") + "</nav>"; }
+  function coSectionsNav() { return '<nav class="cosecnav" id="cosecnav">' + CO_SECTIONS.map(function (s) { return '<a href="#sec-' + s.id + '" data-sec="' + s.id + '">' + esc(t(s.zh, s.en)) + "</a>"; }).join("") + "</nav>"; }
   function coSectionHTML(s) {
     var lk = co.lookups;
     var keys = s.keys.filter(function (k) { return !(k === "classical" && lk.fields && lk.fields.classical === false); });
@@ -246,7 +246,7 @@
     var pairKey = k === "name" || k === "description" ? k + (co.lang === "en" ? "En" : "Zh") : k;
     var can = co.editable && co.editable[pairKey] !== false && !(coIsViewer() && !coIsApprover());
     var tr = (k === "name" || k === "description") ? (co.translation || {})[pairKey] : "";
-    var tag = tr === "machine" ? '<span class="cotag mt" title="' + esc(t("机器翻译，可以直接修改", "Machine translation — edit freely")) + '">' + t("译", "MT") + "</span>" : tr === "stale" ? '<span class="cotag stale" title="' + esc(t("原文改过了，这边的译文还是旧的：再按「生成双语」", "The source changed; this translation is outdated — run Translate again")) + '">' + t("原文已改", "Outdated") + "</span>" : "";
+    var tag = tr === "machine" ? '<span class="cotag mt" title="' + esc(t("机器翻译，可以直接修改", "Machine translation — edit freely")) + '">' + t("译", "MT") + "</span>" : tr === "human-stale" ? '<span class="cotag stale" title="' + esc(t("另一种语言的原文改过了，这边的译文可能已过时：按「生成双语」可以更新（会先问你）", "The other language changed after this text was written — it may be outdated. Translate can update it (it asks first).")) + '">' + t("原文已改", "Outdated") + "</span>" : tr === "stale" ? '<span class="cotag stale" title="' + esc(t("原文改过了，这边的译文还是旧的：再按「生成双语」", "The source changed; this translation is outdated — run Translate again")) + '">' + t("原文已改", "Outdated") + "</span>" : "";
     var hint = CO_HINT[k] ? tipI(t(CO_HINT[k][0], CO_HINT[k][1])) : "";
     var ro = !can ? '<span class="cotag ro" title="' + esc(t("只有课程总监、CEO 或系统管理员可以改", "Only the curriculum director, the CEO or the system administrator may change this")) + '">' + t("只读", "Read only") + "</span>" : "";
     var body = "";
@@ -257,7 +257,7 @@
         body = '<textarea class="cof coauto" data-k="' + key + '" rows="' + (k === "description" ? 6 : 2) + '"' + (can ? "" : " readonly") + '>' + esc(f[key] || "") + "</textarea>"; break;
       }
       case "classTime": body = '<input type="text" class="cof" data-k="classTime" value="' + esc(f.classTime || "") + '" maxlength="500"' + (can ? "" : " readonly") + ' />'; break;
-      case "creditHours": case "numClasses": case "price": body = '<input type="number" class="cof conum" data-k="' + k + '" value="' + esc(f[k] == null ? "" : f[k]) + '" min="0" step="' + (k === "creditHours" ? "0.5" : "1") + '"' + (can ? "" : " readonly") + ' />' + (k === "price" ? ' <span class="faint">USD</span>' : ""); break;
+      case "creditHours": case "numClasses": case "price": body = '<input type="number" class="cof conum" data-k="' + k + '" value="' + esc(f[k] == null ? "" : f[k]) + '" min="0" step="' + (k === "creditHours" ? "0.5" : "1") + '"' + (can ? "" : " readonly") + ' />' + (k === "price" ? ' <span class="faint">' + t("¥ 人民币", "¥ RMB (CNY)") + "</span>" : ""); break;
       case "classType": case "language": body = coPillsHTML(k, (lk.options[k] || []), f[k] || {}, can); break;
       case "days": body = '<div class="copills" data-k="days">' + (lk.options.days || []).map(function (d) { return '<button type="button" class="copill' + ((f.days || []).indexOf(d) >= 0 ? " on" : "") + '" data-v="' + esc(d) + '"' + (can ? "" : " disabled") + ">" + esc(EN ? d.slice(0, 3) : DAY_ZH[d] || d) + "</button>"; }).join("") + "</div>"; break;
       case "academic": case "classical": case "available": body = '<label class="coswitch"><input type="checkbox" class="cof" data-k="' + k + '"' + (f[k] ? " checked" : "") + (can ? "" : " disabled") + ' /><i></i><span>' + (f[k] ? t("是", "Yes") : t("否", "No")) + "</span></label>"; break;
@@ -299,7 +299,41 @@
   }
 
   // ---- the preview: how the course card and detail read on the website --------------------
-  function coPreviewHTML() {
+  function coPriceText(p, en) { return typeof p === "number" ? "¥" + p.toLocaleString("zh-CN", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : (en ? "Price TBD" : "价格待定"); }
+  function coPreviewHTML() { return (co.pvmode === "card" ? coPreviewCard() : coPreviewDetail()) + coPreviewNote(); }
+  function coPreviewNote() { var f = co.course.fields; return f.available === false ? '<p class="faint" style="font-size:12px;margin-top:8px">' + t("「可用」未勾选：发布后网站不显示这门课。", "“Available” is off: the website will not show this course.") + "</p>" : ""; }
+  // the course window a family opens on the website: every field, in the website's order
+  function coPreviewDetail() {
+    var f = co.course.fields, en = co.lang === "en", none = '<span class="faint">—</span>';
+    var lab = function (z, e) { return en ? e : z; };
+    var names = function (k, ids) { return (ids || []).map(function (id) { return coLookupLabel(k, id); }); };
+    var name = en ? f.nameEn || f.nameZh : f.nameZh || f.nameEn, desc = en ? f.descriptionEn || f.descriptionZh : f.descriptionZh || f.descriptionEn;
+    var tags = [];
+    if (f.classType && (f.classType.en || f.classType.zh)) tags.push(en ? f.classType.en : f.classType.zh);
+    if (f.language && (f.language.en || f.language.zh)) tags.push(en ? f.language.en : f.language.zh);
+    if (f.academic) tags.push(lab("学术课程", "Academic"));
+    var days = (f.days || []).map(function (d) { return en ? d.slice(0, 3) : DAY_ZH[d] || d; }).join(en ? ", " : "、");
+    var sched = (days || f.classTime) ? esc((days ? days + " " : "") + (f.classTime || "")) : "";
+    var books = names("textbooks", f.textbooks), grades = names("grades", f.grades), subs = names("subjects", f.subjects), who = names("teachers", f.teachers), school = names("school", f.school);
+    var syl = (f.syllabus || []).map(function (a) { return '<a href="' + esc(a.url || ("/api/f/" + a.id)) + '" target="_blank" rel="noopener">' + esc(a.name || "syllabus.pdf") + "</a>"; }).join(" · ");
+    var row = function (z, e, v, wide) { return '<div class="pvrow' + (wide ? " wide" : "") + '"><div class="pvlab">' + esc(lab(z, e)) + '</div><div class="pvval">' + (v || none) + "</div></div>"; };
+    var chipsHTML = function (arr) { return arr.length ? arr.map(function (x) { return '<span class="pvchip">' + esc(x) + "</span>"; }).join("") : ""; };
+    return '<div class="pvcard pvdetail"><div class="pvname">' + esc(name || lab("课程名称", "Course name")) + '</div><div class="pvcode">' + esc(f.code || co.course.code || "") + "</div>" +
+      (tags.length ? '<div class="pvchips">' + tags.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div>" : "") +
+      '<div class="pvlab" style="margin-top:12px">' + esc(lab("课程描述", "Description")) + '</div><p class="pvfull">' + (desc ? esc(desc) : '<span class="faint">' + lab("课程描述", "Description") + "</span>") + "</p>" +
+      '<div class="pvgrid">' +
+        row("学科", "Subject", esc(subs.join(en ? " · " : "、"))) + row("年级", "Grades", esc(grades.join(" · "))) +
+        row("授课语言", "Language", f.language && (f.language.en || f.language.zh) ? esc(en ? f.language.en : f.language.zh) : "") + row("课程类型", "Class type", f.classType && (f.classType.en || f.classType.zh) ? esc(en ? f.classType.en : f.classType.zh) : "") +
+        row("课时数", "Classes", typeof f.numClasses === "number" ? esc(f.numClasses) + (en ? " classes" : " 节") : "") + row("学分", "Credit hours", typeof f.creditHours === "number" ? esc(f.creditHours) : "") +
+        row("上课安排", "Schedule", sched || '<span class="faint">' + lab("时间待定", "Time TBD") + "</span>", true) +
+        row("授课老师", "Teachers", chipsHTML(who), true) + row("课程提供方", "Course deliverer", esc(school.join(", ")), false) +
+        row("前置课程", "Prerequisite", f.prerequisite && f.prerequisite !== "N/A" ? esc(f.prerequisite) : "") +
+        row("教材", "Textbooks", books.length ? books.map(function (x) { return '<div>' + esc(x) + "</div>"; }).join("") : "", true) +
+        row("课程大纲", "Syllabus", syl, true) + row("备注", "Comments", f.comments ? esc(f.comments) : "", true) +
+      "</div>" +
+      '<div class="pvfoot"><span class="pvprice">' + esc(coPriceText(f.price, en)) + '</span><span class="pvbtn">' + (en ? "Select" : "选择") + "</span></div></div>";
+  }
+  function coPreviewCard() {
     var f = co.course.fields, lk = co.lookups, en = co.lang === "en";
     var name = en ? f.nameEn || f.nameZh : f.nameZh || f.nameEn;
     var desc = en ? f.descriptionEn || f.descriptionZh : f.descriptionZh || f.descriptionEn;
@@ -319,14 +353,23 @@
       (f.creditHours != null ? '<div class="pvline">' + (en ? "Credit" : "学分") + "：" + esc(f.creditHours) + "</div>" : "") +
       (f.prerequisite ? '<div class="pvline">' + (en ? "Prerequisite" : "前置课程") + "：" + esc(f.prerequisite) + "</div>" : "") +
       ((f.syllabus || []).length ? '<div class="pvline">' + (en ? "Syllabus" : "课程大纲") + "：" + (f.syllabus || []).map(function (a) { return '<a href="' + esc(a.url || ("/api/f/" + a.id)) + '" target="_blank" rel="noopener">' + esc(a.name) + "</a>"; }).join(" · ") + "</div>" : "") +
-      '<div class="pvfoot"><span>' + (f.price != null ? "$" + esc(f.price) : "") + '</span><span class="pvbtn">' + (en ? "Select" : "选择") + "</span></div></div>" +
-      (f.available === false ? '<p class="faint" style="font-size:12px;margin-top:8px">' + t("「可用」未勾选：发布后网站不显示这门课。", "“Available” is off: the website will not show this course.") + "</p>" : "");
+      '<div class="pvfoot"><span>' + coPriceText(f.price, en) + '</span><span class="pvbtn">' + (en ? "Select" : "选择") + "</span></div></div>";
   }
   var coPreviewSoon = debounce(function () { if ($("coprevbody")) $("coprevbody").innerHTML = coPreviewHTML(); }, 300);
 
+  // ---- the section tabs stay in the sticky bar; the one being read lights up -------------------
+  function coSpyMark(id) { document.querySelectorAll("#cosecnav a").forEach(function (a) { a.classList.toggle("on", a.getAttribute("data-sec") === id); }); }
+  function coSpy() {
+    if (co.spyLock && Date.now() < co.spyLock) return;
+    var bar = document.querySelector(".cobar"), line = (bar ? bar.getBoundingClientRect().bottom : 0) + 24, cur = CO_SECTIONS[0].id;
+    CO_SECTIONS.forEach(function (s) { var el = $("sec-" + s.id); if (el && el.getBoundingClientRect().top <= line) cur = s.id; });
+    var sc = $("content"); if (sc && sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) cur = CO_SECTIONS[CO_SECTIONS.length - 1].id;
+    coSpyMark(cur);
+  }
   // ---- binding: autosave, pills, chips, files, menu, actions ---------------------------------
   function coBindEditor() {
     var root = $("coed");
+    $("content").onscroll = coSpy; coSpy();
     root.querySelectorAll("textarea.coauto").forEach(coAutosize);
     // text / number / checkbox: save after 1.5 s idle or on blur
     root.addEventListener("input", function (e) {
@@ -349,7 +392,8 @@
       var x = e.target.closest(".cochip-x"); if (x) { var chip = x.parentNode, box2 = chip.parentNode; chip.parentNode.removeChild(chip); coChipsChanged(box2); return; }
       var det = e.target.closest("[data-detail]"); if (det) { coFieldPanel(det.getAttribute("data-detail")); return; }
       var rm = e.target.closest("[data-frm]"); if (rm) { var list = co.course.fields.syllabus || []; list.splice(+rm.getAttribute("data-frm"), 1); coQueue("syllabus", list, 0); coRepaintField("syllabus"); return; }
-      var sec = e.target.closest(".cosecnav a"); if (sec) { e.preventDefault(); var tgt = $("sec-" + sec.getAttribute("data-sec")); if (tgt) tgt.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+      var sec = e.target.closest(".cosecnav a"); if (sec) { e.preventDefault(); var tgt = $("sec-" + sec.getAttribute("data-sec")); if (tgt) { co.spyLock = Date.now() + 700; coSpyMark(sec.getAttribute("data-sec")); tgt.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
+      var pv = e.target.closest(".pvmode button"); if (pv) { co.pvmode = pv.getAttribute("data-pv"); document.querySelectorAll(".pvmode button").forEach(function (b) { b.classList.toggle("on", b === pv); }); $("coprevbody").innerHTML = coPreviewHTML(); return; }
       var lang = e.target.closest(".colang button"); if (lang) { coSetLang(lang.getAttribute("data-lang")); return; }
       if (e.target.closest("#coMore")) { $("coMenu").hidden = !$("coMenu").hidden; return; }
       var mi = e.target.closest("#coMenu .mi[data-op]"); if (mi) { $("coMenu").hidden = true; coMenuOp(mi.getAttribute("data-op")); return; }
@@ -444,12 +488,12 @@
   // after a change that only the server decides (translation tags, status): repaint the small parts
   function coRefreshTags() {
     if (!$("coTranslate")) return;
-    $("coTranslate").disabled = !co.needs; $("coTranslate").innerHTML = t("生成双语", "Translate") + (co.needs ? ' <small>' + co.needs + "</small>" : "");
+    $("coTranslate").toggleAttribute("data-needs", !!co.needs); $("coTranslate").innerHTML = t("生成双语", "Translate") + (co.needs ? ' <small>' + co.needs + "</small>" : "");
     ["name", "description"].forEach(coRepaintLabel);
   }
   function coRepaintLabel(k) { var row = document.querySelector('.corowf[data-row="' + k + '"]'); if (!row) return; var tmp = document.createElement("div"); tmp.innerHTML = coFieldHTML(k); row.querySelector(".colab").innerHTML = tmp.querySelector(".colab").innerHTML; tipify(row); }
   function coRepaintField(k) { var row = document.querySelector('.corowf[data-row="' + k + '"]'); if (!row) return; var tmp = document.createElement("div"); tmp.innerHTML = coFieldHTML(k); row.innerHTML = tmp.firstChild.innerHTML; row.querySelectorAll("textarea.coauto").forEach(coAutosize); tipify(row); coPreviewSoon(); }
-  function coRefreshBar() { var tmp = document.createElement("div"); tmp.innerHTML = coBarHTML(); $("coed").replaceChild(tmp.firstChild, $("coed").querySelector(".cobar")); $("costeps").innerHTML = coStepsHTML(); $("coreturned").innerHTML = coReturnedHTML(); }
+  function coRefreshBar() { var tmp = document.createElement("div"); tmp.innerHTML = coBarHTML(); $("coed").replaceChild(tmp.firstChild, $("coed").querySelector(".cobar")); coSpy(); $("costeps").innerHTML = coStepsHTML(); $("coreturned").innerHTML = coReturnedHTML(); }
   function coRepaintAll() { var y = $("content").scrollTop; coRenderEditor(); $("content").scrollTop = y; }
   // the localStorage safety net: changes typed but never saved (power cut, closed tab)
   function coRecoverLocal() {
@@ -489,13 +533,37 @@
   }
 
   // ---- 生成双语 -----------------------------------------------------------------------------------
-  function coTranslate() {
-    var b = $("coTranslate"); if (!b || b.disabled) return;
-    coFlushAll(); savingButton(b); b.textContent = t("翻译中…", "Translating…");
-    post("courses/op", "POST", { id: co.id, op: "translate" }).then(function (r) {
+  function coHumanStale() { var tr = co.translation || {}; return Object.keys(tr).filter(function (k) { return tr[k] === "human-stale"; }); }
+  // opts: { overwrite } update the outdated human translations too · { all } translate everything from the current language
+  function coTranslate(opts) {
+    var b = $("coTranslate"); if (!b || b.getAttribute("aria-busy")) return;
+    opts = opts && opts.target ? null : opts;                 // a click event is not options
+    coFlushAll();
+    // nothing to do: say so, and offer the thorough version
+    if (!co.needs && !(opts && opts.all)) {
+      flash(esc(t("双语已是最新：另一种语言的每个字段都已有内容，原文也没有再改过。", "Both languages are up to date: every field has text in the other language and the source has not changed since.")) +
+        ' <button class="btn secondary sm" id="coTrAll">' + t("用当前语言重新翻译全部", "Re-translate everything from this language") + "</button>");
+      $("coTrAll").onclick = function () { $("flash").hidden = true; coTranslate({ all: true }); };
+      return;
+    }
+    // outdated translations a person wrote: ask before replacing them
+    var hs = coHumanStale();
+    if (hs.length && !opts) {
+      var gaps = co.needs > hs.length;
+      flash(esc(t(hs.length + " 个字段的译文是人工写的，但它的原文后来改过了。要用机器译文更新吗？旧译文会留在「版本」里，可以恢复。", hs.length + " translation(s) were written by a person, but their source changed afterwards. Replace them with a machine translation? The old text stays in Versions and can be restored.")) +
+        ' <button class="btn sm" id="coTrYes">' + t("更新", "Update") + '</button> <button class="btn secondary sm" id="coTrNo">' + (gaps ? t("只翻译空白的", "Only fill the gaps") : t("保留现有译文", "Keep them")) + "</button>");
+      $("coTrYes").onclick = function () { $("flash").hidden = true; coTranslate({ overwrite: true }); };
+      $("coTrNo").onclick = function () { $("flash").hidden = true; if (gaps) coTranslate({ overwrite: false }); };
+      return;
+    }
+    opts = opts || {};
+    savingButton(b); b.setAttribute("aria-busy", "1"); b.textContent = t("翻译中…", "Translating…");
+    post("courses/op", "POST", { id: co.id, op: "translate", overwrite: !!opts.overwrite, all: !!opts.all, from: co.lang }).then(function (r) {
+      b.removeAttribute("aria-busy");
       if (!r.ok) { restoreButton(b); flash(esc(r.body && r.body.code === "no_translator" ? t("翻译服务尚未配置（AZURE_TRANSLATOR_KEY）。", "The translator is not configured (AZURE_TRANSLATOR_KEY).") : errText(r))); return; }
       coTake(r.body); coRepaintAll();
-      flashOk(esc((r.body.done || []).length ? t("已生成 ", "Translated ") + r.body.done.length + t(" 个字段的译文；切换语言可以查看和修改。", " field(s); switch the language to read and edit them.") : t("双语已是最新。", "Both languages are up to date.")));
+      var n = (r.body.done || []).length;
+      flashOk(esc(n ? t("已生成 ", "Translated ") + n + t(" 个字段的译文；切换语言可以查看和修改。", " field(s); switch the language to read and edit them.") : t("双语已是最新。", "Both languages are up to date.")));
     });
   }
   // ---- submit / withdraw / return / milestone ----------------------------------------------------
@@ -510,7 +578,7 @@
     });
   }
   function coSubmit() {
-    if (co.needs) { flash(esc(t("另一种语言还有空白或过时的字段：先按「生成双语」，再提交。", "The other language has empty or outdated fields: run Translate first, then submit.")) + ' <button class="btn sm" id="coTrNow">' + t("生成双语", "Translate") + "</button>"); $("coTrNow").onclick = function () { $("flash").hidden = true; coTranslate(); }; return; }
+    if (co.needs - coHumanStale().length > 0) { flash(esc(t("另一种语言还有空白或过时的字段：先按「生成双语」，再提交。", "The other language has empty or outdated fields: run Translate first, then submit.")) + ' <button class="btn sm" id="coTrNow">' + t("生成双语", "Translate") + "</button>"); $("coTrNow").onclick = function () { $("flash").hidden = true; coTranslate(); }; return; }
     panelOpen('<div class="ph"><span class="avatar">✓</span><h3>' + t("提交审批", "Submit for approval") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
       '<p class="sub">' + esc(t("提交后由课程总监、CEO 或系统管理员审阅并发布到网站。提交后仍可以继续修改，或撤回。", "The curriculum director, the CEO or the system administrator will review it and publish it to the website. You can still edit or withdraw after submitting.")) + "</p>" +
       '<label class="f">' + t("给审批人的话（可选）", "A note for the reviewer (optional)") + '<textarea id="coNote" rows="3"></textarea></label>' +

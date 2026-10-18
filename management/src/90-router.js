@@ -27,6 +27,7 @@
     panelClose();
     document.body.classList.remove("cofocus"); // the course editor's focus layout ends with the editor
     window.removeEventListener("beforeunload", coBeforeUnload);
+    if ($("content")) $("content").onscroll = null;
     // A notice belongs to the page that raised it (Rick, 2026-10-07: a sync notice was still
     // showing on 蜂巢课程订单 after switching tabs).
     if ($("flash")) { $("flash").hidden = true; clearTimeout(flash.timer); }

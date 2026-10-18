@@ -83,10 +83,10 @@ module.exports = async function (context, req) {
       if (op === "withdraw") { const doc = await C.withdraw(id, who); await audit(context, { actor: user, action: "course.withdraw", target: id }); return done(200, { ok: true, course: view(doc, who) }); }
       if (op === "milestone") { const doc = await C.saveVersion(id, who, body.note); return done(200, { ok: true, course: view(doc, who) }); }
       if (op === "translate") {
-        const r = await C.translateCourse(id, who);
+        const r = await C.translateCourse(id, who, undefined, { overwrite: body.overwrite === true, all: body.all === true, from: body.from === "en" ? "en" : "zh" });
         const doc = await C.readWork(id);
-        await audit(context, { actor: user, action: "course.translate", target: id, fields: r.done });
-        return done(200, { ok: true, done: r.done, course: view(doc, who), translation: C.translationState(doc), needs: C.translationNeeds(doc) });
+        await audit(context, { actor: user, action: "course.translate", target: id, fields: r.done, all: body.all === true });
+        return done(200, { ok: true, done: r.done, kept: r.kept || [], course: view(doc, who), translation: C.translationState(doc), needs: C.translationNeeds(doc) });
       }
       if (op === "restore") {
         const doc = await C.restore(id, String(body.ref || ""), who);

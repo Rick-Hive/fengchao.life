@@ -123,7 +123,20 @@ const CD = "cd@fengchao.life", TEACHER = "zhang@a.edu", CM = "cm@fengchao.life",
   await C.saveField(ID, "descriptionZh", "细胞、遗传、生态与进化。", { user: TEACHER, approver: false });
   doc = await C.readWork(ID); assert.strictEqual(C.translationState(doc).descriptionZh, "human"); assert.strictEqual(C.translationNeeds(doc), 0);
   await C.saveField(ID, "descriptionEn", "Cells, genetics, ecology, evolution.", { user: TEACHER, approver: false });
-  doc = await C.readWork(ID); assert.strictEqual(C.translationState(doc).descriptionZh, "human", "a human translation stays human when the source changes");
+  doc = await C.readWork(ID); assert.strictEqual(C.translationState(doc).descriptionZh, "human-stale", "a person's translation is flagged (not silently redone) when the source changes later");
+  assert.strictEqual(C.translationNeeds(doc), 1);
+  let kept = await C.translateCourse(ID, { user: TEACHER }, translator); assert.deepStrictEqual(kept.done, [], "a person's translation is not overwritten without a yes"); assert.deepStrictEqual(kept.kept, ["descriptionZh"]);
+  doc = await C.readWork(ID); assert.strictEqual(doc.draft.fields.descriptionZh, "细胞、遗传、生态与进化。");
+  // text that came from Airtable (both languages, no record yet) is flagged the moment one side changes
+  await C.saveField(ID, "nameEn", "Biology 7 (revised)", { user: TEACHER, approver: false });
+  doc = await C.readWork(ID); assert.strictEqual(C.translationState(doc).nameZh, "human-stale", "the Airtable-made Chinese name is outdated once the English one changed");
+  let ow = await C.translateCourse(ID, { user: TEACHER }, translator, { overwrite: true }); assert.ok(ow.done.includes("nameZh") && ow.done.includes("descriptionZh"));
+  doc = await C.readWork(ID); assert.strictEqual(doc.draft.fields.descriptionZh, "【译】Cells, genetics, ecology, evolution."); assert.strictEqual(C.translationState(doc).descriptionZh, "machine"); assert.strictEqual(C.translationNeeds(doc), 0);
+  assert.ok(doc.fieldHistory.descriptionZh.some((h) => h.to === "细胞、遗传、生态与进化。"), "the replaced text stays in the field history");
+  // 重新翻译全部 (from English) rewrites everything on the other side
+  let allr = await C.translateCourse(ID, { user: TEACHER }, translator, { all: true, from: "en" }); assert.deepStrictEqual(allr.done.sort(), ["descriptionZh", "nameZh"]);
+  // put the course back the way the publish checks below expect it
+  for (const [k, v] of [["nameEn", "Biology"], ["nameZh", "生物"], ["descriptionZh", "细胞、遗传、生态与进化。"]]) await C.saveField(ID, k, v, { user: TEACHER, approver: false });
   r = await call(TEACHER, "POST", "op", { body: { id: ID, op: "submit", note: "ready" } }); assert.strictEqual(r.status, 200); assert.strictEqual(r.body.course.status, "submitted");
   r = await call(TEACHER, "PATCH", "field", { body: { id: ID, key: "classTime", value: "P4" } }); assert.strictEqual(r.status, 200, "editing after submit is allowed (the draft moves on)");
 

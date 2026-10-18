@@ -1060,7 +1060,7 @@ body.caldragging, body.caldragging * { cursor: grabbing !important; }
 body.cofocus .hub { grid-template-columns: minmax(0, 1fr); } /* the hidden sidebar leaves the grid, so one column */
 body.cofocus .side { display: none; }
 body.cofocus .topbar { display: none; }
-body.cofocus .content { padding-top: 0; }
+body.cofocus .topbar ~ .content, body.cofocus .content { padding-top: 0; }
 body.cofocus .content > * { max-width: none; }
 .coed { max-width: 1280px; margin: 0 auto; }
 .cobar { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) 0 var(--s2); position: sticky; top: 0; background: var(--bg); z-index: 6; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -1091,13 +1091,17 @@ body.cofocus .content > * { max-width: none; }
 .coreturn { margin: var(--s2) 0 var(--s3); background: var(--warn-soft); border: 1px solid #f1d58a; border-radius: var(--r); padding: var(--s3) var(--s4); font-size: 13px; font-weight: 600; color: var(--warn); }
 .coreturn p { margin-top: 4px; font-weight: 400; color: var(--ink); white-space: pre-wrap; }
 /* form + preview */
-.coed-main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--s5); align-items: start; margin-top: var(--s2); }
+.coed-main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: var(--s5); align-items: start; margin-top: var(--s2); }
 .coed.noprev .coed-main { grid-template-columns: minmax(0, 1fr); } .coed.noprev .coprev { display: none; }
 .coform { min-width: 0; }
-.cosecnav { display: flex; gap: 4px; flex-wrap: wrap; margin: var(--s2) 0 var(--s3); }
-.cosecnav a { font-size: 12px; color: var(--muted); text-decoration: none; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); }
+/* the section tabs sit in the sticky bar (a second row), so they stay in view while a section scrolls */
+.cosecnav { display: flex; gap: 4px; flex: 0 0 100%; overflow-x: auto; scrollbar-width: none; padding: 2px 0 var(--s2); }
+.cosecnav::-webkit-scrollbar { display: none; }
+.cosecnav a { font-size: 12px; color: var(--muted); text-decoration: none; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); white-space: nowrap; flex: none; }
 .cosecnav a:hover { color: var(--accent-dark); border-color: var(--accent-soft-line); }
-.cosec { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s3) var(--s5) var(--s4); margin-bottom: var(--s3); scroll-margin-top: 120px; }
+.cosecnav a.on { color: var(--accent-dark); border-color: var(--accent); background: var(--accent-soft, #eef3fb); font-weight: 600; }
+#coTranslate[data-needs] { border-color: var(--accent); color: var(--accent-dark); }
+.cosec { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s3) var(--s5) var(--s4); margin-bottom: var(--s3); scroll-margin-top: 132px; }
 .cosec h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 600; margin: 0 0 var(--s2); }
 .corowf { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: var(--s3); align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
 .corowf:first-of-type { border-top: 0; }
@@ -1147,7 +1151,7 @@ body.cofocus .content > * { max-width: none; }
 .cofile a { color: var(--accent-dark); text-decoration: none; }
 .cofile .linkbtn { margin-left: auto; }
 .cofile-add { align-self: flex-start; cursor: pointer; }
-.coprev { position: sticky; top: 64px; }
+.coprev { position: sticky; top: 112px; max-height: calc(100vh - 128px); overflow-y: auto; }
 .coprev-h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 600; margin-bottom: var(--s2); display: flex; justify-content: space-between; }
 .pvcard { background: #fff; border: 1px solid #e3e8ef; border-radius: 14px; padding: 20px; box-shadow: 0 8px 24px -16px rgba(15, 32, 60, 0.3); font-family: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif; }
 .pvname { font-size: 17px; font-weight: 700; color: #1e293b; line-height: 1.3; }
@@ -1184,3 +1188,16 @@ body.cofocus .content > * { max-width: none; }
 .costep { font-size: 13px; margin-top: 8px; } .costep.ok { color: var(--ok); } .costep .warn { color: var(--warn); }
 @media (max-width: 1100px) { .coed-main { grid-template-columns: minmax(0, 1fr); } .coprev { position: static; } }
 @media (max-width: 700px) { .corowf { grid-template-columns: minmax(0, 1fr); gap: 4px; } .colab { padding-top: 0; } .costeps { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cobar-t b { max-width: 100%; } body.cofocus .topbar { display: flex; } }
+
+/* preview: detail view (the course window on the website) and the card/detail switch */
+.pvmode { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; text-transform: none; letter-spacing: 0; }
+.pvmode button { font: inherit; font-size: 12px; padding: 2px 10px; border: 0; background: var(--card); color: var(--muted); cursor: pointer; }
+.pvmode button.on { background: var(--accent-soft, #eef3fb); color: var(--accent-dark); font-weight: 600; }
+.pvdetail .pvlab { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 600; }
+.pvfull { font-size: 13px; color: #334155; line-height: 1.6; white-space: pre-wrap; margin: 4px 0 0; }
+.pvgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #eef2f7; }
+.pvrow.wide { grid-column: 1 / -1; }
+.pvval { font-size: 13px; color: #1e293b; margin-top: 2px; line-height: 1.5; overflow-wrap: anywhere; }
+.pvval a { color: #2563eb; }
+.pvchip { display: inline-block; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 999px; padding: 1px 10px; margin: 0 4px 4px 0; background: #f8fafc; color: #334155; }
+.pvprice { font-size: 17px; font-weight: 700; color: #1e293b; }
