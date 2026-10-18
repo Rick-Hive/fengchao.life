@@ -165,8 +165,11 @@ class AirtableBase {
     return records;
   }
 
-  async create(tableId, fields) {
-    const data = await this._request("POST", `${this.baseId}/${tableId}`, { body: { fields, typecast: true } });
+  // opts.typecast = false refuses values that are not already valid options / ids (the course editor,
+  // which must never invent a select option in the base); the default stays the lenient Equip behaviour.
+  async create(tableId, fields, opts) {
+    const typecast = !(opts && opts.typecast === false);
+    const data = await this._request("POST", `${this.baseId}/${tableId}`, { body: { fields, typecast } });
     return data;
   }
 
@@ -185,8 +188,9 @@ class AirtableBase {
     return this._request("GET", `${this.baseId}/${tableId}/${recordId}`);
   }
 
-  async update(tableId, recordId, fields) {
-    return this._request("PATCH", `${this.baseId}/${tableId}/${recordId}`, { body: { fields, typecast: true } });
+  async update(tableId, recordId, fields, opts) {
+    const typecast = !(opts && opts.typecast === false);
+    return this._request("PATCH", `${this.baseId}/${tableId}/${recordId}`, { body: { fields, typecast } });
   }
 
   // Update several records ([{ id, fields }]; Airtable takes at most 10 per request).

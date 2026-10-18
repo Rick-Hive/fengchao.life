@@ -1,0 +1,167 @@
+// /api/courses/{action} — 课程管理 (api/shared/courses.js; design claude/fengchao-course-management-design.md).
+//
+//   GET  courses/list                      the courses the caller may work on, with status and assignments
+//                                          (approvers and viewers: every course; a teacher: the assigned ones)
+//   GET  courses/lookups                   pick lists: grades, subjects, textbooks, teachers, schools, tracks, options
+//   GET  courses/course?id=rec…            open one course (creates the working record from Airtable the first
+//                                          time; an approver opening a submitted course marks it 审阅中)
+//   PATCH courses/field {id, key, value}   the autosave: one field of the draft
+//   POST courses/op {id, op, …}            submit {note?} · withdraw · return {comment} · publish · translate ·
+//                                          milestone {note?} · restore {ref} · assign {person} · unassign {person}
+//   POST courses/upload {course, …chunk}   a syllabus chunk (api/shared/files.js; PDF ≤ 10 MB); `id` is the upload id
+//   GET  courses/versions?id=              the timeline;  GET courses/version?id=&ref=v:…|p:…  one version's content
+//   POST courses/sync                      refresh the website after publishes (coalesced, every 2 minutes at most)
+//   GET  courses/people?q=                 the people picker for assignments (approvers)
+//
+// Who: approvers = 课程总监, CEO, 系统管理员 (everything); viewers = 教育社区经理 (read); a teacher = assigned
+// courses, the teacher-editable fields only.
+const C = require("../shared/courses");
+const FILES = require("../shared/files");
+const hub = require("../shared/hub");
+const { userRoles } = require("../shared/roles");
+const { guard, finish } = require("../shared/session");
+const { audit } = require("../shared/audit");
+
+const reply = (context, status, body) => { context.res = { status, headers: { "Cache-Control": "no-store" }, body }; };
+const ID_RE = /^rec[A-Za-z0-9]{14}$/;
+
+module.exports = async function (context, req) {
+  const method = String(req.method || "GET").toUpperCase();
+  const action = String((req.params && req.params.action) || "").toLowerCase();
+  const q = req.query || {};
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  try {
+    const s = await guard(context, req);
+    if (!s) return;
+    const done = (status, b) => { reply(context, status, b); finish(context, s); };
+    const { user, roles } = await userRoles(req);
+    if (!user) return done(401, { error: "sign in first" });
+    const who = { user, approver: C.isApprover(roles), viewer: C.isViewer(roles) };
+    const mayOpen = async (id) => who.approver || who.viewer || (await C.assignedTo(user)).includes(id);
+    const id = String(body.id || q.id || "");
+
+    if (method === "GET" && action === "list") {
+      const assigned = who.approver || who.viewer ? null : await C.assignedTo(user);
+      if (assigned && !assigned.length) return done(200, { courses: [], me: who, none: true });
+      const r = await C.list(who);
+      return done(200, Object.assign(r, { me: who, sync: await C.syncStatus() }));
+    }
+    if (method === "GET" && action === "lookups") {
+      if (!(who.approver || who.viewer || (await C.assignedTo(user)).length)) return done(403, { error: "no course is assigned to you" });
+      const l = await C.lookups(q.fresh === "1");
+      const out = Object.assign({}, l, { teachers: l.teachers.map((t) => who.approver ? t : { id: t.id, name: t.name }) });
+      return done(200, out);
+    }
+    if (method === "GET" && action === "course") {
+      if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+      if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
+      const doc = await C.open(id, who);
+      const a = (await C.readAssignments()).items[id] || { people: [] };
+      return done(200, { course: view(doc, who), assigned: a.people, editable: editable(who), translation: C.translationState(doc), needs: C.translationNeeds(doc) });
+    }
+    if (method === "PATCH" && action === "field") {
+      if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+      if (who.viewer && !who.approver) return done(403, { error: "read only" });
+      if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
+      const r = await C.saveField(id, String(body.key || ""), body.value, who);
+      const doc = await C.readWork(id);
+      return done(200, Object.assign(r, { translation: C.translationState(doc), needs: C.translationNeeds(doc) }));
+    }
+    if (method === "POST" && action === "op") {
+      const op = String(body.op || "");
+      if (op === "assign" || op === "unassign") {
+        if (!who.approver) return done(403, { error: "only the curriculum director, the CEO or the system administrator assign courses" });
+        if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+        const it = op === "assign" ? await C.assign(id, String(body.code || ""), body.person || {}, who) : await C.unassign(id, body.person || {}, who);
+        await audit(context, { actor: user, action: "course." + op, target: id, person: (body.person || {}).upn || (body.person || {}).crmId || "" });
+        return done(200, { ok: true, assigned: it.people });
+      }
+      if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+      if (who.viewer && !who.approver) return done(403, { error: "read only" });
+      if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
+      if (op === "submit") { const doc = await C.submit(id, who, body.note); await audit(context, { actor: user, action: "course.submit", target: id, code: doc.code }); return done(200, { ok: true, course: view(doc, who) }); }
+      if (op === "withdraw") { const doc = await C.withdraw(id, who); await audit(context, { actor: user, action: "course.withdraw", target: id }); return done(200, { ok: true, course: view(doc, who) }); }
+      if (op === "milestone") { const doc = await C.saveVersion(id, who, body.note); return done(200, { ok: true, course: view(doc, who) }); }
+      if (op === "translate") {
+        const r = await C.translateCourse(id, who);
+        const doc = await C.readWork(id);
+        await audit(context, { actor: user, action: "course.translate", target: id, fields: r.done });
+        return done(200, { ok: true, done: r.done, course: view(doc, who), translation: C.translationState(doc), needs: C.translationNeeds(doc) });
+      }
+      if (op === "restore") {
+        const doc = await C.restore(id, String(body.ref || ""), who);
+        await audit(context, { actor: user, action: "course.restore", target: id, ref: body.ref });
+        return done(200, { ok: true, course: view(doc, who), translation: C.translationState(doc), needs: C.translationNeeds(doc) });
+      }
+      if (op === "return") {
+        if (!who.approver) return done(403, { error: "only an approver may return a course" });
+        const doc = await C.giveBack(id, who, body.comment);
+        await audit(context, { actor: user, action: "course.return", target: id, comment: String(body.comment || "").slice(0, 200) });
+        return done(200, { ok: true, course: view(doc, who) });
+      }
+      if (op === "publish") {
+        if (!who.approver) return done(403, { error: "only the curriculum director, the CEO or the system administrator publish" });
+        const before = await C.readWork(id);
+        const r = await C.publish(id, who, { all: body.all === true });
+        // the syllabus files uploaded here now belong to the course; ones it let go are marked for cleanup
+        try { await FILES.settle("course:" + id, ((before && before.published && before.published.fields.syllabus) || []).filter((a) => !a.airtable), (r.doc.draft.fields.syllabus || []).filter((a) => !a.airtable)); } catch { /* best effort */ }
+        await audit(context, { actor: user, action: "course.publish", target: id, code: r.doc.code, fields: r.written, skipped: r.skipped });
+        return done(200, { ok: true, course: view(r.doc, who), written: r.written, skipped: r.skipped, at: r.at });
+      }
+      return done(400, { error: `unknown op ${JSON.stringify(op)}` });
+    }
+    if (method === "POST" && action === "upload") {
+      // `course` = the course; `id` = the upload id (files.js), set from the second chunk on
+      const courseId = String(body.course || "");
+      if (!ID_RE.test(courseId)) return done(400, { error: "course missing" });
+      if (who.viewer && !who.approver) return done(403, { error: "read only" });
+      if (!(await mayOpen(courseId))) return done(403, { error: "this course is not assigned to you" });
+      const r = await FILES.upload(body, user);
+      return done(200, Object.assign({ ok: true }, r));
+    }
+    if (method === "GET" && action === "versions") {
+      if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+      if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
+      return done(200, await C.versions(id));
+    }
+    if (method === "GET" && action === "version") {
+      if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+      if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
+      const v = await C.versionContent(id, String(q.ref || ""));
+      return v ? done(200, { ok: true, version: v }) : done(404, { error: "no such version" });
+    }
+    if (action === "sync") {
+      if (!who.approver) return done(403, { error: "approvers only" });
+      if (method === "GET") return done(200, await C.syncStatus());
+      const r = await C.syncWebsite(require("../sync").runSync, (m) => context.log(m));
+      if (r.ran) await audit(context, { actor: user, action: "course.sync", status: r.status, counts: r.body && r.body.counts });
+      return done(200, r);
+    }
+    if (method === "GET" && action === "people") {
+      if (!who.approver) return done(403, { error: "approvers only" });
+      const sq = String(q.q || "").trim().toLowerCase();
+      if (sq.length < 2) return done(200, { people: [] });
+      const h = await hub.readHub().catch(() => null);
+      const hit = (p) => [p.name, p.crmId, ...(p.keys || [])].some((k) => String(k || "").toLowerCase().includes(sq));
+      const people = ((h && h.people) || []).filter(hit).slice(0, 12).map((p) => {
+        const acc = (p.facets && p.facets.accounts) || [];
+        return { crmId: p.crmId, name: p.name, upn: acc.map((a) => a.upn).find(Boolean) || "", identity: acc.map((a) => a.identity).find(Boolean) || "", org: acc.map((a) => a.domain).find(Boolean) || "" };
+      });
+      return done(200, { people });
+    }
+    return done(404, { error: "no such action" });
+  } catch (err) {
+    const status = err && err.status ? err.status : 500;
+    if (status >= 500) context.log.error(`courses/${action}: ${(err && err.stack) || err}`);
+    reply(context, status, Object.assign({ error: String((err && err.message) || err) }, err && err.problems ? { problems: err.problems } : {}, err && err.code ? { code: err.code } : {}));
+  }
+};
+
+// What the browser gets of a working record (the field history stays server-side; it comes with the field panel later).
+function view(doc, who) {
+  return { id: doc.courseId, code: doc.code, status: doc.status, fields: doc.draft.fields, meta: doc.draft.meta, baseline: who.approver ? doc.draft.baseline : undefined,
+    draftAt: doc.draft.at, draftBy: doc.draft.by, submitted: doc.submitted, reviewing: doc.reviewing, returned: doc.returned, published: doc.published ? { at: doc.published.at, by: doc.published.by, written: doc.published.written } : null,
+    fieldHistory: doc.fieldHistory, history: doc.history.slice(-50).reverse() };
+}
+// Which fields the caller may change.
+function editable(who) { const out = {}; for (const [k, f] of Object.entries(C.FIELDS)) out[k] = !!(who.approver || (f.teacher && !who.viewer)); return out; }

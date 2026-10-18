@@ -97,7 +97,7 @@
         { hash: "#/security", icon: "key", zh: "登录与安全", en: "Sign-in & security" },
         { hash: "#/teams", icon: "teams", zh: "我的 Teams", en: "My Teams" },
         { hash: "#/calendar", icon: "cal", zh: "我的校历", en: "My calendar" },
-      ] },
+      ].concat(coursesInfo && !coIsApprover() && !coIsViewer() && (coursesInfo.courses || []).length ? [{ hash: "#/courses", icon: "book", zh: "我的课程", en: "My courses", badge: coMyBadge() }] : []) },
     ];
     if (domainsInfo && domainsInfo.domains && domainsInfo.domains.length) {
       // Accounts pages for whoever may view a school's accounts (IT 管理员, staff); 课程方案
@@ -114,7 +114,7 @@
         { hash: "#/dashboard", icon: "chart", zh: "仪表盘", en: "Dashboard" },
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
         { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People Hub" },
-      ].concat(crmLevel("partners") !== "none" ? [{ hash: "#/ops/partners", icon: "tree", zh: "合作伙伴", en: "Partners" }, { hash: "#/ops/institutions", icon: "tree", zh: "机构", en: "Institutions" }] : []).concat(crmLevel("drm") !== "none" ? [{ hash: "#/ops/licenses", icon: "key", zh: "许可", en: "Licences" }] : []).concat(canSeeStatements() ? [{ hash: "#/ops/statements", icon: "chart", zh: "对账单", en: "Statements" }] : []).concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
+      ].concat(coIsApprover() || coIsViewer() ? [{ hash: "#/courses", icon: "book", zh: "课程管理", en: "Courses", badge: coPendingBadge() }] : []).concat(crmLevel("partners") !== "none" ? [{ hash: "#/ops/partners", icon: "tree", zh: "合作伙伴", en: "Partners" }, { hash: "#/ops/institutions", icon: "tree", zh: "机构", en: "Institutions" }] : []).concat(crmLevel("drm") !== "none" ? [{ hash: "#/ops/licenses", icon: "key", zh: "许可", en: "Licences" }] : []).concat(canSeeStatements() ? [{ hash: "#/ops/statements", icon: "chart", zh: "对账单", en: "Statements" }] : []).concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
     }
     if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [
@@ -129,7 +129,7 @@
     $("nav").innerHTML = groups.map(function (g) {
       return '<div class="nav-group"><div class="nav-title">' + esc(g.title) + "</div>" + g.items.map(function (it) {
         var active = it.hash && cur.indexOf(it.hash) === 0;
-        return '<a class="nav-item' + (active ? " active" : "") + '" href="' + esc(it.hash || it.href) + '">' + ICON[it.icon] + "<span>" + esc(t(it.zh, it.en)) + "</span>" + (it.href ? '<span class="ext">↗</span>' : "") + "</a>";
+        return '<a class="nav-item' + (active ? " active" : "") + '" href="' + esc(it.hash || it.href) + '">' + ICON[it.icon] + "<span>" + esc(t(it.zh, it.en)) + "</span>" + (it.badge ? '<span class="navbadge">' + esc(it.badge) + "</span>" : "") + (it.href ? '<span class="ext">↗</span>' : "") + "</a>";
       }).join("") + "</div>";
     }).join("");
     navInfo();

@@ -25,6 +25,8 @@
   }
   function route() {
     panelClose();
+    document.body.classList.remove("cofocus"); // the course editor's focus layout ends with the editor
+    window.removeEventListener("beforeunload", coBeforeUnload);
     // A notice belongs to the page that raised it (Rick, 2026-10-07: a sync notice was still
     // showing on 蜂巢课程订单 after switching tabs).
     if ($("flash")) { $("flash").hidden = true; clearTimeout(flash.timer); }
@@ -35,6 +37,7 @@
     if (h.indexOf("#/dashboard") === 0) { if (!isStaff() && !canSeeOrders()) { location.hash = "#/account"; return; } return viewDashboard(); }
     if (h.indexOf("#/teams") === 0) return viewTeams();
     if (h.indexOf("#/calendar") === 0) return viewMyCalendar();
+    if (h.indexOf("#/courses") === 0) return viewCourses();
     if (h.indexOf("#/security") === 0) return viewSecurity();
     if (h.indexOf("#/domain") === 0) {
       if (!domainsInfo || !domainsInfo.domains.length) { location.hash = "#/account"; return; }
@@ -122,7 +125,7 @@
   }
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") refreshRoles(); });
   loadMe().then(function () {
-    return api("domain/domains").then(function (r) { domainsInfo = r.ok ? r.body : null; }).catch(function () { domainsInfo = null; });
+    return Promise.all([api("domain/domains").then(function (r) { domainsInfo = r.ok ? r.body : null; }).catch(function () { domainsInfo = null; }), loadCoursesInfo()]);
   }).then(function () { rolesSeen = rolesKey(); }).then(route).catch(function (r) {
     var msg = r && r.body ? errText(r) : String(r);
     $("content").innerHTML = '<div class="card"><h2>' + t("无法读取账号", "Could not load the account") + '</h2><p class="sub">' + esc(msg) + '</p><div class="actions"><a class="btn" href="/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent("/management/") + '">' + t("重新登录", "Sign in again") + "</a></div></div>";

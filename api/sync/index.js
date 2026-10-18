@@ -259,8 +259,8 @@ function extFromAttachment(att) {
   return map[att.type] || "";
 }
 
-async function handler(context, req) {
-  if (!hasRole(req, "admin")) {
+async function handler(context, req, internal) {
+  if (!internal && !hasRole(req, "admin")) {
     context.res = { status: 403, body: { error: "admin role required" } };
     return;
   }
@@ -1001,4 +1001,13 @@ module.exports = async function (context, req) {
   if (!s) return;
   await handler(context, req);
   finish(context, s);
+};
+
+// The same sync, called from inside another function (课程管理 publishes a course and then refreshes the
+// website — Rick, 2026-10-18). No role check: the caller has done its own. Returns { status, body }.
+module.exports.runSync = async function (opts) {
+  const log = (opts && opts.log) || (() => {});
+  const context = { log: Object.assign((m) => log(m), { error: (m, e) => log(`${m} ${e && e.message ? e.message : e || ""}`), warn: (m) => log(m), info: (m) => log(m) }), res: null };
+  await handler(context, { query: { force: opts && opts.force ? "1" : "" }, headers: {} }, true);
+  return { status: (context.res && context.res.status) || 500, body: (context.res && context.res.body) || {} };
 };

@@ -22,9 +22,11 @@ function sideOf(text) {
 }
 
 // translate(["中阶整本书阅读1班"], "en") → ["Intermediate whole-book reading class 1"]
-async function translate(texts, to, from) {
+async function translate(texts, to, from, opts) {
   if (!configured()) throw Object.assign(new Error("AZURE_TRANSLATOR_KEY app setting is not configured"), { code: "no_translator" });
-  const list = (texts || []).map((t) => String(t || "").slice(0, 500));
+  // Group names are short (500); the course editor sends descriptions (opts.maxLen, up to the service's 50 000 per request).
+  const maxLen = Math.min(50000, Math.max(1, (opts && opts.maxLen) || 500));
+  const list = (texts || []).map((t) => String(t || "").slice(0, maxLen));
   if (!list.length) return [];
   const url = `${ENDPOINT}/translate?api-version=3.0&to=${encodeURIComponent(to === "zh" ? "zh-Hans" : "en")}${from ? "&from=" + encodeURIComponent(from === "zh" ? "zh-Hans" : "en") : ""}`;
   const headers = { "Ocp-Apim-Subscription-Key": process.env.AZURE_TRANSLATOR_KEY, "Content-Type": "application/json" };

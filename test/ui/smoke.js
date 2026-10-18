@@ -58,6 +58,22 @@ const bcPosts = [];
 const CAL_SEED = { id: "h-seed", title: "联合教师培训", allDay: false, start: "2026-12-05T19:00", end: "2026-12-05T20:30", timeZone: "America/New_York", audience: ["老师"], location: "", description: "", link: "https://zoom.us/j/123456", meeting: "link", reminder: 15, showAs: "free", targets: ["*"], createdBy: "hive.admin@fengchao.life" };
 let CAL_SCHOOL = { domain: "bes.qiaoliang.online", timezone: "", events: [], updatedAt: null, updatedBy: "" };
 let CAL_HIVE = { events: [CAL_SEED], updatedAt: null, updatedBy: "" };
+// 课程管理 (2026-10-18): one course in memory, the editor's PATCHes and ops recorded.
+const CO_LOOK = { at: "2026-10-18T00:00:00Z", grades: [{ id: "recGRADE000000001", name: "G1" }, { id: "recGRADE000000009", name: "G9" }, { id: "recGRADE000000010", name: "G10" }],
+  subjects: [{ id: "recSUBJ0000000001", nameEn: "Science", nameZh: "科学" }, { id: "recSUBJ0000000002", nameEn: "Math", nameZh: "数学" }], textbooks: [{ id: "recTB00000000001", sku: "SCI-9", nameEn: "Biology 9", nameZh: "九年级生物" }],
+  teachers: [{ id: "recTEACH000000001", name: "Zhang Lao", upn: "zhang@kxc.edu" }, { id: "recTEACH000000002", name: "Mr Lee" }], schools: [{ id: "recSCHOOL00000001", name: "Kids X Center", abbr: "KXC" }], tracks: [{ id: "recTRACK000000001", trackId: 1, name: "International: Classical", nameZh: "国际·古典" }],
+  options: { classType: [{ en: "Live Course", zh: "直播课" }, { en: "Prerecorded Course", zh: "录播课" }], language: [{ en: "English", zh: "英语" }, { en: "Chinese", zh: "中文" }], days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] },
+  fields: { classical: false } };
+const CO_ID = "recCOURSE00000001";
+let CO_DOC = { id: CO_ID, code: "SCI-HS-101", status: "draft", fields: { nameEn: "Biology", nameZh: "生物", descriptionEn: "Cells, genetics and ecology for Grade 9.", descriptionZh: "", classType: { en: "Live Course", zh: "直播课" }, language: { en: "English", zh: "英语" },
+  subjects: ["recSUBJ0000000001"], grades: ["recGRADE000000009"], creditHours: 1, numClasses: 30, classTime: "P3 10:00–10:45", days: ["Monday", "Wednesday"], prerequisite: "", academic: true, classical: false, syllabus: [], textbooks: ["recTB00000000001"], teachers: ["recTEACH000000001"], school: ["recSCHOOL00000001"], tracks: ["recTRACK000000001"], price: 300, available: true, comments: "" },
+  meta: { machine: {}, translatedFrom: {}, sourceLang: "en" }, draftAt: "2026-10-18T02:00:00Z", draftBy: "zhang@kxc.edu", submitted: null, reviewing: null, returned: null, published: null, fieldHistory: { descriptionEn: [{ at: "2026-10-18T01:00:00Z", by: "zhang@kxc.edu", from: "", to: "Cells, genetics and ecology for Grade 9." }] },
+  history: [{ at: "2026-10-18T02:00:00Z", by: "zhang@kxc.edu", action: "save", fields: ["descriptionEn", "classTime"] }, { at: "2026-10-18T01:00:00Z", by: "zhang@kxc.edu", action: "open", note: "from Airtable" }] };
+const coPatches = [], coOps = [];
+function coTranslation() { const f = CO_DOC.fields, m = CO_DOC.meta; const st = (dst) => m.machine[dst] ? "machine" : (f[dst] || "").trim() ? "human" : "empty"; return { nameZh: st("nameZh"), nameEn: st("nameEn"), descriptionZh: st("descriptionZh"), descriptionEn: st("descriptionEn") }; }
+function coNeeds() { const tr = coTranslation(); return ["nameZh", "nameEn", "descriptionZh", "descriptionEn"].filter(k => tr[k] === "empty" && (CO_DOC.fields[k.replace(/Zh$/, "En").replace(/En$/, k.endsWith("Zh") ? "En" : "Zh")] || "").trim()).length; }
+function coListRow() { return { id: CO_ID, code: CO_DOC.code, nameEn: CO_DOC.fields.nameEn, nameZh: CO_DOC.fields.nameZh, school: "KXC", teachers: ["Zhang Lao"], subjects: [{ nameEn: "Science", nameZh: "科学" }], available: true, status: CO_DOC.status, updatedAt: CO_DOC.draftAt, submittedAt: CO_DOC.submitted && CO_DOC.submitted.at, publishedAt: CO_DOC.published && CO_DOC.published.at, returnedAt: CO_DOC.status === "returned" ? CO_DOC.returned.at : null, assigned: CO_ASSIGNED.slice() }; }
+let CO_ASSIGNED = [{ name: "Zhang Lao", upn: "zhang@kxc.edu", crmId: "P-1" }];
 const calPosts = [], syncPosts = [], filePosts = [];
 const domains = { user: summary.profile.upn, roles: ["admin"], all: true, mine: "bes.qiaoliang.online", domains: [{ domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", isDefault: true, isInitial: false, can: CAN }, { domain: "demo.fengchao.life", name: "", isDefault: false, isInitial: false, can: CAN }], showDomains: true };
 function mkUser(i) {
@@ -285,6 +301,31 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
       else if (p === "/api/crm/people-search") { const q = (u.searchParams.get("q") || "").toLowerCase(); body = { people: HUB.people.filter(x => [x.name, x.crmId].concat(x.keys).some(k => String(k || "").toLowerCase().includes(q))).slice(0, 12).map(x => ({ crmId: x.crmId, name: x.name, email: x.primaryEmail, upn: (x.facets.accounts[0] || {}).upn || "", identity: (x.facets.accounts[0] || {}).identity || (x.sources.contact ? "外部" : ""), org: (x.facets.accounts[0] || {}).domain || "", stage: x.stage })) }; }
       else if (p === "/api/crm/org-search") { const q = (u.searchParams.get("q") || "").toLowerCase(); body = { orgs: HUB.institutions.filter(i => !q || [i.key, i.domain, i.name, i.nameEn, i.abbr].some(k => String(k || "").toLowerCase().includes(q))).slice(0, 15).map(i => ({ key: i.key || i.domain, name: i.name || i.nameEn || i.key, nameEn: i.nameEn || "", domain: i.domain || "", kind: i.kind, type: i.type || "", region: i.region || "", country: i.country || "", orgId: ORGS.byKey[i.key || i.domain] || null })) }; }
       else if (p === "/api/crm/contact") { const b = JSON.parse(r.request().postData()); CONTACTS.push(b); const email = String(b.email || "").toLowerCase(); let pe = HUB.people.find(x => x.keys.includes(email)); if (!pe) { const id = "HC-" + String(HUB.nextId++).padStart(6, "0"); pe = { crmId: id, name: b.name, keys: [email], emails: [{ email, tier: "safe", upn: false }], primaryEmail: email, primaryTier: "safe", stage: "lead", orders: 0, spend: 0, hiveOrders: 0, hiveTotal: 0, sources: { contact: true }, facets: { customers: [], accounts: [], leads: [], hive: [], contacts: [{ email, name: b.name, org: b.org }] }, writeBack: [] }; HUB.people.push(pe); body = { ok: true, person: { crmId: id, existing: false, name: b.name, email } }; } else body = { ok: true, person: { crmId: pe.crmId, existing: true, name: pe.name, email } }; }
+      else if (p.startsWith("/api/courses/")) {
+        const act = p.slice("/api/courses/".length), m = r.request().method(), appr = rolesList.some(x => /^staff:(curriculum|ceo|sysadmin)$/.test(x) || x === "admin"), viewer = rolesList.includes("staff:community");
+        const view = () => Object.assign({}, CO_DOC, { baseline: appr ? { nameEn: "Biology", nameZh: "生物", descriptionEn: "Cells and life.", classTime: "P3 10:00–10:45", price: 300 } : undefined, history: CO_DOC.history.slice().reverse() });
+        const editable = {}; for (const k of Object.keys(CO_DOC.fields)) editable[k] = appr || !["textbooks", "teachers", "school", "tracks", "price", "available", "comments"].includes(k);
+        if (act === "list") body = { courses: [coListRow()], me: { approver: appr, viewer }, sync: { pending: false } };
+        else if (act === "lookups") body = Object.assign({}, CO_LOOK, { teachers: CO_LOOK.teachers.map(t => appr ? t : { id: t.id, name: t.name }) });
+        else if (act === "course") body = { course: view(), assigned: CO_ASSIGNED, editable, translation: coTranslation(), needs: coNeeds() };
+        else if (act === "field" && m === "PATCH") { const b = JSON.parse(r.request().postData()); coPatches.push(b); if (!editable[b.key]) { status = 403; body = { error: "read only" }; } else { CO_DOC.fields[b.key] = b.value; if (/(En|Zh)$/.test(b.key)) CO_DOC.meta.machine[b.key] = false; CO_DOC.draftAt = new Date().toISOString(); if (CO_DOC.status === "published" || CO_DOC.status === "returned") CO_DOC.status = "draft"; body = { savedAt: CO_DOC.draftAt, status: CO_DOC.status, meta: CO_DOC.meta, translation: coTranslation(), needs: coNeeds() }; } }
+        else if (act === "op") { const b = JSON.parse(r.request().postData()); coOps.push(b); const at = new Date().toISOString();
+          if (b.op === "assign") { CO_ASSIGNED.push({ name: b.person.name, upn: b.person.upn, crmId: b.person.crmId }); body = { ok: true, assigned: CO_ASSIGNED }; }
+          else if (b.op === "unassign") { CO_ASSIGNED = CO_ASSIGNED.filter(x => x.upn !== b.person.upn); body = { ok: true, assigned: CO_ASSIGNED }; }
+          else if (b.op === "translate") { const done = []; for (const [src, dst] of [["descriptionEn", "descriptionZh"], ["nameEn", "nameZh"], ["descriptionZh", "descriptionEn"], ["nameZh", "nameEn"]]) { if ((CO_DOC.fields[src] || "").trim() && !CO_DOC.meta.machine[src] && !(CO_DOC.fields[dst] || "").trim()) { CO_DOC.fields[dst] = (dst.endsWith("Zh") ? "【译】" : "[tr] ") + CO_DOC.fields[src]; CO_DOC.meta.machine[dst] = true; done.push(dst); } } CO_DOC.history.unshift({ at, by: me.profile.upn, action: "translate", fields: done }); body = { ok: true, done, course: view(), translation: coTranslation(), needs: coNeeds() }; }
+          else if (b.op === "submit") { if (coNeeds()) { status = 400; body = { error: "please complete the course first", problems: ["descriptionZh: Chinese text is missing"] }; } else { CO_DOC.status = "submitted"; CO_DOC.submitted = { at, by: me.profile.upn, note: b.note || "" }; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "submit", note: b.note || "", ref: "v:" + at }); body = { ok: true, course: view() }; } }
+          else if (b.op === "withdraw") { CO_DOC.status = "draft"; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "withdraw" }); body = { ok: true, course: view() }; }
+          else if (b.op === "return") { if (!b.comment) { status = 400; body = { error: "a comment is required" }; } else { CO_DOC.status = "returned"; CO_DOC.returned = { at, by: me.profile.upn, comment: b.comment }; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "return", note: b.comment, ref: "v:" + at }); body = { ok: true, course: view() }; } }
+          else if (b.op === "publish") { CO_DOC.status = "published"; CO_DOC.published = { at, by: me.profile.upn, written: ["descriptionZh"] }; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "publish", fields: ["descriptionZh"], ref: "p:" + at }); body = { ok: true, course: view(), written: ["descriptionZh"], skipped: [], at }; }
+          else if (b.op === "milestone") { CO_DOC.history.unshift({ at, by: me.profile.upn, action: "milestone", note: b.note || "", ref: "v:" + at }); body = { ok: true, course: view() }; }
+          else if (b.op === "restore") { CO_DOC.fields.classTime = "P3 10:00–10:45 (restored)"; CO_DOC.status = "draft"; CO_DOC.history.unshift({ at, by: me.profile.upn, action: "restore", note: b.ref, ref: "v:" + at }); body = { ok: true, course: view(), translation: coTranslation(), needs: coNeeds() }; }
+          else { status = 400; body = { error: "unknown op" }; } }
+        else if (act === "versions") body = { status: CO_DOC.status, items: CO_DOC.history.slice() };
+        else if (act === "version") body = { ok: true, version: { at: "2026-10-18T02:00:00Z", by: "zhang@kxc.edu", fields: Object.assign({}, CO_DOC.fields, { classTime: "P2 9:00–9:45", descriptionZh: "" }) } };
+        else if (act === "sync") body = m === "POST" ? { ran: true, status: 200, body: { counts: { courses: 1 } } } : { pending: false };
+        else if (act === "people") { const q = (u.searchParams.get("q") || "").toLowerCase(); body = { people: [{ crmId: "P-2", name: "Li Laoshi", upn: "li@kxc.edu", identity: "老师", org: "kxc.edu" }, { crmId: "P-3", name: "No Account", upn: "", identity: "", org: "" }].filter(x => x.name.toLowerCase().includes(q)) }; }
+        else status = 404;
+      }
       else if (p === "/api/me/photo") return r.fulfill({ status: 204, body: "" });
       else if (p === "/api/data") body = { generatedAt: new Date().toISOString(), counts: { products: 12, posts: 8 } };
       else status = 404;
@@ -1441,6 +1482,97 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(!(await p.$eval("#panel", e => e.classList.contains("open"))), "closes on an outside click");
     await p.click('#ptRight [data-view="board"]'); await p.waitForTimeout(200);
   });
+  // 课程管理 (Rick, 2026-10-18). A teacher: cards, the editor in focus layout, single-language editing with autosave,
+  // pills, chips, 生成双语, the four steps, the field panel, the version timeline, submit.
+  await shot("courses-teacher", 1280, 900, "#/courses", "zh", [], async p => {
+    await p.waitForTimeout(600);
+    assert.ok(/我的课程/.test(await p.$eval("#nav", e => e.innerText)) && !/课程管理/.test(await p.$eval("#nav", e => e.innerText)), "a teacher sees 我的课程, not 课程管理");
+    assert.ok(await p.$(".cocard"), "a course card"); assert.ok(/SCI-HS-101/.test(await p.$eval(".cocard", e => e.innerText)));
+    await p.screenshot({ path: OUT + "/courses-teacher-list.png" });
+    await p.click(".cocard"); await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
+    assert.ok(await p.evaluate(() => document.body.classList.contains("cofocus")) && !(await p.$eval("#side", e => e.offsetWidth)), "focus layout: the sidebar is hidden");
+    assert.strictEqual(await p.$eval(".colang button.on", e => e.textContent), "EN", "editing language follows the source language (English)");
+    assert.ok(await p.$('.cof[data-k="nameEn"]') && !(await p.$('.cof[data-k="nameZh"]')), "only one language is shown");
+    assert.ok(/只读/.test(await p.$eval('.corowf[data-row="price"]', e => e.innerText)) && await p.$eval('.cof[data-k="price"]', e => e.readOnly), "price is read-only for a teacher");
+    assert.ok(!(await p.$('.corowf[data-row="classical"]')), "a column the base does not have is not shown");
+    assert.strictEqual((await p.$$(".costeps li")).length, 4); assert.ok(await p.$(".costeps li.cur:first-child"), "step 1 is current");
+    assert.ok(/Biology/.test(await p.$eval("#coprevbody", e => e.innerText)) && /G9/.test(await p.$eval("#coprevbody", e => e.innerText)), "the preview shows the course");
+    // autosave: type, wait, one PATCH with the whole value; the preview follows
+    await p.fill('.cof[data-k="classTime"]', "P4 11:00–11:45"); await p.waitForTimeout(1900);
+    const pt = coPatches.filter(x => x.key === "classTime"); assert.strictEqual(pt.length, 1, "one PATCH after the idle time: " + pt.length); assert.strictEqual(pt[0].value, "P4 11:00–11:45");
+    assert.ok(/已保存/.test(await p.$eval("#coSaved", e => e.innerText)), "says saved");
+    assert.ok(/P4 11:00/.test(await p.$eval("#coprevbody", e => e.innerText)), "the preview follows");
+    // pills save at once; chips: add a grade through the search, remove one with ×
+    await p.click('.copills[data-k="classType"] .copill:not(.on)'); await p.waitForTimeout(200);
+    assert.deepStrictEqual(coPatches.filter(x => x.key === "classType").pop().value, { en: "Prerecorded Course", zh: "录播课" });
+    await p.click('.cochip-q[data-k="grades"]'); await p.type('.cochip-q[data-k="grades"]', "G10"); await p.waitForTimeout(100);
+    assert.ok(await p.$('.cochips[data-k="grades"] .cochip-menu [data-id="recGRADE000000010"]'), "the menu offers G10");
+    await p.keyboard.press("Enter"); await p.waitForTimeout(200);
+    assert.deepStrictEqual(coPatches.filter(x => x.key === "grades").pop().value, ["recGRADE000000009", "recGRADE000000010"]);
+    await p.click('.cochips[data-k="grades"] .cochip[data-id="recGRADE000000009"] .cochip-x'); await p.waitForTimeout(200);
+    assert.deepStrictEqual(coPatches.filter(x => x.key === "grades").pop().value, ["recGRADE000000010"]);
+    // 生成双语: the Chinese description is empty → the button shows 1; after it, a 译 tag; submit then works
+    assert.ok(/生成双语\s*1/.test(await p.$eval("#coTranslate", e => e.innerText)), "the translate button counts the missing field");
+    await p.click("#coSubmit"); await p.waitForTimeout(300);
+    assert.ok(/先按「生成双语」/.test(await p.$eval("#flash", e => e.innerText)), "submit asks for the translation first");
+    await p.click("#coTrNow"); await p.waitForTimeout(400);
+    assert.ok(coOps.some(o => o.op === "translate"), "translate was called"); assert.ok(await p.$eval("#coTranslate", e => e.disabled), "nothing left to translate");
+    await p.click('.colang button[data-lang="zh"]'); await p.waitForTimeout(200);
+    assert.ok(/【译】Cells/.test(await p.$eval('.cof[data-k="descriptionZh"]', e => e.value)) && /译/.test(await p.$eval('.corowf[data-row="description"] .colab', e => e.innerText)), "the Chinese side shows the machine translation with its tag");
+    await p.screenshot({ path: OUT + "/courses-editor.png" });
+    // the field panel: both languages and the history
+    await p.hover('.corowf[data-row="description"]'); await p.click('.codetail[data-detail="description"]'); await p.waitForSelector("#panel.open");
+    assert.ok(/English/i.test(await p.$eval("#panel", e => e.innerText)) && /修改记录/.test(await p.$eval("#panel", e => e.innerText)), "the field panel shows both languages and the history: " + (await p.$eval("#panel", e => e.innerText)).slice(0, 200));
+    await p.click("#panel .x"); await p.waitForTimeout(150);
+    // versions: the timeline, a version viewed, restored
+    await p.click("#coVersions"); await p.waitForSelector("#panel.open .cotl"); await p.waitForTimeout(200);
+    assert.ok(/生成双语/.test(await p.$eval("#panel", e => e.innerText)) && /开始编辑/.test(await p.$eval("#panel", e => e.innerText)), "the timeline lists the actions");
+    await p.click('#panel [data-f="pub"]'); await p.waitForTimeout(100); assert.ok(!(await p.$("#panel .cotl-row")), "no publish yet → empty under 只看发布");
+    await p.click('#panel [data-f="all"]'); await p.waitForTimeout(100);
+    await p.evaluate(() => { document.querySelector("#panel .cotl").insertAdjacentHTML("afterbegin", '<div class="cotl-row" data-ref="v:x"><div class="cotl-dot"></div><div class="cotl-t"><b>x</b></div><button type="button" class="linkbtn" data-see="v:x">查看</button></div>'); });
+    await p.click('#panel [data-see="v:x"]'); await p.waitForSelector("#panel2.open"); await p.waitForTimeout(200);
+    assert.ok(await p.$("#panel2 .coverf.diff"), "differing fields are marked");
+    await p.click("#coRestore"); await p.waitForTimeout(400);
+    assert.ok(coOps.some(o => o.op === "restore"), "restore was called"); assert.ok(/restored/.test(await p.$eval('.cof[data-k="classTime"]', e => e.value)), "the form shows the restored value");
+    // submit, then the steps move on and the primary button becomes 撤回
+    await p.click("#coSubmit"); await p.waitForSelector("#panel.open"); await p.fill("#coNote", "ready"); await p.click("#coGo"); await p.waitForTimeout(400);
+    assert.ok(coOps.some(o => o.op === "submit" && o.note === "ready")); assert.ok(await p.$(".costeps li:nth-child(2).cur") && await p.$("#coWithdraw"), "step 2 current, withdraw offered");
+    await p.screenshot({ path: OUT + "/courses-submitted.png" });
+    await p.click(".coback"); await p.waitForTimeout(300);
+    assert.ok(!(await p.evaluate(() => document.body.classList.contains("cofocus"))) && await p.$(".cocard"), "back to the cards, sidebar back");
+  });
+  // An approver: the table, assigning through the people picker, 审阅中 on open, the return comment, publish with the website refresh.
+  await shot("courses-admin", 1280, 900, "#/courses", "zh", ["staff:curriculum"], async p => {
+    await p.waitForTimeout(600);
+    assert.ok(/课程管理/.test(await p.$eval("#nav", e => e.innerText)), "an approver sees 课程管理");
+    assert.ok(await p.$("#cotable tr[data-id]"), "the table"); assert.ok(/待审批/.test(await p.$eval("#cotabs", e => e.innerText)));
+    await p.click('#cotable [data-assign]'); await p.waitForSelector("#panel.open"); await p.fill("#coPq", "li"); await p.waitForTimeout(400);
+    await p.click('#coPres [data-i="0"]'); await p.waitForTimeout(300);
+    assert.ok(coOps.some(o => o.op === "assign" && o.person.upn === "li@kxc.edu"), "assigned through the picker"); assert.ok(/Li Laoshi/.test(await p.$eval("#coAssigned", e => e.innerText)));
+    await p.screenshot({ path: OUT + "/courses-assign.png" });
+    await p.click("#panel .x"); await p.waitForTimeout(150);
+    CO_DOC.status = "submitted"; CO_DOC.submitted = { at: new Date().toISOString(), by: "zhang@kxc.edu", note: "ready" };
+    await p.click("#cotable tr[data-id] td:first-child"); await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
+    assert.ok(await p.$("#coPublish") && !(await p.$("#coSubmit")), "an approver publishes"); assert.ok(!(await p.$eval('.cof[data-k="price"]', e => e.readOnly)), "price is editable for an approver");
+    await p.click("#coMore"); assert.ok(await p.$('#coMenu [data-op="return"]'), "return is in the menu for a submitted course"); await p.click('#coMenu [data-op="return"]'); await p.waitForSelector("#panel.open");
+    await p.click("#coGo"); await p.waitForTimeout(200); assert.ok(!coOps.some(o => o.op === "return"), "no return without a comment");
+    await p.fill("#coCmt", "请补充课时安排"); await p.click("#coGo"); await p.waitForTimeout(400);
+    assert.ok(coOps.some(o => o.op === "return" && o.comment === "请补充课时安排")); assert.ok(await p.$(".costeps li.warn") && /请补充课时安排/.test(await p.$eval("#coreturned", e => e.innerText)), "the returned step and the comment show");
+    await p.screenshot({ path: OUT + "/courses-returned.png" });
+    await p.click("#coPublish"); await p.waitForSelector("#panel.open"); await p.waitForTimeout(100);
+    assert.ok(/将写入 Airtable 的字段/i.test(await p.$eval("#panel", e => e.innerText)), "the publish panel lists the fields: " + (await p.$eval("#panel", e => e.innerText)).slice(0, 200));
+    await p.click("#coGo"); await p.waitForTimeout(600);
+    assert.ok(coOps.some(o => o.op === "publish"), "published"); assert.ok(/已写入 Airtable/.test(await p.$eval("#coPubOut", e => e.innerText)) && /网站已更新/.test(await p.$eval("#coPubOut", e => e.innerText)), "both steps shown: " + await p.$eval("#coPubOut", e => e.innerText));
+    assert.ok(await p.$(".costeps li:nth-child(4).cur"), "step 4 current");
+    await p.screenshot({ path: OUT + "/courses-published.png" });
+  });
+  await shot("courses-phone", 390, 800, "#/courses/" + CO_ID, "zh", [], async p => {
+    await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
+    const over = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.ok(over <= 0, "no sideways scroll on a phone: " + over);
+    await p.screenshot({ path: OUT + "/courses-phone.png", fullPage: false });
+  });
+
   // The fundraising type left for Zoohu (Rick, 2026-10-09): six tabs for everyone, no
   // 募款 anywhere; a reader without partners rw gets no New button.
   await shot("partners-sales", 1280, 700, "#/ops/partners/course", "zh", SALES, async p => {
