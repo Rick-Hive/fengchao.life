@@ -956,8 +956,8 @@
     var hive = calState.layer === "hive";
     var h = '<div id="calsynccard">' +
       '<p class="sub">' + (hive
-        ? t("把广播写进「发给谁」里每个人的 Outlook 和 Teams 日历，不发邮件。事件改了或删了，再点一次「发布」，大家的日历才会更新。", "Puts each broadcast on the Outlook and Teams calendars of the people it is for. No email is sent. After you change or delete an event, publish again.")
-        : t("把本校校历写进本校账号的 Outlook 和 Teams 日历，不发邮件。事件改了或删了，再点一次「发布」，大家的日历才会更新。", "Puts this school's calendar on its accounts' Outlook and Teams calendars. No email is sent. After you change or delete an event, publish again.")) + "</p>";
+        ? t("写入接收人的 Outlook 和 Teams 日历，不发邮件。事件改了或删了，要再点一次「发布」才会更新。", "Adds the events to the receivers' Outlook and Teams calendars. No email is sent. After you edit or delete an event, publish again to update them.")
+        : t("写入本校账号的 Outlook 和 Teams 日历，不发邮件。事件改了或删了，要再点一次「发布」才会更新。", "Adds the events to this school's accounts' Outlook and Teams calendars. No email is sent. After you edit or delete an event, publish again to update them.")) + "</p>";
     h += '<label class="f">' + t("只发布给这些账号（测试用，可留空）", "Only these accounts (for a test run — may be empty)") + '<input type="text" id="calonly" placeholder="' + (hive ? "name@school.edu, name2@other.edu" : "teacher1@" + esc(calState.domain)) + '" value="' + esc(calSync.only) + '" /><small>' + t("填一两个账号（用逗号隔开）先试；确认日历里的样子没问题，再清空、发布给全部账号。", "Name one or two accounts (comma-separated) to try first; once the calendar looks right, clear it and publish to everyone.") + "</small></label>" +
       '<div class="actions"><button class="btn secondary sm" type="button" id="calPlan"' + (calSync.busy ? " disabled" : "") + ">" + t("查看待发布", "Preview") + '</button> <button class="btn" type="button" id="calGo"' + (calSync.busy ? " disabled" : "") + ">" + t("发布", "Publish") + '</button> <button class="btn secondary sm" type="button" id="calWithdraw"' + (calSync.busy ? " disabled" : "") + ">" + t("撤回已写入的", "Withdraw what was written") + "</button></div>" +
       '<div id="calsyncout">' + calSyncOut() + "</div></div>";
