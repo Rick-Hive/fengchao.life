@@ -12,12 +12,16 @@
 //                                          (targets: ["*"] or domains), roles (audience), Teams (teams) and
 //                                          named accounts of any school (people)          (same)
 //   POST /api/calendar {layer: "hive", op: "delete", id}        remove one                (same)
+//   POST /api/calendar {layer: "hive", op: "upload", name, size, index, total, data, id? | replace?}
+//                                          one 2 MB chunk of an attachment (PDF ≤ 10 MB, PNG / JPG ≤ 2 MB); the last
+//                                          chunk answers {file: {id, name, type, size, url}}; the event keeps
+//                                          `files` (≤ 3). Anyone with the link GET /api/f/<id> opens it. (same)
 //   GET  /api/calendar?lookup=audience&layer=hive | &domain=<d>   the accounts and Teams the event form
 //                                          offers for picking (all schools on the Hive layer, one school
 //                                          otherwise)                          (whoever may edit that layer)
 //   GET  /api/calendar?optout=1&domain=<d | *>   the 不接收广播的名单 (accounts that do not receive the broadcasts), with
 //                                          that school's accounts to pick from (* = every school: sysadmin,
-//                                          教育社区经理, 课程总监; a school: also its IT 管理员)
+//                                          教育社区经理, 课程总监; a school: also its 教育领袖)
 //   POST /api/calendar {op: "optout", upn, on: true|false, reason?}   put an account on / take it off the list
 //                                          (same people, for that account's school)
 //   POST /api/calendar {layer: "hive", op: "syncdomains", only?}  the schools a Hive publish has to visit
@@ -34,6 +38,7 @@
 // each other, and a layer's withdrawal never touches the other layer's events.
 const CAL = require("../shared/calendar");
 const SYNC = require("../shared/calendarSync");
+const FILES = require("../shared/files");
 const { userRoles, normUser, can, isAdmin } = require("../shared/roles");
 const { readInstitutions } = require("../shared/people");
 const { guard, finish } = require("../shared/session");
@@ -82,7 +87,7 @@ async function checkPeople(layer, domain, people) {
   const byDomain = new Map();
   for (const u of people || []) { const d = String(u).split("@")[1]; if (!byDomain.has(d)) byDomain.set(d, []); byDomain.get(d).push(u); }
   for (const [d, list] of byDomain) {
-    if (layer !== "hive" && d !== domain) { bad.push(...list.map((u) => `${u} (not an account of ${domain}; use Admin broadcast to reach other schools)`)); continue; }
+    if (layer !== "hive" && d !== domain) { bad.push(...list.map((u) => `${u} (not an account of ${domain}; use System broadcast to reach other schools)`)); continue; }
     if (!known.has(d)) { bad.push(...list.map((u) => `${u} (${d} is not one of the schools in Hive)`)); continue; }
     const have = new Set((((await dir.readDomain(d)) || {}).users || []).map((x) => String(x.upn || "").toLowerCase()));
     for (const u of list) if (!have.has(u)) bad.push(`${u} (no such account in ${d}'s list — if it is new, sync the school's accounts first)`);
@@ -126,7 +131,7 @@ module.exports = async function (context, req) {
     const by = normUser(user);
     const layer = String(q.layer || body.layer || "school");
 
-    // 不接收广播的名单 (Rick, 2026-10-17): accounts that do not receive 管理员广播.
+    // 不接收广播的名单 (Rick, 2026-10-17): accounts that do not receive 系统广播.
     if (q.optout || body.op === "optout") {
       const dom = String(q.domain || body.domain || "*").trim().toLowerCase();
       if (method === "GET") {
@@ -162,19 +167,32 @@ module.exports = async function (context, req) {
         return done(200, { ok: true, domains: await SYNC.hiveDomains(only) });
       }
       if (SYNC_OPS.includes(body.op)) return syncOp(done, context, "hive", String(body.domain || "").trim().toLowerCase(), body, by);
+      // attachments (Rick, 2026-10-18): one 2 MB chunk of a PDF / PNG / JPG; the last chunk answers with the file
+      if (body.op === "upload") {
+        try { const r = await FILES.upload(body, by); if (r.done) await audit(context, { actor: by, action: "calendar.file", target: "hive", id: r.id, name: r.file.name, size: r.file.size, replace: !!body.replace, result: "ok" }); return done(200, Object.assign({ ok: true }, r)); }
+        catch (err) { if (err.status === 400) return done(400, { error: err.message }); throw err; }
+      }
       if (body.op === "delete") {
         const id = String(body.id || "");
+        const before = ((await CAL.readHive()).events || []).find((x) => x.id === id);
         const { doc, found } = await CAL.deleteHiveEvent(id, by);
         if (!found) return done(404, { error: "no such event" });
+        if (before && before.files && before.files.length) await FILES.settle(id, before.files, []);
         await audit(context, { actor: by, action: "calendar.delete", target: "hive", id, result: "ok" });
         return done(200, { ok: true, hive: doc });
       }
-      if (body.op !== "save") return done(400, { error: "op must be save or delete" });
-      let doc;
-      try { const chk = CAL.cleanEvent(body.event, "hive", body.timezone); const bad = await checkPeople("hive", "", chk.people); if (bad.length) return done(400, { error: "please check the named accounts", problems: bad }); } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
-      try { doc = await CAL.saveHiveEvent(body.event, by, body.timezone); } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
+      if (body.op !== "save") return done(400, { error: "op must be save, delete or upload" });
+      let doc, files;
+      try {
+        const chk = CAL.cleanEvent(body.event, "hive", body.timezone);
+        const bad = await checkPeople("hive", "", chk.people); if (bad.length) return done(400, { error: "please check the named accounts", problems: bad });
+        files = await FILES.attach(chk.files); // known, not deleted, at most 3 — with their stored name, type and size
+      } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
+      const prior = body.event && body.event.id ? ((await CAL.readHive()).events || []).find((x) => x.id === body.event.id) : null;
+      try { doc = await CAL.saveHiveEvent(Object.assign({}, body.event, { files }), by, body.timezone); } catch (err) { if (err.status === 400) return done(400, { error: err.message, problems: err.problems }); throw err; }
       const ev = (doc.events || []).find((x) => x.id === (body.event && body.event.id)) || doc.events[doc.events.length - 1];
-      await audit(context, { actor: by, action: "calendar.save", target: "hive", id: ev && ev.id, title: ev && ev.title, schools: ev && ev.targets, result: "ok" });
+      await FILES.settle(ev.id, (prior && prior.files) || [], ev.files || []);
+      await audit(context, { actor: by, action: "calendar.save", target: "hive", id: ev && ev.id, title: ev && ev.title, schools: ev && ev.targets, files: (ev.files || []).length, result: "ok" });
       return done(200, { ok: true, hive: doc, event: ev });
     }
 

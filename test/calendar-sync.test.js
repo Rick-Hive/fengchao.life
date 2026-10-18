@@ -91,7 +91,7 @@ const allOf = async (body) => { // what the page does: fresh first, then repeat 
   assert.strictEqual(b1.location.displayName, "https://zoom.us/j/1", "no place given: the link shows as the location");
   const timed = CAL.cleanEvent({ title: "培训", start: "2026-12-05T19:00", end: "2026-12-05T20:30", timeZone: "America/New_York", location: "Room 3", reminder: 30, showAs: "busy", targets: ["a.edu"] }, "hive");
   const b2 = SYNC.graphBody(timed, "hive");
-  assert.deepStrictEqual([b2.start.dateTime, b2.end.dateTime, b2.start.timeZone, b2.categories, b2.showAs, b2.reminderMinutesBeforeStart, b2.location.displayName], ["2026-12-05T19:00:00", "2026-12-05T20:30:00", "Eastern Standard Time", ["管理员广播"], "busy", 30, "Room 3"]);
+  assert.deepStrictEqual([b2.start.dateTime, b2.end.dateTime, b2.start.timeZone, b2.categories, b2.showAs, b2.reminderMinutesBeforeStart, b2.location.displayName], ["2026-12-05T19:00:00", "2026-12-05T20:30:00", "Eastern Standard Time", ["系统广播"], "busy", 30, "Room 3"]);
   assert.strictEqual(SYNC.graphBody(Object.assign({}, timed, { timeZone: "Europe/Paris" }), "hive").start.timeZone, "Europe/Paris", "a zone without a Windows name is sent as it is");
   assert.strictEqual(SYNC.guid("a|b|c"), SYNC.guid("a|b|c")); assert.notStrictEqual(SYNC.guid("a|b|c"), SYNC.guid("a|b|d"));
   assert.ok(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(SYNC.guid("x")));
@@ -180,12 +180,12 @@ const allOf = async (body) => { // what the page does: fresh first, then repeat 
   const sys = (body) => call({ body: Object.assign({ layer: "hive", domain: "a.edu" }, body), user: "sys@fengchao.life", roles: SYS });
   r = await sys({ op: "syncplan" }); assert.strictEqual(r.status, 200); assert.deepStrictEqual(r.body.counts, { create: 4, update: 0, delete: 0 }, "everyone of the school: " + JSON.stringify(r.body));
   r = await sys({ op: "sync", fresh: true }); assert.strictEqual(r.status, 200); assert.strictEqual(r.body.remaining, 0);
-  assert.deepStrictEqual(boxes("管理员广播")["t1@a.edu"], ["联合培训"], "the Hive event is in the calendar, as its own category");
+  assert.deepStrictEqual(boxes("系统广播")["t1@a.edu"], ["联合培训"], "the Hive event is in the calendar, as its own category");
   assert.deepStrictEqual(boxes("校历")["t1@a.edu"], ["放假（再改）"], "the school's own events were not touched");
   r = await call({ body: { layer: "hive", domain: "a.edu", op: "sync" }, user: "it@a.edu", roles: IT }); assert.strictEqual(r.status, 403, "only the system administrator pushes Hive events");
   // the school's withdrawal takes only the school layer
   r = await lead({ op: "withdraw", fresh: true }); assert.strictEqual(r.status, 200);
-  assert.deepStrictEqual(boxes("校历")["t1@a.edu"], [], "the school's events are withdrawn"); assert.deepStrictEqual(boxes("管理员广播")["t1@a.edu"], ["联合培训"], "Hive's stay");
+  assert.deepStrictEqual(boxes("校历")["t1@a.edu"], [], "the school's events are withdrawn"); assert.deepStrictEqual(boxes("系统广播")["t1@a.edu"], ["联合培训"], "Hive's stay");
   assert.ok(audits.some((a) => a.action === "calendar.withdraw"));
   // after a withdrawal the calendar still has its events: the next plan wants them again
   r = await lead({ op: "syncplan" }); assert.ok(r.body.counts.create >= 1);
@@ -193,7 +193,7 @@ const allOf = async (body) => { // what the page does: fresh first, then repeat 
   await call({ body: { layer: "hive", op: "save", event: Object.assign({}, hiveEv, { targets: ["b.edu"] }) }, user: "sys@fengchao.life", roles: SYS });
   r = await sys({ op: "syncplan" }); assert.strictEqual(r.body.counts.delete, 3, "the three that were written (the mailbox-less account got nothing)");
   await sys({ op: "sync", fresh: true });
-  assert.deepStrictEqual(boxes("管理员广播")["t1@a.edu"], [], "no longer aimed at the school: removed");
+  assert.deepStrictEqual(boxes("系统广播")["t1@a.edu"], [], "no longer aimed at the school: removed");
 
   // ---- the test run: only the accounts named ----
   const only = ["t1@a.edu"];

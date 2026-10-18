@@ -1,5 +1,5 @@
 // management/src/23-calendar.js — 学校管理 › 校历: the school's calendar (edited by its 教育领袖), and the
-// events the system administrator adds on top (管理员广播). Two layers, never overwriting each other.
+// events the system administrator adds on top (系统广播). Two layers, never overwriting each other.
 // Part of management.js: scripts/build-management.js concatenates management/src/*.js in name order
 // into management/management.js (one closure; every part sees every other's functions). Edit here, not the built file.
 
@@ -12,7 +12,7 @@
   // calendars is api/shared/calendarSync.js — the 发布 panel drives it in batches).
   //   学校校历  the school's own events — the 教育领袖 adds, changes and deletes them; the IT
   //             管理员 and the system administrator only look.
-  //   管理员广播  events of the system administrator, 教育社区经理 and 课程总监 for chosen schools (or all), roles,
+  //   系统广播  events of the system administrator, 教育社区经理 and 课程总监 for chosen schools (or all), roles,
   //             Teams groups and named accounts of any school (Rick, 2026-10-17); a school sees the ones
   //             aimed at it in its list, read-only.
   // ================================================================================
@@ -70,13 +70,13 @@
     if (calState.layer === "school" && !ds.length) calState.layer = canHive() ? "hive" : "optout";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
     setTitle(domainGroupTitle(), t("校历", "School calendar"), "",
-      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「管理员广播」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的广播事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
+      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「系统广播」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的广播事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     calMount((ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
-        (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("管理员广播", "Admin broadcast") + "</a>" : "") +
+        (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("系统广播", "System broadcast") + "</a>" : "") +
         // 不接收广播的名单 (Rick, 2026-10-18: a tab here, not a page of its own; ordinary users never see this page)
         (canSeeOptout() ? '<a class="ptab' + (calState.layer === "optout" ? " on" : "") + '" href="#/domain/calendar" data-layer="optout" role="tab">' + t("不接收广播的名单", "Not receiving broadcasts") + "</a>" : ""));
   }
-  // 我的校历 (Rick, 2026-10-18): every signed-in account sees, read-only, the school events and 管理员广播 that are
+  // 我的校历 (Rick, 2026-10-18): every signed-in account sees, read-only, the school events and 系统广播 that are
   // addressed to it — the same list a publish would write into its own Outlook / Teams calendar — with a mark on
   // those not written yet. No adding, changing, dragging or publishing here; a school's events are changed by its
   // 教育领袖 on 学校管理 › 校历.
@@ -84,7 +84,7 @@
     if (!calState.cursor) { calState.cursor = calToday(); calState.selected = calToday(); }
     calState.layer = "mine";
     setTitle(t("我的账号", "My account"), t("我的校历", "My calendar"), "",
-      { info: t("发给你的学校校历和管理员广播。已发布的事件也在你的 Outlook 和 Teams 日历里；标有「未发布」的还没有写入。这里只能查看，学校的事件由本校教育领袖维护。", "The school calendar events and admin broadcasts addressed to you. Published ones are also in your Outlook and Teams calendars; those marked Not published are not written yet. View only — the school's events are kept by its education leader.") });
+      { info: t("发给你的学校校历和系统广播。已发布的事件也在你的 Outlook 和 Teams 日历里；标有「未发布」的还没有写入。这里只能查看，学校的事件由本校教育领袖维护。", "The school calendar events and system broadcasts addressed to you. Published ones are also in your Outlook and Teams calendars; those marked Not published are not written yet. View only — the school's events are kept by its education leader.") });
     calMount("");
   }
   function calMount(tabs) {
@@ -162,7 +162,7 @@
     var tip = hive
       ? t("可按学校、身份、Teams 群组筛选，也可加任意学校的账号；不会改动学校自己的校历。保存后点「发布」才写入日历。", "Pick schools, roles and Teams groups, or add accounts of any school; a school's own calendar is never changed. Press Publish after saving to write it into calendars.")
       : edit ? t("点事件可修改。带「广播」标记的来自校外，只读。保存后点「发布」才写入大家的日历。", "Click an event to change it. Events tagged Broadcast come from outside and are read-only. Press Publish after saving to write them into calendars.")
-      : isAdmin() ? t("系统管理员在这里只能查看；要给学校加事件，请用「管理员广播」。", "As the system administrator you can only look here; to add events for schools use Admin broadcast.")
+      : isAdmin() ? t("系统管理员在这里只能查看；要给学校加事件，请用「系统广播」。", "As the system administrator you can only look here; to add events for schools use System broadcast.")
       : t("只能查看；编辑和发布由本校教育领袖、教育社区经理和课程总监负责。", "View only; editing and publishing are for the school's education leader, education community manager and curriculum director.");
     right += tipI(tip) + (edit ? "" : '<span class="tag">' + t("只读", "View only") + "</span>") +
       (edit ? '<button class="btn secondary sm" id="calAdd">' + t("＋ 添加事件", "+ Add event") + '</button><button class="btn sm" id="calPublish">' + t("发布", "Publish") + "</button>" : "");
@@ -333,7 +333,7 @@
     var head = "<thead><tr><th>" + t("日期 / 时间", "Date / time") + "</th><th>" + t("标题", "Title") + "</th><th>" + t("发给", "For") + "</th><th>" + t("提醒", "Reminder") + "</th><th>" + t("会议链接", "Meeting link") + "</th>" + (hive ? "" : "<th>" + t("来源", "Source") + "</th>") + "</tr></thead>";
     var body = rows.length ? rows.map(function (x) {
       var e = x.e;
-      return '<tr class="pick" data-ev="' + esc(e.id) + '" data-src="' + x.src + '"><td style="white-space:nowrap">' + calWhen(e) + "</td><td><b>" + esc(e.title) + "</b>" + calUnpubTag(e) + (e.location ? '<div class="faint" style="font-size:12px">' + esc(e.location) + "</div>" : "") + "</td>" +
+      return '<tr class="pick" data-ev="' + esc(e.id) + '" data-src="' + x.src + '"><td style="white-space:nowrap">' + calWhen(e) + "</td><td><b>" + esc(e.title) + "</b>" + calUnpubTag(e) + (e.files && e.files.length ? ' <span class="faint" title="' + esc(e.files.map(function (f) { return f.name; }).join(", ")) + '">📎 ' + e.files.length + "</span>" : "") + (e.location ? '<div class="faint" style="font-size:12px">' + esc(e.location) + "</div>" : "") + "</td>" +
         "<td>" + esc(calForText(e, x.src)) + "</td><td>" + esc(calRemindText(e.reminder)) + "</td><td>" + (e.link ? "✓" : "—") + "</td>" +
         (hive ? "" : '<td><span class="tag ' + (x.src === "hive" ? "accent" : "ok") + '">' + (x.src === "hive" ? t("广播", "Broadcast") : t("校历", "School")) + "</span></td>") + "</tr>";
     }).join("") : '<tr><td colspan="' + (hive ? 5 : 6) + '" class="muted">' + (all.length ? t("这一类里没有事件。", "No events in this view.") : t("还没有事件。", "No events yet.") + (edit ? " " + t("点右上角「＋ 添加事件」开始。", "Use “+ Add event” to start.") : "")) + "</td></tr>";
@@ -620,7 +620,7 @@
     if (id && !ev) return;
     var d = hiveLayer ? calState.hive : calState.data;
     var zone = (ev && ev.timeZone) || calDefaultZone();
-    var e = ev || Object.assign({ title: "", allDay: false, start: (date || calToday()) + "T" + calPad(hour == null ? 9 : hour) + ":00", end: (date || calToday()) + "T" + (hour == null ? "10:00" : hour < 23 ? calPad(hour + 1) + ":00" : "23:59"), timeZone: zone, audience: [], location: "", description: "", link: "", meeting: "link", reminder: (d && d.defaults && d.defaults.reminder) != null ? d.defaults.reminder : 15, showAs: "free", targets: [] }, seed || {});
+    var e = ev || Object.assign({ title: "", allDay: false, start: (date || calToday()) + "T" + calPad(hour == null ? 9 : hour) + ":00", end: (date || calToday()) + "T" + (hour == null ? "10:00" : hour < 23 ? calPad(hour + 1) + ":00" : "23:59"), timeZone: zone, audience: [], location: "", description: "", link: "", meeting: "link", reminder: (d && d.defaults && d.defaults.reminder) != null ? d.defaults.reminder : 15, showAs: "free", targets: [], files: [] }, seed || {});
     var schoolName = hiveLayer ? "" : " · " + esc(dname(calState.domain));
     if (!editable) {
       panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + esc(e.title) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
@@ -628,6 +628,7 @@
         '<span class="k">' + t("发给", "For") + "</span><span>" + esc(calForText(e, src === "hive" ? "hive" : "school")) + "</span>" +
         (e.location ? '<span class="k">' + t("地点", "Where") + "</span><span>" + esc(e.location) + "</span>" : "") +
         (e.link ? '<span class="k">' + t("会议链接", "Meeting link") + '</span><span><a href="' + esc(e.link) + '" target="_blank" rel="noopener">' + esc(e.link) + "</a></span>" : "") +
+        (e.files && e.files.length ? '<span class="k">' + t("附件", "Files") + '</span><span>' + e.files.map(function (f) { return '<a href="' + esc(calFileUrl(f.id)) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="faint">' + calFileSize(f.size) + "</span>"; }).join("<br>") + "</span>" : "") +
         '<span class="k">' + t("提醒", "Reminder") + "</span><span>" + esc(calRemindText(e.reminder)) + "</span>" +
         '<span class="k">' + t("显示为", "Shown as") + "</span><span>" + (e.showAs === "busy" ? t("忙碌", "Busy") : t("空闲", "Free")) + "</span>" +
         "</div>" +
@@ -639,7 +640,7 @@
     }
     var tgAll = (e.targets || []).indexOf("*") >= 0;
     var schools = ((domainsInfo && domainsInfo.domains) || []);
-    panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + (ev ? t("修改事件", "Change event") : t("添加事件", "Add event")) + (hiveLayer ? " · " + t("管理员广播", "Admin broadcast") : schoolName) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+    panelOpen('<div class="ph"><span class="avatar">📅</span><h3>' + (ev ? t("修改事件", "Change event") : t("添加事件", "Add event")) + (hiveLayer ? " · " + t("系统广播", "System broadcast") : schoolName) + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
       '<div class="pb"><form id="cef" autocomplete="off">' +
       '<label class="f">' + t("标题", "Title") + ' <span class="req">*</span><input type="text" id="ceTitle" maxlength="120" value="' + esc(e.title) + '" /></label>' +
       '<label class="chk" style="display:flex;margin:6px 0"><input type="checkbox" id="ceAll"' + (e.allDay ? " checked" : "") + " /> " + t("全天", "All day") + "</label>" +
@@ -647,6 +648,7 @@
       '<label class="f" id="ceZoneBox"' + (e.allDay ? " hidden" : "") + ">" + t("时区", "Time zone") + '<select id="ceZone">' + calZoneOptions(zone) + "</select></label>" +
       calWhoHTML(e, hiveLayer, schools, tgAll) +
       '<label class="f">' + t("会议链接", "Meeting link") + '<input type="url" id="ceLink" maxlength="500" placeholder="https://" value="' + esc(e.link) + '" /><small>' + t("可选。粘贴 Teams、Zoom 等会议的完整网址；事件写入日历后，大家点开就能加入。", "Optional. Paste the full address of a Teams, Zoom… meeting; people open the event in their calendar and join from it.") + "</small></label>" +
+      (hiveLayer ? calFilesHTML(e) : "") +
       '<label class="f">' + t("详细信息", "Details") + '<textarea id="ceDesc" rows="3" maxlength="2000" placeholder="' + esc(t("添加详细信息", "Add details")) + '">' + esc(e.description) + "</textarea></label>" +
       '<div class="grid2"><label class="f">' + t("提醒", "Reminder") + '<select id="ceRem">' + CAL_REMIND.map(function (k) { return '<option value="' + (k[0] == null ? "" : k[0]) + '"' + (k[0] === e.reminder ? " selected" : "") + ">" + esc(t(k[1], k[2])) + "</option>"; }).join("") + '</select></label><label class="f">' + t("显示为", "Show as") + '<select id="ceShow"><option value="free"' + (e.showAs !== "busy" ? " selected" : "") + ">" + t("空闲", "Free") + '</option><option value="busy"' + (e.showAs === "busy" ? " selected" : "") + ">" + t("忙碌", "Busy") + "</option></select><small>" + t("忙碌：这段时间在别人安排会议时显示为已占用。空闲：只显示在日历里，不挡会议安排（培训、通知一般选空闲）。", "Busy: the time shows as taken when people schedule meetings. Free: it only appears on the calendar and does not block scheduling (use Free for notices and training days).") + "</small></label></div>" +
       '<div class="actions"><button class="btn" type="submit" id="ceSave">' + t("保存", "Save") + "</button>" + (ev ? ' <button class="btn secondary sm" type="button" id="ceDel">' + t("删除", "Delete") + "</button>" : "") + '</div><div id="ceMsg"></div></form></div>');
@@ -657,12 +659,14 @@
       if (!this.checked && ev && ev.allDay) $("ceZone").value = calDefaultZone();
     });
     var who = calWhoBind(e, hiveLayer);
+    var files = hiveLayer ? calFilesBind(e) : null;
     $("cef").addEventListener("submit", function (ev2) {
       ev2.preventDefault();
       var allDay = $("ceAll").checked, rem = $("ceRem").value;
       var out = { id: ev ? ev.id : undefined, title: $("ceTitle").value.trim(), allDay: allDay, start: calWhenValue($("cewhen")).start, end: calWhenValue($("cewhen")).end || calWhenValue($("cewhen")).start, timeZone: $("ceZone").value, audience: who.value().audience, teams: who.value().teams, people: who.value().people, location: ev ? ev.location || "" : "", description: $("ceDesc").value.trim(), link: $("ceLink").value.trim(), meeting: "link", reminder: rem === "" ? null : Number(rem), showAs: $("ceShow").value };
-      if (hiveLayer) out.targets = who.value().targets;
+      if (hiveLayer) { out.targets = who.value().targets; out.files = files.value(); }
       var missing = [];
+      if (files && files.busy()) { $("ceMsg").innerHTML = '<div class="msg err">' + t("文件还在上传，请稍等。", "A file is still uploading — one moment.") + "</div>"; return; }
       if (!out.title) missing.push(t("标题", "title"));
       if (!out.start) missing.push(t("开始时间", "start"));
       if (hiveLayer && !out.targets.length && !out.audience.length && !out.teams.length && !out.people.length) missing.push(t("发给谁（学校、身份、Teams 群组或账号）", "who it is for (a school, role, Teams group or account)"));
@@ -685,6 +689,98 @@
         calRender(); panelClose(); flashOk(t("事件已删除。", "Event deleted."));
       });
     });
+  }
+
+  // ---- 附件 (Rick, 2026-10-18): a PDF or picture that goes with a 系统广播 as a LINK ------------------------
+  // The file is stored once; recipients' calendar bodies carry https://…/api/f/<id>, which opens for anyone with the
+  // link. Nothing is copied into calendars and no picture is embedded. PDF ≤ 10 MB; a picture is shrunk here in the
+  // browser to ≤ 2 MB (longest side 2000px) before upload; 3 files per event; uploads go in 2 MB chunks. Replacing a
+  // file keeps its id, so the published bodies need no re-publish. Only the broadcast layer has this section.
+  var CAL_FILE_CHUNK = 2 * 1024 * 1024, CAL_PDF_MAX = 10 * 1024 * 1024, CAL_IMG_MAX = 2 * 1024 * 1024, CAL_FILES_MAX = 3;
+  function calFileUrl(id) { return "/api/f/" + encodeURIComponent(id); }
+  function calFileSize(n) { n = Number(n) || 0; return n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+  function calFilesHTML(e) {
+    return '<div class="f" id="ceFiles"><span>' + t("附件", "Files") + tipI(t("PDF 10 MB 以内；图片会自动缩小到 2 MB 以内；最多 3 个。大家在日历里看到的是链接，点开就能看，所以文件不要含学生个人信息。换文件时链接不变，已发布的事件不用重发。", "PDF up to 10 MB; pictures are shrunk to 2 MB; 3 per event. People see a link in their calendar that opens for anyone, so keep student personal data out of the file. Replacing a file keeps its link — no re-publish.")) + "</span>" +
+      '<div class="cefiles" id="ceFileList"></div>' +
+      '<div class="actions" style="margin-top:6px"><label class="btn secondary sm" id="ceFileAdd">' + t("＋ 添加文件", "+ Add file") + '<input type="file" hidden accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" multiple /></label> <span class="faint" style="font-size:12px">' + t("也可以直接把图片粘贴到表单里。", "Or paste a picture into the form.") + "</span></div>" +
+      '<div id="ceFileMsg"></div><input type="file" hidden id="ceFileReplace" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" /></div>';
+  }
+  function calFilesBind(e) {
+    var list = (e.files || []).map(function (f) { return { id: f.id, name: f.name, type: f.type, size: f.size }; }), uploading = 0, replacing = null;
+    function msg(text, bad) { $("ceFileMsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '" style="margin-top:6px">' + esc(text) + "</div>" : ""; }
+    function paint() {
+      $("ceFileList").innerHTML = list.map(function (f, i) {
+        return '<div class="cefile" data-i="' + i + '">' + (f.type === "application/pdf" ? "📄" : "🖼") + ' <a href="' + esc(calFileUrl(f.id)) + '" target="_blank" rel="noopener">' + esc(f.name) + '</a> <span class="faint">' + calFileSize(f.size) + (f.progress != null ? " · " + t("上传中 ", "uploading ") + f.progress + "%" : "") + "</span>" +
+          '<span class="cefileops"><button type="button" class="linkbtn" data-frep="' + i + '">' + t("替换", "Replace") + '</button> <button type="button" class="linkbtn" data-frm="' + i + '">' + t("移除", "Remove") + "</button></span></div>";
+      }).join("") || '<p class="faint" style="font-size:12px;margin:2px 0">' + t("还没有附件。", "No files yet.") + "</p>";
+      $("ceFileAdd").hidden = list.length >= CAL_FILES_MAX;
+    }
+    // a picture is shrunk until it fits (JPEG for photos, PNG stays PNG unless it is too big)
+    function shrink(file) {
+      return new Promise(function (resolve) {
+        if (!/^image\//.test(file.type) || file.size <= CAL_IMG_MAX) return resolve(file);
+        var img = new Image(), url = URL.createObjectURL(file);
+        img.onload = function () {
+          URL.revokeObjectURL(url);
+          var side = 2000, q = 0.85;
+          (function attempt() {
+            var k = Math.min(1, side / Math.max(img.width, img.height)), c = document.createElement("canvas");
+            c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+            c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+            c.toBlob(function (b) {
+              if (!b) return resolve(null);
+              if (b.size <= CAL_IMG_MAX || (side <= 800 && q <= 0.5)) { resolve(new File([b], file.name.replace(/\.(png|jpe?g)$/i, "") + ".jpg", { type: "image/jpeg" })); return; }
+              if (q > 0.5) q -= 0.1; else side = Math.round(side * 0.8);
+              attempt();
+            }, "image/jpeg", q);
+          })();
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve(null); };
+        img.src = url;
+      });
+    }
+    function b64(buf) { var s = "", a = new Uint8Array(buf); for (var i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
+    async function send(file, replaceId) {
+      var isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      if (!isPdf && !/^image\/(png|jpeg)$/.test(file.type)) { msg(t("只能添加 PDF、PNG 或 JPG。", "Only PDF, PNG or JPG."), true); return; }
+      if (isPdf && file.size > CAL_PDF_MAX) { msg(t("这个 PDF 有 ", "This PDF is ") + calFileSize(file.size) + t("，超过 10 MB，请压缩后再传。", ", over 10 MB — please compress it first."), true); return; }
+      var f = await shrink(file);
+      if (!f) { msg(t("这张图片无法处理。", "This picture could not be read."), true); return; }
+      if (!isPdf && f.size > CAL_IMG_MAX) { msg(t("这张图片缩小后仍超过 2 MB。", "This picture is still over 2 MB after shrinking."), true); return; }
+      var row = replaceId ? list.filter(function (x) { return x.id === replaceId; })[0] : { id: "", name: f.name, type: f.type, size: f.size };
+      if (!replaceId) { if (list.length >= CAL_FILES_MAX) { msg(t("最多 3 个附件。", "At most 3 files."), true); return; } list.push(row); }
+      row.progress = 0; uploading++; paint(); msg("");
+      try {
+        var total = Math.max(1, Math.ceil(f.size / CAL_FILE_CHUNK)), id = replaceId || "", buf = await f.arrayBuffer(), r;
+        for (var i = 0; i < total; i++) {
+          var body = { layer: "hive", op: "upload", name: f.name, size: f.size, index: i, total: total, data: b64(buf.slice(i * CAL_FILE_CHUNK, (i + 1) * CAL_FILE_CHUNK)) };
+          if (replaceId) body.replace = replaceId; else if (id) body.id = id;
+          r = await post("calendar", "POST", body);
+          if (!r.ok) throw new Error(errText(r));
+          id = r.body.id; row.progress = Math.round((i + 1) / total * 100); paint();
+        }
+        row.id = r.body.file.id; row.name = r.body.file.name; row.type = r.body.file.type; row.size = r.body.file.size; delete row.progress;
+        if (f !== file && !isPdf) msg(t("图片已缩小到 ", "Picture shrunk to ") + calFileSize(row.size) + t("。", "."));
+      } catch (err) {
+        if (!replaceId) list.splice(list.indexOf(row), 1); else delete row.progress;
+        msg(t("上传失败：", "Upload failed: ") + (err && err.message || ""), true);
+      }
+      uploading--; paint();
+    }
+    function take(fileList, replaceId) { Array.prototype.slice.call(fileList || []).forEach(function (f, i) { if (!replaceId || i === 0) send(f, replaceId); }); }
+    $("ceFileAdd").querySelector("input").addEventListener("change", function () { take(this.files); this.value = ""; });
+    $("ceFileReplace").addEventListener("change", function () { if (replacing) take(this.files, replacing); replacing = null; this.value = ""; });
+    $("ceFileList").addEventListener("click", function (ev) {
+      var rm = ev.target.closest("[data-frm]"), rp = ev.target.closest("[data-frep]");
+      if (rm) { list.splice(+rm.getAttribute("data-frm"), 1); paint(); }
+      else if (rp) { replacing = list[+rp.getAttribute("data-frep")].id; $("ceFileReplace").click(); }
+    });
+    $("cef").addEventListener("paste", function (ev) {
+      var items = ev.clipboardData && ev.clipboardData.files; if (!items || !items.length) return;
+      ev.preventDefault(); take(items);
+    });
+    paint();
+    return { value: function () { return list.filter(function (f) { return f.id; }).map(function (f) { return { id: f.id, name: f.name, type: f.type, size: f.size }; }); }, busy: function () { return uploading > 0; } };
   }
 
   // ---- 发给谁: schools · roles · Teams groups · named accounts (Rick, 2026-10-17: 「选择学校、按角色、按 Teams 群组
@@ -893,7 +989,7 @@
     $("calGo").addEventListener("click", function () { calSyncRun("sync"); });
     $("calWithdraw").addEventListener("click", function () {
       var only = calSyncOnly();
-      if (!window.confirm(only ? t("从这些账号的日历里撤回这一层写入的事件？", "Withdraw the events this layer wrote from these accounts' calendars?") : t("从所有账号的日历里撤回这一层写入的事件？（学校自己的校历和管理员广播互不影响。）", "Withdraw the events this layer wrote from all the accounts' calendars? (The school calendar and the Admin broadcast never touch each other.)"))) return;
+      if (!window.confirm(only ? t("从这些账号的日历里撤回这一层写入的事件？", "Withdraw the events this layer wrote from these accounts' calendars?") : t("从所有账号的日历里撤回这一层写入的事件？（学校自己的校历和系统广播互不影响。）", "Withdraw the events this layer wrote from all the accounts' calendars? (The school calendar and the System broadcast never touch each other.)"))) return;
       calSyncRun("withdraw");
     });
   }

@@ -7,7 +7,7 @@
 //             edited by the school's 教育领袖 (roles.can "calendarEdit"); the system
 //             administrator sees it, does not change it; the IT 管理员 has no part in it (Rick,
 //             2026-10-16: the 教育领袖 publishes directly).
-//   管理员广播  crm/hive-calendar.json                { events: [... + targets], updatedAt, updatedBy }
+//   系统广播  crm/hive-calendar.json                { events: [... + targets], updatedAt, updatedBy }
 //             edited by the system administrator alone; each event names the schools it is for
 //             (["*"] = every school). A school sees the Hive events aimed at it, read-only.
 // Step 1 stores and edits the events. Writing them into people's Outlook / Teams calendars
@@ -37,7 +37,8 @@ const { IDENTITIES } = require("./people");
 
 const UPN_RE = /^[a-z0-9._%+'-]+@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/;
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const LIMITS = { people: 300, teams: 30, events: 400, title: 120, description: 2000, location: 200, link: 500, spanDays: 62 };
+const LIMITS = { people: 300, teams: 30, events: 400, title: 120, description: 2000, location: 200, link: 500, spanDays: 62, files: 3 };
+const FILE_ID_RE = /^[a-z0-9]{16}$/;
 const REMINDERS = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080];
 const DEFAULT_REMINDER = 15;
 const DEFAULT_TZ = "Asia/Shanghai"; // 北京时间 until a school saves its own default (Rick, 2026-10-17)
@@ -146,12 +147,22 @@ function cleanEvent(input, layer, fallbackZone) {
     }
     if (!targets.length && !audience.length && !teams.length && !people.length && !problems.length) problems.push("choose who it is for: a school, a role, a team or named people");
     out.targets = targets;
+    // attachments (Rick, 2026-10-18): links to files stored once (api/shared/files.js); the broadcast layer only.
+    // The caller (api/calendar) checks the ids against the file index before saving.
+    const files = [];
+    for (const f of Array.isArray(e.files) ? e.files : []) {
+      const id = str(f && f.id, 16).toLowerCase();
+      if (!FILE_ID_RE.test(id)) { problems.push("a file has no valid id"); continue; }
+      if (!files.some((x) => x.id === id)) files.push({ id, name: str(f.name, 120), type: str(f.type, 40), size: Number(f.size) || 0 });
+    }
+    if (files.length > LIMITS.files) problems.push(`at most ${LIMITS.files} files per event`);
+    out.files = files;
   }
   if (problems.length) throw Object.assign(new Error("please check the event"), { status: 400, problems });
   return out;
 }
 
-const core = (e) => JSON.stringify([e.title, e.allDay, e.start, e.end, e.timeZone, e.audience, e.teams || [], e.people || [], e.location, e.description, e.link, e.meeting, e.reminder, e.showAs, e.targets || null]);
+const core = (e) => JSON.stringify([e.title, e.allDay, e.start, e.end, e.timeZone, e.audience, e.teams || [], e.people || [], e.location, e.description, e.link, e.meeting, e.reminder, e.showAs, e.targets || null, (e.files || []).map((f) => [f.id, f.name])]);
 
 // Add or change one event inside `doc` (mutates). Returns the stored event.
 function putEvent(doc, ev, by, at) {
@@ -219,7 +230,7 @@ async function deleteHiveEvent(id, by) {
   return { doc, found };
 }
 
-// 广播名单 (Rick, 2026-10-17): accounts that do not receive 管理员广播. It only concerns that layer — a school's own
+// 广播名单 (Rick, 2026-10-17): accounts that do not receive 系统广播. It only concerns that layer — a school's own
 // calendar is the school's daily business. The sync leaves these accounts out and withdraws what they already hold.
 async function readOptout() { return store.read(OPTOUT_BLOB, EMPTY_OPTOUT); }
 async function setOptout(upn, on, reason, by) {

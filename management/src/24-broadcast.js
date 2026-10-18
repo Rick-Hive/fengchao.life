@@ -1,4 +1,4 @@
-// management/src/24-broadcast.js — 学校管理 › 校历 › 不接收广播的名单: the accounts that do not receive 管理员广播 (Rick,
+// management/src/24-broadcast.js — 学校管理 › 校历 › 不接收广播的名单: the accounts that do not receive 系统广播 (Rick,
 // 2026-10-17; a tab of the calendar page since 2026-10-18).
 // Part of management.js (see scripts/build-management.js). Server: GET/POST /api/calendar with `optout`
 // (api/shared/calendar.js keeps crm/broadcast-optout.json; the sync leaves these accounts out of every broadcast
@@ -18,7 +18,7 @@
     var ds = bcDomains(), all = canHive();
     if (!ds.length) { calState.layer = "school"; viewCalendar(); return; }
     if (!bcState.domain || (bcState.domain !== "*" && !ds.some(function (d) { return d.domain === bcState.domain; })) || (bcState.domain === "*" && !all)) bcState.domain = all && ds.length > 1 ? "*" : ds[0].domain;
-    $("calright").innerHTML = tipI(t("名单上的账号不会收到任何管理员广播（即使被点名）；已经写进他们日历的广播，下次发布时会撤回。只管广播，不影响学校自己的校历。教育领袖只能加入本校的账号。", "Accounts on this list receive no admin broadcasts (even when named); broadcasts already in their calendars are withdrawn at the next publish. Broadcasts only — a school's own calendar is not affected. An education leader adds their own school's accounts only."));
+    $("calright").innerHTML = tipI(t("名单上的账号不会收到任何系统广播（即使被点名）；已经写进他们日历的广播，下次发布时会撤回。只管广播，不影响学校自己的校历。教育领袖只能加入本校的账号。", "Accounts on this list receive no system broadcasts (even when named); broadcasts already in their calendars are withdrawn at the next publish. Broadcasts only — a school's own calendar is not affected. An education leader adds their own school's accounts only."));
     $("calbody").innerHTML = '<div class="toolbar sub" id="bcbar"></div><div id="bcmsg"></div><div id="bcbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     bcLoad();
   }

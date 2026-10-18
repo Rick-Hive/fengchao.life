@@ -144,6 +144,17 @@ function assetUrl(key) {
   return key ? "/api/asset?key=" + encodeURIComponent(key) : null;
 }
 
+// Chunked upload of one asset (broadcast attachments): each chunk is staged as a block, the last call commits them.
+async function stageAssetBlock(key, blockId, buffer) {
+  const container = getAssetsContainerClient();
+  await container.createIfNotExists();
+  await container.getBlockBlobClient(key).stageBlock(blockId, buffer, buffer.length);
+}
+async function commitAssetBlocks(key, blockIds, contentType, cacheControl) {
+  await getAssetsContainerClient().getBlockBlobClient(key).commitBlockList(blockIds, { blobHTTPHeaders: { blobContentType: contentType || "application/octet-stream", blobCacheControl: cacheControl || DAY_CACHE } });
+}
+async function deleteAsset(key) { await getAssetsContainerClient().getBlockBlobClient(key).deleteIfExists(); }
+
 // Read one asset back; returns {buffer, contentType} or null.
 async function readAsset(key) {
   const container = getAssetsContainerClient();
@@ -154,4 +165,4 @@ async function readAsset(key) {
   return { buffer, contentType: props.contentType || "application/octet-stream" };
 }
 
-module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset, nextSequence, assetUrl, cacheControlFor };
+module.exports = { writeSnapshot, readSnapshot, restoreSnapshot, writeAsset, readAsset, stageAssetBlock, commitAssetBlocks, deleteAsset, nextSequence, assetUrl, cacheControlFor };

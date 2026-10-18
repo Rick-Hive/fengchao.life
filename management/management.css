@@ -929,6 +929,12 @@ table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 /* the title takes as many lines as the block has room for (set inline), then an ellipsis; the full title is the tooltip */
 .calblk b { font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; white-space: normal; overflow-wrap: anywhere; }
 .calblk span { opacity: .75; font-variant-numeric: tabular-nums; font-size: 11px; line-height: 14px; white-space: nowrap; }
+/* 附件 on a broadcast: one row per file, with Replace / Remove */
+.cefiles .cefile { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+.cefiles .cefile a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cefiles .cefileops { margin-left: auto; white-space: nowrap; }
+.linkbtn { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: 12.5px; padding: 0 4px; }
+.linkbtn:hover { text-decoration: underline; }
 /* 我的校历: an event not yet written into the viewer's own calendar */
 .calev.unpub, .calblk.unpub { border-left-style: dashed; opacity: .78; }
 /* drag to move (week and month) and to change the end (week) */

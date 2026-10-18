@@ -118,6 +118,13 @@
       }
     },
     {
+      "route": "/api/f/*",
+      "allowedRoles": [
+        "anonymous",
+        "authenticated"
+      ]
+    },
+    {
       "route": "/api/school-plan",
       "headers": {
         "Cache-Control": "no-store"

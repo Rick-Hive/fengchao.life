@@ -24,9 +24,10 @@ const graphMod = require("./graph");
 const dir = require("./directory");
 const CAL = require("./calendar");
 const peopleMod = require("./people");
+const FILES = require("./files");
 
 const BATCH = 30, CONCURRENCY = 5;
-const CATEGORY = { school: "校历", hive: "管理员广播" };
+const CATEGORY = { school: "校历", hive: "系统广播" };
 const syncBlob = (domain) => `crm/calendar-sync/${domain}.json`;
 const EMPTY = (domain) => ({ domain, items: {}, failures: {}, lastRun: null });
 const sha = (s) => crypto.createHash("sha1").update(s).digest("hex");
@@ -54,7 +55,9 @@ function graphBody(ev, layer) {
   const parts = [];
   if (ev.link) parts.push(`<p>会议链接 Meeting link：<a href="${esc(ev.link)}">${esc(ev.link)}</a></p>`);
   if (ev.description) parts.push(`<p>${esc(ev.description).replace(/\r?\n/g, "<br>")}</p>`);
-  parts.push(`<p style="color:#888;font-size:12px">${layer === "hive" ? "管理员广播 Admin broadcast" : "学校校历 School calendar"} · 由蜂巢写入 written by Hive</p>`);
+  // attachments as links only (Rick, 2026-10-18): one stored copy, no picture embedded, no file in each calendar
+  if (ev.files && ev.files.length) parts.push(`<p>附件 Files：${ev.files.map((f) => `<a href="${esc(FILES.url(f.id))}">${esc(f.name)}</a>`).join(" · ")}</p>`);
+  parts.push(`<p style="color:#888;font-size:12px">${layer === "hive" ? "系统广播 System broadcast" : "学校校历 School calendar"} · 由蜂巢写入 written by Hive</p>`);
   const body = {
     subject: ev.title,
     body: { contentType: "html", content: parts.join("") },
@@ -219,6 +222,7 @@ async function execute(op, domain) {
 // progress the page shows. `fresh` (the first request of a run) forgets earlier failures
 // so they are tried again; later requests leave them out so a stubborn failure cannot loop.
 async function run(domain, layer, opts) {
+  if (layer === "hive") { try { await FILES.cleanup(); } catch { /* next time */ } }
   const o = opts || {};
   const limit = Math.max(1, Math.min(60, Number(o.limit) || BATCH));
   if (o.fresh) await store.update(syncBlob(domain), () => EMPTY(domain), (d) => {

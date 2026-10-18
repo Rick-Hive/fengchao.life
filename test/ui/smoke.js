@@ -58,7 +58,7 @@ const bcPosts = [];
 const CAL_SEED = { id: "h-seed", title: "联合教师培训", allDay: false, start: "2026-12-05T19:00", end: "2026-12-05T20:30", timeZone: "America/New_York", audience: ["老师"], location: "", description: "", link: "https://zoom.us/j/123456", meeting: "link", reminder: 15, showAs: "free", targets: ["*"], createdBy: "hive.admin@fengchao.life" };
 let CAL_SCHOOL = { domain: "bes.qiaoliang.online", timezone: "", events: [], updatedAt: null, updatedBy: "" };
 let CAL_HIVE = { events: [CAL_SEED], updatedAt: null, updatedBy: "" };
-const calPosts = [], syncPosts = [];
+const calPosts = [], syncPosts = [], filePosts = [];
 const domains = { user: summary.profile.upn, roles: ["admin"], all: true, mine: "bes.qiaoliang.online", domains: [{ domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School", isDefault: true, isInitial: false, can: CAN }, { domain: "demo.fengchao.life", name: "", isDefault: false, isInitial: false, can: CAN }], showDomains: true };
 function mkUser(i) {
   const names = ["Elaine Chen", "Lei Dong", "Rick Zhang", "Mei Wang", "Tom Li", "Anna Zhao", "Kevin Wu", "Sophie Liu", "Jack Sun", "Lily Huang", "Mark Zhou", "Grace Xu"];
@@ -211,6 +211,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
         const b = JSON.parse(r.request().postData());
         if (b.op === "optout") { bcPosts.push(b); const i = BC_ITEMS.findIndex(x => x.upn === b.upn); if (b.on === false) { if (i >= 0) BC_ITEMS.splice(i, 1); body = { ok: true, item: null }; } else { const it = { upn: b.upn, reason: b.reason || "", at: new Date().toISOString(), by: me.profile.upn }; if (i >= 0) BC_ITEMS[i] = it; else BC_ITEMS.push(it); body = { ok: true, item: it }; } }
         else if (b.op === "syncdomains") body = { ok: true, domains: ["bes.qiaoliang.online"] };
+        else if (b.op === "upload") { filePosts.push(b); const id = b.replace || b.id || "f" + String(filePosts.length).padStart(15, "0"); const done = b.index + 1 >= b.total; body = done ? { ok: true, id, done, file: { id, name: b.name, type: /\.pdf$/i.test(b.name) ? "application/pdf" : "image/png", size: b.size, url: "https://www.fengchao.life/api/f/" + id } } : { ok: true, id, done }; }
         else if (["syncplan", "sync", "withdraw"].includes(b.op)) {
           syncPosts.push(b);
           const failed = [{ key: "school:e-1", upn: "nomail@bes.qiaoliang.online", title: "家长会", reason: "no_mailbox", message: "" }];
@@ -962,7 +963,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.strictEqual((await p.$$("#caltabs a[data-layer]")).length, 3, "all three tabs (school, broadcast, the list)");
     assert.ok(await p.$("#calsel"), "the school picker");
     assert.ok(!(await p.$("#calAdd")) && !(await p.$("#calPublish")), "the system administrator cannot add to or publish a school's own calendar");
-    assert.ok(/View only/.test(await p.$eval("#calright", e => e.innerText)) && /Admin broadcast/.test(await p.$eval("#calright .info", e => e.dataset.tip)), "the page says it is view-only, and why, in a small tip");
+    assert.ok(/View only/.test(await p.$eval("#calright", e => e.innerText)) && /System broadcast/.test(await p.$eval("#calright .info", e => e.dataset.tip)), "the page says it is view-only, and why, in a small tip");
     await p.click('#calbody .chip[data-filter="all"]'); await p.waitForTimeout(200);
     await p.click('#caltable tr[data-src="hive"]'); await p.waitForTimeout(300);
     assert.ok(/read-only/.test(await p.$eval("#panel .pb", e => e.innerText)), "a Hive event is read-only in a school's list");
@@ -986,12 +987,28 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/ghost@nowhere\.org/.test(await p.$eval("#cesum", e => e.innerText)) && /Not found/.test(await p.$eval("#cesum", e => e.innerText)), "an unknown account is refused with its name: " + await p.$eval("#cesum", e => e.innerText));
     assert.strictEqual((await p.$$("#cePeople .calchip")).length, 1, "the known one was added");
     assert.ok(/All schools/.test(await p.$eval("#cesum", e => e.innerText)) && /≈ 2 people/.test(await p.$eval("#cesum", e => e.innerText)), "the count: " + await p.$eval("#cesum", e => e.innerText));
+    // 附件 (Rick, 2026-10-18): a PDF as a link — picked, uploaded in chunks, listed; a picture pasted; one removed
+    assert.ok(await p.$("#ceFiles"), "the broadcast form has a files section");
+    const pdfBytes = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(3 * 1024 * 1024, 0x20)]);
+    await (await p.$("#ceFileAdd input")).setInputFiles({ name: "培训手册.pdf", mimeType: "application/pdf", buffer: pdfBytes }); await p.waitForTimeout(900);
+    assert.strictEqual(filePosts.filter(x => x.name === "培训手册.pdf").length, 2, "3 MB go up in two 2 MB chunks");
+    assert.deepStrictEqual(filePosts.filter(x => x.name === "培训手册.pdf").map(x => [x.index, x.total, x.size]), [[0, 2, pdfBytes.length], [1, 2, pdfBytes.length]]);
+    assert.ok(/培训手册\.pdf/.test(await p.$eval("#ceFileList", e => e.innerText)) && /3\.0 MB/.test(await p.$eval("#ceFileList", e => e.innerText)), "listed with its size: " + await p.$eval("#ceFileList", e => e.innerText));
+    await (await p.$("#ceFileAdd input")).setInputFiles({ name: "poster.png", mimeType: "image/png", buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]) }); await p.waitForTimeout(600);
+    assert.strictEqual((await p.$$("#ceFileList .cefile")).length, 2, "two files");
+    const tooBig = Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(11 * 1024 * 1024, 0x20)]);
+    await (await p.$("#ceFileAdd input")).setInputFiles({ name: "huge.pdf", mimeType: "application/pdf", buffer: tooBig }); await p.waitForTimeout(300);
+    assert.ok(/超过 10 MB|over 10 MB/.test(await p.$eval("#ceFileMsg", e => e.innerText)) && (await p.$$("#ceFileList .cefile")).length === 2, "an 11 MB PDF is refused before any upload");
+    await p.click('#ceFileList [data-frm="1"]'); await p.waitForTimeout(100);
+    assert.strictEqual((await p.$$("#ceFileList .cefile")).length, 1, "the picture was removed");
     await p.screenshot({ path: OUT + "/calendar-hive-form.png" });
     await p.click("#ceSave"); await p.waitForTimeout(900);
     const sent = calPosts[3];
+    assert.deepStrictEqual(sent.event.files.map(f => [f.name, f.type, f.size]), [["培训手册.pdf", "application/pdf", pdfBytes.length]], "the saved event carries the file: " + JSON.stringify(sent.event.files));
     assert.deepStrictEqual([sent.event.audience, sent.event.teams, sent.event.people], [["老师"], [{ id: TEAM_G5, name: "Grade 5 Team" }], ["teacher9@other.edu"]], JSON.stringify(sent.event));
     assert.deepStrictEqual([sent.layer, sent.op, sent.event.title, sent.event.targets, sent.event.allDay, sent.event.start], ["hive", "save", "Extra training", ["*"], false, "2026-12-12T19:00"], JSON.stringify(sent));
     const body = await p.$eval("#calbody", e => e.innerText); assert.ok(/Extra training/.test(body) && /All schools/.test(body), body.slice(0, 300));
+    assert.ok(/📎 1/.test(body), "the list shows the paperclip count");
     // pushing: nothing is sent until a school is ticked; then the plan and the batches go to that school with layer hive
     syncPosts.length = 0;
     await p.click("#calPublish"); await p.waitForSelector("#calsynccard");
@@ -1001,7 +1018,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.ok(/add 5/.test(await p.$eval("#calsyncout", e => e.innerText)), "plan shown");
     await p.screenshot({ path: OUT + "/calendar-hive-sync.png" });
   });
-  // 不接收广播的名单: the accounts that do not receive 管理员广播 — a tab of the calendar page (2026-10-18); the old link still lands there.
+  // 不接收广播的名单: the accounts that do not receive 系统广播 — a tab of the calendar page (2026-10-18); the old link still lands there.
   await shot("broadcast-optout", 1280, 900, "#/domain/broadcast", "zh", ["staff:community"], async p => {
     await p.waitForTimeout(800);
     assert.ok(!/广播名单/.test(await p.$eval("#nav", e => e.innerText)), "no sidebar entry of its own any more");
@@ -1017,7 +1034,7 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     // an unknown account is refused by name
     await p.fill("#bcpick input", "ghost@nowhere.org"); await p.keyboard.press("Enter"); await p.waitForTimeout(100);
     assert.ok(/ghost@nowhere\.org/.test(await p.$eval("#bcnote", e => e.innerText)), "unknown account named");
-    // the Admin broadcast form tells how many are left out
+    // the System broadcast form tells how many are left out
     await p.click('#bcbody [data-bcrm="teacher9@other.edu"]'); await p.waitForTimeout(700);
     assert.strictEqual(bcPosts[1].on, false); assert.ok(!/Teacher Nine/.test(await p.$eval("#bctable", e => e.innerText)), "removed from the list");
   });

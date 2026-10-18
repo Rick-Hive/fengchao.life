@@ -139,9 +139,9 @@ function managedDomains(roles) {
 //              2026-10-16) the 教育社区经理 and 课程总监, who work across schools. The system
 //              administrator may not overwrite a school's calendar; what it adds goes into the
 //              separate Hive layer (api/shared/calendar.js), which only the system administrator edits.
-//   hive     — the Hive layer (管理员广播): events for chosen schools, roles, teams and named people of
+//   hive     — the Hive layer (系统广播): events for chosen schools, roles, teams and named people of
 //              any school                            (sysadmin, 教育社区经理, 课程总监)
-//   optout   — the 不接收广播的名单 (accounts that do not receive 管理员广播): sysadmin, 教育社区经理, 课程总监
+//   optout   — the 不接收广播的名单 (accounts that do not receive 系统广播): sysadmin, 教育社区经理, 课程总监
 //              (any school); a school's 教育领袖 (that school's accounts). It is a tab of the calendar page, which the
 //              IT 管理员 has no part in (Rick, 2026-10-18).
 //   admin    — 角色分配, 数据同步, anything                    (sysadmin)
@@ -153,10 +153,10 @@ function can(roles, action, domain) {
     const dd = String(domain || "").toLowerCase();
     return roles.some((r) => { const m = DOMAIN_LEADER_RE.exec(r); return !!m && m[1] === dd; }) || staffFunctions(roles).some((f) => CALENDAR_STAFF.includes(f));
   }
-  // hive — the cross-school layer (管理员广播): the system administrator and, like the school calendars, the
+  // hive — the cross-school layer (系统广播): the system administrator and, like the school calendars, the
   // 教育社区经理 and 课程总监 (Rick, 2026-10-17: they may also send to chosen schools, roles, teams and people).
   if (action === "hive") return isAdmin(roles) || staffFunctions(roles).some((f) => CALENDAR_STAFF.includes(f));
-  // optout — the 不接收广播的名单 (accounts that do not receive 管理员广播): the same staff for every school, and a
+  // optout — the 不接收广播的名单 (accounts that do not receive 系统广播): the same staff for every school, and a
   // school's 教育领袖 for that school's accounts (Rick, 2026-10-17; the IT 管理员 was dropped 2026-10-18 when the list
   // moved onto the calendar page).
   if (action === "optout" && staffFunctions(roles).some((f) => CALENDAR_STAFF.includes(f))) return true;
