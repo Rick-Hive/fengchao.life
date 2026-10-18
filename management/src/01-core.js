@@ -96,6 +96,7 @@
         { hash: "#/account", icon: "user", zh: "个人资料", en: "Profile" },
         { hash: "#/security", icon: "key", zh: "登录与安全", en: "Sign-in & security" },
         { hash: "#/teams", icon: "teams", zh: "我的 Teams", en: "My Teams" },
+        { hash: "#/calendar", icon: "cal", zh: "我的校历", en: "My calendar" },
       ] },
     ];
     if (domainsInfo && domainsInfo.domains && domainsInfo.domains.length) {

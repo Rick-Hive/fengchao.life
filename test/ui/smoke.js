@@ -198,7 +198,11 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
       else if (p === "/api/calendar" && r.request().method() === "GET") {
         const REM = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080];
         const calStaff = rolesList.some(x => /^staff:(community|curriculum)$/.test(x));
-        if (u.searchParams.get("optout")) body = { domain: u.searchParams.get("domain"), items: BC_ITEMS, people: CAL_AUD.people.filter(x => u.searchParams.get("domain") === "*" || x.d === u.searchParams.get("domain")), canEdit: true };
+        if (u.searchParams.get("mine")) body = { layer: "mine", me: me.profile.upn, domain: "bes.qiaoliang.online", timezone: "Asia/Shanghai", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, canEdit: false, reminders: REM, defaults: { reminder: 15, timeZone: "Asia/Shanghai" },
+          calendar: { events: [{ id: "s-1", title: "家长会", allDay: false, start: "2026-12-10T19:00", end: "2026-12-10T20:00", timeZone: "Asia/Shanghai", audience: ["家长"], teams: [], people: [], location: "", description: "请准时", link: "https://zoom.us/j/555", meeting: "link", reminder: 15, showAs: "free", published: true, gone: false },
+            { id: "s-2", title: "圣诞假期", allDay: true, start: "2026-12-24", end: "2026-12-26", timeZone: "Asia/Shanghai", audience: [], teams: [], people: [], location: "", description: "", link: "", meeting: "link", reminder: 1440, showAs: "free", published: false, gone: false }] },
+          hive: { events: [Object.assign({}, CAL_SEED, { published: true, gone: false })] } };
+        else if (u.searchParams.get("optout")) body = { domain: u.searchParams.get("domain"), items: BC_ITEMS, people: CAL_AUD.people.filter(x => u.searchParams.get("domain") === "*" || x.d === u.searchParams.get("domain")), canEdit: true };
         else if (u.searchParams.get("lookup") === "audience") body = { layer: u.searchParams.get("layer") || "school", optout: BC_ITEMS.map(x => x.upn), people: CAL_AUD.people.filter(x => u.searchParams.get("layer") === "hive" || x.d === "bes.qiaoliang.online"), teams: CAL_AUD.teams };
         else if (u.searchParams.get("layer") === "hive") body = { layer: "hive", hive: CAL_HIVE, canEdit: isAdm || calStaff, reminders: REM, defaults: { reminder: 15, timeZone: "Asia/Shanghai" } };
         else body = { layer: "school", domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, calendar: CAL_SCHOOL, hive: { events: CAL_HIVE.events.filter(e => e.targets.indexOf("*") >= 0 || e.targets.indexOf("bes.qiaoliang.online") >= 0) }, canEdit: rolesList.some(x => /^domain_leader:/.test(x)) || calStaff, reminders: REM, defaults: { reminder: 15, timeZone: CAL_SCHOOL.timezone || "Asia/Shanghai" } };
@@ -1179,6 +1183,37 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.deepStrictEqual([md.event.title, md.event.start, md.event.end], ["圣诞假期", "2026-12-18T09:00", "2026-12-18T10:00"], "the day changed, the times stayed: " + JSON.stringify(md));
     assert.ok(/圣诞假期/.test(await p.$eval('.calcell[data-day="2026-12-18"]', e => e.innerText)) && !/圣诞假期/.test(await p.$eval('.calcell[data-day="2026-12-16"]', e => e.innerText)), "drawn on the new day only");
     assert.ok(!(await p.$("#panel.open")), "the drop does not open the event");
+  });
+
+  // 我的校历 (Rick, 2026-10-18): an ordinary account sees, read-only, the events addressed to it, with 未发布 marked.
+  await shot("calendar-mine", 1280, 900, "#/calendar", "zh", [], async p => {
+    await p.waitForTimeout(800);
+    assert.ok(/我的校历/.test(await p.$eval("#nav", e => e.innerText)) && !/学校管理|校历\n/.test(await p.$eval("#nav", e => e.innerText).then(x => x.replace("我的校历", ""))), "the sidebar has 我的校历 under the account and no school-management group");
+    assert.ok(!(await p.$("#caltabs a[data-layer]")) && !(await p.$("#calAdd")) && !(await p.$("#calPublish")) && !(await p.$("#calsel")), "no layer tabs, add, publish or school picker");
+    await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
+    const txt = await p.$eval("#caltable", e => e.innerText);
+    assert.ok(/家长会/.test(txt) && /圣诞假期/.test(txt) && /联合教师培训/.test(txt), "school events and broadcasts addressed to me, together: " + txt.slice(0, 120));
+    assert.strictEqual((await p.$$("#caltable .tag.warn")).length, 1, "the one unpublished event is marked");
+    await p.click('#calview [data-view="month"]'); await p.selectOption("#calyear", "2026"); await p.selectOption("#calmon", "12"); await p.waitForTimeout(150);
+    assert.ok(await p.$('.calcell[data-day="2026-12-24"] .calev.unpub') && !(await p.$(".calev.drag")), "the unpublished chip is dashed; nothing drags");
+    await p.click('.calcell[data-day="2026-12-10"] .calev'); await p.waitForSelector("#panel.open");
+    const note = await p.$eval("#panel", e => e.innerText);
+    assert.ok(/已在你的 Outlook 和 Teams 日历里/.test(note) && !(await p.$("#cef")), "the panel is read-only and says the event is in my calendars");
+    await p.click("#panel .x"); await p.waitForTimeout(150);
+    await p.click('.calcell[data-day="2026-12-24"] .calev'); await p.waitForSelector("#panel.open");
+    assert.ok(/尚未发布/.test(await p.$eval("#panel", e => e.innerText)), "an unpublished one says so");
+    await p.click("#panel .x"); await p.waitForTimeout(150);
+    const beforeDbl = calPosts.length;
+    await p.dblclick('.calcell[data-day="2026-12-16"]'); await p.waitForTimeout(200);
+    assert.ok(!(await p.$(".calquick")) && calPosts.length === beforeDbl, "a double-click does not create anything");
+    await p.screenshot({ path: OUT + "/calendar-mine.png" });
+  });
+  // a leader going from 我的校历 to the school's calendar gets the school layer, not a stale one
+  await shot("calendar-mine-to-school", 1280, 900, "#/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForTimeout(600);
+    assert.ok(!(await p.$("#calAdd")), "我的校历 is read-only even for a leader");
+    await p.click('#nav a[href="#/domain/calendar"]'); await p.waitForTimeout(600);
+    assert.ok(await p.$('#caltabs a[data-layer="school"].on') && await p.$("#calAdd"), "the school calendar opens on its own layer with its buttons");
   });
 
   // the month on a phone: dots in the cells, the day's agenda below, no sideways scrolling of the page

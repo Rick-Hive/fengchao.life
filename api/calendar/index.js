@@ -178,6 +178,12 @@ module.exports = async function (context, req) {
       return done(200, { ok: true, hive: doc, event: ev });
     }
 
+    // 我的校历 (Rick, 2026-10-18): any signed-in account sees, read-only, the school events and broadcasts it gets.
+    if (method === "GET" && q.mine) {
+      const m = await SYNC.mine(by);
+      return done(200, Object.assign({ layer: "mine", me: by, school: await schoolOf(m.domain), canEdit: false, reminders: CAL.REMINDERS, defaults: { reminder: CAL.DEFAULT_REMINDER, timeZone: m.timezone } }, m));
+    }
+
     const domain = String(q.domain || body.domain || "").trim().toLowerCase();
     if (!DOMAIN_RE.test(domain)) return done(400, { error: "domain missing or malformed" });
     if (!can(roles, "calendar", domain)) return done(403, { error: `the 校历 of ${domain} is seen by its 教育领袖, the 教育社区经理 and 课程总监 (and the system administrator)`, code: "forbidden" });

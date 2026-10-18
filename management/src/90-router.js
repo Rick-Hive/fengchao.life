@@ -34,6 +34,7 @@
     if (!me) return;
     if (h.indexOf("#/dashboard") === 0) { if (!isStaff() && !canSeeOrders()) { location.hash = "#/account"; return; } return viewDashboard(); }
     if (h.indexOf("#/teams") === 0) return viewTeams();
+    if (h.indexOf("#/calendar") === 0) return viewMyCalendar();
     if (h.indexOf("#/security") === 0) return viewSecurity();
     if (h.indexOf("#/domain") === 0) {
       if (!domainsInfo || !domainsInfo.domains.length) { location.hash = "#/account"; return; }

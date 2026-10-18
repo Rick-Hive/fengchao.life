@@ -929,6 +929,8 @@ table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 /* the title takes as many lines as the block has room for (set inline), then an ellipsis; the full title is the tooltip */
 .calblk b { font-weight: 600; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; white-space: normal; overflow-wrap: anywhere; }
 .calblk span { opacity: .75; font-variant-numeric: tabular-nums; font-size: 11px; line-height: 14px; white-space: nowrap; }
+/* 我的校历: an event not yet written into the viewer's own calendar */
+.calev.unpub, .calblk.unpub { border-left-style: dashed; opacity: .78; }
 /* drag to move (week and month) and to change the end (week) */
 .calblk.drag, .calev.drag { cursor: grab; }
 .calblk.drag .rz { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }

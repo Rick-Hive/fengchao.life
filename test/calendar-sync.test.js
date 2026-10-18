@@ -128,6 +128,20 @@ const allOf = async (body) => { // what the page does: fresh first, then repeat 
   assert.ok(posted.length === 2 && posted.every((c) => c.body.transactionId), "each creation carries a transactionId");
   const rec = blobs["crm/calendar-sync/a.edu.json"];
   assert.strictEqual(Object.keys(rec.items["school:" + E1.id]).length, 3, "the record keeps which Outlook event belongs to which account");
+
+  // ---- 我的校历 (Rick, 2026-10-18): any account sees what it gets, read-only, with whether it is written yet ----
+  r = await call({ method: "GET", query: { mine: "1" }, user: "s1@a.edu", roles: [] });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.layer, r.body.domain, r.body.canEdit, r.body.school.name], ["mine", "a.edu", false, "甲校"]);
+  assert.deepStrictEqual(r.body.calendar.events.map((e) => [e.title, e.published]), [["放假", true]], "a student gets the all-school event, written already, not the teachers' training");
+  r = await call({ method: "GET", query: { mine: "1" }, user: "t1@a.edu", roles: [] });
+  assert.deepStrictEqual(r.body.calendar.events.map((e) => [e.title, e.published]).sort(), [["放假", true], ["教师培训", true]], "a teacher gets both");
+  r = await call({ method: "GET", query: { mine: "1" }, user: "nomail@a.edu", roles: [] });
+  assert.deepStrictEqual(r.body.calendar.events.map((e) => [e.title, e.published]), [["放假", false]], "no copy written yet → not published");
+  const E3 = await mk({ title: "家长会", start: "2026-12-10T19:00", end: "2026-12-10T20:00", timeZone: "America/Chicago", audience: ["家长"] });
+  r = await call({ method: "GET", query: { mine: "1" }, user: "p1@a.edu", roles: [] });
+  assert.deepStrictEqual(r.body.calendar.events.map((e) => [e.title, e.published]).sort(), [["家长会", false], ["放假", true]], "a new, unpublished event shows as not published");
+  await lead({ op: "delete", id: E3.id });
   assert.ok(rec.failures[`school:${E1.id}|nomail@a.edu`], "the failure is kept");
   // nothing more to do; running again changes nothing
   const before = calls.length;

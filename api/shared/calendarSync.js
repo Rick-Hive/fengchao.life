@@ -121,6 +121,19 @@ function recipientsOf(ev, layer, domain, accounts, optout, skipped) {
   return out;
 }
 
+// 我的校历 (Rick, 2026-10-18): what one account gets, read-only — the school's events and the broadcasts whose
+// 发给谁 includes it (the same recipientsOf as a publish, 广播名单 respected), each with whether the copy is in the
+// account's own calendar yet (`published`; `gone` = the owner deleted that copy, so it will not come back).
+async function mine(upn) {
+  const u = String(upn || "").toLowerCase(), domain = u.split("@")[1] || "";
+  if (!domain) return { domain, calendar: { events: [] }, hive: { events: [] } };
+  const [school, hive, accounts, doc, optout] = await Promise.all([CAL.readSchool(domain), CAL.readHive(), accountsOf(domain, { lenient: true }), store.read(syncBlob(domain), () => EMPTY(domain)), CAL.readOptout()]);
+  const me = accounts.filter((a) => a.upn === u);
+  const state = (layer, ev) => { const rec = ((doc.items || {})[`${layer}:${ev.id}`] || {})[u]; return { published: !!rec && !rec.gone, gone: !!(rec && rec.gone) }; };
+  const pick = (events, layer) => (events || []).filter((ev) => recipientsOf(ev, layer, domain, me, (optout && optout.items) || null).has(u)).map((ev) => Object.assign({}, ev, state(layer, ev)));
+  return { domain, timezone: school.timezone || CAL.DEFAULT_TZ, calendar: { events: pick(school.events, "school") }, hive: { events: pick(hive.events, "hive") } };
+}
+
 // The schools a Hive run has to visit: every school with a cached account list, those with named accounts, and
 // those that already hold Hive events Hive wrote (so a narrowed event is withdrawn from the schools it left).
 async function hiveDomains(only) {
@@ -256,4 +269,4 @@ async function summary(domain, layer, opts) {
   return { counts: p.counts, remaining: p.ops.length, gone: p.gone, excluded: p.excluded, failed: p.failed, accounts: p.accounts, events: p.events, written, lastRun: doc.lastRun && doc.lastRun.layer === layer ? doc.lastRun : null };
 }
 
-module.exports = { BATCH, CATEGORY, WINDOWS_ZONE, graphBody, guid, nextDay, plan, run, summary, accountsOf, audienceOf, recipientsOf, hiveDomains, syncBlob };
+module.exports = { BATCH, CATEGORY, WINDOWS_ZONE, graphBody, guid, nextDay, plan, run, summary, accountsOf, audienceOf, recipientsOf, hiveDomains, syncBlob, mine };
