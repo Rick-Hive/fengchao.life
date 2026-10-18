@@ -57,7 +57,6 @@ function graphBody(ev, layer) {
   if (ev.description) parts.push(`<p>${esc(ev.description).replace(/\r?\n/g, "<br>")}</p>`);
   // attachments as links only (Rick, 2026-10-18): one stored copy, no picture embedded, no file in each calendar
   if (ev.files && ev.files.length) parts.push(`<p>附件 Files：${ev.files.map((f) => `<a href="${esc(FILES.url(f.id))}">${esc(f.name)}</a>`).join(" · ")}</p>`);
-  parts.push(`<p style="color:#888;font-size:12px">${layer === "hive" ? "系统广播 System broadcast" : "学校校历 School calendar"} · 由蜂巢写入 written by Hive</p>`);
   const body = {
     subject: ev.title,
     body: { contentType: "html", content: parts.join("") },
