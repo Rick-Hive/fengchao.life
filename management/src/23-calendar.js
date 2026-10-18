@@ -89,7 +89,7 @@
         calGoTo(nav === "today" ? calToday() : calState.view === "month" ? calShiftMonth(c, nav === "next" ? 1 : -1) : calAdd(c, nav === "next" ? 7 : -7));
         calRender(); return;
       }
-      var tr = e.target.closest("[data-ev]"); if (tr) { calOpenEvent(tr.getAttribute("data-ev"), tr.getAttribute("data-src")); return; }
+      var tr = e.target.closest("[data-ev]"); if (tr) { if (calDragged) return; calOpenEvent(tr.getAttribute("data-ev"), tr.getAttribute("data-src")); return; }
       var more = e.target.closest("[data-more]"); if (more) { calState.view = "week"; calState.cursor = more.getAttribute("data-more"); calState.selected = calState.cursor; calRender(); return; }
       if (e.target.closest("#calAddDay")) { calOpenEvent(null, undefined, calState.selected); return; }
       if (e.target.closest("[data-newday]")) { calState.selected = e.target.closest("[data-newday]").getAttribute("data-newday"); return; }
@@ -159,7 +159,7 @@
   // Month and week grids over the same rows as the list. Times are shown as the wall-clock of each event's
   // own time zone (the same as the list); a multi-day event is drawn on every day it covers.
   var CAL_WEEK0 = 0; // weeks start on Sunday (the schools are in North America; Outlook and Teams do the same there)
-  var CAL_HOUR = 44; // px per hour in the week grid
+  var CAL_HOUR = 56; // px per hour in the week grid (an hour-long block has room for two lines of title and the time)
   var CAL_MON_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   var CAL_DOW = [["日", "Sun"], ["一", "Mon"], ["二", "Tue"], ["三", "Wed"], ["四", "Thu"], ["五", "Fri"], ["六", "Sat"]];
   function calPad(n) { return (n < 10 ? "0" : "") + n; }
@@ -227,8 +227,10 @@
   }
   function calChip(x, ds) {
     var e = x.e, time = !e.allDay && calSpan(e)[0] === ds ? '<span class="tm">' + esc((e.start || "").slice(11, 16)) + "</span>" : "";
-    return '<button type="button" class="calev ' + x.src + '" data-ev="' + esc(e.id) + '" data-src="' + x.src + '" title="' + esc(e.title) + '">' + time + '<span class="tt">' + esc(e.title) + "</span></button>";
+    return '<button type="button" class="calev ' + x.src + (calCanDrag(x.src) ? " drag" : "") + '" data-ev="' + esc(e.id) + '" data-src="' + x.src + '" title="' + esc(e.title) + '">' + time + '<span class="tt">' + esc(e.title) + "</span></button>";
   }
+  // an event may be dragged when this calendar may be edited and the event belongs to it (a school sees broadcasts read-only)
+  function calCanDrag(src) { return calCanEdit() && (calState.layer === "hive" || src !== "hive"); }
   function calMonthHTML(all, edit) {
     var first = calMonthStart(calState.cursor), start = calWeekStart(first), n = Math.ceil(((calDow(first) - CAL_WEEK0 + 7) % 7 + calDaysIn(first)) / 7) * 7, today = calToday(), mk = first.slice(0, 7);
     var h = '<div class="calmonth"><div class="caldows">';
@@ -277,7 +279,7 @@
     days.forEach(function (ds) { var w = CAL_DOW[calDow(ds)]; h += '<div class="calwd' + (ds === today ? " today" : "") + (ds === calState.selected ? " sel" : "") + '" data-day="' + ds + '"><span class="calwdn">' + t("周" + w[0], w[1]) + '</span><span class="calnum">' + (+ds.slice(8)) + "</span></div>"; });
     h += '</div><div class="calallday"><div class="calgutter">' + t("全天", "All day") + "</div>";
     days.forEach(function (ds) { h += '<div class="calalc" data-newday="' + ds + '">' + calOn(all, ds).filter(function (x) { return x.e.allDay; }).map(function (x) { return calChip(x, ds); }).join("") + "</div>"; });
-    h += '</div><div class="calwk" id="calwk"><div class="calwkin" style="height:' + 24 * CAL_HOUR + 'px"><div class="calhrs">';
+    h += '</div><div class="calwk" id="calwk"><div class="calwkin" style="height:' + 24 * CAL_HOUR + 'px;--calh:' + CAL_HOUR + 'px"><div class="calhrs">';
     for (i = 1; i < 24; i++) h += '<span style="top:' + (i * CAL_HOUR - 7) + 'px">' + (EN ? (i % 12 || 12) + (i < 12 ? " AM" : " PM") : calPad(i) + ":00") + "</span>";
     h += "</div>";
     days.forEach(function (ds) {
@@ -290,7 +292,9 @@
       });
       h += '<div class="calcol' + (ds === today ? " today" : "") + '" data-newday="' + ds + '">' + calLayout(segs).map(function (g) {
         var e = g.x.e, top = g.s / 60 * CAL_HOUR, ht = Math.max((g.e - g.s) / 60 * CAL_HOUR - 2, 20), w = 100 / g.cols;
-        return '<button type="button" class="calblk ' + g.x.src + '" data-ev="' + esc(e.id) + '" data-src="' + g.x.src + '" style="top:' + top + "px;height:" + ht + "px;left:calc(" + g.col * w + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.title) + '"><b>' + esc(e.title) + "</b>" + (ht >= 34 ? "<span>" + esc(e.start.slice(11, 16) + "–" + e.end.slice(11, 16)) + "</span>" : "") + "</button>";
+        // the title gets every line the block has room for after the time (15px a line, 14px for the time, 6px padding)
+        var withTime = ht >= 34, lines = Math.max(1, Math.floor((ht - 6 - (withTime ? 15 : 0)) / 15)), drag = edit && calCanDrag(g.x.src);
+        return '<button type="button" class="calblk ' + g.x.src + (drag ? " drag" : "") + '" data-ev="' + esc(e.id) + '" data-src="' + g.x.src + '" style="top:' + top + "px;height:" + ht + "px;left:calc(" + g.col * w + "% + 1px);width:calc(" + w + '% - 3px)" title="' + esc(e.title) + '"><b style="-webkit-line-clamp:' + lines + '">' + esc(e.title) + "</b>" + (withTime ? "<span>" + esc(e.start.slice(11, 16) + "–" + e.end.slice(11, 16)) + "</span>" : "") + (drag ? '<i class="rz" aria-hidden="true"></i>' : "") + "</button>";
       }).join("") + "</div>";
     });
     h += "</div></div></div></div>";
@@ -480,6 +484,101 @@
       }
       document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
     });
+    calBindMove(body);
+  }
+
+  // ---- drag to move / resize (Rick, 2026-10-18: 「无法拖动」) ----------------------------------------------
+  // Week: drag a block to another time or day (the length is kept), or its bottom edge to change the end; 15-minute
+  // steps. Month and the all-day strip: drag a chip to another day (the times are kept). The event is saved at once
+  // and the grid redrawn; the copies in people's calendars change at the next 发布.
+  var calDragged = false; // true for the click that ends a drag, so it does not open the event
+  function calMinOf(s) { return calParse(s.slice(0, 10)) / 60000 + calMin(s.slice(11, 16)); }
+  function calFromMin(m) { var d = Math.floor(m / 1440), r = m - d * 1440; return calFmt(d * 86400000) + "T" + calPad(Math.floor(r / 60)) + ":" + calPad(r % 60); }
+  function calRowOf(el) { var id = el.getAttribute("data-ev"), src = el.getAttribute("data-src"), e = calFind(id, src); return e ? { e: e, src: src } : null; }
+  function calMoveSave(x, start, end) {
+    var hive = calState.layer === "hive", out = Object.assign({}, x.e, { start: start, end: end });
+    var req = hive ? { layer: "hive", op: "save", event: out } : { domain: calState.domain, op: "save", event: out, timezone: x.e.timeZone };
+    return post("calendar", "POST", req).then(function (r) {
+      if (!r.ok) { calRender(); calMsg(errText(r), true); return; }
+      if (hive) calState.hive = Object.assign({}, calState.hive, { hive: r.body.hive }); else calState.data = Object.assign({}, calState.data, { calendar: r.body.calendar });
+      calRender();
+      flashOk(t("已移到 ", "Moved to ") + calWhen(out) + t("。再点一次「发布」，大家的日历才会更新。", ". Publish again to update people's calendars."));
+    });
+  }
+  function calDragEnd() { calDragged = true; setTimeout(function () { calDragged = false; }, 0); document.body.classList.remove("caldragging"); }
+  function calBindMove(body) {
+    body.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || e.pointerType === "touch") return;
+      var blk = e.target.closest(".calblk.drag"), chip = e.target.closest(".calev.drag");
+      if (blk) calDragBlock(e, blk); else if (chip) calDragChip(e, chip);
+    });
+  }
+  // week view: a block, or its bottom edge
+  function calDragBlock(e, blk) {
+    var x = calRowOf(blk), col0 = blk.closest(".calcol"); if (!x || !col0) return;
+    calQuickClose();
+    var resize = e.target.classList.contains("rz"), e0 = x.e;
+    var startMin = calMinOf(e0.start), endMin = calMinOf(e0.end); if (endMin <= startMin) endMin = startMin + 30;
+    var dur = endMin - startMin, day0Min = calParse(col0.getAttribute("data-newday")) / 60000;
+    var grabOff = calSnap(e.clientY, col0, 1) - Math.max(startMin - day0Min, 0); // minutes between the block's top and the pointer
+    var y0 = e.clientY, x0 = e.clientX, moved = false, cur = null;
+    var cols = Array.prototype.slice.call(col0.parentNode.querySelectorAll(".calcol[data-newday]"));
+    function colAt(cx) { var best = cols[0], bd = Infinity; cols.forEach(function (c) { var r = c.getBoundingClientRect(), d = cx < r.left ? r.left - cx : cx > r.right ? cx - r.right : 0; if (d < bd) { bd = d; best = c; } }); return best; }
+    function ghost(s, en) {
+      cols.forEach(function (c) { var g = c.querySelector(".calghost"); if (g && (c !== cur.col)) g.remove(); });
+      var dm = calParse(cur.col.getAttribute("data-newday")) / 60000;
+      calGhost(cur.col, Math.max(s - dm, 0), Math.min(en - dm, 1440));
+    }
+    function move(ev) {
+      if (!moved && Math.abs(ev.clientY - y0) < 6 && Math.abs(ev.clientX - x0) < 6) return;
+      if (!moved) { moved = true; blk.classList.add("moving"); document.body.classList.add("caldragging"); }
+      if (resize) {
+        var dm0 = day0Min, en = dm0 + calSnap(ev.clientY, col0, 15);
+        en = Math.max(startMin + 15, Math.min(en, Math.max(dm0 + 1440, startMin + 15)));
+        cur = { col: col0, start: startMin, end: en };
+      } else {
+        var col = colAt(ev.clientX), dm = calParse(col.getAttribute("data-newday")) / 60000;
+        var s = dm + Math.round((calSnap(ev.clientY, col, 1) - grabOff) / 15) * 15;
+        s = Math.max(dm, Math.min(s, dm + Math.max(0, 1440 - dur)));
+        cur = { col: col, start: s, end: s + dur };
+      }
+      ghost(cur.start, cur.end);
+    }
+    function up() {
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+      if (!moved) return;
+      calDragEnd();
+      cols.forEach(function (c) { var g = c.querySelector(".calghost"); if (g) g.remove(); });
+      blk.classList.remove("moving");
+      if (cur.start === startMin && cur.end === endMin) return;
+      calMoveSave(x, calFromMin(cur.start), calFromMin(cur.end));
+    }
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+  }
+  // month grid and the all-day strip: a chip onto another day
+  function calDragChip(e, chip) {
+    var x = calRowOf(chip), from = chip.closest("[data-day],[data-newday]"); if (!x || !from) return;
+    var fromDay = from.getAttribute("data-day") || from.getAttribute("data-newday");
+    var y0 = e.clientY, x0 = e.clientX, moved = false, over = null;
+    function cellAt(ev) { var el = document.elementFromPoint(ev.clientX, ev.clientY); return el ? el.closest(".calcell[data-day],.calalc[data-newday],.calwd[data-day]") : null; }
+    function move(ev) {
+      if (!moved && Math.abs(ev.clientY - y0) < 6 && Math.abs(ev.clientX - x0) < 6) return;
+      if (!moved) { moved = true; chip.classList.add("moving"); document.body.classList.add("caldragging"); }
+      var c = cellAt(ev);
+      if (c !== over) { if (over) over.classList.remove("drop"); over = c; if (over) over.classList.add("drop"); }
+    }
+    function up() {
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+      if (!moved) return;
+      calDragEnd();
+      chip.classList.remove("moving"); if (over) over.classList.remove("drop");
+      var day = over && (over.getAttribute("data-day") || over.getAttribute("data-newday"));
+      if (!day || day === fromDay) return;
+      var delta = (calParse(day) - calParse(fromDay)) / 86400000, e0 = x.e;
+      var shift = function (v) { return e0.allDay ? calAdd(v, delta) : calAdd(v.slice(0, 10), delta) + v.slice(10); };
+      calMoveSave(x, shift(e0.start), shift(e0.end || e0.start));
+    }
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   }
 
   // ---- one event, in the side panel ------------------------------------------------------------------
@@ -724,7 +823,7 @@
   // 发布: the panel opened by the button at the top right
   function calSyncOpen() {
     calSync.out = []; calSync.progress = null;
-    panelOpen('<div class="ph"><span class="avatar">📤</span><h3>' + t("发布到大家的日历", "Publish to everyone's calendar") + (calState.layer === "hive" ? " · " + t("管理员广播", "Admin broadcast") : " · " + esc(dname(calState.domain))) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div id="calsync"></div></div>');
+    panelOpen('<div class="ph"><span class="avatar">📤</span><h3>' + t("发布到接收人的 Teams 和 Outlook 日历", "Publish to the receivers' Teams and Outlook calendars") + (calState.layer === "hive" ? "" : " · " + esc(dname(calState.domain))) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div id="calsync"></div></div>');
     calSyncRender();
   }
   function calSyncOnly() { return (calSync.only || "").trim(); }
@@ -732,8 +831,8 @@
     var hive = calState.layer === "hive";
     var h = '<div id="calsynccard">' +
       '<p class="sub">' + (hive
-        ? t("把「管理员广播」的事件写进收件人的 Outlook / Teams 日历（只写这一层，不会碰学校自己的校历）。每个事件的「发给谁」（学校、身份、Teams 群组、账号）决定谁收到，涉及的学校会逐个处理；不发邀请邮件。事件改了、删了，再点一次「发布」就会更新或从日历里移除。", "Writes the broadcasts into the recipients' Outlook / Teams calendars (only this layer — a school's own calendar is untouched). Each event's “Who gets it” (schools, roles, Teams groups, accounts) decides who gets it, and every school involved is handled in turn; no invitation mail. After you change or delete an event, publish again to update or remove it.")
-        : t("把本校校历写进本校账号的 Outlook / Teams 日历，不发邀请邮件；按每个事件的「对象」决定谁收到。事件改了、删了，再点一次「发布」就会更新或从日历里移除。用户自己删掉的副本不会被放回去。", "Writes this school's calendar into its accounts' Outlook / Teams calendars, with no invitation mail; each event's “For” decides who gets it. After you change or delete an event, publish again to update or remove it. A copy a person deleted for themselves is not put back.")) + "</p>";
+        ? t("把广播写进「发给谁」里每个人的 Outlook 和 Teams 日历，不发邮件。事件改了或删了，再点一次「发布」，大家的日历才会更新。", "Puts each broadcast on the Outlook and Teams calendars of the people it is for. No email is sent. After you change or delete an event, publish again.")
+        : t("把本校校历写进本校账号的 Outlook 和 Teams 日历，不发邮件。事件改了或删了，再点一次「发布」，大家的日历才会更新。", "Puts this school's calendar on its accounts' Outlook and Teams calendars. No email is sent. After you change or delete an event, publish again.")) + "</p>";
     h += '<label class="f">' + t("只发布给这些账号（测试用，可留空）", "Only these accounts (for a test run — may be empty)") + '<input type="text" id="calonly" placeholder="' + (hive ? "name@school.edu, name2@other.edu" : "teacher1@" + esc(calState.domain)) + '" value="' + esc(calSync.only) + '" /><small>' + t("填一两个账号（用逗号隔开）先试；确认日历里的样子没问题，再清空、发布给全部账号。", "Name one or two accounts (comma-separated) to try first; once the calendar looks right, clear it and publish to everyone.") + "</small></label>" +
       '<div class="actions"><button class="btn secondary sm" type="button" id="calPlan"' + (calSync.busy ? " disabled" : "") + ">" + t("查看待发布", "Preview") + '</button> <button class="btn" type="button" id="calGo"' + (calSync.busy ? " disabled" : "") + ">" + t("发布", "Publish") + '</button> <button class="btn secondary sm" type="button" id="calWithdraw"' + (calSync.busy ? " disabled" : "") + ">" + t("撤回已写入的", "Withdraw what was written") + "</button></div>" +
       '<div id="calsyncout">' + calSyncOut() + "</div></div>";

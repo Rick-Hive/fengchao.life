@@ -1073,11 +1073,13 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.click('[data-nav="prev"]'); await p.click('[data-nav="next"]'); await p.waitForTimeout(100);
     const blk = await p.$('.calcol[data-newday="2026-12-05"] .calblk.hive');
     assert.ok(blk && /联合教师培训/.test(await blk.innerText()), "the event block carries its title");
+    assert.ok(!(await blk.evaluate(e => e.classList.contains("drag"))), "a broadcast seen from the school's calendar cannot be dragged there");
     await p.screenshot({ path: OUT + "/calendar-week-view.png" });
     await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
     assert.ok(await p.$("#caltable") && !(await p.$(".calmonth")), "the list view is still there");
   });
   // Outlook / Teams style creation: double-click a day, drag over time, type the title, adjust the time.
+  const HR = 56; // px per hour in the week grid (CAL_HOUR)
   await shot("calendar-quick", 1280, 900, "#/domain/calendar", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(800);
     await p.selectOption("#calyear", "2026"); await p.selectOption("#calmon", "12"); await p.waitForTimeout(150);
@@ -1100,11 +1102,11 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     // week: drag from 10:00 to 11:30 on the 16th
     await p.click('#calview [data-view="week"]'); await p.waitForTimeout(250);
     const col = await p.$('.calcol[data-newday="2026-12-16"]'); const bb = await col.boundingBox();
-    const y10 = bb.y + 10 * 44, y1130 = bb.y + 11.5 * 44;
+    const y10 = bb.y + 10 * HR, y1130 = bb.y + 11.5 * HR;
     // the week scrolls to its first event; bring 10:00-11:30 into view first
-    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 44; }); await p.waitForTimeout(100);
+    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 56; }); await p.waitForTimeout(100);
     const bb2 = await (await p.$('.calcol[data-newday="2026-12-16"]')).boundingBox();
-    await p.mouse.move(bb2.x + 40, bb2.y + 10 * 44 + 2); await p.mouse.down(); await p.mouse.move(bb2.x + 40, bb2.y + 10.8 * 44, { steps: 4 }); await p.mouse.move(bb2.x + 40, bb2.y + 11.5 * 44 - 2, { steps: 4 }); await p.mouse.up();
+    await p.mouse.move(bb2.x + 40, bb2.y + 10 * HR + 2); await p.mouse.down(); await p.mouse.move(bb2.x + 40, bb2.y + 10.8 * HR, { steps: 4 }); await p.mouse.move(bb2.x + 40, bb2.y + 11.5 * HR - 2, { steps: 4 }); await p.mouse.up();
     await p.waitForSelector(".calquick");
     assert.deepStrictEqual(await whenVal(p, ".calquick .calwhen"), ["2026-12-16T10:00", "2026-12-16T11:30"], "dragging 10:00-11:30 fills the times");
     assert.ok(/1 小时 30 分钟/.test(await p.$eval(".calquick .wdur", e => e.innerText)), "the length is shown");
@@ -1117,9 +1119,9 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     assert.deepStrictEqual([s2.event.title, s2.event.allDay, s2.event.start, s2.event.end, s2.event.timeZone], ["家长会", false, "2026-12-16T10:00", "2026-12-16T12:00", "Asia/Shanghai"], JSON.stringify(s2));
     assert.ok(await p.$('.calcol[data-newday="2026-12-16"] .calblk.school'), "the new block is in the week");
     // double-click an empty slot: one hour, from the half hour clicked; 更多选项 carries what was typed into the full form
-    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 44; });
+    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 56; });
     const bb3 = await (await p.$('.calcol[data-newday="2026-12-15"]')).boundingBox();
-    await p.mouse.dblclick(bb3.x + 40, bb3.y + 14 * 44 + 10); await p.waitForSelector(".calquick");
+    await p.mouse.dblclick(bb3.x + 40, bb3.y + 14 * HR + 10); await p.waitForSelector(".calquick");
     assert.deepStrictEqual(await whenVal(p, ".calquick .calwhen"), ["2026-12-15T14:00", "2026-12-15T15:00"], "a double-click makes a one-hour slot");
     assert.strictEqual(await p.$eval(".calquick .qzonesel", e => e.value), "Asia/Shanghai", "the time zone starts as Beijing time");
     // choose the time like in Outlook: 8:00 – 8:45; moving the start moves the end, the length is shown
@@ -1136,6 +1138,47 @@ const teamCreates = [], memberOps = [], scopePuts = []; let teamPending = 0; // 
     await p.fill(".calquick .qtitle", "教师培训"); await p.click(".calquick .qmore"); await p.waitForSelector("#cef");
     assert.deepStrictEqual([await p.$eval("#ceTitle", e => e.value), await whenVal(p, "#cewhen")], ["教师培训", ["2026-12-15T08:00", "2026-12-15T08:45"]], "the full form has what was typed");
     assert.ok(!(await p.$(".calquick")), "the card closes");
+    await p.click("#panel .x"); await p.waitForTimeout(150);
+    // 2026-10-18 (Rick: 「日历事件显示不全面，也无法拖动」) — an hour-long block has two title lines and the time; blocks drag
+    const fam = await p.$('.calcol[data-newday="2026-12-16"] .calblk.school.drag[title="家长会"]'); assert.ok(fam, "the leader's own event may be dragged");
+    assert.strictEqual(await fam.$eval("b", e => e.style.webkitLineClamp || e.style.getPropertyValue("-webkit-line-clamp")), "5", "a two-hour block gives the title five lines (an hour gives two)");
+    const famId = await fam.getAttribute("data-ev");
+    assert.ok(await fam.$(".rz"), "with a handle at the bottom to change the end");
+    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 56; }); await p.waitForTimeout(100);
+    // move 家长会 (10:00–12:00) down two hours and one day to the right: 12:00–14:00 on the 17th
+    let fb = await fam.boundingBox(); const c17 = await (await p.$('.calcol[data-newday="2026-12-17"]')).boundingBox();
+    const posts0 = calPosts.length;
+    await p.mouse.move(fb.x + 30, fb.y + 20); await p.mouse.down(); await p.mouse.move(fb.x + 30, fb.y + 60, { steps: 3 }); await p.mouse.move(c17.x + 30, fb.y + 20 + 2 * HR, { steps: 5 });
+    assert.ok(await p.$('.calcol[data-newday="2026-12-17"] .calghost'), "a ghost follows the pointer into the other day");
+    assert.ok(/12:00–14:00/.test(await p.$eval('.calcol[data-newday="2026-12-17"] .calghost', e => e.innerText)), "and shows the new time");
+    await p.mouse.up(); await p.waitForTimeout(600);
+    const mv = calPosts[posts0];
+    assert.deepStrictEqual([mv.op, mv.event.id, mv.event.title, mv.event.start, mv.event.end, mv.event.timeZone], ["save", famId, "家长会", "2026-12-17T12:00", "2026-12-17T14:00", "Asia/Shanghai"], "the move is saved with the same id and length: " + JSON.stringify(mv));
+    assert.ok(!(await p.$("#panel.open")) && !(await p.$(".calquick")), "the drop does not open the event");
+    assert.ok(/再点一次「发布」/.test(await p.$eval("#flash", e => e.innerText)), "and says to publish again");
+    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 56; }); await p.waitForTimeout(100);
+    // the bottom edge changes the end: 14:00 → 15:30
+    const fam2 = await p.$('.calcol[data-newday="2026-12-17"] .calblk.school.drag[title="家长会"]'); fb = await fam2.boundingBox();
+    await p.mouse.move(fb.x + 30, fb.y + fb.height - 3); await p.mouse.down(); await p.mouse.move(fb.x + 30, fb.y + fb.height + 40, { steps: 3 }); await p.mouse.move(fb.x + 30, fb.y + fb.height + 1.5 * HR, { steps: 3 }); await p.mouse.up(); await p.waitForTimeout(600);
+    const rs = calPosts[posts0 + 1];
+    assert.deepStrictEqual([rs.event.start, rs.event.end], ["2026-12-17T12:00", "2026-12-17T15:30"], "the end moved, the start stayed: " + JSON.stringify(rs));
+    // a plain click still opens the event
+    await p.evaluate(() => { document.getElementById("calwk").scrollTop = 8 * 56; }); await p.waitForTimeout(100);
+    await p.click('.calcol[data-newday="2026-12-17"] .calblk.school[title="家长会"]'); await p.waitForSelector("#cef");
+    assert.strictEqual(await p.$eval("#ceTitle", e => e.value), "家长会", "a click opens the form");
+    await p.click("#panel .x"); await p.waitForTimeout(150);
+    await p.screenshot({ path: OUT + "/calendar-week-drag.png" });
+    // month: drag 圣诞假期 from the 16th to the 18th
+    await p.click('#calview [data-view="month"]'); await p.waitForTimeout(250);
+    const chip = await p.$('.calcell[data-day="2026-12-16"] .calev.drag'); assert.ok(chip, "chips in the month may be dragged");
+    const cb = await chip.boundingBox(), cell18 = await (await p.$('.calcell[data-day="2026-12-18"]')).boundingBox();
+    await p.mouse.move(cb.x + 20, cb.y + 8); await p.mouse.down(); await p.mouse.move(cb.x + 60, cb.y + 20, { steps: 3 }); await p.mouse.move(cell18.x + cell18.width / 2, cell18.y + cell18.height / 2, { steps: 5 });
+    assert.ok(await p.$eval('.calcell[data-day="2026-12-18"]', e => e.classList.contains("drop")), "the day under the pointer is marked");
+    await p.mouse.up(); await p.waitForTimeout(600);
+    const md = calPosts[posts0 + 2];
+    assert.deepStrictEqual([md.event.title, md.event.start, md.event.end], ["圣诞假期", "2026-12-18T09:00", "2026-12-18T10:00"], "the day changed, the times stayed: " + JSON.stringify(md));
+    assert.ok(/圣诞假期/.test(await p.$eval('.calcell[data-day="2026-12-18"]', e => e.innerText)) && !/圣诞假期/.test(await p.$eval('.calcell[data-day="2026-12-16"]', e => e.innerText)), "drawn on the new day only");
+    assert.ok(!(await p.$("#panel.open")), "the drop does not open the event");
   });
 
   // the month on a phone: dots in the cells, the day's agenda below, no sideways scrolling of the page
