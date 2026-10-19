@@ -343,8 +343,11 @@
     // Crumb and title now share a line; a crumb that already ends with the title ("经营 › 人员库" + 人员库) loses that tail.
     if (crumb && title) { var tail = " › " + title; if (crumb === title) crumb = ""; else if (crumb.slice(-tail.length) === tail) crumb = crumb.slice(0, -tail.length); }
     $("title").innerHTML = (crumb ? '<span class="crumb">' + esc(crumb) + "</span>" : "") + (title ? '<span class="ttl">' + esc(title) + (info ? ' <span class="info big" tabindex="0" data-tip="' + esc(info) + '">i</span>' : "") + "</span>" : "") + "";
-    $("topActions").innerHTML = actionsHtml || "";
-    var tb = document.querySelector(".topbar");
+    var tb = document.querySelector(".topbar"), acts = $("topActions");
+    // #topActions may sit inside the previous page's first row (placeActions) and go with it when the page replaces
+    // #content before calling setTitle: bring it home, or make it anew, before filling it.
+    if (!acts) { acts = document.createElement("div"); acts.id = "topActions"; tb.appendChild(acts); } else if (acts.parentNode !== tb) tb.appendChild(acts);
+    acts.innerHTML = actionsHtml || "";
     tb.classList.toggle("bare", !title && !crumb && !actionsHtml);
     // UI principle (Rick, 2026-10-17): the page head never takes a row of its own. On a computer the sidebar
     // already says where you are, so the title row is gone: no actions = no row; actions = one slim row of
@@ -352,7 +355,24 @@
     tb.classList.toggle("noact", !actionsHtml);
     pageInfo = info || "";
     navInfo();
+    tb.classList.remove("moved");
+    setTimeout(placeActions, 0); // after the page has filled #content, whichever order it does that in
   }
+  // Where the page's buttons go on a computer (Rick, 2026-10-19: 「Don't put the title on head, as everyone knows it
+  // already. 请把 Curriculum Map 和 Graduation 上移一行」): into the page's own first row when that is a tabs row or a
+  // toolbar (tabs / filters on the left, buttons on the right — GitHub, Airtable); otherwise a left-aligned command bar
+  // of its own (Microsoft admin centres), never a row with a title or an empty left half. #topActions is one node that
+  // moves, so ids and listeners on the buttons keep working. A phone keeps the title row.
+  function placeActions() {
+    var acts = $("topActions"), bar = document.querySelector(".topbar"), content = $("content"); if (!acts || !bar || !content) return;
+    var first = content.firstElementChild, host = null;
+    if (window.innerWidth > 900 && acts.childNodes.length && first && (first.classList.contains("pagetabs") || first.classList.contains("toolbar")) && !first.hidden) host = first;
+    if (host) { if (acts.parentNode !== host) host.appendChild(acts); }
+    else if (acts.parentNode !== bar) bar.appendChild(acts);
+    bar.classList.toggle("moved", !!host);
+  }
+  if ($("content")) new MutationObserver(function () { placeActions(); }).observe($("content"), { childList: true });
+  window.addEventListener("resize", placeActions);
   // A page may know its explanation only after loading (the plan page says who published the school's edition).
   function setPageInfo(info) {
     pageInfo = info || "";

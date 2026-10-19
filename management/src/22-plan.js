@@ -70,29 +70,28 @@
     if (plState.canEdit) { if (!plState.domain || !ds.some(function (d) { return d.domain === plState.domain; })) plState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0]).domain; }
     else plState.domain = (domainsInfo && domainsInfo.mine) || "";
     if (/^#\/plan\/credits/.test(location.hash)) plState.tab = "credits";
-    var plActions = plState.canEdit ? '<button class="btn secondary sm" id="plReset">' + t("重置为系统默认", "Reset to system defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <button class="btn secondary sm" id="plSave">' + t("保存草稿", "Save draft") + '</button> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>" : "";
+    var plActions = plState.canEdit ? '<button class="btn secondary sm" id="plReset">' + t("重置为系统默认", "Reset to system defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <span class="plsaved muted" id="plSaved" hidden>' + t("已保存", "Saved") + '</span> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>" : "";
     setTitle(t("我的账号", "My account"), t("毕业要求与课程地图", "Graduation requirements & curriculum map"), plActions,
       { info: plState.canEdit
         ? t("设定教学法与方向，编辑课程地图和毕业要求；发布后本校可见。", "Set pedagogy and directions, edit the curriculum map and graduation requirements; publish to show the school.")
         : t("本校的课程地图和高中毕业要求。", "Your school's curriculum map and graduation requirements.") });
     $("content").innerHTML =
       '<div class="pagetabs" id="pltabs"><a class="ptab' + (plState.tab === "map" ? " on" : "") + '" href="#/plan" data-tab="map">' + t("课程地图", "Curriculum map") + '</a><a class="ptab' + (plState.tab === "credits" ? " on" : "") + '" href="#/plan/credits" data-tab="credits">' + t("高中毕业要求", "Graduation requirements") + "</a>" +
-        (plState.canEdit && ds.length > 1 ? '<div class="tabsRight"><select id="plsel">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === plState.domain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select></div>" : "") + "</div>" +
+        "</div>" +
       '<div id="plframe"></div><div id="plmsg"></div><div id="plbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
-    var sel = $("plsel");
-    if (sel) sel.addEventListener("change", function () { if (plState.dirty && !window.confirm(t("有未保存的修改，切换学校会丢失。继续？", "Unsaved changes will be lost. Switch school?"))) { this.value = plState.domain; return; } plState.domain = this.value; loadPlan(); });
+    plState.schools = plState.canEdit && ds.length > 1 ? ds : [];
     $("pltabs").addEventListener("click", function (e) { var a = e.target.closest("a[data-tab]"); if (!a) return; e.preventDefault(); plState.tab = a.getAttribute("data-tab"); history.replaceState(null, "", a.getAttribute("href")); $("pltabs").querySelectorAll(".ptab").forEach(function (x) { x.classList.toggle("on", x === a); }); renderPlan(); });
     if (plState.canEdit) {
-      $("plSave").addEventListener("click", function () { savePlan(false); });
       $("plPub").addEventListener("click", function () { if (window.confirm(t("发布后，本校所有登录的人看到的就是这个版本。发布？", "Once published, everyone at the school sees this version. Publish?"))) savePlan(true); });
       $("plUnpub").addEventListener("click", function () { if (!window.confirm(t("撤回后本校的人重新看到系统默认（草稿保留）。撤回？", "The school's people go back to the system defaults (the draft is kept). Unpublish?"))) return; var b = $("plUnpub"); savingButton(b, t("撤回中…", "Unpublishing…")); post("school-plan", "PUT", { domain: plState.domain, unpublish: true }).then(function (r) { restoreButton(b); if (!r.ok) { plMsg(errText(r), true); return; } plState.data = Object.assign({}, plState.data, r.body); plStatus(); flashOk(t("已撤回发布。", "Unpublished.")); }); });
-      $("plReset").addEventListener("click", function () { if (!window.confirm(t("把草稿全部清空（每条路径和每个阶段都回到系统默认）？保存后才生效。", "Clear the whole draft (every track and stage back to the system defaults)? Takes effect when saved."))) return; plState.draft = { tracks: {}, map: {}, settings: plState.draft.settings }; plState.dirty = true; renderPlan(); });
+      $("plReset").addEventListener("click", function () { if (!window.confirm(t("把草稿全部清空（每条路径和每个阶段都回到系统默认）？", "Clear the whole draft (every track and stage back to the system defaults)?"))) return; plState.draft = { tracks: {}, map: {}, settings: plState.draft.settings }; plDirty(); renderPlan(); });
       // the school's frame: pedagogy and directions, one line under the tabs (editors only)
       $("plframe").addEventListener("change", function (e) {
         var c = e.target, st = plSettings(), next = { pedagogy: st.pedagogy, directions: st.directions.slice() };
+        if (c.id === "plsel") { plFlush().then(function () { plState.domain = c.value; loadPlan(); }); return; }
         if (c.id === "plPed") next.pedagogy = c.value;
         if (c.hasAttribute("data-dir")) { var d = c.getAttribute("data-dir"); next.directions = PL_DIRECTIONS.map(function (x) { return x[0]; }).filter(function (x) { return x === d ? c.checked : next.directions.indexOf(x) >= 0; }); if (!next.directions.length) { c.checked = true; flash(esc(t("至少保留一个方向。", "Keep at least one direction.")), 2000); return; } }
-        plState.draft.settings = next; plState.dirty = true; renderPlan();
+        plState.draft.settings = next; plDirty(); renderPlan();
       });
     }
     bindPlan(); // once per page: the listeners sit on #plbody, whose contents renderPlan() replaces
@@ -101,11 +100,12 @@
   function plFrameHtml() {
     if (!plState.canEdit) return "";
     var st = plSettings();
-    return '<div class="plframe"><span class="plsel">' + t("本校教学法", "School pedagogy") + ' <select id="plPed"><option value="classical"' + (st.pedagogy === "classical" ? " selected" : "") + ">" + t("古典教育", "Classical") + '</option><option value="nonclassical"' + (st.pedagogy === "nonclassical" ? " selected" : "") + ">" + t("非古典", "Non-classical") + "</option></select></span>" +
-      '<span class="plsel">' + t("适用的高等教育方向", "Higher-education directions served") + " " + PL_DIRECTIONS.map(function (d) { return '<label class="chk"><input type="checkbox" data-dir="' + d[0] + '"' + (st.directions.indexOf(d[0]) >= 0 ? " checked" : "") + " /> " + esc(t(d[1], d[2])) + "</label>"; }).join("") + "</span>" +
+    var school = plState.schools && plState.schools.length ? '<span class="plsel">' + t("学校", "School") + ' <select id="plsel">' + plState.schools.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === plState.domain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select></span>" : "";
+    return '<div class="plframe">' + school + '<span class="plsel">' + t("教学法", "Pedagogy") + ' <select id="plPed"><option value="classical"' + (st.pedagogy === "classical" ? " selected" : "") + ">" + t("古典教育", "Classical") + '</option><option value="nonclassical"' + (st.pedagogy === "nonclassical" ? " selected" : "") + ">" + t("非古典", "Non-classical") + "</option></select></span>" +
+      '<span class="plsel">' + t("高等教育路径", "Higher Education Path") + " " + PL_DIRECTIONS.map(function (d) { return '<label class="chk"><input type="checkbox" data-dir="' + d[0] + '"' + (st.directions.indexOf(d[0]) >= 0 ? " checked" : "") + " /> " + esc(t(d[1], d[2])) + "</label>"; }).join("") + "</span>" +
       tipI(t("随发布生效；本校的人按此看到地图和毕业要求。", "Published with the plan; the school's people see the curriculum map and graduation requirements for this frame.")) + "</div>";
   }
-  function plMsg(text, bad) { $("plmsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '">' + esc(text) + "</div>" : ""; }
+  function plMsg(text, bad) { if (!$("plmsg")) return; $("plmsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '">' + esc(text) + "</div>" : ""; }
   function loadPlan() {
     $("plbody").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     var url = plState.canEdit ? "school-plan?domain=" + encodeURIComponent(plState.domain) : "school-plan?view=1";
@@ -131,16 +131,38 @@
     if (p) return t("学校版本，" + day(p.at) + " 发布。可修改：" + who + "。", "School edition, published " + day(p.at) + ". Editable by: " + who + ".");
     return t("学校尚未发布，显示系统默认。可设定：" + who + "。", "Not published by the school yet; system default. Set by: " + who + ".");
   }
+  // The draft saves itself (Rick, 2026-10-19: 「如果是自动保存，还有必要按钮 Save draft 吗？」): 1.5 s after the last
+  // change, quietly — the page is not re-rendered, a small 已保存 shows for a moment. Publish sends the same draft.
+  var plSaveTimer = null, plSaving = null, plSeq = 0;
+  function plDirty() { plState.dirty = true; plSeq++; clearTimeout(plSaveTimer); plSaveTimer = setTimeout(plAutosave, 1500); }
+  function plBody(publish) { var body = { domain: plState.domain, tracks: plState.draft.tracks, map: plState.draft.map, settings: plSettings() }; if (publish) body.publish = true; return body; }
+  function plAutosave() {
+    clearTimeout(plSaveTimer); plSaveTimer = null;
+    if (!plState.dirty || !plState.canEdit || !plState.draft) return Promise.resolve();
+    if (plSaving) return plSaving.then(plAutosave);
+    var seq = plSeq, domain = plState.domain;
+    plSaving = post("school-plan", "PUT", plBody(false)).then(function (r) {
+      plSaving = null;
+      if (!r.ok) { plMsg(errText(r) + (r.body && r.body.problems ? " — " + r.body.problems.join("; ") : ""), true); return; }
+      if (plState.domain !== domain) return;
+      plState.data = Object.assign({}, plState.data, r.body); if (seq === plSeq) plState.dirty = false;
+      plMsg(""); plStatus();
+      var m = $("plSaved"); if (m) { m.hidden = false; clearTimeout(m._t); m._t = setTimeout(function () { m.hidden = true; }, 2000); }
+    });
+    return plSaving;
+  }
+  function plFlush() { return plState.dirty ? plAutosave() : (plSaving || Promise.resolve()); }
+  // closing the tab before the 1.5 s: send the draft anyway (keepalive survives the unload)
+  window.addEventListener("pagehide", function () { if (plState.dirty && plState.canEdit && plState.draft) { plState.dirty = false; fetch("/api/school-plan", { method: "PUT", credentials: "same-origin", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(plBody(false)) }).catch(function () {}); } });
   function savePlan(publish) {
-    var b = publish ? $("plPub") : $("plSave"); savingButton(b, publish ? t("发布中…", "Publishing…") : undefined);
-    var body = { domain: plState.domain, tracks: plState.draft.tracks, map: plState.draft.map, settings: plSettings() };
-    if (publish) body.publish = true;
-    return post("school-plan", "PUT", body).then(function (r) {
+    var b = $("plPub"); savingButton(b, t("发布中…", "Publishing…"));
+    clearTimeout(plSaveTimer); plSaveTimer = null;
+    return (plSaving || Promise.resolve()).then(function () { return post("school-plan", "PUT", plBody(true)); }).then(function (r) {
       restoreButton(b);
       if (!r.ok) { plMsg(errText(r) + (r.body && r.body.problems ? " — " + r.body.problems.join("; ") : ""), true); return; }
       plState.data = Object.assign({}, plState.data, r.body); plState.draft = plFromBlob(r.body.plan && r.body.plan.draft); plState.dirty = false;
       plMsg(""); plStatus(); renderPlan();
-      flashOk(publish ? t("已发布：本校的人在这里看到学校版本。", "Published: the school's people see the school edition here.") : t("草稿已保存（尚未发布）。", "Draft saved (not published yet)."));
+      flashOk(t("已发布：本校的人在这里看到学校版本。", "Published: the school's people see the school edition here."));
     });
   }
   function renderPlan() {
@@ -245,9 +267,10 @@
     var rows = shown.map(function (r, i) {
       var cur = r.subjects[0] ? (r.subjects[0].id || r.subjects[0].nameEn) : "";
       var known = subjects.some(function (s) { return (s.id || s.nameEn) === cur; });
-      return '<tr data-row="' + esc(r.id) + '"><td><select class="sm" data-subj="' + esc(r.id) + '">' + (known ? "" : '<option value="' + esc(cur) + '" selected>' + esc(plSubjectName(r.subjects[0]) || t("（选择科目）", "(choose a subject)")) + "</option>") + subjects.map(function (s) { var k = s.id || s.nameEn; return '<option value="' + esc(k) + '"' + (k === cur ? " selected" : "") + ">" + esc(plSubjectName(s)) + "</option>"; }).join("") + "</select>" +
-        '<label class="chk plspan"><input type="checkbox" data-span="' + esc(r.id) + '"' + (r.spanAll ? " checked" : "") + " /> " + t("各年级相同", "Same every grade") + "</label></td>" + scopeCell(r, true) + cellsHtml(r, true) +
-        '<td class="plrowbtns"><button type="button" class="lnk" data-up="' + esc(r.id) + '" title="' + t("上移", "Move up") + '"' + (i === 0 ? " disabled" : "") + '>↑</button><button type="button" class="lnk" data-down="' + esc(r.id) + '" title="' + t("下移", "Move down") + '"' + (i === shown.length - 1 ? " disabled" : "") + '>↓</button><button type="button" class="lnk del" data-del="' + esc(r.id) + '" title="' + t("删除这一行", "Delete the row") + '">×</button></td></tr>';
+      return '<tr data-row="' + esc(r.id) + '"><td><select class="sm" data-subj="' + esc(r.id) + '">' + (known ? "" : '<option value="' + esc(cur) + '" selected>' + esc(plSubjectName(r.subjects[0]) || t("（选择科目）", "(choose a subject)")) + "</option>") + subjects.map(function (s) { var k = s.id || s.nameEn; return '<option value="' + esc(k) + '"' + (k === cur ? " selected" : "") + ">" + esc(plSubjectName(s)) + "</option>"; }).join("") + "</select></td>" + scopeCell(r, true) + cellsHtml(r, true) +
+        // 各年级相同 (spanAll: one course across every grade of the stage, from Airtable's "All grades" column) is a
+        // row option, not a line under the subject (Rick, 2026-10-19: 「为什么会出现各年级相同」): a small toggle by ↑ ↓ ×.
+        '<td class="plrowbtns"><button type="button" class="lnk span" data-span="' + esc(r.id) + '" aria-pressed="' + (r.spanAll ? "true" : "false") + '" title="' + t("各年级相同：一门课贯穿本阶段所有年级（合并为一格）", "Same every grade: one course across the whole stage (one merged cell)") + '">↔</button><button type="button" class="lnk" data-up="' + esc(r.id) + '" title="' + t("上移", "Move up") + '"' + (i === 0 ? " disabled" : "") + '>↑</button><button type="button" class="lnk" data-down="' + esc(r.id) + '" title="' + t("下移", "Move down") + '"' + (i === shown.length - 1 ? " disabled" : "") + '>↓</button><button type="button" class="lnk del" data-del="' + esc(r.id) + '" title="' + t("删除这一行", "Delete the row") + '">×</button></td></tr>';
     }).join("");
     return head + '<div class="tbl-wrap"><table class="data plmap edit">' + thead + "<tbody>" + rows + "</tbody></table></div>" +
       (hidden ? '<p class="sub" style="margin-top:6px">' + hidden + t(" 行属于本校未选的路径或教学法，勾「显示所有路径的行」可见。", " row(s) belong to tracks or a pedagogy the school does not serve — tick “Rows of every track” to see them.") + "</p>" : "") +
@@ -275,7 +298,7 @@
     if (row) {
       var grades = (((plState.data.defaults || {}).map || {})[plState.stage] || {}).grades || [];
       var before = row.spanAll ? (row.cells[grades[0]] || "") : (row.cells[g] || "");
-      if (v !== before) { if (row.spanAll) { row.cells = {}; grades.forEach(function (gg) { if (v) row.cells[gg] = v; }); } else if (v) row.cells[g] = v; else delete row.cells[g]; plState.dirty = true; }
+      if (v !== before) { if (row.spanAll) { row.cells = {}; grades.forEach(function (gg) { if (v) row.cells[gg] = v; }); } else if (v) row.cells[g] = v; else delete row.cells[g]; plDirty(); }
     }
     var items = v ? v.split(/;\s*/) : [];
     cell.classList.remove("open"); cell.classList.toggle("empty", !items.length);
@@ -286,8 +309,8 @@
     var body = $("plbody");
     body.addEventListener("click", function (e) {
       var c, dfl = (plState.data && plState.data.defaults) || {};
-      if (e.target.closest("#plAddRow")) { var m = plState.draft.map[plState.stage], st0 = plState.stage; m.rows.push({ id: "n-" + Date.now().toString(36), subjects: dfl.subjects && dfl.subjects[0] ? [Object.assign({}, dfl.subjects[0])] : [], trackIds: st0 === "rhetoric" && !plState.allRows ? plTracksOfSchool().map(Number) : [], pedagogy: st0 === "dialectic" && !plState.allRows ? plSettings().pedagogy : null, spanAll: false, cells: {} }); plState.dirty = true; renderPlan(); return; }
-      if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system default curriculum map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plState.dirty = true; renderPlan(); return; }
+      if (e.target.closest("#plAddRow")) { var m = plState.draft.map[plState.stage], st0 = plState.stage; m.rows.push({ id: "n-" + Date.now().toString(36), subjects: dfl.subjects && dfl.subjects[0] ? [Object.assign({}, dfl.subjects[0])] : [], trackIds: st0 === "rhetoric" && !plState.allRows ? plTracksOfSchool().map(Number) : [], pedagogy: st0 === "dialectic" && !plState.allRows ? plSettings().pedagogy : null, spanAll: false, cells: {} }); plDirty(); renderPlan(); return; }
+      if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system default curriculum map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plDirty(); renderPlan(); return; }
       var sub = e.target.closest(".plsub[data-stage],.plsub[data-track]");
       if (sub) { if (sub.hasAttribute("data-stage")) plState.stage = sub.getAttribute("data-stage"); else plState.track = sub.getAttribute("data-track"); renderPlan(); return; }
       // a cell opens into a textarea that fills it; the chip picker for tracks
@@ -297,7 +320,9 @@
       if (tm) { var mn = tm.nextSibling; var wasHidden = mn.hidden; body.querySelectorAll(".plpick .comenu").forEach(function (x) { x.hidden = true; }); mn.hidden = !wasHidden; return; }
       if (!e.target.closest(".plpick")) body.querySelectorAll(".plpick .comenu").forEach(function (x) { x.hidden = true; });
       var td = e.target.closest("button[data-trkdel]");
-      if (td) { var rw = plState.draft.map[plState.stage].rows.filter(function (r) { return r.id === td.getAttribute("data-row"); })[0]; if (rw) { var n0 = Number(td.getAttribute("data-trkdel")); rw.trackIds = rw.trackIds.filter(function (x) { return x !== n0; }); plState.dirty = true; renderPlan(); } return; }
+      if (td) { var rw = plState.draft.map[plState.stage].rows.filter(function (r) { return r.id === td.getAttribute("data-row"); })[0]; if (rw) { var n0 = Number(td.getAttribute("data-trkdel")); rw.trackIds = rw.trackIds.filter(function (x) { return x !== n0; }); plDirty(); renderPlan(); } return; }
+      var spanBtn = e.target.closest("button[data-span]");
+      if (spanBtn) { var sr = plState.draft.map[plState.stage].rows.filter(function (r) { return r.id === spanBtn.getAttribute("data-span"); })[0]; if (sr) { sr.spanAll = !sr.spanAll; plDirty(); renderPlan(); } return; }
       var rowBtn = e.target.closest("button[data-del],button[data-up],button[data-down]");
       if (rowBtn) {
         var rows = plState.draft.map[plState.stage].rows, id = rowBtn.getAttribute("data-del") || rowBtn.getAttribute("data-up") || rowBtn.getAttribute("data-down"), i = rows.map(function (r) { return r.id; }).indexOf(id);
@@ -305,28 +330,27 @@
         if (rowBtn.hasAttribute("data-del")) rows.splice(i, 1);
         else if (rowBtn.hasAttribute("data-up") && i > 0) { var a = rows[i - 1]; rows[i - 1] = rows[i]; rows[i] = a; }
         else if (rowBtn.hasAttribute("data-down") && i < rows.length - 1) { var b = rows[i + 1]; rows[i + 1] = rows[i]; rows[i] = b; }
-        plState.dirty = true; renderPlan();
+        plDirty(); renderPlan();
       }
     });
     body.addEventListener("change", function (e) {
       var c = e.target, tid = plState.track, st = plState.stage, m, dfl = (plState.data && plState.data.defaults) || {};
       if (c.id === "plAllRows") { plState.allRows = c.checked; renderPlan(); return; }
-      if (c.id === "plOwn") { if (c.checked) { plState.draft.tracks[tid] = { credits: {}, totalCredits: null, serviceHours: null, notes: { en: "", zh: "" } }; } else delete plState.draft.tracks[tid]; plState.dirty = true; renderPlan(); return; }
-      if (c.id === "plOwnMap") { if (c.checked) plState.draft.map[st] = { rows: plRowsFromDefault(st) }; else delete plState.draft.map[st]; plState.dirty = true; renderPlan(); return; }
+      if (c.id === "plOwn") { if (c.checked) { plState.draft.tracks[tid] = { credits: {}, totalCredits: null, serviceHours: null, notes: { en: "", zh: "" } }; } else delete plState.draft.tracks[tid]; plDirty(); renderPlan(); return; }
+      if (c.id === "plOwnMap") { if (c.checked) plState.draft.map[st] = { rows: plRowsFromDefault(st) }; else delete plState.draft.map[st]; plDirty(); renderPlan(); return; }
       var ov = plState.draft.tracks[tid];
-      if (ov && c.hasAttribute("data-credit")) { var k = c.getAttribute("data-credit"); if (c.value === "") delete ov.credits[k]; else ov.credits[k] = Number(c.value); plState.dirty = true; return; }
-      if (ov && c.hasAttribute("data-off")) { var k2 = c.getAttribute("data-off"); if (c.checked) ov.credits[k2] = null; else delete ov.credits[k2]; plState.dirty = true; renderPlan(); return; }
-      if (ov && c.id === "plTotal") { ov.totalCredits = c.value === "" ? null : Number(c.value); plState.dirty = true; return; }
-      if (ov && c.id === "plHours") { ov.serviceHours = c.value === "" ? null : Number(c.value); plState.dirty = true; return; }
-      if (ov && c.id === "plNoteZh") { ov.notes.zh = c.value; plState.dirty = true; return; }
-      if (ov && c.id === "plNoteEn") { ov.notes.en = c.value; plState.dirty = true; return; }
+      if (ov && c.hasAttribute("data-credit")) { var k = c.getAttribute("data-credit"); if (c.value === "") delete ov.credits[k]; else ov.credits[k] = Number(c.value); plDirty(); return; }
+      if (ov && c.hasAttribute("data-off")) { var k2 = c.getAttribute("data-off"); if (c.checked) ov.credits[k2] = null; else delete ov.credits[k2]; plDirty(); renderPlan(); return; }
+      if (ov && c.id === "plTotal") { ov.totalCredits = c.value === "" ? null : Number(c.value); plDirty(); return; }
+      if (ov && c.id === "plHours") { ov.serviceHours = c.value === "" ? null : Number(c.value); plDirty(); return; }
+      if (ov && c.id === "plNoteZh") { ov.notes.zh = c.value; plDirty(); return; }
+      if (ov && c.id === "plNoteEn") { ov.notes.en = c.value; plDirty(); return; }
       m = plState.draft.map[st]; if (!m) return;
       var rid = c.getAttribute("data-row") || c.getAttribute("data-subj") || c.getAttribute("data-span") || c.getAttribute("data-ped");
       var row = m.rows.filter(function (r) { return r.id === rid; })[0]; if (!row) return;
       if (c.hasAttribute("data-cell")) return; // the cell editor saves on blur (plCloseCell)
-      if (c.hasAttribute("data-subj")) { var s = (dfl.subjects || []).filter(function (x) { return (x.id || x.nameEn) === c.value; })[0]; row.subjects = s ? [Object.assign({}, s)] : [{ id: null, nameEn: c.value, nameZh: c.value }]; plState.dirty = true; return; }
-      if (c.hasAttribute("data-span")) { row.spanAll = c.checked; plState.dirty = true; renderPlan(); return; }
-      if (c.hasAttribute("data-trk")) { var n = Number(c.getAttribute("data-trk")); row.trackIds = row.trackIds.filter(function (x) { return x !== n; }); if (c.checked) row.trackIds.push(n); row.trackIds.sort(); plState.dirty = true; renderPlan(); var again = $("plbody").querySelector('button[data-trkmenu="' + rid + '"]'); if (again) again.nextSibling.hidden = false; return; }
-      if (c.hasAttribute("data-ped")) { row.pedagogy = c.value || null; plState.dirty = true; return; }
+      if (c.hasAttribute("data-subj")) { var s = (dfl.subjects || []).filter(function (x) { return (x.id || x.nameEn) === c.value; })[0]; row.subjects = s ? [Object.assign({}, s)] : [{ id: null, nameEn: c.value, nameZh: c.value }]; plDirty(); return; }
+      if (c.hasAttribute("data-trk")) { var n = Number(c.getAttribute("data-trk")); row.trackIds = row.trackIds.filter(function (x) { return x !== n; }); if (c.checked) row.trackIds.push(n); row.trackIds.sort(); plDirty(); renderPlan(); var again = $("plbody").querySelector('button[data-trkmenu="' + rid + '"]'); if (again) again.nextSibling.hidden = false; return; }
+      if (c.hasAttribute("data-ped")) { row.pedagogy = c.value || null; plDirty(); return; }
     });
   }

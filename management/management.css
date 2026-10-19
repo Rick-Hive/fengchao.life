@@ -851,9 +851,10 @@ svg.track.en { font-size: 9.5px; }
 /* the curriculum map grid (Rick, 2026-10-19: Airtable-like — the cell is the editor, chips otherwise) */
 table.plmap th, table.plmap td { vertical-align: top; font-size: 12.5px; }
 table.plmap.edit td { padding: 4px; }
-table.plmap.edit td:first-child { min-width: 170px; padding: 8px; }
+table.plmap.edit td:first-child { min-width: 185px; padding: 8px; }
+table.plmap.edit td:first-child select { width: 100%; max-width: none; }
+table.plmap .plrowbtns .lnk.span[aria-pressed="true"] { color: var(--accent-dark); background: var(--accent-soft); border-radius: 6px; }
 table.plmap .chk { padding: 0; font-size: 12px; white-space: nowrap; }
-table.plmap .plspan { margin-top: 6px; color: var(--muted); }
 table.plmap .plscope { min-width: 150px; }
 table.plmap .plrowbtns { white-space: nowrap; }
 table.plmap .plrowbtns .lnk { padding: 2px 5px; color: var(--muted); }
@@ -1052,18 +1053,23 @@ body.caldragging, body.caldragging * { cursor: grabbing !important; }
 #cef label.f input[type=url], #cef label.f input[type=text], #cef label.f select, #cef label.f textarea { display: block; width: 100%; margin-top: 4px; box-sizing: border-box; }
 
 /* ---- page head (Rick, 2026-10-17 and 10-19; applies to every page, now and later) ----
-   On a computer the sidebar already names the page, so a page WITHOUT actions has no head row at all. A page
-   WITH actions gets the standard header of every mature product (Stripe, Linear, GitHub, Airtable): the page
-   title on the left, the actions on the right, one row — never an empty left half (Rick, 2026-10-19: 「上面
-   一行左侧空着，右侧有按钮……请参考成熟产品的 heading UI 设计」). The page's ⓘ sits on its sidebar item only. */
+   On a computer the sidebar already names the page, so there is never a title row. A page WITHOUT actions has no
+   head row at all. A page WITH actions puts them in its own first row when that is a tabs row or a toolbar (tabs
+   left, buttons right — GitHub, Airtable; placeActions() in 01-core.js moves #topActions there); otherwise they form
+   a left-aligned command bar (Microsoft admin centres) — never a row with an empty left half (Rick, 2026-10-19:
+   「上面一行左侧空着，右侧有按钮」, 「Don't put the title on head, as everyone knows it already」). The page's ⓘ
+   sits on its sidebar item only. */
 .nav-item .navinfo { margin-left: auto; flex: none; }
 .nav-item .navinfo:hover::after, .nav-item .navinfo:focus::after { display: none; } /* the floating .navtip takes over */
 .navtip { position: fixed; z-index: 60; max-width: 340px; padding: 8px 12px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 12.5px; line-height: 1.5; white-space: pre-line; box-shadow: 0 8px 24px -8px rgba(15, 32, 60, 0.4); pointer-events: none; }
 .navtip[hidden] { display: none; }
 @media (min-width: 901px) {
-  .topbar .crumb, .topbar .ttl .info { display: none; }
-  .topbar { min-height: 0; padding: 10px var(--s6) 4px; }
-  .topbar .ttl { font-size: 17px; }
+  .topbar .crumb, .topbar h1 { display: none; }
+  .topbar { min-height: 0; padding: 8px var(--s6) 2px; justify-content: flex-start; } /* command bar: buttons start at the left */
+  .topbar.moved { display: none; }
+  .pagetabs #topActions, .toolbar #topActions { margin-left: auto; display: flex; align-items: center; gap: var(--s2); flex: none; }
+  .pagetabs #topActions { padding-bottom: 4px; }
+  .pagetabs .tabsRight + #topActions { margin-left: var(--s2); }
   .topbar.noact { display: none; }
   .topbar.noact ~ .content { padding-top: var(--s3); }
 }
@@ -1259,10 +1265,10 @@ body.coedit .content { padding-bottom: 140px; } /* room under the preview on a p
 
 /* 毕业要求与课程地图 (Rick, 2026-10-19): two tabs, stage / direction sub-tabs in the card heads, the school's frame
    on one line for editors, the switch in each card's head */
-.plframe { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; margin: 0 0 var(--s3); font-size: 12.5px; color: var(--muted); }
+.plframe { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; margin: 0 0 var(--s3); font-size: 12.5px; color: var(--muted); }
 .plframe .plsel { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-.plframe .plsel select { height: 30px; width: auto; min-width: 0; padding: 0 28px 0 8px; font-size: 13px; }
-.plframe .chk { padding: 0; font-size: 12.5px; margin-right: 4px; }
+.plframe .plsel select { height: 30px; width: auto; min-width: 0; padding: 0 24px 0 8px; max-width: 220px; font-size: 13px; }
+.plframe .chk { padding: 0; font-size: 12.5px; margin-right: 0; }
 .plframe-note { font-size: 12px; color: var(--faint); }
 .plsubtabs { display: inline-flex; gap: 2px; margin-right: var(--s2); vertical-align: middle; }
 .plsub { font: inherit; font-size: 12.5px; font-weight: 500; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer; }

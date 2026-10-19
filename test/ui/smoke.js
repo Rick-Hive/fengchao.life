@@ -992,14 +992,17 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click('#plframe input[data-dir="domestic"]'); await p.waitForTimeout(200);
     assert.deepStrictEqual(await p.$$eval("#plbody .plsub[data-track]", es => es.map(e => e.textContent.trim())), ["国际 本校", "国内"], "direction sub-tabs, the customised one marked");
     await p.click('#plframe input[data-dir="domestic"]'); await p.waitForTimeout(200);
-    await p.click("#plSave"); await p.waitForTimeout(600);
-    if (planPuts.length !== 1 || planPuts[0].publish || planPuts[0].tracks["1"].credits.math !== 5 || planPuts[0].tracks["1"].credits.speaking !== null || planPuts[0].tracks["1"].totalCredits !== 26) throw new Error("save body: " + JSON.stringify(planPuts[0]).slice(0, 300));
-    assert.deepStrictEqual(planPuts[0].settings, { pedagogy: "classical", directions: ["international"] }, "the frame travels with the draft");
-    const rr = planPuts[0].map.rhetoric.rows; if (rr.length !== 2 || rr[1].subjects[0].id !== "recSci" || !/Biology/.test(rr[1].cells.G9) || rr[0].cells.G9 !== "Geometry / 几何") throw new Error("save map: " + JSON.stringify(rr).slice(0, 400));
-    if (!/草稿已保存/.test(await p.$eval("#flash", e => e.innerText))) throw new Error("no saved flash");
+    // the draft saves itself 1.5 s after the last change: no Save button, a quiet 已保存, the buttons on the tabs row
+    assert.ok(!(await p.$("#plSave")) && await p.$("#pltabs #topActions #plPub") && !(await p.$("#pltabs select")), "no Save draft button; Publish sits on the tabs row; no picker on the tabs row");
+    await p.waitForTimeout(1800);
+    const saved = planPuts.filter(b => !b.publish), last = saved[saved.length - 1];
+    if (!last || last.tracks["1"].credits.math !== 5 || last.tracks["1"].credits.speaking !== null || last.tracks["1"].totalCredits !== 26) throw new Error("autosave body: " + JSON.stringify(last).slice(0, 300));
+    assert.deepStrictEqual(last.settings, { pedagogy: "classical", directions: ["international"] }, "the frame travels with the draft");
+    const rr = last.map.rhetoric.rows; if (rr.length !== 2 || rr[1].subjects[0].id !== "recSci" || !/Biology/.test(rr[1].cells.G9) || rr[0].cells.G9 !== "Geometry / 几何") throw new Error("save map: " + JSON.stringify(rr).slice(0, 400));
+    assert.ok(!/草稿已保存/.test(await p.$eval("#flash", e => e.innerText)), "no flash for an autosave");
     p.on("dialog", d => d.accept());
     await p.click("#plPub"); await p.waitForTimeout(600);
-    if (planPuts.length !== 2 || planPuts[1].publish !== true) throw new Error("publish body: " + JSON.stringify(planPuts[1]).slice(0, 200));
+    if (planPuts[planPuts.length - 1].publish !== true) throw new Error("publish body: " + JSON.stringify(planPuts[planPuts.length - 1]).slice(0, 200));
     if (!(await p.$eval("#plUnpub", e => !e.hidden))) throw new Error("撤回发布 should show after publishing");
     await p.click('#pltabs a[data-tab="map"]'); await p.waitForTimeout(200);
     const m1 = await p.$$eval('#plbody .plcell[data-cell="G9"]', es => es.map(e => Array.from(e.querySelectorAll(".plchip")).map(c => c.textContent).join("; "))); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("after publish: " + m1.join("|"));
@@ -1431,9 +1434,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if (!/#\/plan$|#\/domain\/plan$/.test(await p.evaluate(() => location.hash))) throw new Error("old link still opens the plan");
     if (!(await p.$("#plsel"))) throw new Error("no school picker for the admin");
     assert.deepStrictEqual(await p.$$eval("#pltabs a[data-tab]", es => es.map(e => e.textContent)), ["Curriculum map", "Graduation requirements"], "two tabs");
-    assert.ok(/School pedagogy/.test(await p.$eval("#plframe", e => e.innerText)), "the school's frame for the admin");
+    assert.ok(/Pedagogy/.test(await p.$eval("#plframe", e => e.innerText)), "the school's frame for the admin");
     // Header shape (Rick 2026-10-13): actions in the top bar, picker + status on the bar's right, no toolbar row above.
-    if (!(await p.$("#topActions #plPub")) || !(await p.$("#pltabs .tabsRight #plsel")) || (await p.$("#plstatus"))) throw new Error("plan header layout");
+    if (!(await p.$("#topActions #plPub")) || !(await p.$("#plframe #plsel")) || (await p.$("#plstatus"))) throw new Error("plan header layout");
     await p.screenshot({ path: OUT + "/plan-admin-frame.png", clip: { x: 240, y: 50, width: 1040, height: 200 } });
     const hs = await p.evaluate(() => [document.getElementById("pltabs").getBoundingClientRect().height, document.getElementById("plframe").getBoundingClientRect().height, document.querySelector(".plframe") ? document.querySelector(".plframe").getBoundingClientRect().height : -1]);
     assert.ok(hs[0] < 60 && hs[1] < 60, "the tabs row and the frame row are each one line: " + JSON.stringify(hs));
@@ -1460,6 +1463,18 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForTimeout(500);
     if (/版税结算/.test(await p.$eval("#nav", e => e.innerText))) throw new Error("curriculum director sees the royalty nav");
     if (await p.$("#rtable")) throw new Error("royalty page opened for the curriculum director");
+  });
+  // Page header (Rick, 2026-10-19): no title row on a computer; the buttons join the page's first row when it is a
+  // toolbar or a tabs row, else they form a left-aligned command bar.
+  await shot("header-actions", 1280, 700, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForTimeout(500);
+    let r = await p.evaluate(() => { const a = document.getElementById("topActions"), tb = document.querySelector(".topbar"); return { inToolbar: !!a.closest("#content .toolbar"), barHidden: getComputedStyle(tb).display === "none", titleShown: getComputedStyle(document.getElementById("title")).display !== "none", csv: !!document.getElementById("csv") }; });
+    assert.deepStrictEqual(r, { inToolbar: true, barHidden: true, titleShown: false, csv: true }, "users: Export CSV sits on the toolbar row, no title row: " + JSON.stringify(r));
+    await p.evaluate(() => { location.hash = "#/dashboard"; }); await p.waitForTimeout(700);
+    r = await p.evaluate(() => { const a = document.getElementById("topActions"), tb = document.querySelector(".topbar"), ar = a.getBoundingClientRect(), tr = tb.getBoundingClientRect(); return { inBar: a.parentNode === tb, barShown: getComputedStyle(tb).display !== "none", leftAligned: ar.left - tr.left < 60, titleShown: getComputedStyle(document.getElementById("title")).display !== "none", n: a.children.length }; });
+    assert.ok(r.inBar && r.barShown && r.leftAligned && !r.titleShown && r.n > 0, "dashboard: a left-aligned command bar, no title: " + JSON.stringify(r));
+    await p.evaluate(() => { location.hash = "#/domain/users"; }); await p.waitForTimeout(700);
+    assert.ok(await p.$("#content .toolbar #topActions #csv"), "back on users the buttons are on the toolbar again");
   });
   await shot("users-sticky", 1280, 500, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(500);
