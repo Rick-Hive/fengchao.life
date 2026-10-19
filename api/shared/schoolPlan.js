@@ -59,9 +59,19 @@ const num = (v) => { if (v === null || v === undefined || v === "") return null;
 const str = (v, max) => String(v == null ? "" : v).trim().slice(0, max);
 
 // Validate and normalise what the editor sends. Throws { status: 400, problems }.
+// The school's own frame (Rick, 2026-10-19: the system administrator knows each school's pedagogy and
+// publishes its default; families choose nothing): pedagogy and the higher-education directions the school
+// serves. Absent = classical, international (Rick, 2026-10-19: 「默认古典教育，国际路径」).
+const DIRECTIONS = ["international", "domestic", "hybrid"];
+function cleanSettings(input) {
+  const s = input && typeof input === "object" ? input : {};
+  const pedagogy = s.pedagogy === "nonclassical" ? "nonclassical" : "classical";
+  const dirs = Array.isArray(s.directions) ? DIRECTIONS.filter((d) => s.directions.includes(d)) : ["international"];
+  return { pedagogy, directions: dirs.length ? dirs : ["international"] };
+}
 function clean(input, defaults) {
   const problems = [];
-  const out = { tracks: {}, map: {} };
+  const out = { tracks: {}, map: {}, settings: cleanSettings(input && input.settings) };
   const known = new Set((defaults.tracks || []).map((t) => String(t.trackId)));
   const subjById = new Map((defaults.subjects || []).map((s) => [s.id || s.nameEn, s]));
   for (const [tid, tr] of Object.entries((input && input.tracks) || {})) {
@@ -124,4 +134,4 @@ function forFamilies(doc, school) {
   return { domain: doc.domain, school: school || { domain: doc.domain, name: "", nameEn: "" }, tracks: pub.tracks || {}, map: pub.map || {}, publishedAt: pub.at || null };
 }
 
-module.exports = { STAGES, STAGE_GRADES, CREDIT_KEYS, LIMITS, readPlan, readSnapshot, defaultsFromSnapshot, parseItems, itemsText, clean, saveDraft, publish, unpublish, forFamilies };
+module.exports = { STAGES, STAGE_GRADES, CREDIT_KEYS, LIMITS, DIRECTIONS, cleanSettings, readPlan, readSnapshot, defaultsFromSnapshot, parseItems, itemsText, clean, saveDraft, publish, unpublish, forFamilies };

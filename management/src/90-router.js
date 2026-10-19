@@ -31,8 +31,8 @@
     // A notice belongs to the page that raised it (Rick, 2026-10-07: a sync notice was still
     // showing on 蜂巢课程订单 after switching tabs).
     if ($("flash")) { $("flash").hidden = true; clearTimeout(flash.timer); }
-    // Staff land on the dashboard (design §5); everyone else on their profile.
-    var h = location.hash || (isStaff() ? "#/dashboard" : "#/account");
+    // Staff land on the dashboard; everyone else on 毕业要求与课程地图 (Rick, 2026-10-19), the first item of 我的账号.
+    var h = location.hash || (isStaff() ? "#/dashboard" : "#/plan");
     nav();
     if (!me) return;
     if (h.indexOf("#/dashboard") === 0) { if (!isStaff() && !canSeeOrders()) { location.hash = "#/account"; return; } return viewDashboard(); }

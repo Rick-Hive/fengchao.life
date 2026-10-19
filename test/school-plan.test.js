@@ -142,6 +142,14 @@ async function call({ method = "GET", query = {}, body = null, user, roles }) {
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.canEdit, true, "an editor may view any school");
   r = await call({ query: { view: "1" }, user: "parent@b.org" });
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.plan.published, null, "nothing published: the page shows Hive's defaults");
+  // the school's frame (Rick, 2026-10-19): pedagogy + directions travel with the draft and the publication; absent = classical, all
+  assert.deepStrictEqual(SP.cleanSettings(undefined), { pedagogy: "classical", directions: ["international"] }, "default: classical, international");
+  assert.deepStrictEqual(SP.cleanSettings({ pedagogy: "nonclassical", directions: ["domestic", "bogus"] }), { pedagogy: "nonclassical", directions: ["domestic"] });
+  assert.deepStrictEqual(SP.cleanSettings({ directions: [] }).directions, ["international"], "an empty choice falls back to international");
+  r = await call({ method: "PUT", body: { domain: "a.edu", tracks: {}, map: {}, settings: { pedagogy: "nonclassical", directions: ["international"] }, publish: true }, ...LEADER });
+  assert.strictEqual(r.status, 200); assert.deepStrictEqual(r.body.plan.published.settings, { pedagogy: "nonclassical", directions: ["international"] });
+  r = await call({ query: { view: "1" }, user: "parent@a.edu" });
+  assert.deepStrictEqual(r.body.plan.published.settings, { pedagogy: "nonclassical", directions: ["international"] }, "readers get the school's frame");
   r = await call({});
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.plan, null); assert.strictEqual(r.body.signedIn, false);
   r = await call({ method: "PUT", body: { domain: "a.edu", unpublish: true }, ...LEADER });

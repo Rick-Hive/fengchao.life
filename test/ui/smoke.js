@@ -44,7 +44,7 @@ const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, {
 const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }],
   map: { grammar: { grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"], rows: [] }, dialectic: { grades: ["G7", "G8"], rows: [] }, rhetoric: { grades: ["G9", "G10", "G11", "G12"], rows: [{ id: "recA", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G9: [{ en: "Geometry", zh: "几何" }], G10: [{ en: "Algebra 2", zh: "代数2" }] } }] } } };
 let PLAN_DOC = { domain: "bes.qiaoliang.online", draft: { tracks: {}, map: {} }, published: null, updatedAt: null, updatedBy: "" };
-const planPuts = [], planPrefs = [];
+const planPuts = [];
 // 校历 (2026-10-16): the school's own events and the Hive layer, kept in memory; every POST is recorded.
 const TEAM_G5 = "11111111-1111-1111-1111-111111111111";
 const CAL_AUD = { people: [
@@ -205,7 +205,6 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     page.on("console", m => { if (m.type() === "error" && !/status of (403|409)/.test(m.text())) errs.push(name + " console: " + m.text()); });
     const acc = crm.accessMap(rolesList);
     const me = Object.assign({}, summary, { roles: rolesList.filter(x => !/^x:/.test(x)), crm: acc });
-    if (rolesList.indexOf("x:nokids") >= 0) me.hive = Object.assign({}, me.hive, { extra: Object.assign({}, me.hive.extra, { children: [] }) }); // a parent who never filled in the children
     const isAdm = rolesList.indexOf("admin") >= 0;
     await page.route("**/api/**", r => {
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
@@ -244,7 +243,6 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
         }
       }
       else if (p === "/api/school-plan" && r.request().method() === "GET" && u.searchParams.get("view") === "1") body = { domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, plan: { published: PLAN_DOC.published || null }, defaults: PLAN_DEFAULTS, canEdit: false };
-      else if (p === "/api/me/planpref") { const b = JSON.parse(r.request().postData()); planPrefs.push(b); body = { ok: true, planPref: Object.assign({ at: new Date().toISOString() }, b) }; }
       else if (p === "/api/school-plan" && r.request().method() === "GET") body = { domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS, canEdit: true, isAdmin: isAdm };
       else if (p === "/api/school-plan" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); planPuts.push(b); const at = new Date().toISOString(); if (b.unpublish) PLAN_DOC = Object.assign({}, PLAN_DOC, { published: null, updatedAt: at }); else { const map = {}; Object.keys(b.map || {}).forEach(st => { map[st] = { grades: PLAN_DEFAULTS.map[st].grades, rows: (b.map[st].rows || []).map((row, i) => ({ id: row.id || "s" + i, order: i + 1, subjects: row.subjects, trackIds: row.trackIds || [], pedagogy: row.pedagogy || null, spanAll: !!row.spanAll, cells: Object.fromEntries(Object.entries(row.cells || {}).filter(([, v]) => String(v).trim()).map(([g, v]) => [g, String(v).split(/[;；\n]+/).map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf("/"); return i < 0 ? { en: x, zh: null } : { en: x.slice(0, i).trim(), zh: x.slice(i + 1).trim() }; })])) })) }; }); PLAN_DOC = Object.assign({}, PLAN_DOC, { draft: { tracks: b.tracks || {}, map }, updatedAt: at, updatedBy: me.profile.upn }); if (b.publish) PLAN_DOC.published = Object.assign({}, PLAN_DOC.draft, { at, by: me.profile.upn }); } body = { ok: true, domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS }; }
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
@@ -944,80 +942,87 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForTimeout(800);
     const nv = await p.$eval("#nav", e => e.innerText);
     if (!/毕业要求与课程地图/.test(nv) || /用户管理|Teams 团队管理|操作手册/.test(nv)) throw new Error("leader nav: " + nv);
-    assert.ok(await p.$eval("#plUnpub", e => e.hidden) && !(await p.$("#plstatus")), "nothing published yet: no 撤回发布, and no status text in the bar (Rick, 2026-10-19)");
-    // One page, no tabs (Rick, 2026-10-19): child / pedagogy / direction / grade in the bar; the child's 补充资料 pre-fills them
-    assert.ok(!(await p.$("#pltabs a[data-tab]")) && await p.$("#plChild") && await p.$("#plPed") && await p.$("#plMode") && await p.$("#plGrade"), "the bar holds the four selects, no tabs");
-    assert.deepStrictEqual(await p.$$eval("#plPed, #plMode, #plGrade", es => es.map(e => e.value)), ["classical", "international", "6"], "pre-filled from 大宝 (古典, 欧美大学, G6)");
-    const body0 = await p.$eval("#plbody", e => e.innerText); if (!/高中毕业要求/.test(body0) || !/国际·古典/.test(body0) || !/系统默认/.test(body0) || /蜂巢默认/.test(body0) || !/总学分\s*24/.test(body0)) throw new Error("credits card (系统默认, not 蜂巢默认 — Rick, 2026-10-19): " + body0.slice(0, 300));
-    assert.ok(!(await p.$("#plbody .plhead + label.sw")) && await p.$("#plbody .plhead label.sw:has(#plOwn)"), "the school's-own switch sits in the card head, not on its own row");
-    await p.click("label.sw:has(#plOwn) .track"); await p.waitForTimeout(200);
-    await p.fill('#plbody input[data-credit="math"]', "5"); await p.$eval('#plbody input[data-credit="math"]', e => e.dispatchEvent(new Event("change", { bubbles: true })));
-    await p.click('#plbody input[data-off="speaking"]'); await p.waitForTimeout(200);
-    if (!(await p.$eval('#plbody input[data-credit="speaking"]', e => e.disabled))) throw new Error("不要求 did not disable the input");
-    await p.fill("#plTotal", "26"); await p.$eval("#plTotal", e => e.dispatchEvent(new Event("change", { bubbles: true })));
-    // the map follows the grade: G6 → grammar (no Hive map); G9 → rhetoric with Hive's 几何 row; the choice is saved for the person
-    assert.ok(/语法阶段 K–G6/.test(await p.$eval("#plbody", e => e.innerText)), "classical vocabulary for the stage");
-    await p.selectOption("#plGrade", "9"); await p.waitForTimeout(300);
-    assert.ok(planPrefs.length >= 1 && planPrefs[planPrefs.length - 1].grade === "9" && planPrefs[planPrefs.length - 1].child === 0, "the choice is kept server-side: " + JSON.stringify(planPrefs));
-    const m0 = await p.$eval("#plbody", e => e.innerText); if (!/修辞阶段 G9–G12/.test(m0) || !/几何/.test(m0) || !/系统默认/.test(m0)) throw new Error("map default: " + m0.slice(0, 300));
+    assert.ok(await p.$eval("#plUnpub", e => e.hidden) && !(await p.$("#plstatus")), "nothing published yet: no 撤回发布, no status text");
+    // two tabs (Rick, 2026-10-19): 课程地图 first with stage sub-tabs, 高中毕业要求 second; the school's frame on one line for editors
+    assert.deepStrictEqual(await p.$$eval("#pltabs a[data-tab]", es => es.map(e => e.textContent)), ["课程地图", "高中毕业要求"]);
+    assert.ok(await p.$("#plframe #plPed") && (await p.$$("#plframe input[data-dir]")).length === 3, "the frame: pedagogy + directions");
+    assert.deepStrictEqual(await p.$$eval("#plframe input[data-dir]", es => es.map(e => e.checked)), [true, false, false], "default frame: classical, international");
+    assert.deepStrictEqual(await p.$$eval("#plbody .plsub[data-stage]", es => es.map(e => e.textContent.trim())), ["语法阶段 K–G6", "逻辑阶段 G7–G8", "修辞阶段 G9–G12"], "stage sub-tabs in classical words");
+    await p.selectOption("#plPed", "nonclassical"); await p.waitForTimeout(200);
+    assert.ok(/小学 K–G6/.test(await p.$eval("#plbody", e => e.innerText)), "non-classical words follow the frame");
+    await p.selectOption("#plPed", "classical"); await p.waitForTimeout(200);
+    await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForTimeout(200);
+    const m0 = await p.$eval("#plbody", e => e.innerText); if (!/几何/.test(m0) || !/系统默认/.test(m0)) throw new Error("map default: " + m0.slice(0, 300));
+    assert.ok(!(await p.$("#plbody .plhead + label.sw")) && await p.$("#plbody .plhead label.sw:has(#plOwnMap)"), "the school's-own switch sits in the card head");
     await p.click("label.sw:has(#plOwnMap) .track"); await p.waitForTimeout(200);
     if ((await p.$$("#plbody table.plmap.edit tbody tr")).length !== 1) throw new Error("Hive's row was not copied");
     await p.click("#plAddRow"); await p.waitForTimeout(200);
     const rows = await p.$$("#plbody table.plmap.edit tbody tr"); if (rows.length !== 2) throw new Error("add row");
     const rid = await rows[1].getAttribute("data-row");
-    assert.ok(await p.$eval('#plbody input[data-trk="1"][data-row="' + rid + '"]', e => e.checked), "a new row is for the chosen track");
+    assert.ok(await p.$eval('#plbody input[data-trk="1"][data-row="' + rid + '"]', e => e.checked), "a new row is for the school's track");
     assert.ok(/国际·古典/.test(await p.$eval('#plbody tr[data-row="' + rid + '"] .plscope', e => e.innerText)), "the track shows as a chip, the six boxes live in a menu");
     await p.selectOption('#plbody select[data-subj="' + rid + '"]', "recSci");
-    // the cell is the editor (Rick, 2026-10-19): click → a textarea filling it; blur → chips, one per course
+    // the cell is the editor: click → a textarea filling it; blur → chips, one per course
     assert.ok(!(await p.$("#plbody .plmap textarea")), "no textareas in the grid until a cell is clicked");
     await p.click('#plbody .plcell[data-cell="G9"][data-row="' + rid + '"]'); await p.waitForTimeout(100);
     await p.keyboard.type("Biology / 生物\nChemistry / 化学"); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
     assert.deepStrictEqual(await p.$$eval('#plbody .plcell[data-cell="G9"][data-row="' + rid + '"] .plchip', es => es.map(e => e.textContent)), ["Biology / 生物", "Chemistry / 化学"], "two chips after leaving the cell");
-    // a row of another track is hidden unless asked for: the ＋ menu toggles tracks
+    // a row of a track the school does not serve is hidden unless asked for: the ＋ menu toggles tracks
     await p.click('#plbody tr[data-row="' + rid + '"] .plscope .plchip .x'); await p.waitForTimeout(150);
     await p.click('#plbody button[data-trkmenu="' + rid + '"]'); await p.waitForTimeout(100);
     await p.click('#plbody input[data-trk="2"][data-row="' + rid + '"]'); await p.waitForTimeout(200);
-    await p.selectOption("#plMode", "international"); await p.waitForTimeout(200);
-    assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr")).length, 1, "the row moved to track 2 is hidden for track 1");
-    assert.ok(/1 行属于其它路径/.test(await p.$eval("#plbody", e => e.innerText)));
+    assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr")).length, 1, "the row moved to track 2 is hidden for a classical-international school");
+    assert.ok(/1 行属于本校未选/.test(await p.$eval("#plbody", e => e.innerText)));
     await p.click("#plAllRows"); await p.waitForTimeout(200);
     assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr")).length, 2, "every track's rows on request");
+    // 高中毕业要求: one direction → no sub-tabs; the switch in the head; the school's figures
+    await p.click('#pltabs a[data-tab="credits"]'); await p.waitForTimeout(200);
+    assert.ok(!(await p.$("#plbody .plsub[data-track]")), "one direction served: no direction sub-tabs");
+    const body0 = await p.$eval("#plbody", e => e.innerText); if (!/高中毕业要求/.test(body0) || !/国际·古典/.test(body0) || !/系统默认/.test(body0) || /蜂巢默认/.test(body0) || !/总学分\s*24/.test(body0)) throw new Error("credits card: " + body0.slice(0, 300));
+    await p.click("label.sw:has(#plOwn) .track"); await p.waitForTimeout(200);
+    await p.fill('#plbody input[data-credit="math"]', "5"); await p.$eval('#plbody input[data-credit="math"]', e => e.dispatchEvent(new Event("change", { bubbles: true })));
+    await p.click('#plbody input[data-off="speaking"]'); await p.waitForTimeout(200);
+    if (!(await p.$eval('#plbody input[data-credit="speaking"]', e => e.disabled))) throw new Error("不要求 did not disable the input");
+    await p.fill("#plTotal", "26"); await p.$eval("#plTotal", e => e.dispatchEvent(new Event("change", { bubbles: true })));
+    // a second direction → sub-tabs appear
+    await p.click('#plframe input[data-dir="domestic"]'); await p.waitForTimeout(200);
+    assert.deepStrictEqual(await p.$$eval("#plbody .plsub[data-track]", es => es.map(e => e.textContent.trim())), ["国际 本校", "国内"], "direction sub-tabs, the customised one marked");
+    await p.click('#plframe input[data-dir="domestic"]'); await p.waitForTimeout(200);
     await p.click("#plSave"); await p.waitForTimeout(600);
     if (planPuts.length !== 1 || planPuts[0].publish || planPuts[0].tracks["1"].credits.math !== 5 || planPuts[0].tracks["1"].credits.speaking !== null || planPuts[0].tracks["1"].totalCredits !== 26) throw new Error("save body: " + JSON.stringify(planPuts[0]).slice(0, 300));
+    assert.deepStrictEqual(planPuts[0].settings, { pedagogy: "classical", directions: ["international"] }, "the frame travels with the draft");
     const rr = planPuts[0].map.rhetoric.rows; if (rr.length !== 2 || rr[1].subjects[0].id !== "recSci" || !/Biology/.test(rr[1].cells.G9) || rr[0].cells.G9 !== "Geometry / 几何") throw new Error("save map: " + JSON.stringify(rr).slice(0, 400));
     if (!/草稿已保存/.test(await p.$eval("#flash", e => e.innerText))) throw new Error("no saved flash");
     p.on("dialog", d => d.accept());
     await p.click("#plPub"); await p.waitForTimeout(600);
     if (planPuts.length !== 2 || planPuts[1].publish !== true) throw new Error("publish body: " + JSON.stringify(planPuts[1]).slice(0, 200));
     if (!(await p.$eval("#plUnpub", e => !e.hidden))) throw new Error("撤回发布 should show after publishing");
+    await p.click('#pltabs a[data-tab="map"]'); await p.waitForTimeout(200);
     const m1 = await p.$$eval('#plbody .plcell[data-cell="G9"]', es => es.map(e => Array.from(e.querySelectorAll(".plchip")).map(c => c.textContent).join("; "))); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("after publish: " + m1.join("|"));
     await p.screenshot({ path: OUT + "/plan-leader.png" });
   });
-  // A parent (no role) reads the school's published edition: own school, read-only, the choices in the bar.
+  // A parent (no role) reads the school's published edition: two tabs, nothing to choose, nothing saved.
   await shot("plan-parent", 1280, 900, "#/plan", "zh", [], async p => {
     await p.waitForTimeout(800);
     const nv = await p.$eval("#nav", e => e.innerText.replace(/\s+/g, " "));
-    assert.ok(/毕业要求与课程地图 i? ?我的 Teams 团队 我的日历 Teams 登录与安全 个人资料/.test(nv), "我的账号 order (Rick, 2026-10-19): " + nv.slice(0, 120));
-    assert.ok(/我自己/.test(await p.$eval("#plChild", e => e.innerText)), "a person can look for themselves (a student)");
-    assert.ok(/学校版本/.test(await p.$eval("#plbody", e => e.innerText)), "the published edition is marked on the cards");
-    assert.ok(!(await p.$("#topActions #plPub")) && !(await p.$("#plbody label.sw")) && !(await p.$("#plbody textarea")), "read-only: no actions, switches or inputs");
-    assert.ok(/升到 G9 后适用/.test(await p.$eval("#plbody", e => e.innerText)), "for a G6 child the requirements fold to one line");
-    await p.selectOption("#plGrade", "10"); await p.waitForTimeout(300);
-    const txt = await p.$eval("#plbody", e => e.innerText);
+    assert.ok(/毕业要求与课程地图 i? ?我的 Teams 团队 我的日历 Teams 登录与安全 个人资料/.test(nv), "我的账号 order: " + nv.slice(0, 120));
+    assert.ok(!(await p.$("#topActions #plPub")) && !(await p.$("#plframe select")) && !(await p.$("#plbody label.sw")) && !(await p.$("#plbody textarea")) && !(await p.$("#plChild")), "read-only: no actions, frame, switches, inputs or choices");
+    assert.deepStrictEqual(await p.$$eval("#plbody .plsub[data-stage]", es => es.map(e => e.textContent.trim())), ["语法阶段 K–G6", "逻辑阶段 G7–G8", "修辞阶段 G9–G12 本校"], "stage sub-tabs for readers too");
+    await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForTimeout(200);
+    let txt = await p.$eval("#plbody", e => e.innerText);
+    assert.ok(/学校版本/.test(txt), "the published edition is marked on the card");
+    assert.ok(/几何/.test(txt) && /生物/.test(txt) === false, "the school's rhetoric map for its track (the track-2 row stays hidden): " + txt.slice(-300));
+    await p.click('#pltabs a[data-tab="credits"]'); await p.waitForTimeout(200);
+    txt = await p.$eval("#plbody", e => e.innerText);
     assert.ok(/高中毕业要求/.test(txt) && /数学\s*5/.test(txt) && !/公众演讲/.test(txt) && /总学分\s*26/.test(txt) && /学校版本/.test(txt), "the school's figures: " + txt.slice(0, 300));
-    assert.ok(/几何/.test(txt) && /生物/.test(txt) === false, "the school's rhetoric map for track 1 (the track-2 row stays hidden): " + txt.slice(-300));
     await p.screenshot({ path: OUT + "/plan-parent.png" });
   });
-  // no children on file: the three choices by hand, kept, and a pointer to the profile (Rick, 2026-10-19)
-  await shot("plan-nokids", 1280, 700, "#/plan", "zh", ["x:nokids"], async p => {
-    await p.waitForTimeout(600);
-    assert.ok(!(await p.$("#plChild")) && /有孩子？/.test(await p.$eval("#pltabs", e => e.innerText)) && (await p.$eval("#pltabs a.plhint", e => e.getAttribute("href"))) === "#/account", "no child picker, a pointer to the profile");
-    assert.deepStrictEqual(await p.$$eval("#plPed, #plMode, #plGrade", es => es.map(e => e.value)), ["classical", "international", "9"], "sensible defaults to choose from");
-    assert.ok(/教学法/.test(await p.$eval("#pltabs", e => e.innerText)), "教学法, not 教学模式 (Rick, 2026-10-19)");
-    await p.selectOption("#plMode", "domestic"); await p.waitForTimeout(300);
-    assert.ok(planPrefs.length && planPrefs[planPrefs.length - 1].mode === "domestic" && planPrefs[planPrefs.length - 1].child === null, "the hand-made choice is kept");
+  // an ordinary account lands on 毕业要求与课程地图 (Rick, 2026-10-19)
+  await shot("plan-landing", 1280, 700, "", "zh", [], async p => {
+    await p.waitForTimeout(700);
+    const h = await p.evaluate(() => location.hash); if (h !== "#/plan" && h !== "") throw new Error("an ordinary account should land on the plan: " + h);
+    assert.ok(/课程地图/.test(await p.$eval("#pltabs", e => e.innerText)), "the plan page is shown");
   });
-  // the sidebar collapses and comes back on any page (Rick, 2026-10-19: 「左边的操作栏要求随时可以缩进或打开」)
   await shot("side-collapse", 1280, 700, "#/account", "zh", [], async p => {
     await p.waitForTimeout(500);
     assert.ok(await p.$eval("#side", e => e.offsetWidth > 0) && await p.$eval("#sideHide", e => e.offsetWidth > 0) && !(await p.$eval("#sideShow", e => e.offsetWidth)), "sidebar open with its collapse button");
@@ -1395,11 +1400,13 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const nv = await p.$eval("#nav", e => e.innerText); if (!/Graduation requirements/.test(nv) || !/User management/.test(nv)) throw new Error("admin nav: " + nv);
     if (!/#\/plan$|#\/domain\/plan$/.test(await p.evaluate(() => location.hash))) throw new Error("old link still opens the plan");
     if (!(await p.$("#plsel"))) throw new Error("no school picker for the admin");
-    if (!/Pedagogy/.test(await p.$eval("#pltabs", e => e.innerText)) || (await p.$("#pltabs a[data-tab]"))) throw new Error("the bar: selects, no tabs");
+    assert.deepStrictEqual(await p.$$eval("#pltabs a[data-tab]", es => es.map(e => e.textContent)), ["Curriculum map", "Graduation requirements"], "two tabs");
+    assert.ok(/School pedagogy/.test(await p.$eval("#plframe", e => e.innerText)), "the school's frame for the admin");
     // Header shape (Rick 2026-10-13): actions in the top bar, picker + status on the bar's right, no toolbar row above.
     if (!(await p.$("#topActions #plPub")) || !(await p.$("#pltabs .tabsRight #plsel")) || (await p.$("#plstatus"))) throw new Error("plan header layout");
-    const bar = await p.$eval("#pltabs", e => { const r = e.getBoundingClientRect(); const sel = e.querySelector("#plsel").getBoundingClientRect(), ped = e.querySelector("#plPed").getBoundingClientRect(); return { h: r.height, sameRow: Math.abs(sel.top - ped.top) < 8 }; });
-    assert.ok(bar.sameRow && bar.h < 60, "one row: the selects and the school picker side by side: " + JSON.stringify(bar));
+    await p.screenshot({ path: OUT + "/plan-admin-frame.png", clip: { x: 240, y: 50, width: 1040, height: 200 } });
+    const hs = await p.evaluate(() => [document.getElementById("pltabs").getBoundingClientRect().height, document.getElementById("plframe").getBoundingClientRect().height, document.querySelector(".plframe") ? document.querySelector(".plframe").getBoundingClientRect().height : -1]);
+    assert.ok(hs[0] < 60 && hs[1] < 60, "the tabs row and the frame row are each one line: " + JSON.stringify(hs));
     await p.screenshot({ path: OUT + "/plan-admin-zh-header.png", clip: { x: 240, y: 100, width: 1040, height: 360 } });
     await p.click('#nav a[href="#/system/roles"]'); await p.waitForTimeout(600);
     if (!/Education leader/.test(await p.$eval("#rbar", e => e.innerText))) throw new Error("no leader filter chip");

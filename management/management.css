@@ -1246,7 +1246,18 @@ body.coedit .content { padding-bottom: 140px; } /* room under the preview on a p
 .pvchip { display: inline-block; font-size: 12px; border: 1px solid #e2e8f0; border-radius: 999px; padding: 1px 10px; margin: 0 4px 4px 0; background: #f8fafc; color: #334155; }
 .pvprice { font-size: 17px; font-weight: 700; color: #1e293b; }
 
-/* 毕业要求与课程地图 (Rick, 2026-10-19): the track select in the bar; the switch in each card's head */
+/* 毕业要求与课程地图 (Rick, 2026-10-19): two tabs, stage / direction sub-tabs in the card heads, the school's frame
+   on one line for editors, the switch in each card's head */
+.plframe { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; margin: 0 0 var(--s3); font-size: 12.5px; color: var(--muted); }
+.plframe .plsel { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.plframe .plsel select { height: 30px; width: auto; min-width: 0; padding: 0 28px 0 8px; font-size: 13px; }
+.plframe .chk { padding: 0; font-size: 12.5px; margin-right: 4px; }
+.plframe-note { font-size: 12px; color: var(--faint); }
+.plsubtabs { display: inline-flex; gap: 2px; margin-right: var(--s2); vertical-align: middle; }
+.plsub { font: inherit; font-size: 12.5px; font-weight: 500; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer; }
+.plsub:hover { color: var(--accent-dark); border-color: var(--accent-soft-line); }
+.plsub.on { color: var(--accent-dark); border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.plsub .cnt { font-size: 10.5px; color: var(--faint); margin-left: 2px; }
 .plbar { align-items: center; padding-bottom: 8px; gap: var(--s3); flex-wrap: wrap; }
 .plbar .tabsRight { flex-wrap: nowrap; white-space: nowrap; }
 .plbar .tabsRight select { width: auto; min-width: 0; max-width: 180px; padding: 0 28px 0 8px; font-size: 13px; }

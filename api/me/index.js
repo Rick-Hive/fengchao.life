@@ -234,7 +234,6 @@ async function handler(context, req) {
             identity: people.identityOf(rec, user),
             linked: Array.isArray(rec.linked) ? rec.linked : [],
             extra: rec.extra || null,
-            planPref: rec.planPref || null, // 毕业要求与课程地图: which child / pedagogy / direction / grade this person looks at
             // The display name is set by the school's IT administrator or the system administrator, not by the person (Rick, 2026-10-02).
             canEditName: can(roles, "methods", myDomain),
             institution: (inst.institutions[myDomain] && inst.institutions[myDomain].name) || "",
@@ -410,22 +409,6 @@ async function handler(context, req) {
       return;
     }
 
-    // 毕业要求与课程地图 — what this person chose to look at (Rick, 2026-10-19: 「允许普通用户选择
-    // 教学模式，高等教育方向，和孩子所在学段，定制自己默认的课程地图」): kept beside 补充资料 so
-    // the profile form never overwrites it.
-    if (method === "PATCH" && action === "planpref") {
-      const b = req.body && typeof req.body === "object" ? req.body : {};
-      const pref = {
-        child: Number.isInteger(b.child) && b.child >= 0 && b.child < people.MAX_CHILDREN ? b.child : null,
-        pedagogy: b.pedagogy === "nonclassical" ? "nonclassical" : "classical",
-        mode: ["international", "domestic", "hybrid"].includes(b.mode) ? b.mode : "international",
-        grade: people.GRADES.includes(String(b.grade)) ? String(b.grade) : "9",
-        at: new Date().toISOString(),
-      };
-      await people.updatePeople((d) => { d.people[upn] = Object.assign({}, d.people[upn] || {}, { planPref: pref }); });
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, planPref: pref } };
-      return;
-    }
     // 补充资料 — the person's own: city, what they need most, their children and the
     // children's Teams accounts (Rick, 2026-10-02). Lives in people.json, not Entra.
     if (method === "PATCH" && action === "extra") {

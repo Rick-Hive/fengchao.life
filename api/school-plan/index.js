@@ -77,7 +77,7 @@ module.exports = async function (context, req) {
         await audit(context, { actor: by, action: "plan.unpublish", target: domain, result: "ok" });
       } else {
         let data;
-        try { data = SP.clean({ tracks: body.tracks, map: body.map }, defaults); } catch (err) { if (err.status === 400) { reply(context, 400, { error: err.message, problems: err.problems }); finish(context, s); return; } throw err; }
+        try { data = SP.clean({ tracks: body.tracks, map: body.map, settings: body.settings }, defaults); } catch (err) { if (err.status === 400) { reply(context, 400, { error: err.message, problems: err.problems }); finish(context, s); return; } throw err; }
         out = await SP.saveDraft(domain, data, by);
         if (body.publish === true) out = await SP.publish(domain, by);
         await audit(context, { actor: by, action: body.publish ? "plan.publish" : "plan.save", target: domain, tracks: Object.keys(data.tracks).length, stages: Object.keys(data.map), result: "ok" });
