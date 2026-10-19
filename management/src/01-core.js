@@ -89,6 +89,9 @@
   var currentDomain = "";
   var state = { teams: null, teamFilter: "all", teamSort: "az", teamQ: "", domainUsers: {}, domainGroups: {}, userQ: "", userFilter: "all", userRole: "", allDomains: false };
 
+  // Where a sign-in lands when the address has no hash: staff on the dashboard, everyone else on
+  // 毕业要求与课程地图 (Rick, 2026-10-19). The router and the sidebar highlight both use this.
+  function landingHash() { return isStaff() ? "#/dashboard" : "#/plan"; }
   // ---- shell: sidebar, footer, sign-out, drawer ------------------------------
   function nav() {
     var groups = [
@@ -128,7 +131,7 @@
     } else if (canAssignRoles()) {
       groups.push({ title: t("系统", "System"), items: [{ hash: "#/system/roles", icon: "key", zh: "角色分配", en: "Roles" }] });
     }
-    var cur = location.hash || (isStaff() ? "#/dashboard" : "#/account");
+    var cur = location.hash || landingHash();
     $("nav").innerHTML = groups.map(function (g) {
       return '<div class="nav-group"><div class="nav-title">' + esc(g.title) + "</div>" + g.items.map(function (it) {
         var active = it.hash && cur.indexOf(it.hash) === 0;

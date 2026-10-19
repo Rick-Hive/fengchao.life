@@ -959,6 +959,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click("#plAddRow"); await p.waitForTimeout(200);
     const rows = await p.$$("#plbody table.plmap.edit tbody tr"); if (rows.length !== 2) throw new Error("add row");
     const rid = await rows[1].getAttribute("data-row");
+    assert.ok(!(await p.$("#plbody .plmap th:nth-child(2)")) || !/路径/.test(await p.$eval("#plbody .plmap thead", e => e.innerText)), "one direction served: no 路径 column (Rick, 2026-10-19)");
+    await p.click("#plAllRows"); await p.waitForTimeout(200);
+    assert.ok(/路径/.test(await p.$eval("#plbody .plmap thead", e => e.innerText)), "with every row shown the column appears");
     assert.ok(await p.$eval('#plbody input[data-trk="1"][data-row="' + rid + '"]', e => e.checked), "a new row is for the school's track");
     assert.ok(/国际·古典/.test(await p.$eval('#plbody tr[data-row="' + rid + '"] .plscope', e => e.innerText)), "the track shows as a chip, the six boxes live in a menu");
     await p.selectOption('#plbody select[data-subj="' + rid + '"]', "recSci");
@@ -971,6 +974,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click('#plbody tr[data-row="' + rid + '"] .plscope .plchip .x'); await p.waitForTimeout(150);
     await p.click('#plbody button[data-trkmenu="' + rid + '"]'); await p.waitForTimeout(100);
     await p.click('#plbody input[data-trk="2"][data-row="' + rid + '"]'); await p.waitForTimeout(200);
+    await p.click("#plAllRows"); await p.waitForTimeout(200);
     assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr")).length, 1, "the row moved to track 2 is hidden for a classical-international school");
     assert.ok(/1 行属于本校未选/.test(await p.$eval("#plbody", e => e.innerText)));
     await p.click("#plAllRows"); await p.waitForTimeout(200);
@@ -1022,6 +1026,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForTimeout(700);
     const h = await p.evaluate(() => location.hash); if (h !== "#/plan" && h !== "") throw new Error("an ordinary account should land on the plan: " + h);
     assert.ok(/课程地图/.test(await p.$eval("#pltabs", e => e.innerText)), "the plan page is shown");
+    assert.ok(/毕业要求与课程地图/.test(await p.$eval("#nav .nav-item.active", e => e.innerText)), "and the sidebar highlights it (Rick, 2026-10-19)");
   });
   await shot("side-collapse", 1280, 700, "#/account", "zh", [], async p => {
     await p.waitForTimeout(500);

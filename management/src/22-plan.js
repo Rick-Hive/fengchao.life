@@ -91,7 +91,7 @@
       $("plframe").addEventListener("change", function (e) {
         var c = e.target, st = plSettings(), next = { pedagogy: st.pedagogy, directions: st.directions.slice() };
         if (c.id === "plPed") next.pedagogy = c.value;
-        if (c.hasAttribute("data-dir")) { var d = c.getAttribute("data-dir"); next.directions = PL_DIRECTIONS.map(function (x) { return x[0]; }).filter(function (x) { return x === d ? c.checked : next.directions.indexOf(x) >= 0; }); if (!next.directions.length) { c.checked = true; flash(esc(t("至少保留一个方向。", "Keep at least one direction."))); return; } }
+        if (c.hasAttribute("data-dir")) { var d = c.getAttribute("data-dir"); next.directions = PL_DIRECTIONS.map(function (x) { return x[0]; }).filter(function (x) { return x === d ? c.checked : next.directions.indexOf(x) >= 0; }); if (!next.directions.length) { c.checked = true; flash(esc(t("至少保留一个方向。", "Keep at least one direction.")), 2000); return; } }
         plState.draft.settings = next; plState.dirty = true; renderPlan();
       });
     }
@@ -207,17 +207,23 @@
       return grades.map(function (g) { return "<td>" + cellBox(r, g, r.cells[g] || "", editable) + "</td>"; }).join("");
     }
     function firstCell(r) { for (var i = 0; i < grades.length; i++) if (r.cells[grades[i]]) return r.cells[grades[i]]; return ""; }
-    var thead = "<thead><tr><th>" + t("科目", "Subject") + "</th>" + (st === "rhetoric" ? "<th>" + t("路径", "Tracks") + "</th>" : st === "dialectic" ? "<th>" + t("教育法", "Pedagogy") + "</th>" : "") + grades.map(function (g) { return "<th>" + esc(g) + "</th>"; }).join("") + (edit ? "<th></th>" : "") + "</tr></thead>";
+    // The 路径 / 教育法 column only when it carries information (Rick, 2026-10-19: 「课程设置中为什么要显示路径？」):
+    // never for readers (the rows are already the school's), for editors only with several directions or every row shown.
+    var showScope = edit && (plState.allRows || (st === "rhetoric" && plTracksOfSchool().length > 1));
+    var thead = "<thead><tr><th>" + t("科目", "Subject") + "</th>" + (showScope ? "<th>" + (st === "rhetoric" ? t("路径", "Tracks") : t("教育法", "Pedagogy")) + "</th>" : "") + grades.map(function (g) { return "<th>" + esc(g) + "</th>"; }).join("") + (edit ? "<th></th>" : "") + "</tr></thead>";
     if (!edit) {
       var dconv = own || plFromBlob({ map: { x: dm } }).map.x, drows = (dconv ? dconv.rows : []).filter(forTrack);
-      return head + '<div class="tbl-wrap"><table class="data plmap">' + thead + "<tbody>" + (drows.length ? drows.map(function (r) { return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + cellsHtml(r, false) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + 2) + '" class="muted">' + t("这个阶段还没有课程地图。", "No map for this stage yet.") + "</td></tr>") + "</tbody></table></div></div>";
+      return head + '<div class="tbl-wrap"><table class="data plmap">' + thead + "<tbody>" + (drows.length ? drows.map(function (r) { return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + cellsHtml(r, false) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + (showScope ? 2 : 1)) + '" class="muted">' + t("这个阶段还没有课程地图。", "No map for this stage yet.") + "</td></tr>") + "</tbody></table></div></div>";
     }
     function scopeCell(r, editable) {
+      if (!showScope || st === "grammar") return "";
+      // chip text: the direction alone while every row shares the school's pedagogy; the full track name when every row is shown
+      var chipName = function (x) { var d = PL_DIRECTIONS.filter(function (y) { return y[0] === plDirectionOfTrack(x.trackId); })[0]; return plState.allRows || !d ? plTrackName(x) : t(d[1], d[2]); };
       if (st === "rhetoric") {
         var trs = dfl.tracks || [];
-        var chips = r.trackIds.length ? r.trackIds.map(function (id) { var x = trs.filter(function (y) { return y.trackId === id; })[0]; return '<span class="plchip soft">' + esc(x ? plTrackName(x) : "#" + id) + (editable ? '<button type="button" class="x" data-trkdel="' + id + '" data-row="' + esc(r.id) + '" aria-label="remove">×</button>' : "") + "</span>"; }).join("") : '<span class="muted">' + t("全部路径", "All tracks") + "</span>";
+        var chips = r.trackIds.length ? r.trackIds.map(function (id) { var x = trs.filter(function (y) { return y.trackId === id; })[0]; return '<span class="plchip soft">' + esc(x ? chipName(x) : "#" + id) + (editable ? '<button type="button" class="x" data-trkdel="' + id + '" data-row="' + esc(r.id) + '" aria-label="remove">×</button>' : "") + "</span>"; }).join("") : '<span class="muted">' + t("全部路径", "All tracks") + "</span>";
         // the picker is a small menu, not six checkboxes stacked in the row
-        var menu = editable ? '<span class="plpick"><button type="button" class="plplusbtn" data-trkmenu="' + esc(r.id) + '" title="' + esc(t("选择路径", "Choose tracks")) + '">＋</button><div class="comenu" hidden>' + trs.map(function (x) { return '<label class="mi chk"><input type="checkbox" data-trk="' + x.trackId + '" data-row="' + esc(r.id) + '"' + (r.trackIds.indexOf(x.trackId) >= 0 ? " checked" : "") + " /> " + esc(plTrackName(x)) + "</label>"; }).join("") + "</div></span>" : "";
+        var menu = editable ? '<span class="plpick"><button type="button" class="plplusbtn" data-trkmenu="' + esc(r.id) + '" title="' + esc(t("选择路径", "Choose tracks")) + '">＋</button><div class="comenu" hidden>' + trs.map(function (x) { return '<label class="mi chk"><input type="checkbox" data-trk="' + x.trackId + '" data-row="' + esc(r.id) + '"' + (r.trackIds.indexOf(x.trackId) >= 0 ? " checked" : "") + " /> " + esc(chipName(x)) + "</label>"; }).join("") + "</div></span>" : "";
         return '<td class="plscope">' + chips + menu + "</td>";
       }
       if (st === "dialectic") {
