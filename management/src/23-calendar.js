@@ -70,7 +70,7 @@
     if (calState.layer === "school" && !ds.length) calState.layer = canHive() ? "hive" : "optout";
     if (!calState.domain || !ds.some(function (d) { return d.domain === calState.domain; })) calState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0] || {}).domain || "";
     setTitle(domainGroupTitle(), t("日历管理", "Calendar management"), "",
-      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「系统广播」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的广播事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add Hive events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the Hive events aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
+      { info: t("学校的日历：培训、家长会、放假等。「学校校历」由本校教育领袖、教育社区经理和课程总监编辑；系统管理员、教育社区经理和课程总监可以另外添加「系统广播」的事件（如联合培训），按学校、身份、Teams 群组筛选，或直接输入账号（可跨学校），但不会改动学校自己的校历。学校的列表里会同时显示发给本校的广播事件（只读）。保存的事件要点右上角「发布」，才会写进本校账号的 Outlook / Teams 日历（不发邀请邮件）。", "A school's calendar: training days, parent meetings, holidays. The school calendar is edited by the school's education leader, education community manager or curriculum director; the system administrator, education community manager and curriculum director can add system broadcast events (such as a joint training) for chosen schools, roles and Teams groups, or for named accounts of any school, without ever changing a school's own calendar. A school's list also shows the system broadcasts aimed at it (read-only). Saved events reach people only when you press Publish (top right), which writes them into the school accounts' Outlook / Teams calendars (no invitation mail).") });
     calMount((ds.length ? '<a class="ptab' + (calState.layer === "school" ? " on" : "") + '" href="#/domain/calendar" data-layer="school" role="tab">' + t("学校校历", "School calendar") + "</a>" : "") +
         (canHive() ? '<a class="ptab' + (calState.layer === "hive" ? " on" : "") + '" href="#/domain/calendar" data-layer="hive" role="tab">' + t("系统广播", "System broadcast") + "</a>" : "") +
         // 不接收广播的名单 (Rick, 2026-10-18: a tab here, not a page of its own; ordinary users never see this page)
@@ -84,7 +84,7 @@
     if (!calState.cursor) { calState.cursor = calToday(); calState.selected = calToday(); }
     calState.layer = "mine";
     setTitle(t("我的账号", "My account"), t("我的日历", "My calendar"), "",
-      { info: t("发给你的学校校历和系统广播。已发布的事件也在你的 Outlook 和 Teams 日历里；标有「未发布」的还没有写入。这里只能查看，学校的事件由本校教育领袖维护。", "The school calendar events and system broadcasts addressed to you. Published ones are also in your Outlook and Teams calendars; those marked Not published are not written yet. View only — the school's events are kept by its education leader.") });
+      { info: t("学校校历和系统广播中发给你的事件；已发布的也在你的 Outlook / Teams 日历里。", "Your school calendar events and system broadcasts; published ones are also in your Outlook / Teams calendar.") });
     calMount("");
   }
   function calMount(tabs) {
@@ -149,8 +149,9 @@
     // right side of the tabs row: the school picker (school layer) and the school's default time zone
     var right = "";
     if (calState.layer === "mine") {
-      $("calright").innerHTML = (d.school && (d.school.name || d.school.nameEn) ? '<span class="tag accent">' + esc(EN ? d.school.nameEn || d.school.name : d.school.name || d.school.nameEn) + "</span>" : "") +
-        tipI(t("发给你的事件。已发布的也在你的 Outlook 和 Teams 日历里；「未发布」的还没有写入。", "Events addressed to you. Published ones are also in your Outlook and Teams calendars; Not published ones are not written yet."));
+      // No school pill and no second ⓘ here (Rick, 2026-10-19: 「桥梁教育服务 不需要，请删除」): the sidebar item
+      // already names the page and carries its hint, so the tabs row is empty and hidden.
+      $("calright").innerHTML = ""; $("caltabs").hidden = true;
       var mineAll = calRows();
       $("calbody").innerHTML = calBarHTML(mineAll) + (calState.view === "month" ? calMonthHTML(mineAll, false) : calState.view === "week" ? calWeekHTML(mineAll, false) : calListHTML(mineAll, false, false));
       if (calState.view === "week" && $("calwk")) $("calwk").scrollTop = 8 * CAL_HOUR;
@@ -930,7 +931,7 @@
   // failures are tried again). A copy a person deleted for themselves is not put back.
   function calSyncReason(f) {
     var r = f.reason;
-    if (r === "no_mailbox") return t("没有可用的 Exchange 邮箱（请该校 IT 管理员检查这个账号的许可证）", "no usable Exchange mailbox (ask the school's IT administrator to check the account's licence)");
+    if (r === "no_mailbox") return t("没有可用的 Exchange 邮箱（请该校 IT 管理员检查这个账号的许可证）", "no usable Exchange mailbox (ask the school's IT administrator to check the account's license)");
     if (r === "no_access") return t("蜂巢没有写入这个邮箱的权限", "Hive may not write to this mailbox");
     if (r === "throttled") return t("Microsoft 暂时限流，稍后再同步一次", "Microsoft is throttling — try again shortly");
     if (r === "time_zone") return t("Microsoft 不接受这个事件的时区", "Microsoft does not accept the event's time zone");

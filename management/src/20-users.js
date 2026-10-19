@@ -182,7 +182,7 @@
     var all = state.allDomains;
     setTitle(domainGroupTitle(), t("用户管理", "User management"),
       (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>",
-      t("本校的每一个账号：验证器与设备、Teams 群组、身份、关联账号。数据来自每夜刷新的目录缓存；点一行打开人员面板。身份未填时按许可证推断：学生版 A1 为学生，其余为家长；身份与许可证对不上的账号标为异常。", "Every account of the school: authenticator and devices, Teams groups, identity, linked accounts. From the directory cache refreshed nightly; click a row for the person's panel. An unset identity is inferred from the licence: A1 for students → student, otherwise parent; an identity that contradicts the licence is flagged."));
+      t("本校的每一个账号：验证器与设备、Teams 群组、身份、关联账号。数据来自每夜刷新的目录缓存；点一行打开人员面板。身份未填时按许可证推断：学生版 A1 为学生，其余为家长；身份与许可证对不上的账号标为异常。", "Every account of the school: authenticator and devices, Teams groups, identity, linked accounts. From the directory cache refreshed nightly; click a row for the person's panel. An unset identity is inferred from the license: A1 for students → student, otherwise parent; an identity that contradicts the license is flagged."));
     // Role filter (Rick, 2026-10-08): identity (家长/学生/老师/行政/教育顾问), Hive roles
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
     // school, or across all schools with 所有学校 in the picker.
@@ -291,7 +291,7 @@
       kpi("never", t("从未登录", "Never signed in"), anySignIn || !n ? never : "—", never && anySignIn ? " warn" : "", anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") +
       kpi("noauth", t("未登记验证器", "No authenticator"), noauth, noauth ? " bad" : "") +
       kpi("noid", t("身份未填", "No identity"), noid) +
-      (anomalies ? kpi("anomaly", t("异常 Teams 数据", "Teams data anomalies"), anomalies, " bad", '<div class="s">' + t("身份与许可证不符", "identity contradicts the licence") + "</div>") : "") +
+      (anomalies ? kpi("anomaly", t("异常 Teams 数据", "Teams data anomalies"), anomalies, " bad", '<div class="s">' + t("身份与许可证不符", "identity contradicts the license") + "</div>") : "") +
       (teachers ? '<button type="button" class="kpi' + (state.userRole === "role:teacher" ? " on" : "") + '" data-kf="teacher"><div class="l">' + t("蜂巢课程教师", "Hive course teachers") + '</div><div class="v">' + teachers + "</div></button>" : "") +
       (d.all ? kpi("", t("学校", "Schools"), allDomainList().length) : kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)));
     $("ubar").querySelectorAll(".chip[data-f]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-f") === state.userFilter ? "true" : "false"); });
@@ -333,10 +333,10 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   var IDENTITIES = ["家长", "学生", "老师", "行政", "教育顾问"]; // = IDENTITIES in api/shared/people.js
-  // 异常 Teams 数据 (Rick, 2026-10-08): the identity contradicts the licence — most likely a licence assigned wrongly.
+  // 异常 Teams 数据 (Rick, 2026-10-08): the identity contradicts the license — most likely a license assigned wrongly.
   function anomalyText(u) {
-    if (u.anomaly === "student_without_student_plan") return t("异常：身份是学生，但账号没有学生版 A1 许可证——许可证可能分配错了", "Anomaly: identity is Student but the account has no A1 for students licence — the licence may be assigned wrongly");
-    if (u.anomaly === "student_plan_not_student") return t("异常：账号持学生版 A1 许可证，身份却是 " + (u.identity || "") + "——许可证可能分配错了", "Anomaly: the account holds A1 for students but its identity is " + (u.identity || "") + " — the licence may be assigned wrongly");
+    if (u.anomaly === "student_without_student_plan") return t("异常：身份是学生，但账号没有学生版 A1 许可证——许可证可能分配错了", "Anomaly: identity is Student but the account has no A1 for students license — the license may be assigned wrongly");
+    if (u.anomaly === "student_plan_not_student") return t("异常：账号持学生版 A1 许可证，身份却是 " + (u.identity || "") + "——许可证可能分配错了", "Anomaly: the account holds A1 for students but its identity is " + (u.identity || "") + " — the license may be assigned wrongly");
     return "";
   }
   function openUserPanel(upn, domain, opts) {
@@ -383,8 +383,8 @@
           '<span class="k">' + t("状态", "Status") + "</span><span>" + (u.enabled ? t("已启用", "Enabled") : '<span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</span></div>" +
         // 账号资料 and 许可证 (Rick, 2026-10-12): the IT 管理员 edits the account in Microsoft 365
         // and switches its A1 plan; everyone else sees the plan only.
-        "<h4>" + t("账号资料与许可证", "Account details and licence") + '</h4><div id="pacct">' +
-          '<div class="devrow"><div class="m"><b>' + esc(planLabel(u.plan)) + "</b><small>" + t("许可证", "Licence") + "</small></div>" +
+        "<h4>" + t("账号资料与许可证", "Account details and license") + '</h4><div id="pacct">' +
+          '<div class="devrow"><div class="m"><b>' + esc(planLabel(u.plan)) + "</b><small>" + t("许可证", "License") + "</small></div>" +
             (canDo("methods") && !isSelf ? '<button class="btn secondary sm" type="button" id="licOpen">' + t("更换…", "Change…") + "</button>" : "") + "</div>" +
           (canDo("methods") ? '<div class="devrow"><div class="m"><b>' + t("姓名、职务、城市、邮编、安全邮箱", "Name, job title, city, postcode, safe email") + "</b><small>" + t("写回 Microsoft 365；部门字段不写", "Saved to Microsoft 365; the department is never written") + '</small></div><button class="btn secondary sm" type="button" id="editOpen">' + t("修改资料…", "Edit…") + "</button></div>" : "") +
           '<div id="acctMsg"></div></div>' +
@@ -397,9 +397,9 @@
           (isSelf || (u.roles || []).length ? "" : "<h4>" + t("删除账号", "Delete account") + '</h4><div class="devrow"><div class="m"><b>' + t("删除这个账号", "Delete this account") + "</b><small>" + t("账号、邮箱和 OneDrive 进入微软的回收站，30 天内可由系统管理员在 Microsoft 365 管理中心恢复。", "The account, mailbox and OneDrive go to Microsoft's recycle bin; restorable for 30 days in the Microsoft 365 admin center.") + '</small></div><button class="btn danger sm" type="button" id="uDel">' + t("删除", "Delete") + "</button></div>")
           : '<div class="note">' + t("登录设备由本校的 IT 管理员管理。", "Sign-in devices are managed by the school's IT administrator.") + "</div>") +
         "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + esc(gname(g)) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
-        (u.extra ? "<h4>" + t("补充资料（本人填写）", "More about them (self-reported)") + '</h4><div class="kv">' +
+        (u.extra ? "<h4>" + t("补充资料（本人填写）", "Additional information (self-reported)") + '</h4><div class="kv">' +
           ((u.extra.roles || []).length ? '<span class="k">' + t("身份/角色", "Roles") + "</span><span>" + esc(u.extra.roles.map(vl).join("、") + (u.extra.rolesOther ? "（" + u.extra.rolesOther + "）" : "")) + "</span>" : "") +
-          ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Topics") + "</span><span>" + esc(u.extra.topics.map(function (x) { return x === "其它" && u.extra.topicsOther ? u.extra.topicsOther : vl(x); }).join(EN ? ", " : "、")) + "</span>" : "") +
+          ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Interests") + "</span><span>" + esc(u.extra.topics.map(function (x) { return x === "其它" && u.extra.topicsOther ? u.extra.topicsOther : vl(x); }).join(EN ? ", " : "、")) + "</span>" : "") +
           ((u.extra.otherAccounts || []).length ? '<span class="k">' + t("其它账号", "Other accounts") + "</span><span>" + esc(u.extra.otherAccounts.join(", ")) + "</span>" : "") +
           (u.extra.children || []).map(function (c, i) {
             var bits = [];
@@ -412,7 +412,7 @@
             return '<span class="k">' + t("孩子 ", "Child ") + (i + 1) + (c.name ? " · " + esc(c.name) : "") + "</span><span>" + esc(bits.join(" · ") || "—") + "</span>";
           }).join("") + "</div>" : "") +
         "<h4>" + t("身份和关联账号", "Identity and linked accounts") + "</h4>" +
-        (canDo("people") ? '<form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : u.identitySource === "licence" ? "<small>" + t("按许可证推断（学生版 A1 → 学生，其余 → 家长）；填写后以填写为准", "Inferred from the licence (A1 for students → student, otherwise parent); what you set here wins") + "</small>" : "") + (u.anomaly ? '<small class="bad">' + esc(anomalyText(u)) + "</small>" : "") + "</label>" +
+        (canDo("people") ? '<form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : u.identitySource === "license" ? "<small>" + t("按许可证推断（学生版 A1 → 学生，其余 → 家长）；填写后以填写为准", "Inferred from the license (A1 for students → student, otherwise parent); what you set here wins") + "</small>" : "") + (u.anomaly ? '<small class="bad">' + esc(anomalyText(u)) + "</small>" : "") + "</label>" +
           '<label class="f" style="margin-top:8px">' + t("关联账号（孩子 / 家长的 Teams 账号，多个用逗号分开）", "Linked accounts (child / parent Teams accounts, comma-separated)") + '<input type="text" id="plink" value="' + esc(u.linked.join(", ")) + '" placeholder="student@' + esc(currentDomain) + '" /></label>' +
           '<label class="f" style="margin-top:8px">' + t("备注", "Note") + '<input type="text" id="pnote" maxlength="200" value="' + esc(u.note) + '" /></label>' +
           '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>'
@@ -423,7 +423,7 @@
       post("domain/person", "PATCH", { domain: currentDomain, user: u.upn, identity: $("pid").value, linked: $("plink").value, note: $("pnote").value }).then(function (r) {
         if (!r.ok) { restoreButton($("psave")); $("pmsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         var rec = r.body.record || {};
-        u.identity = rec.identity || (u.identitySource === "entra" || u.identitySource === "licence" ? u.identity : ""); u.identitySource = rec.identity ? "hive" : u.identitySource;
+        u.identity = rec.identity || (u.identitySource === "entra" || u.identitySource === "license" ? u.identity : ""); u.identitySource = rec.identity ? "hive" : u.identitySource;
         u.linked = rec.linked || []; u.note = rec.note || "";
         renderUsers();
         savedAndClose($("psave"), t("已保存 ", "Saved ") + "<b>" + esc(u.displayName || u.upn) + "</b>" + t(" 的身份、关联账号和备注。", "'s identity, linked accounts and note."), opts && opts.beside ? "second" : "");
@@ -486,12 +486,12 @@
     // panel are redrawn.
     var dom0 = currentDomain;
     if ($("editOpen")) $("editOpen").addEventListener("click", function () { openEditForm(u, dom0, opts); });
-    if ($("licOpen")) $("licOpen").addEventListener("click", function () { openLicenceForm(u, dom0, opts); });
+    if ($("licOpen")) $("licOpen").addEventListener("click", function () { openLicenseForm(u, dom0, opts); });
     if (!opts.fresh) refreshUserRow(u.upn, currentDomain, opts);
   }
 
-  function planLabel(plan) { return plan === "student" ? "Office 365 A1 for students" : plan === "faculty" ? "Office 365 A1 for faculty" : t("没有 A1 许可证", "No A1 licence"); }
-  // After an edit or a licence change: the fresh row into the tables, the panel redrawn.
+  function planLabel(plan) { return plan === "student" ? "Office 365 A1 for students" : plan === "faculty" ? "Office 365 A1 for faculty" : t("没有 A1 许可证", "No A1 license"); }
+  // After an edit or a license change: the fresh row into the tables, the panel redrawn.
   function applyFreshRow(fresh, domain, opts) {
     if (!fresh) return;
     [state.domainUsers[domain], state.domainUsers["*"]].forEach(function (d) {
@@ -534,26 +534,26 @@
     });
   }
   // 换许可证: A1 for students ↔ A1 for faculty, one click after a confirmation line.
-  function openLicenceForm(u, domain, opts) {
+  function openLicenseForm(u, domain, opts) {
     var box = $("pacct"); if (!box) return;
     var want = u.plan === "student" ? "faculty" : u.plan === "faculty" ? "student" : (u.identity === "学生" ? "student" : "faculty");
     box.innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     api("domain/licenses?domain=" + encodeURIComponent(domain)).then(function (r) {
       if (!r.ok) { box.innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
       var pl = r.body[want];
-      var rule = want === "student" && u.identity !== "学生" ? t("A1 for students 仅限学生：请先在下面把身份改为「学生」。", "A1 for students is for students only: set the identity to 学生 below first.")
-        : want === "faculty" && u.identity === "学生" ? t("学生用 A1 for students：要换成教职工版，请先把身份改掉。", "Students take A1 for students: change the identity first.") : "";
+      var rule = want === "student" && u.identity !== "学生" ? t("A1 for students 仅限学生：请先在下面把身份改为「学生」。", "A1 for students is for students only: set the identity to Student below first.")
+        : want === "faculty" && u.identity === "学生" ? t("学生用 A1 for students：要换成教职工版，请先把身份改掉。", "Students take A1 for students: to switch to the faculty plan, change the identity first.") : "";
       box.innerHTML = '<div class="devrow"><div class="m"><b>' + esc(planLabel(u.plan)) + " → " + esc(planLabel(want)) + "</b><small>" +
           (pl ? (pl.free ? t("剩余 ", "") + pl.free + t(" 个", " free") : t("没有空余名额", "No free seats")) : t("租户里没有这个方案", "Not in this tenant")) + " · " + t("邮箱和文件都保留；Power Automate Free 保留", "Mailbox and files stay; Power Automate Free stays") + "</small></div></div>" +
         (rule ? '<div class="msg err">' + esc(rule) + "</div>" : "") +
-        '<div class="actions"><button class="btn" type="button" id="licGo"' + (rule || !pl || !pl.free ? " disabled" : "") + ">" + t("确认更换", "Change licence") + '</button><button class="btn secondary" type="button" id="licCancel">' + t("取消", "Cancel") + '</button></div><div id="licMsg"></div>';
+        '<div class="actions"><button class="btn" type="button" id="licGo"' + (rule || !pl || !pl.free ? " disabled" : "") + ">" + t("确认更换", "Change license") + '</button><button class="btn secondary" type="button" id="licCancel">' + t("取消", "Cancel") + '</button></div><div id="licMsg"></div>';
       $("licCancel").addEventListener("click", function () { openUserPanel(u.upn, domain, Object.assign({}, opts, { fresh: true })); });
       $("licGo").addEventListener("click", function () {
         var btn = $("licGo"); savingButton(btn, t("更换中…", "Changing…"));
-        post("domain/licence", "POST", { domain: domain, user: u.upn, plan: want }).then(function (res) {
+        post("domain/license", "POST", { domain: domain, user: u.upn, plan: want }).then(function (res) {
           if (!res.ok) { restoreButton(btn); $("licMsg").innerHTML = '<div class="msg err">' + esc(errText(res)) + "</div>"; return; }
           applyFreshRow(res.body.user, domain, opts);
-          var m = $("acctMsg"); if (m) m.innerHTML = '<div class="msg ok">' + t("许可证已更换为 ", "Licence changed to ") + esc(res.body.plan || planLabel(want)) + "</div>";
+          var m = $("acctMsg"); if (m) m.innerHTML = '<div class="msg ok">' + t("许可证已更换为 ", "License changed to ") + esc(res.body.plan || planLabel(want)) + "</div>";
         });
       });
     });
@@ -591,12 +591,12 @@
         '<div class="grid2"><label class="f">' + t("姓", "Surname") + '<input type="text" id="nuSur" maxlength="40" /></label><label class="f">' + t("名", "Given name") + '<input type="text" id="nuGiv" maxlength="40" /></label></div>' +
         '<label class="f">' + t("显示名", "Display name") + '<input type="text" id="nuDisp" maxlength="64" placeholder="' + t("留空则自动：李明 / Ann Lee", "Blank = automatic: 李明 / Ann Lee") + '" /></label>' +
         '<label class="f">' + t("账号", "Account") + '<div class="upnrow"><input type="text" id="nuAcct" maxlength="63" placeholder="li.ming" /><span class="upnsuf">@' + esc(dom) + '</span></div><small>' + t("字母、数字和 . _ -；建议「名.姓」拼音，如 li.ming。", "Letters, digits and . _ -; pinyin given.surname is the usual form, e.g. li.ming.") + "</small></label>" +
-        '<div class="grid2"><label class="f">' + t("身份", "Role") + ' <span class="req">*</span><select id="nuId"><option value="">' + t("请选择…", "Choose…") + "</option>" + IDENTITIES.map(function (i) { return '<option value="' + i + '">' + esc(vl(i)) + "</option>"; }).join("") + "</select></label>" +
+        '<div class="grid2"><label class="f">' + t("身份", "Identity") + ' <span class="req">*</span><select id="nuId"><option value="">' + t("请选择…", "Choose…") + "</option>" + IDENTITIES.map(function (i) { return '<option value="' + i + '">' + esc(vl(i)) + "</option>"; }).join("") + "</select></label>" +
         '<label class="f">' + t("职务（可选）", "Job title (optional)") + '<input type="text" id="nuJob" maxlength="60" placeholder="' + t("如：数学老师", "e.g. Maths teacher") + '" /></label></div>' +
         '<div class="grid2"><label class="f">' + t("所在城市", "City") + ' <span class="req">*</span><input type="text" id="nuCity" maxlength="40" /></label>' +
         '<label class="f">' + t("邮编", "Postcode") + ' <span class="req">*</span><input type="text" id="nuZip" maxlength="12" inputmode="numeric" /></label></div>' +
-        '<div class="f-title">' + t("许可证", "Licence") + ' <span class="req">*</span></div><div id="nuPlans" class="plans"><div class="muted" style="font-size:12px">' + t("载入中…", "Loading…") + "</div></div>" +
-        '<p class="muted" style="font-size:12px;margin:4px 0 0">' + t("每个新账号同时获得 Microsoft Power Automate Free。没有许可证的账号不能使用 Teams 和 Outlook。", "Every new account also gets Microsoft Power Automate Free. Without a licence the account cannot use Teams or Outlook.") + "</p>" +
+        '<div class="f-title">' + t("许可证", "License") + ' <span class="req">*</span></div><div id="nuPlans" class="plans"><div class="muted" style="font-size:12px">' + t("载入中…", "Loading…") + "</div></div>" +
+        '<p class="muted" style="font-size:12px;margin:4px 0 0">' + t("每个新账号同时获得 Microsoft Power Automate Free。没有许可证的账号不能使用 Teams 和 Outlook。", "Every new account also gets Microsoft Power Automate Free. Without a license the account cannot use Teams or Outlook.") + "</p>" +
         '<div class="actions"><button class="btn" type="submit" id="nuSave">' + t("创建账号", "Create account") + "</button></div><div id=\"nuMsg\"></div></form></div>");
     var lic = null, usage = "CN";
     function planCard(key, pl, note) {
@@ -631,10 +631,10 @@
       var missing = [];
       if (!body.account) missing.push(t("账号", "account name"));
       if (!body.displayName && !body.givenName && !body.surname) missing.push(t("姓名", "name"));
-      if (!body.identity) missing.push(t("身份", "role"));
+      if (!body.identity) missing.push(t("身份", "identity"));
       if (!body.city) missing.push(t("所在城市", "city"));
       if (!body.postalCode) missing.push(t("邮编", "postcode"));
-      if (!body.plan) missing.push(t("许可证", "licence"));
+      if (!body.plan) missing.push(t("许可证", "license"));
       if (missing.length) { $("nuMsg").innerHTML = '<div class="msg err">' + t("请填写：", "Please fill in: ") + esc(missing.join(EN ? ", " : "、")) + "</div>"; return; }
       var b = $("nuSave"); b.disabled = true; b.textContent = t("创建中…", "Creating…");
       post("domain/user", "POST", body).then(function (r) {
@@ -645,9 +645,9 @@
           '<div class="msg ok">' + t("账号已创建。", "Account created.") + "</div>" +
           '<div class="kv"><span class="k">' + t("账号", "Account") + "</span><span><b>" + esc(res.user) + "</b></span>" +
             '<span class="k">' + t("显示名", "Display name") + "</span><span>" + esc(res.displayName) + "</span>" +
-            '<span class="k">' + t("身份", "Role") + "</span><span>" + esc(vl(body.identity)) + "</span>" +
+            '<span class="k">' + t("身份", "Identity") + "</span><span>" + esc(vl(body.identity)) + "</span>" +
             '<span class="k">' + t("城市 / 邮编", "City / postcode") + "</span><span>" + esc(body.city) + " · " + esc(body.postalCode) + "</span>" +
-            '<span class="k">' + t("许可证", "Licences") + "</span><span>" + (res.licence && res.licence.ok ? esc((res.licence.plans || []).join(" + ")) : '<span class="tag bad">' + t("分配失败：", "failed: ") + esc((res.licence && res.licence.error) || "") + "</span>") + "</span></div>" +
+            '<span class="k">' + t("许可证", "Licenses") + "</span><span>" + (res.license && res.license.ok ? esc((res.license.plans || []).join(" + ")) : '<span class="tag bad">' + t("分配失败：", "failed: ") + esc((res.license && res.license.error) || "") + "</span>") + "</span></div>" +
           '<div class="pwbox"><div class="lbl">' + t("临时密码（只显示这一次）", "Temporary password (shown only once)") + '</div><div class="val"><code id="pwVal">' + esc(res.password) + '</code><button class="btn secondary sm" type="button" id="pwCopy">' + t("复制", "Copy") + "</button></div>" +
             "<small>" + t("请电话或当面告知对方账号和临时密码。首次登录微软会要求设置新密码，并引导注册验证器——可把设置向导一并发给对方。关闭面板后不再显示。", "Give the account and temporary password by phone or in person. At the first sign-in Microsoft asks for a new password and walks them through registering an authenticator — send them the setup wizard too. Not shown again after this panel closes.") + "</small></div>" +
           '<div class="actions"><a class="btn secondary sm" href="/help/teams-setup.html" target="_blank" rel="noopener">' + t("设置向导 ↗", "Setup wizard ↗") + '</a><button class="btn secondary sm" type="button" id="nuAgain">' + t("再建一个", "Create another") + "</button></div>";

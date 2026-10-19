@@ -73,8 +73,8 @@
     var plActions = plState.canEdit ? '<button class="btn secondary sm" id="plReset">' + t("重置为系统默认", "Reset to system defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <button class="btn secondary sm" id="plSave">' + t("保存草稿", "Save draft") + '</button> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>" : "";
     setTitle(t("我的账号", "My account"), t("毕业要求与课程地图", "Graduation requirements & curriculum map"), plActions,
       { info: plState.canEdit
-        ? t("本校的课程地图（K–12 三个阶段）和高中毕业要求。先设本校的教学法和适用的高等教育方向，两张表都按它显示；每个阶段的地图和每条路径的学分要求可以改成本校的（留空沿用系统默认，勾「不要求」则隐藏该行）。保存是草稿；发布后本校所有登录的人看到的就是学校版本；撤回发布回到系统默认。", "The school's curriculum map (the three K–12 stages) and high-school graduation requirements. Set the school's pedagogy and the higher-education directions it serves first; both tables follow. Each stage's map and each track's credits can be the school's own (blank = system default, Not required hides the row). Save keeps a draft; Publish makes it what everyone of the school sees; Unpublish returns to the system defaults.")
-        : t("你所在学校的课程地图（K–12 三个阶段）和高中毕业要求。学校发布了自己的版本就显示学校版本，否则显示系统默认。网站上的选课向导不受这里影响。", "Your school's curriculum map (the three K–12 stages) and high-school graduation requirements. The school's own edition shows when it published one, otherwise the system defaults. The website's course wizard is independent of this page.") });
+        ? t("设定教学法与方向，编辑课程地图和毕业要求；发布后本校可见。", "Set pedagogy and directions, edit the curriculum map and graduation requirements; publish to show the school.")
+        : t("本校的课程地图和高中毕业要求。", "Your school's curriculum map and graduation requirements.") });
     $("content").innerHTML =
       '<div class="pagetabs" id="pltabs"><a class="ptab' + (plState.tab === "map" ? " on" : "") + '" href="#/plan" data-tab="map">' + t("课程地图", "Curriculum map") + '</a><a class="ptab' + (plState.tab === "credits" ? " on" : "") + '" href="#/plan/credits" data-tab="credits">' + t("高中毕业要求", "Graduation requirements") + "</a>" +
         (plState.canEdit && ds.length > 1 ? '<div class="tabsRight"><select id="plsel">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === plState.domain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select></div>" : "") + "</div>" +
@@ -84,7 +84,7 @@
     $("pltabs").addEventListener("click", function (e) { var a = e.target.closest("a[data-tab]"); if (!a) return; e.preventDefault(); plState.tab = a.getAttribute("data-tab"); history.replaceState(null, "", a.getAttribute("href")); $("pltabs").querySelectorAll(".ptab").forEach(function (x) { x.classList.toggle("on", x === a); }); renderPlan(); });
     if (plState.canEdit) {
       $("plSave").addEventListener("click", function () { savePlan(false); });
-      $("plPub").addEventListener("click", function () { if (window.confirm(t("发布后，本校所有登录的人看到的就是这个版本。发布？", "Once published, everyone of the school sees this version. Publish?"))) savePlan(true); });
+      $("plPub").addEventListener("click", function () { if (window.confirm(t("发布后，本校所有登录的人看到的就是这个版本。发布？", "Once published, everyone at the school sees this version. Publish?"))) savePlan(true); });
       $("plUnpub").addEventListener("click", function () { if (!window.confirm(t("撤回后本校的人重新看到系统默认（草稿保留）。撤回？", "The school's people go back to the system defaults (the draft is kept). Unpublish?"))) return; var b = $("plUnpub"); savingButton(b, t("撤回中…", "Unpublishing…")); post("school-plan", "PUT", { domain: plState.domain, unpublish: true }).then(function (r) { restoreButton(b); if (!r.ok) { plMsg(errText(r), true); return; } plState.data = Object.assign({}, plState.data, r.body); plStatus(); flashOk(t("已撤回发布。", "Unpublished.")); }); });
       $("plReset").addEventListener("click", function () { if (!window.confirm(t("把草稿全部清空（每条路径和每个阶段都回到系统默认）？保存后才生效。", "Clear the whole draft (every track and stage back to the system defaults)? Takes effect when saved."))) return; plState.draft = { tracks: {}, map: {}, settings: plState.draft.settings }; plState.dirty = true; renderPlan(); });
       // the school's frame: pedagogy and directions, one line under the tabs (editors only)
@@ -102,8 +102,8 @@
     if (!plState.canEdit) return "";
     var st = plSettings();
     return '<div class="plframe"><span class="plsel">' + t("本校教学法", "School pedagogy") + ' <select id="plPed"><option value="classical"' + (st.pedagogy === "classical" ? " selected" : "") + ">" + t("古典教育", "Classical") + '</option><option value="nonclassical"' + (st.pedagogy === "nonclassical" ? " selected" : "") + ">" + t("非古典", "Non-classical") + "</option></select></span>" +
-      '<span class="plsel">' + t("适用的高等教育方向", "Directions served") + " " + PL_DIRECTIONS.map(function (d) { return '<label class="chk"><input type="checkbox" data-dir="' + d[0] + '"' + (st.directions.indexOf(d[0]) >= 0 ? " checked" : "") + " /> " + esc(t(d[1], d[2])) + "</label>"; }).join("") + "</span>" +
-      tipI(t("随发布生效；本校的人按此看到地图和毕业要求。", "Published with the plan; the school's people see the map and requirements for this frame.")) + "</div>";
+      '<span class="plsel">' + t("适用的高等教育方向", "Higher-education directions served") + " " + PL_DIRECTIONS.map(function (d) { return '<label class="chk"><input type="checkbox" data-dir="' + d[0] + '"' + (st.directions.indexOf(d[0]) >= 0 ? " checked" : "") + " /> " + esc(t(d[1], d[2])) + "</label>"; }).join("") + "</span>" +
+      tipI(t("随发布生效；本校的人按此看到地图和毕业要求。", "Published with the plan; the school's people see the curriculum map and graduation requirements for this frame.")) + "</div>";
   }
   function plMsg(text, bad) { $("plmsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '">' + esc(text) + "</div>" : ""; }
   function loadPlan() {
@@ -122,6 +122,14 @@
   function plStatus() {
     var d = plState.data, p = d && d.plan; if (!d) return;
     if ($("plUnpub")) $("plUnpub").hidden = !(p && p.published);
+    if (!plState.canEdit) setPageInfo(plReaderInfo());
+  }
+  // The reader's ⓘ says who set this up for them and who can change it (Rick, 2026-10-19: 「告诉普通用户谁帮他
+  // 订制了毕业要求和课程地图。谁可以修改」).
+  function plReaderInfo() {
+    var d = plState.data, p = d && d.plan && d.plan.published, who = t("校长、课程总监、系统管理员", "principal, curriculum director, system administrator");
+    if (p) return t("学校版本，" + day(p.at) + " 发布。可修改：" + who + "。", "School edition, published " + day(p.at) + ". Editable by: " + who + ".");
+    return t("学校尚未发布，显示系统默认。可设定：" + who + "。", "Not published by the school yet; system default. Set by: " + who + ".");
   }
   function savePlan(publish) {
     var b = publish ? $("plPub") : $("plSave"); savingButton(b, publish ? t("发布中…", "Publishing…") : undefined);
@@ -159,7 +167,7 @@
     var unit = t("学分", "credits");
     var subs = plSubTabs(tracks.map(function (id) { var d = PL_DIRECTIONS.filter(function (x) { return x[0] === plDirectionOfTrack(id); })[0]; return [id, d ? t(d[1], d[2]) : "#" + id, plState.draft.tracks[id] ? t("本校", "school") : ""]; }), plState.track, "data-track");
     var head = '<div class="card plcard"><div class="ch plhead"><h2>' + t("高中毕业要求", "High-school graduation requirements") + " " + subs + ' <span class="muted">' + esc(plTrackName(tr)) + "</span>" + plEditionTag(!!ov) + "</h2>" +
-      plOwnSwitch("plOwn", !!ov, t("本校自定义", "School's own"), t("打开：本校设置这条路径的学分要求；关闭：显示系统默认的数字。", "On: the school sets this track's requirements; off: the system figures show.")) + "</div>";
+      plOwnSwitch("plOwn", !!ov, t("本校自定义", "School's own"), t("打开：本校设置这条路径的学分要求；关闭：显示系统默认的数字。", "On: the school sets this track's credit requirements; off: the system figures show.")) + "</div>";
     if (!edit) {
       // read-only: the system figures, or the school's over them
       var o = ov || { credits: {}, notes: {} };
@@ -192,7 +200,7 @@
     var subs = plSubTabs(PL_STAGES.map(function (x) { return [x, plStageLabel(x, ped), plState.draft.map[x] ? t("本校", "school") : ""]; }), st, "data-stage");
     var head = '<div class="card plcard"><div class="ch plhead"><h2>' + t("课程地图", "Curriculum map") + " " + subs + plEditionTag(!!own) + "</h2>" +
       (edit && st !== "grammar" ? '<label class="chk plall"><input type="checkbox" id="plAllRows"' + (plState.allRows ? " checked" : "") + " /> " + t("显示所有路径的行", "Rows of every track") + "</label>" : "") +
-      plOwnSwitch("plOwnMap", !!own, t("本校自定义", "School's own"), t("打开：从系统默认地图复制一份作为起点，本校自己编排这个阶段；关闭：显示系统默认的地图。", "On: start from a copy of the system map and lay out this stage yourself; off: the system map shows.")) + "</div>";
+      plOwnSwitch("plOwnMap", !!own, t("本校自定义", "School's own"), t("打开：从系统默认地图复制一份作为起点，本校自己编排这个阶段；关闭：显示系统默认的地图。", "On: start from a copy of the system default curriculum map and lay out this stage yourself; off: the system default map shows.")) + "</div>";
     var forTrack = function (r) { return plState.allRows && edit ? true : plRowForSchool(r, st); };
     // A cell shows its courses as chips; in the editor the whole cell is the editing area: click → a textarea
     // filling the cell (Rick, 2026-10-19: 「编辑口特别小……参考 Airtable」), blur → chips again.
@@ -213,7 +221,7 @@
     var thead = "<thead><tr><th>" + t("科目", "Subject") + "</th>" + (showScope ? "<th>" + (st === "rhetoric" ? t("路径", "Tracks") : t("教育法", "Pedagogy")) + "</th>" : "") + grades.map(function (g) { return "<th>" + esc(g) + "</th>"; }).join("") + (edit ? "<th></th>" : "") + "</tr></thead>";
     if (!edit) {
       var dconv = own || plFromBlob({ map: { x: dm } }).map.x, drows = (dconv ? dconv.rows : []).filter(forTrack);
-      return head + '<div class="tbl-wrap"><table class="data plmap">' + thead + "<tbody>" + (drows.length ? drows.map(function (r) { return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + cellsHtml(r, false) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + (showScope ? 2 : 1)) + '" class="muted">' + t("这个阶段还没有课程地图。", "No map for this stage yet.") + "</td></tr>") + "</tbody></table></div></div>";
+      return head + '<div class="tbl-wrap"><table class="data plmap">' + thead + "<tbody>" + (drows.length ? drows.map(function (r) { return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + cellsHtml(r, false) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + (showScope ? 2 : 1)) + '" class="muted">' + t("这个阶段还没有课程地图。", "No curriculum map for this stage yet.") + "</td></tr>") + "</tbody></table></div></div>";
     }
     function scopeCell(r, editable) {
       if (!showScope || st === "grammar") return "";
@@ -243,8 +251,8 @@
     }).join("");
     return head + '<div class="tbl-wrap"><table class="data plmap edit">' + thead + "<tbody>" + rows + "</tbody></table></div>" +
       (hidden ? '<p class="sub" style="margin-top:6px">' + hidden + t(" 行属于本校未选的路径或教学法，勾「显示所有路径的行」可见。", " row(s) belong to tracks or a pedagogy the school does not serve — tick “Rows of every track” to see them.") + "</p>" : "") +
-      '<div class="actions" style="margin-top:8px"><button type="button" class="btn secondary sm" id="plAddRow">' + t("＋ 添加一行", "+ Add a row") + '</button> <button type="button" class="btn secondary sm" id="plCopyDefault">' + t("从系统默认重新复制", "Copy the system map again") + "</button></div>" +
-      '<p class="sub" style="margin-top:8px">' + t("点一个格子就能写：课程名用 英文 / 中文，多门课用分号或换行，离开格子即保存到草稿。行的科目决定家长点格子时看到哪些蜂巢课程。", "Click a cell to write: English / 中文 per course, several courses by semicolons or line breaks; leaving the cell keeps it in the draft. A row's subject decides which Hive courses families see when they tap a cell.") + "</p></div>";
+      '<div class="actions" style="margin-top:8px"><button type="button" class="btn secondary sm" id="plAddRow">' + t("＋ 添加一行", "+ Add a row") + '</button> <button type="button" class="btn secondary sm" id="plCopyDefault">' + t("从系统默认重新复制", "Copy the system default map again") + "</button></div>" +
+      '<p class="sub" style="margin-top:8px">' + t("点一个格子就能写：课程名用 英文 / 中文，多门课用分号或换行，离开格子即保存到草稿。行的科目决定家长点格子时看到哪些蜂巢课程。", "Click a cell to write: English / 中文 per course, several courses by semicolons or line breaks; leaving the cell keeps it in the draft. A row's subject decides which Hive courses parents see when they tap a cell.") + "</p></div>";
   }
 
   // ---- the cell editor (Airtable-like: the cell is the input) ------------------------------
@@ -279,7 +287,7 @@
     body.addEventListener("click", function (e) {
       var c, dfl = (plState.data && plState.data.defaults) || {};
       if (e.target.closest("#plAddRow")) { var m = plState.draft.map[plState.stage], st0 = plState.stage; m.rows.push({ id: "n-" + Date.now().toString(36), subjects: dfl.subjects && dfl.subjects[0] ? [Object.assign({}, dfl.subjects[0])] : [], trackIds: st0 === "rhetoric" && !plState.allRows ? plTracksOfSchool().map(Number) : [], pedagogy: st0 === "dialectic" && !plState.allRows ? plSettings().pedagogy : null, spanAll: false, cells: {} }); plState.dirty = true; renderPlan(); return; }
-      if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plState.dirty = true; renderPlan(); return; }
+      if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system default curriculum map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plState.dirty = true; renderPlan(); return; }
       var sub = e.target.closest(".plsub[data-stage],.plsub[data-track]");
       if (sub) { if (sub.hasAttribute("data-stage")) plState.stage = sub.getAttribute("data-stage"); else plState.track = sub.getAttribute("data-track"); renderPlan(); return; }
       // a cell opens into a textarea that fills it; the chip picker for tracks

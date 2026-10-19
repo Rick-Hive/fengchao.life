@@ -97,10 +97,10 @@
     var groups = [
       // Order and wording (Rick, 2026-10-19): the plan first, for everyone; profile last.
       { title: t("我的账号", "My account"), items: [
-        { hash: "#/plan", icon: "book", zh: "毕业要求与课程地图", en: "Graduation requirements & map" },
-        { hash: "#/teams", icon: "teams", zh: "我的 Teams 团队", en: "My Teams" },
-        { hash: "#/calendar", icon: "cal", zh: "我的日历", en: "My calendar" },
-        { hash: "#/security", icon: "key", zh: "Teams 登录与安全", en: "Teams sign-in & security" },
+        { hash: "#/plan", icon: "book", zh: "毕业要求与课程地图", en: "Curriculum Map" },
+        { hash: "#/teams", icon: "teams", zh: "我的 Teams 团队", en: "Teams Groups" },
+        { hash: "#/calendar", icon: "cal", zh: "我的日历", en: "Calendar" },
+        { hash: "#/security", icon: "key", zh: "Teams 登录与安全", en: "Security & Sign-in" },
         { hash: "#/account", icon: "user", zh: "个人资料", en: "Profile" },
       ].concat(coursesInfo && !coIsApprover() && !coIsViewer() && (coursesInfo.courses || []).length ? [{ hash: "#/courses", icon: "book", zh: "我的课程", en: "My courses", badge: coMyBadge() }] : []) },
     ];
@@ -352,6 +352,15 @@
     tb.classList.toggle("noact", !actionsHtml);
     pageInfo = info || "";
     navInfo();
+  }
+  // A page may know its explanation only after loading (the plan page says who published the school's edition).
+  function setPageInfo(info) {
+    pageInfo = info || "";
+    var ttl = document.querySelector("#title .ttl"), big = ttl && ttl.querySelector(".info.big");
+    if (big && !pageInfo) big.parentNode.removeChild(big);
+    else if (big) big.setAttribute("data-tip", pageInfo);
+    else if (ttl && pageInfo) { var s = document.createElement("span"); s.className = "info big"; s.tabIndex = 0; s.setAttribute("data-tip", pageInfo); s.textContent = "i"; ttl.appendChild(document.createTextNode(" ")); ttl.appendChild(s); }
+    navInfo();
     if (title) document.title = title + " · " + t("蜂巢管理中心", "Hive Management Center");
   }
   var pageInfo = "";
@@ -360,6 +369,19 @@
     var a = document.querySelector("#nav .nav-item.active");
     if (a && pageInfo) { var s = document.createElement("span"); s.className = "info navinfo"; s.tabIndex = 0; s.setAttribute("data-tip", pageInfo); s.textContent = "i"; a.appendChild(s); }
   }
+  // The sidebar item's ⓘ opens to the RIGHT of the sidebar, as a floating box (Rick, 2026-10-19: the CSS tooltip was
+  // clipped by the sidebar's own scroll box and cut off on the left).
+  function navTipShow(n) {
+    var r = n.getBoundingClientRect(), box = $("navtip") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "navtip", className: "navtip" }));
+    box.textContent = n.getAttribute("data-tip"); box.hidden = false;
+    var side = $("side") ? $("side").getBoundingClientRect().right : r.right;
+    box.style.left = Math.round(Math.max(r.right, side) + 10) + "px"; box.style.top = Math.round(Math.max(8, r.top - 8)) + "px";
+  }
+  function navTipHide() { var box = $("navtip"); if (box) box.hidden = true; }
+  document.addEventListener("mouseover", function (e) { var n = e.target.closest && e.target.closest(".navinfo[data-tip]"); if (n) navTipShow(n); });
+  document.addEventListener("mouseout", function (e) { if (e.target.closest && e.target.closest(".navinfo[data-tip]")) navTipHide(); });
+  document.addEventListener("focusin", function (e) { var n = e.target.closest && e.target.closest(".navinfo[data-tip]"); if (n) navTipShow(n); });
+  document.addEventListener("focusout", function (e) { if (e.target.closest && e.target.closest(".navinfo[data-tip]")) navTipHide(); });
   function panelOpen(html, which) {
     var p = $(which === "second" ? "panel2" : "panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false");
     // The second panel (a person opened from a group) gets a ← back to the group

@@ -55,7 +55,7 @@
     var manage = coIsApprover() || coIsViewer();
     if (/^#\/courses\/(pending|assign)/.test(h)) co.tab = RegExp.$1; else if (!/^#\/courses\/?$/.test(h) && manage) co.tab = co.tab || "all"; else co.tab = "all";
     setTitle(manage ? t("经营", "Operations") : t("我的账号", "My account"), manage ? t("课程管理", "Course management") : t("我的课程", "My courses"), "",
-      { info: manage ? t("老师在蜂巢里维护自己的课程，提交后由课程总监、CEO 或系统管理员审批发布，发布时写入 Airtable 并更新网站。这里分配老师、审批、查看每门课的状态。", "Teachers maintain their courses in Hive; the curriculum director, the CEO or the system administrator reviews and publishes, which writes Airtable and refreshes the website. Assign teachers, review and follow every course here.")
+      { info: manage ? t("老师在蜂巢里维护自己的课程，提交后由课程总监、CEO 或系统管理员审批发布，发布时写入 Airtable 并更新网站。这里分配老师、审批、查看每门课的状态。", "Teachers maintain their courses in Hive; the curriculum director, the CEO or the system administrator reviews and publishes, which writes to Airtable and refreshes the website. Assign teachers, review and follow every course here.")
         : t("分配给你的课程。打开一门课修改属性，保存后提交审批；发布后出现在网站上。", "The courses assigned to you. Open one to change it, then submit it for approval; once published it appears on the website.") });
     $("content").innerHTML = '<div id="cobody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     api("courses/list").then(function (r) {
@@ -177,7 +177,7 @@
     var c = co.course;
     $("coed").innerHTML = coBarHTML() + '<div id="costeps">' + coStepsHTML() + '</div><div id="coreturned">' + coReturnedHTML() + "</div>" +
       '<div class="coed-main"><div class="coform" id="coform">' + CO_SECTIONS.map(coSectionHTML).join("") + "</div>" +
-      '<aside class="coprev" id="coprev"><div class="coprev-h"><span>' + t("家长看到的样子", "As families see it") + ' <span class="faint">' + (co.lang === "en" ? "English" : "中文") + '</span></span><span class="pvmode" role="group"><button type="button" data-pv="detail"' + (co.pvmode !== "card" ? ' class="on"' : "") + '>' + t("详情", "Detail") + '</button><button type="button" data-pv="card"' + (co.pvmode === "card" ? ' class="on"' : "") + '>' + t("卡片", "Card") + '</button></span></div><div id="coprevbody">' + coPreviewHTML() + "</div></aside></div>";
+      '<aside class="coprev" id="coprev"><div class="coprev-h"><span>' + t("家长看到的样子", "As parents see it") + ' <span class="faint">' + (co.lang === "en" ? "English" : "中文") + '</span></span><span class="pvmode" role="group"><button type="button" data-pv="detail"' + (co.pvmode !== "card" ? ' class="on"' : "") + '>' + t("详情", "Detail") + '</button><button type="button" data-pv="card"' + (co.pvmode === "card" ? ' class="on"' : "") + '>' + t("卡片", "Card") + '</button></span></div><div id="coprevbody">' + coPreviewHTML() + "</div></aside></div>";
     coBindEditor();
     tipify($("coed"));
   }
@@ -634,7 +634,7 @@
       '<p class="hint">' + esc(t("发布会把这些字段写进 Airtable 的 Course 表，然后更新网站（最多等两分钟）。", "Publishing writes these fields into the Airtable Course table, then refreshes the website (within two minutes).")) + "</p>" +
       '<div class="actions"><button class="btn" id="coGo"' + (probs.length ? " disabled" : "") + ">" + t("发布", "Publish") + '</button></div><div id="coPubOut"></div></div>');
     $("coGo").addEventListener("click", function () {
-      savingButton($("coGo"), t("发布中…", "Publishing…")); $("coPubOut").innerHTML = '<p class="costep">⏳ ' + t("写入 Airtable…", "Writing Airtable…") + "</p>";
+      savingButton($("coGo"), t("发布中…", "Publishing…")); $("coPubOut").innerHTML = '<p class="costep">⏳ ' + t("写入 Airtable…", "Writing to Airtable…") + "</p>";
       post("courses/op", "POST", { id: co.id, op: "publish" }).then(function (r) {
         if (!r.ok) { restoreButton($("coGo")); $("coPubOut").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         coTake(r.body); coRefreshBar();

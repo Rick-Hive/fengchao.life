@@ -115,8 +115,8 @@
     var catColor = { Curriculum: VIZ.cat[0], "Pre-recorded": VIZ.cat[1], Live: VIZ.cat[2] };
     var catOf = function (c) { c = String(c || ""); return /live|直播/i.test(c) ? "Live" : /record|预录|video|视频/i.test(c) ? "Pre-recorded" : "Curriculum"; };
     var skuAgg = {}; eNow.forEach(function (o) { (o.items || []).forEach(function (it) { var k = equipName(it); if (!skuAgg[k]) skuAgg[k] = { v: 0, cat: catOf(it.category) }; skuAgg[k].v += seeMoney ? (it.total || 0) : (it.qty || 0); }); });
-    var top = Object.keys(skuAgg).map(function (k) { return { label: k, value: skuAgg[k].v, color: catColor[skuAgg[k].cat], sub: skuAgg[k].cat === "Live" ? t("直播课", "Live") : skuAgg[k].cat === "Pre-recorded" ? t("预录课", "Pre-recorded") : t("教材", "Curriculum") }; }).sort(function (a, b) { return b.value - a.value; }).slice(0, 10);
-    cards.push(chartCard("dTop", t("课程销售 Top 10", "Top 10 titles"), P.label + " · " + measure, function (w) { return legend([{ name: t("教材", "Curriculum"), color: VIZ.cat[0] }, { name: t("预录课", "Pre-recorded"), color: VIZ.cat[1] }, { name: t("直播课", "Live"), color: VIZ.cat[2] }]) + barsChart(w, { rows: top, fmt: fmt }); }, dataTable([t("名称", "Title"), t("类型", "Type"), measure], top.map(function (r) { return [r.label, r.sub, fmt(r.value)]; }))));
+    var top = Object.keys(skuAgg).map(function (k) { return { label: k, value: skuAgg[k].v, color: catColor[skuAgg[k].cat], sub: skuAgg[k].cat === "Live" ? t("直播课", "Live") : skuAgg[k].cat === "Pre-recorded" ? t("预录课", "Pre-recorded") : t("教材", "Textbook") }; }).sort(function (a, b) { return b.value - a.value; }).slice(0, 10);
+    cards.push(chartCard("dTop", t("课程销售 Top 10", "Top 10 titles"), P.label + " · " + measure, function (w) { return legend([{ name: t("教材", "Textbook"), color: VIZ.cat[0] }, { name: t("预录课", "Pre-recorded"), color: VIZ.cat[1] }, { name: t("直播课", "Live"), color: VIZ.cat[2] }]) + barsChart(w, { rows: top, fmt: fmt }); }, dataTable([t("名称", "Title"), t("类型", "Type"), measure], top.map(function (r) { return [r.label, r.sub, fmt(r.value)]; }))));
     // 5 客户分布与复购: by school (the domain of a person's Teams account)
     if (hub) {
       var bySchool = {}; people.forEach(function (p) { if (!(p.sources && p.sources.customer)) return; var d = (((p.facets || {}).accounts || [])[0] || {}).domain || t("无 Teams 账号", "No Teams account"); bySchool[d] = (bySchool[d] || 0) + 1; });
@@ -152,8 +152,8 @@
     if (crmLevel("partners") !== "none") cards.push('<div class="card viz" id="dPartners"><div class="ch"><h2>' + t("合作伙伴", "Partners") + ' <span class="n">' + t("各机构 · 本学年教材销售与合作阶段", "institutions · this school year's textbook sales and partnership stage") + '</span></h2></div><div class="vbody"><p class="loading">' + t("载入中…", "Loading…") + "</p></div></div>");
     else cards.push('<div class="card soon"><div class="ch"><h2>' + t("合作伙伴", "Partners") + '</h2></div><p class="muted">' + esc(t("需要合作伙伴数据的查看权限。", "Needs read access to partner data.")) + "</p></div>");
     cards.push(
-      (crmLevel("drm") !== "none" ? '<div class="card viz" id="dLic"><div class="ch"><h2>' + t("许可", "Licences") + ' <span class="n">' + t("池余量与到期 · 已有座位的人 · 按地区", "pool balance and expiry · people with a seat · by region") + '</span></h2><div class="vtools"><div class="vtoggle" role="tablist"><button type="button" class="on" data-v="chart">' + t("图", "Chart") + '</button><button type="button" data-v="table">' + t("表", "Table") + '</button></div></div></div><div class="vbody"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><div class="vtable hidden"></div></div>' :
-        '<div class="card soon"><div class="ch"><h2>' + t("许可", "Licences") + '</h2></div><p class="muted">' + esc(t("需要许可数据的查看权限。", "Needs read access to licence data.")) + "</p></div>"));
+      (crmLevel("drm") !== "none" ? '<div class="card viz" id="dLic"><div class="ch"><h2>' + t("许可", "Licenses") + ' <span class="n">' + t("池余量与到期 · 已有座位的人 · 按地区", "pool balance and expiry · people with a seat · by region") + '</span></h2><div class="vtools"><div class="vtoggle" role="tablist"><button type="button" class="on" data-v="chart">' + t("图", "Chart") + '</button><button type="button" data-v="table">' + t("表", "Table") + '</button></div></div></div><div class="vbody"><p class="loading">' + t("载入中…", "Loading…") + '</p></div><div class="vtable hidden"></div></div>' :
+        '<div class="card soon"><div class="ch"><h2>' + t("许可", "Licenses") + '</h2></div><p class="muted">' + esc(t("需要许可数据的查看权限。", "Needs read access to license data.")) + "</p></div>"));
     if (canSeeOrders()) cards.push('<div class="card feed" id="dFeed"><div class="ch"><h2>' + t("动态", "Activity") + ' <span class="n">' + t("最近的录入、状态变化、同步与合并", "recent entries, status changes, syncs and merges") + '</span></h2></div><div class="olist" id="dFeedList"><div class="orow muted">' + t("载入中…", "Loading…") + "</div></div></div>");
     $("dgrid").innerHTML = cards.join("");
     // 图形切换 for the trend card: 累计 / 按月
@@ -163,7 +163,7 @@
     if ($("dLic")) loadLicenses(false).then(function (d) {
       var card = $("dLic"); if (!card) return; var sm = d.summary;
       var draw = function (w) {
-        if (!sm.pools) return '<p class="muted">' + t("还没有许可池。", "No licence pools yet.") + ' <a href="#/ops/licenses">' + t("去建一个 →", "Create one →") + "</a></p>";
+        if (!sm.pools) return '<p class="muted">' + t("还没有许可池。", "No license pools yet.") + ' <a href="#/ops/licenses">' + t("去建一个 →", "Create one →") + "</a></p>";
         return '<div class="sharekeys" style="margin:0 0 8px"><span><b>' + fmtNum(sm.seats) + '</b> ' + t("份", "seats") + "</span><span><b>" + fmtNum(sm.allocated) + "</b> " + t("已分配", "allocated") + "</span><span><b>" + fmtNum(sm.users) + "</b> " + t("人有座位", "people") + "</span><span><b>" + fmtNum(sm.expiringSoon) + "</b> " + t("池 90 天内到期", "pools expiring in 90 d") + "</span></div>" +
           columnsChart(w, { x: sm.bySku.slice(0, 8).map(function (x) { return x.sku; }), series: [{ name: t("已分配", "Allocated"), values: sm.bySku.slice(0, 8).map(function (x) { return x.allocated; }), color: VIZ.seq }, { name: t("余量", "Balance"), values: sm.bySku.slice(0, 8).map(function (x) { return x.qty - x.allocated; }), color: VIZ.seq3 }], fmt: fmtNum, labelAll: true, height: 200 }) +
           (Object.keys(sm.byRegion || {}).length ? '<div class="sharekeys" style="margin-top:8px">' + Object.keys(sm.byRegion).map(function (k) { return "<span>" + esc(t((REGION_L[k] || [k, k])[0], (REGION_L[k] || [k, k])[1])) + " <b>" + sm.byRegion[k] + "</b></span>"; }).join("") + "</div>" : "");
@@ -171,7 +171,7 @@
       vizDraws.push({ id: "dLic", draw: draw });
       card.querySelector(".vbody").innerHTML = draw(card.querySelector(".vbody").clientWidth);
       card.querySelector(".vtable").innerHTML = dataTable([t("池", "Pool"), t("教材", "Title"), t("持有方", "Holder"), t("份数", "Seats"), t("已分配", "Allocated"), t("余量", "Balance"), t("有效期至", "Valid to")], d.pools.map(function (p) { return [p.id, p.sku, holderName(p.holder), fmtNum(p.qty), fmtNum(p.allocated), fmtNum(p.balance), p.validTo || "—"]; }));
-    }).catch(function () { var body = $("dLic") && $("dLic").querySelector(".vbody"); if (body) body.innerHTML = '<p class="muted">' + t("许可数据暂不可用。", "Licence data is not available.") + "</p>"; });
+    }).catch(function () { var body = $("dLic") && $("dLic").querySelector(".vbody"); if (body) body.innerHTML = '<p class="muted">' + t("许可数据暂不可用。", "License data is not available.") + "</p>"; });
     // 动态: the CRM's audit lines, in plain words.
     if ($("dFeedList")) api("crm/feed?limit=30").then(function (r) {
       var el = $("dFeedList"); if (!el) return;
@@ -191,7 +191,7 @@
           case "crm.royalty.paid": return t("版税 ", "Royalty ") + (e.publisher || "") + " " + (e.quarter || "") + (e.paid ? t(" 标记已付", " marked paid") : t(" 撤销已付", " unmarked"));
           case "crm.partner.update": return t("机构合作阶段：", "Partnership: ") + (e.domain || "") + " → " + (e.stage || "—");
           case "crm.digest": return t("待处理摘要已发给 ", "Digest sent to ") + ((e.to || []).join(", ") || "");
-          case "crm.license.pool": return t("新建许可池 ", "New licence pool ") + (e.id || "") + " · " + (e.sku || "") + " × " + (e.qty || 0);
+          case "crm.license.pool": return t("新建许可池 ", "New license pool ") + (e.id || "") + " · " + (e.sku || "") + " × " + (e.qty || 0);
           case "crm.license.allocate": return t("分配许可 ", "Allocated ") + (e.qty || 0) + t(" 份 → ", " seats → ") + ((e.to && (e.to.name || e.to.crmId || e.to.domain)) || "");
           case "crm.license.revoke": return t("撤销许可分配 ", "Revoked allocation ") + (e.id || "");
           default: return e.action;
@@ -241,7 +241,7 @@
       var el = $("dDigest"); if (!el) return;
       if (!r.ok) { el.innerHTML = '<span class="muted">' + esc(errText(r)) + "</span>"; return; }
       var b = r.body, last = b.last;
-      el.innerHTML = '<span class="muted">' + esc(t("每日摘要发给 ", "Daily digest to ") + (b.to.length ? b.to.join(", ") : t("（没有订单经理账号，请在角色分配里指定）", "(nobody holds the order-manager role yet)")) + (last ? t(" · 上次 ", " · last ") + day(last.at) + (last.ok ? "" : t("（失败）", " (failed)")) : t(" · 尚未发送过", " · not sent yet")) + (b.configured ? "" : t(" · 未配置通知流程", " · notification flow not configured")) + (b.channel ? t(" · 频道来自 ", " · channel from ") + b.channelFrom : t(" · 没有 Teams 频道：请在 Airtable 学校表加一行 CRM 并填 Teams Channel ID", " · no Teams channel: add a CRM row with a Teams Channel ID to the Schools table"))) + "</span>" +
+      el.innerHTML = '<span class="muted">' + esc(t("每日摘要发给 ", "Daily digest to ") + (b.to.length ? b.to.join(", ") : t("（没有订单经理账号，请在角色分配里指定）", "(nobody holds the order-manager role yet; assign one under role assignment)")) + (last ? t(" · 上次 ", " · last ") + day(last.at) + (last.ok ? "" : t("（失败）", " (failed)")) : t(" · 尚未发送过", " · not sent yet")) + (b.configured ? "" : t(" · 未配置通知流程", " · notification flow not configured")) + (b.channel ? t(" · 频道来自 ", " · channel from ") + b.channelFrom : t(" · 没有 Teams 频道：请在 Airtable 学校表加一行 CRM 并填 Teams Channel ID", " · no Teams channel: add a CRM row with a Teams Channel ID to the Schools table"))) + "</span>" +
         '<button type="button" class="btn secondary sm" id="dSend">' + t("现在发送", "Send now") + "</button>";
       $("dSend").addEventListener("click", function () {
         var btn = $("dSend"); if (!window.confirm(t("把当前的待处理与异常发给订单经理（Teams + 邮件）？", "Send the current to-do and exceptions to the order manager (Teams + email)?"))) return;

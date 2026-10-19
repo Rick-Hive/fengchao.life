@@ -73,7 +73,7 @@
           '<label class="f">' + t("年龄", "Age") + '<input type="number" data-k="age" min="1" max="30" value="' + esc(c.age == null ? "" : c.age) + '" /></label>' +
           '<label class="f">' + t("年级", "Grade") + sel("grade", voc.grades, c.grade) + "</label>" +
           '<label class="f">' + t("学校类型", "School type") + sel("schooling", voc.schooling, c.schooling) + "</label>" +
-          '<label class="f">' + t("教学理念与教学法", "Educational approach") + sel("model", voc.models, c.model) + "</label>" +
+          '<label class="f">' + t("教学理念与教学法", "Educational philosophy & pedagogy") + sel("model", voc.models, c.model) + "</label>" +
           '<label class="f model-other' + (c.model === "其它" ? "" : " hidden") + '">' + t("其它（请填写）", "Other — which?") + '<input type="text" data-k="modelOther" maxlength="60" value="' + esc(c.modelOther || "") + '" /></label>' +
           '<label class="f">' + t("孩子的 Teams 账号（如有）", "Child's Teams account (if any)") + '<input type="text" data-k="account" maxlength="120" placeholder="name@school-domain" value="' + esc(c.account || "") + '" /></label>' +
         "</div>" +

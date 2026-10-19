@@ -179,7 +179,7 @@
         '<td class="cell-ell" title="' + esc(courses.join(" · ")) + '">' + esc(courses.slice(0, 2).join(" · ")) + (courses.length > 2 ? ' <span class="muted">+' + (courses.length - 2) + "</span>" : "") + "</td>" +
         '<td class="nowrap">' + money(o.totalPrice, o.currency) + "</td>" +
         '<td class="nowrap">' + stTag(o.status) + "</td>" +
-        '<td class="nowrap"><span class="tags">' + overdueTag(o) + (o.notify && o.notify.ok === false && !o.notify.pending ? '<span class="tag bad">' + t("通知失败", "Not notified") + "</span>" : "") + "</span></td></tr>";
+        '<td class="nowrap"><span class="tags">' + overdueTag(o) + (o.notify && o.notify.ok === false && !o.notify.pending ? '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span>" : "") + "</span></td></tr>";
     }).join("") : '<tr><td colspan="8" class="empty">' + t("没有符合条件的订单。", "No orders match.") + "</td></tr>";
     $("ofoot").textContent = t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 单", " orders") + (list.length ? "" : t("。网站还没有新订单落库。", ". No orders have been recorded from the website yet."));
   }
@@ -214,13 +214,13 @@
       return '<div class="hrow"><span class="hat">' + esc(when(h.at)) + '<span class="hwho">' + esc(h.by === "system" ? t("系统", "system") : h.by) + "</span></span><span>" + (h.from ? stTag(h.from) + " → " : "") + stTag(h.to) + (h.note ? '<span class="hnote">' + esc(h.note) + "</span>" : "") + "</span></div>";
     }).join("");
     var notify = o.notify || {};
-    var notifyLine = notify.pending ? '<span class="tag">' + t("通知发送中", "Notifying…") + "</span>" : notify.ok ? '<span class="tag ok">' + t("已通知", "Notified") + "</span> " + esc(when(notify.at)) : '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span> " + esc(notify.error || "") + " · " + t("请手动联系家长和蜂巢。", "Contact the family and the hive by hand.");
+    var notifyLine = notify.pending ? '<span class="tag">' + t("通知发送中", "Notifying…") + "</span>" : notify.ok ? '<span class="tag ok">' + t("已通知", "Notified") + "</span> " + esc(when(notify.at)) : '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span> " + esc(notify.error || "") + " · " + t("请手动联系家长和蜂巢。", "Contact the parent and the hive by hand.");
     pb.innerHTML =
       '<div class="kv"><span class="k">' + t("提交时间", "Submitted") + "</span><span>" + esc(when(o.submittedAt)) + "</span>" +
         '<span class="k">' + t("下单人", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" +
         (o.teamsAccount ? '<span class="k">Teams</span><span>' + esc(o.teamsAccount) + "</span>" : "") +
         '<span class="k">' + t("蜂巢", "Hive") + "</span><span>" + ((o.hives || []).length ? (o.hives || []).map(function (h) { return esc(h.name || h.abbr || h.key) + (h.subtotal != null ? " · " + money(h.subtotal, o.currency) : ""); }).join("; ") : esc(orderHives(o))) + "</span>" +
-        (o.track && (o.track.nameZh || o.track.nameEn) ? '<span class="k">' + t("毕业路径", "Track") + "</span><span>" + esc(EN ? (o.track.nameEn || o.track.nameZh) : (o.track.nameZh || o.track.nameEn)) + "</span>" : "") +
+        (o.track && (o.track.nameZh || o.track.nameEn) ? '<span class="k">' + t("毕业路径", "Graduation track") + "</span><span>" + esc(EN ? (o.track.nameEn || o.track.nameZh) : (o.track.nameZh || o.track.nameEn)) + "</span>" : "") +
         '<span class="k">' + t("语言", "Language") + "</span><span>" + (o.lang === "en" ? "English" : "中文") + "</span>" +
         '<span class="k">' + t("通知", "Notification") + "</span><span>" + notifyLine + "</span>" +
         (o.overdue ? '<span class="k">' + t("提醒", "Flag") + "</span><span>" + overdueTag(o) + "</span>" : "") + "</div>" +

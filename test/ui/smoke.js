@@ -1015,6 +1015,8 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForTimeout(200);
     let txt = await p.$eval("#plbody", e => e.innerText);
     assert.ok(/学校版本/.test(txt), "the published edition is marked on the card");
+    const tip = await p.$eval("#nav .nav-item.active .navinfo", e => e.getAttribute("data-tip"));
+    assert.ok(/^学校版本，\d{4}\/\d{2}\/\d{2} 发布。可修改：校长、课程总监、系统管理员。$/.test(tip), "the reader's ⓘ says who published it and who may change it: " + tip);
     assert.ok(/几何/.test(txt) && /生物/.test(txt) === false, "the school's rhetoric map for its track (the track-2 row stays hidden): " + txt.slice(-300));
     await p.click('#pltabs a[data-tab="credits"]'); await p.waitForTimeout(200);
     txt = await p.$eval("#plbody", e => e.innerText);
@@ -1027,6 +1029,28 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const h = await p.evaluate(() => location.hash); if (h !== "#/plan" && h !== "") throw new Error("an ordinary account should land on the plan: " + h);
     assert.ok(/课程地图/.test(await p.$eval("#pltabs", e => e.innerText)), "the plan page is shown");
     assert.ok(/毕业要求与课程地图/.test(await p.$eval("#nav .nav-item.active", e => e.innerText)), "and the sidebar highlights it (Rick, 2026-10-19)");
+  });
+  // a wide table never runs past its white box (Rick, 2026-10-19): the box grows with the table, the pane scrolls
+  await shot("wide-table-box", 1000, 800, "#/plan", "zh", [], async p => {
+    await p.waitForTimeout(700); await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForTimeout(200);
+    await p.screenshot({ path: OUT + "/wide-table-box.png" });
+    const m = await p.evaluate(() => { const card = document.querySelector("#plbody .card"), tbl = document.querySelector("#plbody table.plmap"); const c = card.getBoundingClientRect(), t = tbl.getBoundingClientRect(); return { cardRight: Math.round(c.right), tableRight: Math.round(t.right), paneScroll: document.getElementById("content").scrollWidth > document.getElementById("content").clientWidth }; });
+    assert.ok(m.cardRight >= m.tableRight, "the card's box reaches past the table: " + JSON.stringify(m));
+    await p.goto(p.url().replace(/#.*$/, "") + "#/domain/users"); await p.waitForTimeout(100);
+  });
+  await shot("wide-table-users", 1000, 800, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#utable"); await p.waitForTimeout(400);
+    const m = await p.evaluate(() => { const w = document.querySelector(".tbl-wrap"), tbl = document.getElementById("utable"); return { wrapRight: Math.round(w.getBoundingClientRect().right), tableRight: Math.round(tbl.getBoundingClientRect().right) }; });
+    assert.ok(m.wrapRight >= m.tableRight, "the users list's box reaches past its table on a narrow pane: " + JSON.stringify(m));
+    await p.screenshot({ path: OUT + "/wide-table-users.png" });
+  });
+  // the sidebar item's ⓘ opens to the right of the sidebar, whole (Rick, 2026-10-19: it was cut off on the left)
+  await shot("nav-tip", 1280, 700, "#/plan", "zh", [], async p => {
+    await p.waitForTimeout(600);
+    await p.hover("#nav .nav-item.active .navinfo"); await p.waitForTimeout(150);
+    const m = await p.evaluate(() => { const b = document.getElementById("navtip"), s = document.getElementById("side").getBoundingClientRect(), r = b.getBoundingClientRect(); return { shown: !b.hidden, left: Math.round(r.left), sideRight: Math.round(s.right), right: Math.round(r.right), w: innerWidth, text: b.textContent }; });
+    assert.ok(m.shown && m.left >= m.sideRight && m.right <= m.w && /课程地图|可修改|可设定/.test(m.text) && m.text.length < 120, "the tip floats to the right of the sidebar, inside the window, and is short: " + JSON.stringify(m));
+    await p.screenshot({ path: OUT + "/nav-tip.png", clip: { x: 0, y: 50, width: 700, height: 220 } });
   });
   await shot("side-collapse", 1280, 700, "#/account", "zh", [], async p => {
     await p.waitForTimeout(500);
@@ -1364,6 +1388,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForTimeout(800);
     assert.ok(/我的日历/.test(await p.$eval("#nav", e => e.innerText)) && !/学校管理|日历管理/.test(await p.$eval("#nav", e => e.innerText)), "the sidebar has 我的日历 under the account and no school-management group");
     assert.ok(!(await p.$("#caltabs a[data-layer]")) && !(await p.$("#calAdd")) && !(await p.$("#calPublish")) && !(await p.$("#calsel")), "no layer tabs, add, publish or school picker");
+    assert.ok(await p.$eval("#caltabs", e => e.hidden && !e.innerText.trim()), "no school pill or second ⓘ: the tabs row is empty and hidden");
     await p.click('#calview [data-view="list"]'); await p.waitForTimeout(150);
     const txt = await p.$eval("#caltable", e => e.innerText);
     assert.ok(/家长会/.test(txt) && /圣诞假期/.test(txt) && /联合教师培训/.test(txt), "school events and broadcasts addressed to me, together: " + txt.slice(0, 120));
@@ -1402,7 +1427,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   // The sysadmin: 课程方案 beside the accounts pages, the school picker; 角色分配 offers 教育领袖.
   await shot("plan-admin", 1280, 800, "#/domain/plan", "en", ["admin"], async p => {
     await p.waitForTimeout(800);
-    const nv = await p.$eval("#nav", e => e.innerText); if (!/Graduation requirements/.test(nv) || !/User management/.test(nv)) throw new Error("admin nav: " + nv);
+    const nv = await p.$eval("#nav", e => e.innerText); if (!/Curriculum Map/.test(nv) || !/User management/.test(nv)) throw new Error("admin nav: " + nv);
     if (!/#\/plan$|#\/domain\/plan$/.test(await p.evaluate(() => location.hash))) throw new Error("old link still opens the plan");
     if (!(await p.$("#plsel"))) throw new Error("no school picker for the admin");
     assert.deepStrictEqual(await p.$$eval("#pltabs a[data-tab]", es => es.map(e => e.textContent)), ["Curriculum map", "Graduation requirements"], "two tabs");

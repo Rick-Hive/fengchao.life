@@ -101,6 +101,7 @@ body.hub-body .site-header { position: static; flex: none; }
   .side-nav { padding-top: var(--s6) !important; }
   body.sidehide .hub { grid-template-columns: minmax(0, 1fr); }
   body.sidehide .side { display: none; }
+  body.sidehide .content > * { max-width: none; } /* the room the sidebar gave up goes to the page */
   body.sidehide .side-show { display: inline-flex; position: absolute; top: 10px; left: 10px; z-index: 6; background: var(--card); border-color: var(--line-strong); }
   body.sidehide .main { position: relative; }
   body.sidehide .topbar { padding-left: 52px; }
@@ -251,7 +252,11 @@ mark { background: #fff1c9; color: inherit; border-radius: 3px; padding: 0 1px; 
    vertically and went up with the page. On wide screens the wrap no longer scrolls — the
    content pane does (both ways, for a table wider than the window) and the headings stick
    to its top; on narrow screens the wrap keeps its own horizontal scroll, as before. */
-.tbl-wrap { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: visible; }
+/* A wrapper is never narrower than the table it holds (Rick, 2026-10-19: 「底部白色区域少于上面的文字图层」—
+   a wide table ran past its white box; the pane scrolls sideways, the box must follow). min-content keeps text
+   wrapping while the box grows to the table's minimum width; min-width beats max-width. */
+.tbl-wrap { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: visible; min-width: min-content; }
+.card { min-width: min-content; }
 @media (max-width: 860px) { .tbl-wrap { overflow: auto; } }
 .content { overflow: auto; }
 table.data { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
@@ -518,6 +523,7 @@ table.data.resizing { user-select: none; cursor: col-resize; }
 .tname .gorig { font-weight: 400; font-size: 12px; margin-left: 6px; }
 
 /* 订单: two pages shown one at a time */
+.pagetabs[hidden] { display: none; }
 .pagetabs { display: flex; gap: var(--s2); margin: 0 0 var(--s4); border-bottom: 1px solid var(--line); }
 .pagetabs .ptab { display: flex; flex-direction: column; gap: 1px; padding: 8px 14px 10px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 600; }
 .pagetabs .ptab small { font-size: 11px; font-weight: 400; color: var(--faint); }
@@ -1045,14 +1051,19 @@ body.caldragging, body.caldragging * { cursor: grabbing !important; }
 .calsumn { display: inline-block; margin-left: 6px; font-weight: 600; color: var(--accent); white-space: nowrap; }
 #cef label.f input[type=url], #cef label.f input[type=text], #cef label.f select, #cef label.f textarea { display: block; width: 100%; margin-top: 4px; box-sizing: border-box; }
 
-/* ---- page head: no row of its own (Rick, 2026-10-17; applies to every page, now and later) ----
-   The sidebar already names the page, so on a computer the title row is gone: a page without actions has
-   no head at all, a page with actions gets one slim row of buttons. The page's ⓘ sits on its sidebar item. */
+/* ---- page head (Rick, 2026-10-17 and 10-19; applies to every page, now and later) ----
+   On a computer the sidebar already names the page, so a page WITHOUT actions has no head row at all. A page
+   WITH actions gets the standard header of every mature product (Stripe, Linear, GitHub, Airtable): the page
+   title on the left, the actions on the right, one row — never an empty left half (Rick, 2026-10-19: 「上面
+   一行左侧空着，右侧有按钮……请参考成熟产品的 heading UI 设计」). The page's ⓘ sits on its sidebar item only. */
 .nav-item .navinfo { margin-left: auto; flex: none; }
-.nav-item .navinfo:hover::after, .nav-item .navinfo:focus::after { left: auto; right: -2px; top: calc(100% + 4px); bottom: auto; z-index: 60; }
+.nav-item .navinfo:hover::after, .nav-item .navinfo:focus::after { display: none; } /* the floating .navtip takes over */
+.navtip { position: fixed; z-index: 60; max-width: 340px; padding: 8px 12px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 12.5px; line-height: 1.5; white-space: pre-line; box-shadow: 0 8px 24px -8px rgba(15, 32, 60, 0.4); pointer-events: none; }
+.navtip[hidden] { display: none; }
 @media (min-width: 901px) {
-  .topbar .crumb, .topbar .ttl { display: none; }
-  .topbar { justify-content: flex-end; min-height: 0; padding: 8px var(--s6) 2px; }
+  .topbar .crumb, .topbar .ttl .info { display: none; }
+  .topbar { min-height: 0; padding: 10px var(--s6) 4px; }
+  .topbar .ttl { font-size: 17px; }
   .topbar.noact { display: none; }
   .topbar.noact ~ .content { padding-top: var(--s3); }
 }

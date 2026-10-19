@@ -106,10 +106,10 @@
         '<div class="search rsearch">' + ICON.search + '<input type="search" id="rq" autocomplete="off" placeholder="' + t("搜索姓名或账号，添加或修改…", "Search a name or account to add or edit…") + '" /><div class="sugg" id="rsugg" hidden></div></div>' +
         '<span class="spacer"></span>' +
         '<button class="chip" data-k="all" aria-pressed="true">' + t("全部", "All") + "</button>" +
-        '<button class="chip" data-k="it" aria-pressed="false">' + t("IT 管理员", "IT admin") + "</button>" +
+        '<button class="chip" data-k="it" aria-pressed="false">' + t("IT 管理员", "IT administrator") + "</button>" +
         '<button class="chip" data-k="leader" aria-pressed="false">' + t("教育领袖", "Education leader") + "</button>" +
         '<button class="chip" data-k="staff" aria-pressed="false">Staff</button>' +
-        '<button class="chip" data-k="sys" aria-pressed="false">' + t("系统管理员", "System admin") + "</button>" +
+        '<button class="chip" data-k="sys" aria-pressed="false">' + t("系统管理员", "System administrator") + "</button>" +
         (doms.length > 1 ? '<select id="rdom"><option value="">' + t("所有学校", "All schools") + "</option>" + doms.map(function (d) { return '<option value="' + esc(d.domain) + '">' + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>" : "") +
       "</div>" +
       '<div class="tbl-wrap"><table class="data roles2" id="rtable"><thead><tr><th>' + t("人员", "Person") + "</th><th>" + t("学校", "School") + "</th><th>" + t("角色", "Roles") + "</th><th>" + t("授予", "Granted") + '</th></tr></thead>' +
@@ -233,7 +233,7 @@
     function schoolCard(d) {
       var known = doms.indexOf(d) >= 0;
       return '<div class="rschool" data-d="' + esc(d) + '"><div class="rsh"><b>' + esc(dname(d)) + "</b>" + (d !== own ? '<button type="button" class="lnk" data-drop="' + esc(d) + '">' + t("移除", "Remove") + "</button>" : '<span class="muted">' + t("所在学校", "Their school") + "</span>") + (known ? "" : ' <span class="tag warn">' + t("未知域", "Unknown domain") + "</span>") + "</div>" +
-        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("本校的账号：新建、修改资料、换许可证、重置密码、删除验证设备、删除账号；身份、关联账号、备注；同步变动。", "The school's accounts: create, edit details, change licence, reset passwords, remove authenticator devices, delete; identity, linked accounts, notes; sync changes.") + "</small></span></label>" +
+        '<label class="sw"><input type="checkbox" data-role="it" data-d="' + esc(d) + '"' + (st.it[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.it[EN ? 1 : 0] + "</b><small>" + t("本校的账号：新建、修改资料、换许可证、重置密码、删除验证设备、删除账号；身份、关联账号、备注；同步变动。", "The school's accounts: create, edit details, change license, reset passwords, remove authenticator devices, delete; identity, linked accounts, notes; sync changes.") + "</small></span></label>" +
         '<label class="sw"><input type="checkbox" data-role="leader" data-d="' + esc(d) + '"' + (st.leader[d] ? " checked" : "") + ' /><span class="track"></span><span class="swt"><b>' + ROLE_KIND.leader[EN ? 1 : 0] + "</b><small>" + t("本校的课程方案：毕业学分要求和课程地图，发布后本校家庭在网站上看到学校版本。看不到账号。", "The school's curriculum plan: graduation credit requirements and the curriculum map, published to the school's families on the website. No access to accounts.") + "</small></span></label>" +
         "</div>";
     }
@@ -312,7 +312,7 @@
     });
   }
   function viewInstitutions() {
-    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面按语言显示其一（缺少时显示另一个）。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English school name; the page shows the one of its language (the other if that is missing). Everyone but the system administrator sees only the names."));
+    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面按语言显示其一（缺少时显示另一个）。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English institution name; the page shows the one of its language (the other if that is missing). Everyone but the system administrator sees only the names."));
     var ds = (domainsInfo && domainsInfo.domains) || [];
     $("content").innerHTML =
       '<div class="card"><table class="roles inst" id="itable"><thead><tr><th>' + t("域名", "Domain") + "</th><th>" + t("中文名称", "Chinese name") + "</th><th>" + t("英文名称", "English name") + "</th><th></th></tr></thead><tbody>" +
@@ -340,8 +340,8 @@
   function viewSync() {
     setTitle(t("系统", "System"), t("数据同步", "Data sync"), "", t("把 Airtable 里的课程数据发布到网站。", "Publish the course data from Airtable to the site."));
     $("content").innerHTML =
-      '<div class="card"><h2>' + t("课程数据同步", "Course data sync") + '</h2><p class="sub">' + t("网站数据不会自动更新。点击按钮从 Airtable 拉取最新的毕业路径与课程数据并发布到网站。", "Site data does not update automatically. Pull the latest tracks and courses from Airtable and publish them.") + "</p>" +
-        '<div class="kpis strip"><div class="kpi"><div class="l">' + t("上次同步", "Last synced") + '</div><div class="v" style="font-size:1rem" id="sLast">—</div></div><div class="kpi"><div class="l">' + t("毕业路径", "Tracks") + '</div><div class="v" id="sT">—</div></div><div class="kpi"><div class="l">' + t("课程", "Courses") + '</div><div class="v" id="sC">—</div></div><div class="kpi"><div class="l">' + t("学科", "Subjects") + '</div><div class="v" id="sS">—</div></div></div>' +
+      '<div class="card"><h2>' + t("课程数据同步", "Course data sync") + '</h2><p class="sub">' + t("网站数据不会自动更新。点击按钮从 Airtable 拉取最新的毕业路径与课程数据并发布到网站。", "Site data does not update automatically. Pull the latest graduation tracks and courses from Airtable and publish them.") + "</p>" +
+        '<div class="kpis strip"><div class="kpi"><div class="l">' + t("上次同步", "Last synced") + '</div><div class="v" style="font-size:1rem" id="sLast">—</div></div><div class="kpi"><div class="l">' + t("毕业路径", "Graduation tracks") + '</div><div class="v" id="sT">—</div></div><div class="kpi"><div class="l">' + t("课程", "Courses") + '</div><div class="v" id="sC">—</div></div><div class="kpi"><div class="l">' + t("学科", "Subjects") + '</div><div class="v" id="sS">—</div></div></div>' +
         '<div class="actions"><button class="btn" id="syncBtn" type="button">' + t("立即从 Airtable 同步", "Sync from Airtable now") + '</button><a class="btn secondary" href="/" target="_blank" rel="noopener">' + t("查看网站 ↗", "View site ↗") + '</a></div><div id="sMsg"></div></div>';
     function status() {
       fetch("/api/data").then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (d) {
