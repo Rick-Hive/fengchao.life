@@ -965,11 +965,24 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(await p.$eval('#plbody input[data-trk="1"][data-row="' + rid + '"]', e => e.checked), "a new row is for the school's track");
     assert.ok(/国际·古典/.test(await p.$eval('#plbody tr[data-row="' + rid + '"] .plscope', e => e.innerText)), "the track shows as a chip, the six boxes live in a menu");
     await p.selectOption('#plbody select[data-subj="' + rid + '"]', "recSci");
-    // the cell is the editor: click → a textarea filling it; blur → chips, one per course
-    assert.ok(!(await p.$("#plbody .plmap textarea")), "no textareas in the grid until a cell is clicked");
-    await p.click('#plbody .plcell[data-cell="G9"][data-row="' + rid + '"]'); await p.waitForTimeout(100);
-    await p.keyboard.type("Biology / 生物\nChemistry / 化学"); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
-    assert.deepStrictEqual(await p.$$eval('#plbody .plcell[data-cell="G9"][data-row="' + rid + '"] .plchip', es => es.map(e => e.textContent)), ["Biology / 生物", "Chemistry / 化学"], "two chips after leaving the cell");
+    // every chip is one book / course (Rick, 2026-10-19): ＋ under the cell opens a popover, Enter keeps it; click a
+    // chip to edit it; Esc cancels; × on the chip removes it
+    const cellSel = '#plbody .plcell[data-cell="G9"][data-row="' + rid + '"]';
+    assert.ok(!(await p.$("#plbody .plmap textarea")) && !(await p.$("#plbody .plmap input[type=text]")), "no inputs in the grid");
+    await p.click(cellSel + " .plplus"); await p.waitForSelector("#plpop:not([hidden])");
+    await p.fill("#plpopEn", "Biology"); await p.fill("#plpopZh", "生物"); await p.keyboard.press("Enter"); await p.waitForTimeout(150);
+    await p.click(cellSel + " .plplus"); await p.waitForSelector("#plpop:not([hidden])");
+    await p.fill("#plpopEn", "Chemistry"); await p.fill("#plpopZh", "化学"); await p.click("#plpopOk"); await p.waitForTimeout(150);
+    const chipText = async () => p.$$eval(cellSel + " .plchip", es => es.map(e => e.firstChild.textContent));
+    assert.deepStrictEqual(await chipText(), ["Biology / 生物", "Chemistry / 化学"], "two chips, one per book");
+    await p.click(cellSel + ' .plchip[data-i="1"]'); await p.waitForSelector("#plpop:not([hidden])");
+    assert.strictEqual(await p.inputValue("#plpopZh"), "化学", "the popover opens on the chip's own names");
+    await p.fill("#plpopZh", "化学（删）"); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+    assert.deepStrictEqual(await chipText(), ["Biology / 生物", "Chemistry / 化学"], "Esc drops the change");
+    await p.click(cellSel + " .plplus"); await p.waitForSelector("#plpop:not([hidden])"); await p.fill("#plpopEn", "Physics"); await p.click("#plpopOk"); await p.waitForTimeout(150);
+    await p.hover(cellSel + ' .plchip[data-i="2"]'); await p.click(cellSel + ' .plchip[data-i="2"] .plx'); await p.waitForTimeout(150);
+    assert.deepStrictEqual(await chipText(), ["Biology / 生物", "Chemistry / 化学"], "× removes the third book again");
+    assert.ok(!/课程地图\s+语法阶段/.test(await p.$eval("#plbody .plhead", e => e.innerText)), "no repeated card title");
     // a row of a track the school does not serve is hidden unless asked for: the ＋ menu toggles tracks
     await p.click('#plbody tr[data-row="' + rid + '"] .plscope .plchip .x'); await p.waitForTimeout(150);
     await p.click('#plbody button[data-trkmenu="' + rid + '"]'); await p.waitForTimeout(100);
@@ -982,7 +995,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     // 高中毕业要求: one direction → no sub-tabs; the switch in the head; the school's figures
     await p.click('#pltabs a[data-tab="credits"]'); await p.waitForTimeout(200);
     assert.ok(!(await p.$("#plbody .plsub[data-track]")), "one direction served: no direction sub-tabs");
-    const body0 = await p.$eval("#plbody", e => e.innerText); if (!/高中毕业要求/.test(body0) || !/国际·古典/.test(body0) || !/系统默认/.test(body0) || /蜂巢默认/.test(body0) || !/总学分\s*24/.test(body0)) throw new Error("credits card: " + body0.slice(0, 300));
+    const body0 = await p.$eval("#plbody", e => e.innerText); if (/高中毕业要求/.test(body0) || !/国际·古典/.test(body0) || !/系统默认/.test(body0) || /蜂巢默认/.test(body0) || !/总学分\s*24/.test(body0)) throw new Error("credits card: " + body0.slice(0, 300));
     await p.click("label.sw:has(#plOwn) .track"); await p.waitForTimeout(200);
     await p.fill('#plbody input[data-credit="math"]', "5"); await p.$eval('#plbody input[data-credit="math"]', e => e.dispatchEvent(new Event("change", { bubbles: true })));
     await p.click('#plbody input[data-off="speaking"]'); await p.waitForTimeout(200);
@@ -1005,7 +1018,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if (planPuts[planPuts.length - 1].publish !== true) throw new Error("publish body: " + JSON.stringify(planPuts[planPuts.length - 1]).slice(0, 200));
     if (!(await p.$eval("#plUnpub", e => !e.hidden))) throw new Error("撤回发布 should show after publishing");
     await p.click('#pltabs a[data-tab="map"]'); await p.waitForTimeout(200);
-    const m1 = await p.$$eval('#plbody .plcell[data-cell="G9"]', es => es.map(e => Array.from(e.querySelectorAll(".plchip")).map(c => c.textContent).join("; "))); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("after publish: " + m1.join("|"));
+    const m1 = await p.$$eval('#plbody .plcell[data-cell="G9"]', es => es.map(e => Array.from(e.querySelectorAll(".plchip")).map(c => c.firstChild.textContent).join("; "))); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("after publish: " + m1.join("|"));
     await p.screenshot({ path: OUT + "/plan-leader.png" });
   });
   // A parent (no role) reads the school's published edition: two tabs, nothing to choose, nothing saved.
@@ -1023,7 +1036,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/几何/.test(txt) && /生物/.test(txt) === false, "the school's rhetoric map for its track (the track-2 row stays hidden): " + txt.slice(-300));
     await p.click('#pltabs a[data-tab="credits"]'); await p.waitForTimeout(200);
     txt = await p.$eval("#plbody", e => e.innerText);
-    assert.ok(/高中毕业要求/.test(txt) && /数学\s*5/.test(txt) && !/公众演讲/.test(txt) && /总学分\s*26/.test(txt) && /学校版本/.test(txt), "the school's figures: " + txt.slice(0, 300));
+    assert.ok(/数学\s*5/.test(txt) && !/公众演讲/.test(txt) && /总学分\s*26/.test(txt) && /学校版本/.test(txt), "the school's figures: " + txt.slice(0, 300));
     await p.screenshot({ path: OUT + "/plan-parent.png" });
   });
   // an ordinary account lands on 毕业要求与课程地图 (Rick, 2026-10-19)

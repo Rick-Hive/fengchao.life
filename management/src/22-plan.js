@@ -188,7 +188,7 @@
     var ov = plState.draft.tracks[plState.track], edit = plState.canEdit && !!ov;
     var unit = t("学分", "credits");
     var subs = plSubTabs(tracks.map(function (id) { var d = PL_DIRECTIONS.filter(function (x) { return x[0] === plDirectionOfTrack(id); })[0]; return [id, d ? t(d[1], d[2]) : "#" + id, plState.draft.tracks[id] ? t("本校", "school") : ""]; }), plState.track, "data-track");
-    var head = '<div class="card plcard"><div class="ch plhead"><h2>' + t("高中毕业要求", "High-school graduation requirements") + " " + subs + ' <span class="muted">' + esc(plTrackName(tr)) + "</span>" + plEditionTag(!!ov) + "</h2>" +
+    var head = '<div class="card plcard"><div class="ch plhead"><h2>' + subs + ' <span class="muted">' + esc(plTrackName(tr)) + "</span>" + plEditionTag(!!ov) + "</h2>" +
       plOwnSwitch("plOwn", !!ov, t("本校自定义", "School's own"), t("打开：本校设置这条路径的学分要求；关闭：显示系统默认的数字。", "On: the school sets this track's credit requirements; off: the system figures show.")) + "</div>";
     if (!edit) {
       // read-only: the system figures, or the school's over them
@@ -220,17 +220,19 @@
     var edit = plState.canEdit && !!own;
     var ped = plSettings().pedagogy;
     var subs = plSubTabs(PL_STAGES.map(function (x) { return [x, plStageLabel(x, ped), plState.draft.map[x] ? t("本校", "school") : ""]; }), st, "data-stage");
-    var head = '<div class="card plcard"><div class="ch plhead"><h2>' + t("课程地图", "Curriculum map") + " " + subs + plEditionTag(!!own) + "</h2>" +
+    var head = '<div class="card plcard"><div class="ch plhead"><h2>' + subs + plEditionTag(!!own) + "</h2>" +
       (edit && st !== "grammar" ? '<label class="chk plall"><input type="checkbox" id="plAllRows"' + (plState.allRows ? " checked" : "") + " /> " + t("显示所有路径的行", "Rows of every track") + "</label>" : "") +
       plOwnSwitch("plOwnMap", !!own, t("本校自定义", "School's own"), t("打开：从系统默认地图复制一份作为起点，本校自己编排这个阶段；关闭：显示系统默认的地图。", "On: start from a copy of the system default curriculum map and lay out this stage yourself; off: the system default map shows.")) + "</div>";
     var forTrack = function (r) { return plState.allRows && edit ? true : plRowForSchool(r, st); };
-    // A cell shows its courses as chips; in the editor the whole cell is the editing area: click → a textarea
-    // filling the cell (Rick, 2026-10-19: 「编辑口特别小……参考 Airtable」), blur → chips again.
+    // A cell shows its courses / books as chips. In the editor every chip is one record, like Airtable (Rick,
+    // 2026-10-19: 「每一个小格子都是一本书，点击一本书弹出编辑；最下方增加 + 号」): click → a popover with the English
+    // and Chinese names and 删除; ＋ under the chips adds one; × on a hovered chip removes it at once.
     function chipsOf(text) { return String(text || "").split(/[;\n]/).map(function (x) { return x.trim(); }).filter(Boolean); }
     function cellBox(r, g, text, editable) {
       var items = chipsOf(text);
-      return '<div class="plcell' + (editable ? " edit" : "") + (items.length ? "" : " empty") + '"' + (editable ? ' data-cell="' + esc(g) + '" data-row="' + esc(r.id) + '" tabindex="0"' : "") + '>' +
-        (items.length ? items.map(function (x) { return '<span class="plchip">' + esc(x) + "</span>"; }).join("") : (editable ? '<span class="plplus">＋</span>' : "")) + "</div>";
+      return '<div class="plcell' + (editable ? " edit" : "") + (items.length ? "" : " empty") + '"' + (editable ? ' data-cell="' + esc(g) + '" data-row="' + esc(r.id) + '"' : "") + '>' +
+        items.map(function (x, i) { return '<span class="plchip' + (editable ? " book" : "") + '"' + (editable ? ' data-i="' + i + '" tabindex="0"' : "") + ">" + esc(x) + (editable ? '<button type="button" class="plx" data-del-i="' + i + '" title="' + t("删除", "Remove") + '">×</button>' : "") + "</span>"; }).join("") +
+        (editable ? '<button type="button" class="plplus" title="' + t("添加", "Add") + '">＋</button>' : "") + "</div>";
     }
     function cellsHtml(r, editable) {
       if (r.spanAll) return '<td colspan="' + grades.length + '">' + cellBox(r, "", r.cells[grades[0]] || r.cells[""] || firstCell(r), editable) + "</td>";
@@ -275,35 +277,69 @@
     return head + '<div class="tbl-wrap"><table class="data plmap edit">' + thead + "<tbody>" + rows + "</tbody></table></div>" +
       (hidden ? '<p class="sub" style="margin-top:6px">' + hidden + t(" 行属于本校未选的路径或教学法，勾「显示所有路径的行」可见。", " row(s) belong to tracks or a pedagogy the school does not serve — tick “Rows of every track” to see them.") + "</p>" : "") +
       '<div class="actions" style="margin-top:8px"><button type="button" class="btn secondary sm" id="plAddRow">' + t("＋ 添加一行", "+ Add a row") + '</button> <button type="button" class="btn secondary sm" id="plCopyDefault">' + t("从系统默认重新复制", "Copy the system default map again") + "</button></div>" +
-      '<p class="sub" style="margin-top:8px">' + t("点一个格子就能写：课程名用 英文 / 中文，多门课用分号或换行，离开格子即保存到草稿。行的科目决定家长点格子时看到哪些蜂巢课程。", "Click a cell to write: English / 中文 per course, several courses by semicolons or line breaks; leaving the cell keeps it in the draft. A row's subject decides which Hive courses parents see when they tap a cell.") + "</p></div>";
+      '<p class="sub" style="margin-top:8px">' + t("点一本书或一门课可修改，格子下方的 ＋ 添加，悬停时的 × 删除；改动自动保存。行的科目决定家长点格子时看到哪些蜂巢课程。", "Click a book or course to edit it, ＋ under the cell adds one, × on hover removes it; changes save themselves. A row's subject decides which Hive courses parents see when they tap a cell.") + "</p></div>";
   }
 
-  // ---- the cell editor (Airtable-like: the cell is the input) ------------------------------
-  function plOpenCell(cell) {
-    var g = cell.getAttribute("data-cell"), rid = cell.getAttribute("data-row");
-    var row = plState.draft.map[plState.stage].rows.filter(function (r) { return r.id === rid; })[0]; if (!row) return;
-    var grades = (((plState.data.defaults || {}).map || {})[plState.stage] || {}).grades || [];
-    var text = row.spanAll ? (row.cells[grades[0]] || "") : (row.cells[g] || "");
-    cell.classList.add("open"); cell.innerHTML = '<textarea rows="1" data-cell="' + esc(g) + '" data-row="' + esc(rid) + '">' + esc(text.replace(/;\s*/g, "\n")) + "</textarea>";
-    var ta = cell.querySelector("textarea"); coAutosize(ta); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
-    ta.addEventListener("input", function () { coAutosize(ta); });
-    ta.addEventListener("keydown", function (e) { if (e.key === "Escape") { ta.blur(); } if ((e.metaKey || e.ctrlKey) && e.key === "Enter") ta.blur(); });
-    ta.addEventListener("blur", function () { plCloseCell(cell, ta); });
+  // ---- the book / course editor: one chip = one record (Airtable-like popover) ------------
+  function plGrades() { return (((plState.data.defaults || {}).map || {})[plState.stage] || {}).grades || []; }
+  function plRowById(rid) { return plState.draft.map[plState.stage].rows.filter(function (r) { return r.id === rid; })[0]; }
+  function plCellItems(row, g) { var grades = plGrades(); return chipsOfText(row.spanAll ? (row.cells[grades[0]] || "") : (row.cells[g] || "")); }
+  function chipsOfText(text) { return String(text || "").split(/[;\n]/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  function plSetCell(row, g, items) {
+    var v = items.join("; "), grades = plGrades();
+    if (row.spanAll) { row.cells = {}; grades.forEach(function (gg) { if (v) row.cells[gg] = v; }); } else if (v) row.cells[g] = v; else delete row.cells[g];
+    plDirty();
   }
-  function plCloseCell(cell, ta) {
-    if (!cell.isConnected) return;
-    var g = ta.getAttribute("data-cell"), rid = ta.getAttribute("data-row");
-    var row = plState.draft.map[plState.stage].rows.filter(function (r) { return r.id === rid; })[0];
-    var v = ta.value.split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean).join("; ");
-    if (row) {
-      var grades = (((plState.data.defaults || {}).map || {})[plState.stage] || {}).grades || [];
-      var before = row.spanAll ? (row.cells[grades[0]] || "") : (row.cells[g] || "");
-      if (v !== before) { if (row.spanAll) { row.cells = {}; grades.forEach(function (gg) { if (v) row.cells[gg] = v; }); } else if (v) row.cells[g] = v; else delete row.cells[g]; plDirty(); }
+  function plSplitItem(x) { var m = /^(.*?)\s*\/\s*(.*)$/.exec(x || ""); if (m) return { en: m[1].trim(), zh: m[2].trim() }; return /[\u3400-\u9fff]/.test(x || "") ? { en: "", zh: (x || "").trim() } : { en: (x || "").trim(), zh: "" }; }
+  function plJoinItem(en, zh) { en = (en || "").trim(); zh = (zh || "").trim(); return en && zh ? en + " / " + zh : en || zh; }
+  var plPop = { cell: null, i: -1 };
+  function plPopNode() { return $("plpop") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "plpop", className: "plpop", hidden: true })); }
+  // open the popover for chip i of the cell (i = -1: a new one), under the chip or the ＋
+  function plBookOpen(cell, i, anchor) {
+    var box0 = $("plpop");
+    if (box0 && !box0.hidden) { // another chip while one is open: keep that change first (the grid re-renders)
+      var rid0 = cell.getAttribute("data-row"), g0 = cell.getAttribute("data-cell"); plBookClose(true);
+      cell = $("plbody") && $("plbody").querySelector('.plcell[data-row="' + rid0 + '"][data-cell="' + g0 + '"]'); if (!cell) return;
+      anchor = i >= 0 ? cell.querySelector('.plchip[data-i="' + i + '"]') : cell.querySelector(".plplus"); if (!anchor) return;
     }
-    var items = v ? v.split(/;\s*/) : [];
-    cell.classList.remove("open"); cell.classList.toggle("empty", !items.length);
-    cell.innerHTML = items.length ? items.map(function (x) { return '<span class="plchip">' + esc(x) + "</span>"; }).join("") : '<span class="plplus">＋</span>';
+    var row = plRowById(cell.getAttribute("data-row")); if (!row) return;
+    var items = plCellItems(row, cell.getAttribute("data-cell")), cur = i >= 0 ? plSplitItem(items[i]) : { en: "", zh: "" };
+    var box = plPopNode(); plPop = { cell: cell, i: i, items: items, before: plJoinItem(cur.en, cur.zh) };
+    box.innerHTML = '<label>' + t("英文名", "English name") + '<input type="text" id="plpopEn" value="' + esc(cur.en) + '" placeholder="e.g. The Ugly Duckling" /></label>' +
+      '<label>' + t("中文名", "Chinese name") + '<input type="text" id="plpopZh" value="' + esc(cur.zh) + '" placeholder="如 《丑小鸭》" /></label>' +
+      '<div class="plpop-actions">' + (i >= 0 ? '<button type="button" class="lnk del" id="plpopDel">' + t("删除", "Delete") + "</button>" : "") + '<span class="sp"></span><button type="button" class="btn secondary sm" id="plpopCancel">' + t("取消", "Cancel") + '</button><button type="button" class="btn sm" id="plpopOk">' + t("保存", "Save") + "</button></div>";
+    box.hidden = false;
+    var r = anchor.getBoundingClientRect(), w = 300; var left = Math.min(Math.max(8, r.left), window.innerWidth - w - 8), top = r.bottom + 6; if (top + 150 > window.innerHeight) top = Math.max(8, r.top - 156);
+    box.style.left = Math.round(left) + "px"; box.style.top = Math.round(top) + "px"; box.style.width = w + "px";
+    $("plpopEn").focus();
   }
+  function plBookClose(save) {
+    var box = $("plpop"); if (!box || box.hidden) return;
+    var cell = plPop.cell, i = plPop.i, items = plPop.items.slice();
+    if (save && cell && cell.isConnected) {
+      var v = plJoinItem($("plpopEn").value, $("plpopZh").value);
+      if (i >= 0) { if (v) items[i] = v; else items.splice(i, 1); } else if (v) items.push(v);
+      if (v !== plPop.before || (i < 0 && v)) { var row = plRowById(cell.getAttribute("data-row")); if (row) { plSetCell(row, cell.getAttribute("data-cell"), items); renderPlan(); } }
+    }
+    box.hidden = true; plPop = { cell: null, i: -1 };
+  }
+  function plBookDelete() {
+    var cell = plPop.cell, i = plPop.i, items = plPop.items.slice(); if (!cell || i < 0) return;
+    items.splice(i, 1); var row = plRowById(cell.getAttribute("data-row")); if (row) { plSetCell(row, cell.getAttribute("data-cell"), items); }
+    $("plpop").hidden = true; plPop = { cell: null, i: -1 }; renderPlan();
+  }
+  document.addEventListener("click", function (e) {
+    var box = $("plpop"); if (!box || box.hidden) return;
+    if (e.target.closest("#plpopOk")) { plBookClose(true); return; }
+    if (e.target.closest("#plpopCancel")) { plBookClose(false); return; }
+    if (e.target.closest("#plpopDel")) { plBookDelete(); return; }
+    if (!box.contains(e.target) && !e.target.closest(".plchip.book,.plplus")) plBookClose(true); // like Airtable: leaving keeps the change
+  });
+  document.addEventListener("keydown", function (e) {
+    var box = $("plpop"); if (!box || box.hidden || !box.contains(e.target)) return;
+    if (e.key === "Escape") { e.preventDefault(); plBookClose(false); }
+    if (e.key === "Enter") { e.preventDefault(); plBookClose(true); }
+  });
   // ---- events ------------------------------------------------------------------------
   function bindPlan() {
     var body = $("plbody");
@@ -313,9 +349,14 @@
       if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system default curriculum map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plDirty(); renderPlan(); return; }
       var sub = e.target.closest(".plsub[data-stage],.plsub[data-track]");
       if (sub) { if (sub.hasAttribute("data-stage")) plState.stage = sub.getAttribute("data-stage"); else plState.track = sub.getAttribute("data-track"); renderPlan(); return; }
-      // a cell opens into a textarea that fills it; the chip picker for tracks
+      // a chip is a book: click → the popover; × removes it; ＋ adds one
       var cell = e.target.closest(".plcell.edit");
-      if (cell && !cell.querySelector("textarea")) { plOpenCell(cell); return; }
+      if (cell) {
+        var x = e.target.closest(".plx"); if (x) { var rw0 = plRowById(cell.getAttribute("data-row")); if (rw0) { var it0 = plCellItems(rw0, cell.getAttribute("data-cell")); it0.splice(Number(x.getAttribute("data-del-i")), 1); plSetCell(rw0, cell.getAttribute("data-cell"), it0); renderPlan(); } return; }
+        var chip = e.target.closest(".plchip.book"); if (chip) { plBookOpen(cell, Number(chip.getAttribute("data-i")), chip); return; }
+        var plus = e.target.closest(".plplus"); if (plus) { plBookOpen(cell, -1, plus); return; }
+        return;
+      }
       var tm = e.target.closest("button[data-trkmenu]");
       if (tm) { var mn = tm.nextSibling; var wasHidden = mn.hidden; body.querySelectorAll(".plpick .comenu").forEach(function (x) { x.hidden = true; }); mn.hidden = !wasHidden; return; }
       if (!e.target.closest(".plpick")) body.querySelectorAll(".plpick .comenu").forEach(function (x) { x.hidden = true; });
