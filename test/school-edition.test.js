@@ -1,7 +1,7 @@
-// The school edition on the website (assets/app.js + /api/school-plan), driven through the
-// real page in jsdom: a signed-in family whose school published a 课程方案 sees the
-// school's graduation credits and curriculum map (marked 学校版本); a family whose school
-// published nothing, or a visitor, sees Hive's defaults exactly as before.
+// The website and the school edition (assets/app.js + /api/school-plan), driven through the
+// real page in jsdom. Since 2026-10-19 (Rick: 「网站上可以做任何组合的选择，不应该受此影响」) the
+// wizard IGNORES a published school plan: every family and visitor sees Hive's defaults, no
+// 学校版本 chip; the school's edition is read in the management centre instead.
 //
 // Run with:  npm i jsdom && node test/school-edition.test.js
 const fs = require("fs");
@@ -34,12 +34,13 @@ const plan = {
 let failures = 0;
 const check = (label, actual, expected) => { const a = JSON.stringify(actual), e = JSON.stringify(expected); const ok = a === e; if (!ok) failures++; console.log(`${ok ? "PASS" : "FAIL"}  ${label}${ok ? "" : `\n        got ${a}\n        want ${e}`}`); };
 
+const fetched = [];
 function page(planAnswer) {
   const vc = new VirtualConsole();
   vc.on("jsdomError", (e) => console.log("   [page error]", e.message.split("\n")[0]));
   const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://www.fengchao.life/", virtualConsole: vc });
   const { window } = dom;
-  window.fetch = (u) => Promise.resolve({ ok: true, json: () => Promise.resolve(String(u).indexOf("/api/school-plan") === 0 ? planAnswer : snapshot) });
+  window.fetch = (u) => { fetched.push(String(u)); return Promise.resolve({ ok: true, json: () => Promise.resolve(String(u).indexOf("/api/school-plan") === 0 ? planAnswer : snapshot) }); };
   window.scrollTo = () => {};
   window.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
   window.cancelAnimationFrame = (id) => clearTimeout(id);
@@ -62,31 +63,28 @@ function page(planAnswer) {
 }
 
 setTimeout(() => {
-  // 1. The family of 甲校: the school edition.
+  // 1. The family of 甲校, whose school published a plan: the website still shows Hive's defaults.
   const A = page({ plan, signedIn: true, domain: "a.edu" });
   setTimeout(() => {
     A.toRequirements();
     const rows = A.reqRows();
-    check("the school's math credits replace Hive's (5, not 4)", rows.filter((r) => r[0] === "数学")[0][1], "5 学分");
-    check("a row the school set to null is hidden (公众演讲)", rows.some((r) => r[0] === "公众演讲"), false);
-    check("rows the school did not touch keep Hive's figure (科学 3)", rows.filter((r) => r[0] === "科学")[0][1], "3 学分");
-    check("the school's total and Hive's service hours (not overridden)", rows.slice(-2).map((r) => r[1]), ["26 学分", "50"]);
-    check("the 学校版本 chip names the school", A.doc.querySelector("h2 .cm-scope.school").textContent, "学校版本 · 甲校");
-    check("the school's note replaces Hive's policy text", A.doc.querySelector(".policy pre").textContent, "校方说明");
+    check("Hive's math credits, not the school's 5", rows.filter((r) => r[0] === "数学")[0][1], "4 学分");
+    check("公众演讲 shown (the school's null does not apply)", rows.some((r) => r[0] === "公众演讲"), true);
+    check("Hive's total and service hours", rows.slice(-2).map((r) => r[1]), ["24 学分", "50"]);
+    check("no 学校版本 chip", !!A.doc.querySelector("h2 .cm-scope.school"), false);
+    check("Hive's policy text, not the school's note", A.doc.querySelector(".policy pre").textContent, "蜂巢政策");
     A.click(A.pick("#next3"));
-    check("the map step shows the school's rows (the subject column), chip included", [A.mapRows().map((r) => r[0]), !!A.doc.querySelector("#mapCard") && !!A.doc.querySelector("h2 .cm-scope.school")], [["数学", "拉丁文"], true]);
-    check("the school's cells (each with Hive's course count), a span-all row as one cell", [A.mapRows()[0].slice(1, 3), A.mapRows()[1].length], [["代数一1 门可选", "代数二1 门可选"], 2]);
-    check("a cell on a Hive subject still opens Hive's courses (代数二 → Algebra II) — 「地图上要显示蜂巢能提供的课程」", (() => { const cell = A.doc.querySelector('#mapCard .cm-cell[data-r="0"][data-g="G10"]'); if (!cell) return "no cell"; A.click(cell); return Array.from(A.doc.querySelectorAll(".cm-sheet-name")).map((h) => h.textContent.replace(/\s+/g, " ").trim()).some((n) => /代数二|Algebra II/.test(n)); })(), true);
+    check("Hive's map, no chip", [A.mapRows().map((r) => r[0]), !!A.doc.querySelector("h2 .cm-scope.school")], [["数学"], false]);
+    check("/api/school-plan is not even fetched by the website", fetched.some((u) => /school-plan/.test(u)), false);
 
-    // 2. A school that published nothing (plan null) and a visitor: Hive's defaults, no chip.
-    const B = page({ plan: null, signedIn: true, domain: "b.org" });
+    // 2. A visitor: the same.
+    const B = page({ plan: null, signedIn: false });
     setTimeout(() => {
       B.toRequirements();
       const rowsB = B.reqRows();
-      check("Hive's math credits for a school without a plan", rowsB.filter((r) => r[0] === "数学")[0][1], "4 学分");
-      check("公众演讲 shown, total 24, no chip, Hive's policy", [rowsB.some((r) => r[0] === "公众演讲"), rowsB.slice(-2)[0][1], !!B.doc.querySelector(".cm-scope.school"), B.doc.querySelector(".policy pre").textContent], [true, "24 学分", false, "蜂巢政策"]);
+      check("Hive's math credits for a visitor", rowsB.filter((r) => r[0] === "数学")[0][1], "4 学分");
       B.click(B.pick("#next3"));
-      check("Hive's map, no chip", [B.mapRows().map((r) => r[0]), !!B.doc.querySelector("h2 .cm-scope.school")], [["数学"], false]);
+      check("Hive's map", B.mapRows().map((r) => r[0]), ["数学"]);
       console.log(failures ? `\n${failures} FAILED` : "\nall assertions passed");
       process.exit(failures ? 1 : 0);
     }, 300);

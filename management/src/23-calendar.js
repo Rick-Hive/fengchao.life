@@ -83,7 +83,7 @@
   function viewMyCalendar() {
     if (!calState.cursor) { calState.cursor = calToday(); calState.selected = calToday(); }
     calState.layer = "mine";
-    setTitle(t("我的账号", "My account"), t("我的校历", "My calendar"), "",
+    setTitle(t("我的账号", "My account"), t("我的日历", "My calendar"), "",
       { info: t("发给你的学校校历和系统广播。已发布的事件也在你的 Outlook 和 Teams 日历里；标有「未发布」的还没有写入。这里只能查看，学校的事件由本校教育领袖维护。", "The school calendar events and system broadcasts addressed to you. Published ones are also in your Outlook and Teams calendars; those marked Not published are not written yet. View only — the school's events are kept by its education leader.") });
     calMount("");
   }

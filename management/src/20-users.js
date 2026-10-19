@@ -16,7 +16,7 @@
       (g.owner ? '<span class="trole">' + t("所有者", "Owner") + "</span>" : '<span class="trole muted">' + t("成员", "Member") + "</span>") + "</div>";
   }
   function viewTeams() {
-    setTitle(t("我的账号", "My account"), t("我的 Teams", "My Teams"), "", t("您所在的团队和群组。", "The teams and groups you belong to."));
+    setTitle(t("我的账号", "My account"), t("我的 Teams 团队", "My Teams"), "", t("您所在的团队和群组。", "The teams and groups you belong to."));
     $("content").innerHTML =
       '<div class="toolbar" id="tbar">' +
         '<button class="chip" data-f="all" aria-pressed="true">' + t("全部", "All") + "</button>" +

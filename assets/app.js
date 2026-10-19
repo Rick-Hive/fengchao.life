@@ -2442,13 +2442,10 @@
   bindStepperOnce();
   bindCartOnce();
   render();
-  // The signed-in family's school edition (published by its 教育领袖), fetched beside the
-  // snapshot; a visitor who is not signed in, or a school that published nothing, gets
-  // null and the wizard behaves as before. Never blocks the page.
-  fetch("/api/school-plan", { credentials: "same-origin" })
-    .then(function (res) { return res.ok ? res.json() : null; })
-    .then(function (j) { if (j && j.plan) { state.school = j.plan; if (state.data) render(); } })
-    .catch(function () {});
+  // The school edition (a school's own requirements and map, /api/school-plan) is no longer
+  // applied here (Rick, 2026-10-19: 「网站上可以做任何组合的选择，不应该受此影响」): the wizard
+  // always works from Hive's data; a family reads the school's edition in the management
+  // centre (我的账号 › 毕业要求与课程地图). state.school stays null; the override code is kept idle.
   fetch("/api/data")
     .then(function (res) {
       if (!res.ok) throw new Error("no data");

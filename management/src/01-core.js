@@ -92,22 +92,24 @@
   // ---- shell: sidebar, footer, sign-out, drawer ------------------------------
   function nav() {
     var groups = [
+      // Order and wording (Rick, 2026-10-19): the plan first, for everyone; profile last.
       { title: t("我的账号", "My account"), items: [
+        { hash: "#/plan", icon: "book", zh: "毕业要求与课程地图", en: "Graduation requirements & map" },
+        { hash: "#/teams", icon: "teams", zh: "我的 Teams 团队", en: "My Teams" },
+        { hash: "#/calendar", icon: "cal", zh: "我的日历", en: "My calendar" },
+        { hash: "#/security", icon: "key", zh: "Teams 登录与安全", en: "Teams sign-in & security" },
         { hash: "#/account", icon: "user", zh: "个人资料", en: "Profile" },
-        { hash: "#/security", icon: "key", zh: "登录与安全", en: "Sign-in & security" },
-        { hash: "#/teams", icon: "teams", zh: "我的 Teams", en: "My Teams" },
-        { hash: "#/calendar", icon: "cal", zh: "我的校历", en: "My calendar" },
       ].concat(coursesInfo && !coIsApprover() && !coIsViewer() && (coursesInfo.courses || []).length ? [{ hash: "#/courses", icon: "book", zh: "我的课程", en: "My courses", badge: coMyBadge() }] : []) },
     ];
     if (domainsInfo && domainsInfo.domains && domainsInfo.domains.length) {
       // Accounts pages for whoever may view a school's accounts (IT 管理员, staff); 课程方案
       // for an 教育领袖 (who sees nothing else of the school), 课程总监 and the sysadmin.
       var seesAccounts = domainsInfo.domains.some(function (d) { return d.can && d.can.view; });
-      // Order and wording (Rick, 2026-10-18): 用户管理 · Teams 团队管理 · 日历管理 · 毕业要求和课程地图 · 操作手册 last
+      // Order and wording (Rick, 2026-10-18/19): 用户管理 · Teams 团队管理 · 日历管理 · 操作手册 (the plan moved to 我的账号)
       groups.push({ title: domainGroupTitle(), items: (seesAccounts ? [
         { hash: "#/domain/users", icon: "users", zh: "用户管理", en: "User management" },
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 团队管理", en: "Teams management" },
-      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "日历管理", en: "Calendar management" }] : []).concat(canSeePlan() ? [{ hash: "#/domain/plan", icon: "book", zh: "毕业要求和课程地图", en: "Graduation requirements & curriculum map" }] : [])
+      ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "日历管理", en: "Calendar management" }] : [])
         .concat(seesAccounts ? [{ hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" }] : []) });
     }
     if (canSeeOrders() || isStaff()) {

@@ -4,6 +4,11 @@
 //                                          family's school, { plan } or { plan: null } (also for
 //                                          a visitor who is not signed in — never a refusal,
 //                                          the wizard then uses Hive's defaults)
+//   GET  /api/school-plan?view=1[&domain=d]  the management centre's read-only page (Rick, 2026-10-19:
+//                                          every signed-in person sees their own school's published
+//                                          plan, or Hive's defaults): { domain, school, plan: {published},
+//                                          defaults, canEdit: false }. Own school only, unless the
+//                                          caller may edit that domain.
 //   GET  /api/school-plan?domain=<d>        the editor: the full document (draft + published),
 //                                          Hive's defaults and the school's name   (教育领袖 of d,
 //                                          课程总监, sysadmin)
@@ -28,7 +33,7 @@ module.exports = async function (context, req) {
   const method = String(req.method || "GET").toUpperCase();
   const q = req.query || {};
   try {
-    if (method === "GET" && !q.domain) {
+    if (method === "GET" && !q.domain && q.view !== "1") {
       // The family's view: soft — a visitor who is not signed in simply has no school.
       const s = await guard(context, req, { soft: true });
       const p = getPrincipal(req);
@@ -43,6 +48,16 @@ module.exports = async function (context, req) {
     const s = await guard(context, req);
     if (!s) return;
     const { user, roles } = await userRoles(req);
+    if (method === "GET" && q.view === "1") {
+      const mine = domainOf(normUser(user));
+      const domain = String(q.domain || mine || "").trim().toLowerCase();
+      if (!DOMAIN_RE.test(domain)) { reply(context, 200, { domain: "", school: null, plan: { published: null }, defaults: SP.defaultsFromSnapshot(await SP.readSnapshot().catch(() => null)), canEdit: false }); finish(context, s); return; }
+      if (domain !== mine && !can(roles, "plan", domain)) { reply(context, 403, { error: "only your own school's plan is shown here", code: "forbidden" }); finish(context, s); return; }
+      const [doc, snap, school] = await Promise.all([SP.readPlan(domain), SP.readSnapshot().catch(() => null), schoolOf(domain)]);
+      reply(context, 200, { domain, school, plan: { published: doc.published || null, publishedAt: doc.published ? doc.published.at : null }, defaults: SP.defaultsFromSnapshot(snap), canEdit: can(roles, "plan", domain) });
+      finish(context, s);
+      return;
+    }
     const domain = String(q.domain || (req.body && req.body.domain) || "").trim().toLowerCase();
     if (!DOMAIN_RE.test(domain)) { reply(context, 400, { error: "domain missing or malformed" }); finish(context, s); return; }
     if (!can(roles, "plan", domain)) { reply(context, 403, { error: `the 课程方案 of ${domain} is edited by its 教育领袖 (or the curriculum director)`, code: "forbidden" }); finish(context, s); return; }

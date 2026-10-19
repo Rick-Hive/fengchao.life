@@ -132,6 +132,16 @@ async function call({ method = "GET", query = {}, body = null, user, roles }) {
   assert.strictEqual(r.body.plan.tracks["2"].totalCredits, 30); assert.strictEqual(r.body.plan.school.nameEn, "School A"); assert.ok(!r.body.plan.draft, "no draft leaks to families");
   r = await call({ user: "parent@b.org" });
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.plan, null, "a school that published nothing: Hive's defaults");
+  // The management centre's read-only page (Rick, 2026-10-19): own school, published part + Hive's defaults.
+  r = await call({ query: { view: "1" }, user: "parent@a.edu" });
+  assert.strictEqual(r.status, 200); assert.strictEqual(r.body.domain, "a.edu"); assert.strictEqual(r.body.canEdit, false);
+  assert.strictEqual(r.body.plan.published.tracks["2"].totalCredits, 30); assert.ok(!r.body.plan.draft, "no draft"); assert.ok(r.body.defaults.tracks.length >= 1, "Hive's defaults come along"); assert.strictEqual(r.body.school.nameEn, "School A");
+  r = await call({ query: { view: "1", domain: "a.edu" }, user: "parent@b.org" });
+  assert.strictEqual(r.status, 403, "another school's plan is not shown");
+  r = await call({ query: { view: "1", domain: "a.edu" }, user: "cd@fengchao.life", roles: ["staff:curriculum"] });
+  assert.strictEqual(r.status, 200); assert.strictEqual(r.body.canEdit, true, "an editor may view any school");
+  r = await call({ query: { view: "1" }, user: "parent@b.org" });
+  assert.strictEqual(r.status, 200); assert.strictEqual(r.body.plan.published, null, "nothing published: the page shows Hive's defaults");
   r = await call({});
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.plan, null); assert.strictEqual(r.body.signedIn, false);
   r = await call({ method: "PUT", body: { domain: "a.edu", unpublish: true }, ...LEADER });

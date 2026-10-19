@@ -40,14 +40,14 @@
     if (h.indexOf("#/calendar") === 0) return viewMyCalendar();
     if (h.indexOf("#/courses") === 0) return viewCourses();
     if (h.indexOf("#/security") === 0) return viewSecurity();
+    if (h.indexOf("#/plan") === 0 || h.indexOf("#/domain/plan") === 0) return viewPlan(); // everyone: own school (editors: the editor)
     if (h.indexOf("#/domain") === 0) {
       if (!domainsInfo || !domainsInfo.domains.length) { location.hash = "#/account"; return; }
       if (!currentDomain) currentDomain = (domainsInfo.domains.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || domainsInfo.domains[0]).domain;
       if (h.indexOf("#/domain/calendar") === 0) return canSeeCalendar() ? viewCalendar() : viewUsers();
       if (h.indexOf("#/domain/broadcast") === 0) return canSeeOptout() ? viewBroadcast() : viewUsers(); // old link: the list is a tab of 校历 now
-      if (h.indexOf("#/domain/plan") === 0) return canSeePlan() ? viewPlan() : viewUsers();
       // An 教育领袖 holds the school only for its 课程方案: the accounts pages are not theirs.
-      if (!domainsInfo.domains.some(function (d) { return d.can && d.can.view; })) { location.hash = canSeeCalendar() && !canSeePlan() ? "#/domain/calendar" : "#/domain/plan"; return; }
+      if (!domainsInfo.domains.some(function (d) { return d.can && d.can.view; })) { location.hash = canSeeCalendar() ? "#/domain/calendar" : "#/plan"; return; }
       return h.indexOf("#/domain/groups") === 0 ? viewGroups() : h.indexOf("#/domain/handbook") === 0 ? viewHandbook() : viewUsers();
     }
     if (h.indexOf("#/ops") === 0) {

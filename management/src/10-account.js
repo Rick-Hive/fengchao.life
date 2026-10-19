@@ -265,7 +265,7 @@
   // 登录与安全 (Rick, 2026-10-02): 1 重置密码 · 2 登录记录 · 3 账号变动 · 4 验证器设备
   // ================================================================================
   function viewSecurity() {
-    setTitle(t("我的账号", "My account"), t("登录与安全", "Sign-in and security"), "", t("密码、登录记录和能批准您登录的设备。", "Password, sign-in records and the devices that approve your sign-ins."));
+    setTitle(t("我的账号", "My account"), t("Teams 登录与安全", "Teams sign-in and security"), "", t("密码、登录记录和能批准您登录的设备。", "Password, sign-in records and the devices that approve your sign-ins."));
     var ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;
     var admins = (me.hive && me.hive.admins) || [];
