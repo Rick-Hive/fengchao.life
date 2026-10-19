@@ -1711,7 +1711,15 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(barPos.scroll > 100 && barPos.bar - barPos.content <= 1 && barPos.on && barPos.on.sec === "ops", "after jumping to 经营字段 the bar is still at the top and that tab is lit: " + JSON.stringify(barPos));
     await p.click('#cosecnav a[data-sec="basic"]'); await p.waitForTimeout(900);
     await p.click('.colang button[data-lang="zh"]'); await p.waitForTimeout(200);
-    assert.ok(/【译】Cells/.test(await p.$eval('.cof[data-k="descriptionZh"]', e => e.value)) && /译/.test(await p.$eval('.corowf[data-row="description"] .colab', e => e.innerText)), "the Chinese side shows the machine translation with its tag");
+    assert.ok(/【译】Cells/.test(await p.$eval('.cotext[data-open="descriptionZh"]', e => e.innerText)) && /译/.test(await p.$eval('.corowf[data-row="description"] .colab', e => e.innerText)), "the Chinese side shows the machine translation with its tag");
+    // long text opens in a large editor window (Rick, 2026-10-19: like expanding an Airtable cell); typing there autosaves
+    assert.ok(!(await p.$('.corowf[data-row="description"] textarea')), "no textarea in the form for the description");
+    await p.click('.cotext[data-open="descriptionZh"]'); await p.waitForSelector("#coTextWin:not([hidden]) textarea.cobig");
+    await p.fill("#coTextWin textarea.cobig", "细胞、遗传与生态（九年级）。"); await p.waitForTimeout(1900);
+    const pd = coPatches.filter(x => x.key === "descriptionZh"); assert.ok(pd.length >= 1 && pd[pd.length - 1].value === "细胞、遗传与生态（九年级）。", "the window saves like the form: " + JSON.stringify(pd));
+    await p.screenshot({ path: OUT + "/courses-textwin.png" });
+    await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+    assert.ok(await p.$eval("#coTextWin", e => e.hidden) && /细胞、遗传/.test(await p.$eval('.cotext[data-open="descriptionZh"]', e => e.innerText)), "Esc closes the window and the form shows the new text");
     await p.screenshot({ path: OUT + "/courses-editor.png" });
     // the field panel: both languages and the history
     await p.hover('.corowf[data-row="description"]'); await p.click('.codetail[data-detail="description"]'); await p.waitForSelector("#panel.open");

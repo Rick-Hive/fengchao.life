@@ -1211,6 +1211,24 @@ body.coedit .content > * { max-width: none; }
 .cochip-menu div.cur, .cochip-menu div:hover { background: var(--accent-soft); color: var(--accent-dark); }
 .cochip-menu div.faint { cursor: default; background: none; color: var(--faint); }
 .cochip-menu mark { background: none; color: var(--accent-dark); font-weight: 700; }
+/* long text: a clamped preview that opens the large editor window (Airtable-style expand) */
+.cotext { position: relative; min-height: 38px; max-height: 7.5em; overflow: hidden; padding: 8px 34px 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer; }
+.cotext.empty { color: var(--faint); }
+.cotext:hover, .cotext:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: 0; }
+.cotext::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.6em; background: linear-gradient(rgba(255,255,255,0), var(--card)); pointer-events: none; }
+.cotext .coexpand { position: absolute; top: 6px; right: 8px; font-size: 14px; color: var(--muted); }
+.cotext:hover .coexpand { color: var(--accent-dark); }
+.cotextwin { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; }
+.cotextwin[hidden] { display: none; }
+.cotextwin-scrim { position: absolute; inset: 0; background: rgba(15, 32, 60, 0.12); }
+.cotextwin-box { position: relative; width: min(820px, calc(100vw - 32px)); height: min(72vh, 640px); display: flex; flex-direction: column; background: var(--card); border-radius: 12px; box-shadow: 0 16px 48px -12px rgba(15, 32, 60, 0.45); border: 1px solid var(--line-strong); padding: 8px 8px 8px; }
+.cotextwin.anchored .cotextwin-box { position: fixed; } /* placed by coTextOpen() over the field itself */
+.cotextwin-head { padding: 0 4px; }
+.cotextwin-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 13.5px; }
+.cotextwin-head .btn { margin-left: auto; }
+.cotextwin-head .faint { font-size: 12px; }
+.cotextwin textarea.cobig { flex: 1; width: 100%; resize: none; font: inherit; font-size: 13.5px; line-height: 1.55; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.cotextwin textarea.cobig:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .cofiles { display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--line-strong); border-radius: 8px; padding: 8px 10px; }
 .cofiles.over { border-color: var(--accent); background: var(--accent-soft); }
 .cofile { display: flex; align-items: center; gap: 8px; font-size: 13px; }

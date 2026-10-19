@@ -265,8 +265,10 @@
     switch (k) {
       case "name": body = '<input type="text" class="cof" data-k="' + pairKey + '" value="' + esc(f[pairKey] || "") + '" maxlength="120"' + (can ? "" : " readonly") + ' placeholder="' + esc(co.lang === "en" ? "Course name" : "课程名称") + '" />'; break;
       case "description": case "prerequisite": case "comments": {
-        var key = k === "description" ? pairKey : k;
-        body = '<textarea class="cof coauto" data-k="' + key + '" rows="' + (k === "description" ? 6 : 2) + '"' + (can ? "" : " readonly") + '>' + esc(f[key] || "") + "</textarea>"; break;
+        // Long text opens in a large editor window, like expanding an Airtable cell (Rick, 2026-10-19: 「点击字段弹出
+        // 一个大编辑窗来改，而不是在表单里直接编辑」); the form shows the text itself, clamped.
+        var key = k === "description" ? pairKey : k, txt = f[key] || "";
+        body = '<div class="cotext' + (txt ? "" : " empty") + '" data-open="' + key + '" data-field="' + k + '" role="button" tabindex="0" title="' + esc(t("点击打开编辑窗", "Click to open the editor")) + '">' + (txt ? esc(txt) : esc(can ? t("点击填写…", "Click to write…") : t("（空）", "(empty)"))) + '<span class="coexpand" aria-hidden="true">⤢</span></div>'; break;
       }
       case "classTime": body = '<input type="text" class="cof" data-k="classTime" value="' + esc(f.classTime || "") + '" maxlength="500"' + (can ? "" : " readonly") + ' />'; break;
       case "creditHours": case "numClasses": case "price": body = '<input type="number" class="cof conum" data-k="' + k + '" value="' + esc(f[k] == null ? "" : f[k]) + '" min="0" step="' + (k === "creditHours" ? "0.5" : "1") + '"' + (can ? "" : " readonly") + ' />' + (k === "price" ? ' <span class="faint">' + t("¥ 人民币", "¥ RMB (CNY)") + "</span>" : ""); break;
@@ -383,10 +385,13 @@
     var root = $("coed");
     $("content").onscroll = coSpy; coSpy();
     root.querySelectorAll("textarea.coauto").forEach(coAutosize);
+    // the large editor window for long text (description / prerequisite / comments)
+    root.addEventListener("click", function (e) { var box = e.target.closest(".cotext[data-open]"); if (box) coTextOpen(box.getAttribute("data-open"), box.getAttribute("data-field")); });
+    root.addEventListener("keydown", function (e) { var box = e.target.closest && e.target.closest(".cotext[data-open]"); if (box && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); coTextOpen(box.getAttribute("data-open"), box.getAttribute("data-field")); } });
     // text / number / checkbox: save after 1.5 s idle or on blur
     root.addEventListener("input", function (e) {
       var el = e.target; if (!el.classList.contains("cof")) return;
-      if (el.tagName === "TEXTAREA") coAutosize(el);
+      if (el.tagName === "TEXTAREA" && el.classList.contains("coauto")) coAutosize(el);
       var k = el.getAttribute("data-k"), v = el.type === "checkbox" ? el.checked : el.type === "number" ? (el.value === "" ? null : Number(el.value)) : el.value;
       if (el.type === "checkbox") el.parentNode.querySelector("span").textContent = el.checked ? t("是", "Yes") : t("否", "No");
       coQueue(k, v, el.type === "checkbox" ? 0 : 1500);
@@ -515,6 +520,27 @@
     ["name", "description"].forEach(coRepaintLabel);
   }
   function coRepaintLabel(k) { var row = document.querySelector('.corowf[data-row="' + k + '"]'); if (!row) return; var tmp = document.createElement("div"); tmp.innerHTML = coFieldHTML(k); row.querySelector(".colab").innerHTML = tmp.querySelector(".colab").innerHTML; tipify(row); }
+  function coTextOpen(key, k) {
+    var root = $("coed"); if (!root) return;
+    var can = co.editable && co.editable[key] !== false && !(coIsViewer() && !coIsApprover());
+    var lang = /En$/.test(key) ? "EN" : /Zh$/.test(key) ? "ZH" : "";
+    var w = $("coTextWin") || root.appendChild(Object.assign(document.createElement("div"), { id: "coTextWin", className: "cotextwin" }));
+    w.innerHTML = '<div class="cotextwin-scrim"></div><div class="cotextwin-box" role="dialog" aria-modal="true"><div class="cotextwin-head"><b>' + esc(coLabel(k)) + (lang ? ' <span class="cotag">' + lang + "</span>" : "") + "</b>" + (can ? "" : '<span class="cotag ro">' + t("只读", "Read only") + "</span>") + '<button type="button" class="btn sm" id="coTextDone">' + t("完成", "Done") + '</button></div><textarea class="cof cobig" data-k="' + esc(key) + '"' + (can ? "" : " readonly") + ' placeholder="' + esc(CO_HINT[k] ? t(CO_HINT[k][0], CO_HINT[k][1]) : "") + '">' + esc(co.course.fields[key] || "") + "</textarea></div>";
+    w.hidden = false; co.textWin = { key: key, k: k };
+    // Opens in place, like Airtable expanding a cell (Rick, 2026-10-19: a centred window 「will look odd」): the box
+    // sits exactly where the field is, same left edge and width, and grows downward; near the bottom it slides up.
+    var box = w.querySelector(".cotextwin-box"), src = document.querySelector('.cotext[data-open="' + key + '"]');
+    if (src && window.innerWidth > 700) {
+      var r = src.getBoundingClientRect(), h = Math.min(480, Math.round(window.innerHeight * 0.6)), top = r.top - 6;
+      if (top + h > window.innerHeight - 12) top = Math.max(12, window.innerHeight - 12 - h);
+      box.style.left = Math.round(r.left - 8) + "px"; box.style.top = Math.round(top) + "px"; box.style.width = Math.round(r.width + 16) + "px"; box.style.height = h + "px"; w.classList.add("anchored");
+    } else { box.style.cssText = ""; w.classList.remove("anchored"); }
+    var ta = w.querySelector("textarea"); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+    function close() { if (w.hidden) return; coFlush(key); w.hidden = true; co.textWin = null; coRepaintField(k); var back = document.querySelector('.cotext[data-open="' + key + '"]'); if (back) back.focus(); }
+    w.querySelector("#coTextDone").onclick = close;
+    w.querySelector(".cotextwin-scrim").onclick = close;
+    w.onkeydown = function (e) { if (e.key === "Escape") { e.preventDefault(); close(); } };
+  }
   function coRepaintField(k) { var row = document.querySelector('.corowf[data-row="' + k + '"]'); if (!row) return; var tmp = document.createElement("div"); tmp.innerHTML = coFieldHTML(k); row.innerHTML = tmp.firstChild.innerHTML; row.querySelectorAll("textarea.coauto").forEach(coAutosize); tipify(row); coPreviewSoon(); }
   function coRefreshBar() { var tmp = document.createElement("div"); tmp.innerHTML = coBarHTML(); $("coed").replaceChild(tmp.firstChild, $("coed").querySelector(".cobar")); coSpy(); $("costeps").innerHTML = coStepsHTML(); $("coreturned").innerHTML = coReturnedHTML(); }
   function coRepaintAll() { var y = $("content").scrollTop; coRenderEditor(); $("content").scrollTop = y; }
