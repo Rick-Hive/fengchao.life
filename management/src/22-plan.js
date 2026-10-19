@@ -10,10 +10,10 @@
   // 选择，不应该受此影响」— so the website's wizard no longer applies the school edition; this page
   // is where a family reads it).
   //
-  // Server: GET /api/school-plan?view=1 (anyone: published + Hive's defaults, read-only) and
+  // Server: GET /api/school-plan?view=1 (anyone: published + the system defaults, read-only) and
   // GET/PUT /api/school-plan?domain= (editors: the DRAFT; 发布 copies it to what the school's
-  // people see here; 撤回发布 takes it away). A track or a stage the school leaves "蜂巢默认"
-  // is simply absent from the document, so Hive's own figures / map show for it.
+  // people see here; 撤回发布 takes it away). A track or a stage the school leaves "系统默认"
+  // is simply absent from the document, so the system's own figures / map show for it.
   //
   // Layout (Rick, 2026-10-19): one page, no tabs. A 毕业路径 select at the top drives both
   // cards: 「高中毕业要求」 for that track, 「课程地图」 for the stage chosen in the card's head,
@@ -87,14 +87,14 @@
     // Same shape as every other page (Rick, 2026-10-13: 「head设计太差了」): the actions sit in the top
     // bar beside the title; the row below carries the track select, the school picker and the status.
     plInitPref();
-    var plActions = plState.canEdit ? '<button class="btn secondary sm" id="plReset">' + t("重置为蜂巢默认", "Reset to Hive defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <button class="btn secondary sm" id="plSave">' + t("保存草稿", "Save draft") + '</button> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>" : "";
+    var plActions = plState.canEdit ? '<button class="btn secondary sm" id="plReset">' + t("重置为系统默认", "Reset to System defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <button class="btn secondary sm" id="plSave">' + t("保存草稿", "Save draft") + '</button> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>" : "";
     setTitle(t("我的账号", "My account"), t("毕业要求与课程地图", "Graduation requirements & curriculum map"), plActions,
       { info: plState.canEdit
-        ? t("本校的高中毕业要求和课程地图。上面选一条毕业路径，两张卡片都按它显示。每条路径的学分要求可以改成本校的数字（留空沿用蜂巢默认，勾「不要求」则隐藏该行），课程地图可以从蜂巢默认复制后改。保存是草稿；发布后本校所有登录的人在这里看到的就是学校版本；撤回发布回到蜂巢默认。", "The school's high-school graduation requirements and curriculum map. Pick a graduation track above; both cards follow it. Each track's credits can be the school's own (blank = Hive's default, Not required hides the row); the map can be copied from Hive's and changed. Save keeps a draft; Publish makes it what everyone of the school sees here; Unpublish returns to Hive's defaults.")
-        : t("你所在学校的高中毕业要求和课程地图。上面选一条毕业路径查看。学校发布了自己的版本就显示学校版本，否则显示蜂巢默认。网站上的选课向导不受这里影响，可以任意组合。", "Your school's high-school graduation requirements and curriculum map. Pick a graduation track above. The school's own edition shows when it published one, otherwise Hive's defaults. The website's course wizard is independent of this page.") });
+        ? t("本校的高中毕业要求和课程地图。上面选一条毕业路径，两张卡片都按它显示。每条路径的学分要求可以改成本校的数字（留空沿用系统默认，勾「不要求」则隐藏该行），课程地图可以从系统默认复制后改。保存是草稿；发布后本校所有登录的人在这里看到的就是学校版本；撤回发布回到系统默认。", "The school's high-school graduation requirements and curriculum map. Pick a graduation track above; both cards follow it. Each track's credits can be the school's own (blank = the system default, Not required hides the row); the map can be copied from Hive's and changed. Save keeps a draft; Publish makes it what everyone of the school sees here; Unpublish returns to the system defaults.")
+        : t("你所在学校的高中毕业要求和课程地图。上面选一条毕业路径查看。学校发布了自己的版本就显示学校版本，否则显示系统默认。网站上的选课向导不受这里影响，可以任意组合。", "Your school's high-school graduation requirements and curriculum map. Pick a graduation track above. The school's own edition shows when it published one, otherwise the system defaults. The website's course wizard is independent of this page.") });
     $("content").innerHTML =
       '<div class="pagetabs plbar" id="pltabs">' + plBarHtml() +
-        '<div class="tabsRight">' + (plState.canEdit && ds.length > 1 ? '<select id="plsel">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === plState.domain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select>" : "") + '<span id="plstatus" class="muted"></span></div></div>' +
+        (plState.canEdit && ds.length > 1 ? '<div class="tabsRight"><select id="plsel">' + ds.map(function (d) { return '<option value="' + esc(d.domain) + '"' + (d.domain === plState.domain ? " selected" : "") + ">" + esc(dname(d.domain)) + "</option>"; }).join("") + "</select></div>" : "") + "</div>" +
       '<div id="plmsg"></div><div id="plbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     var sel = $("plsel");
     if (sel) sel.addEventListener("change", function () { if (plState.dirty && !window.confirm(t("有未保存的修改，切换学校会丢失。继续？", "Unsaved changes will be lost. Switch school?"))) { this.value = plState.domain; return; } plState.domain = this.value; loadPlan(); });
@@ -108,8 +108,8 @@
     if (plState.canEdit) {
       $("plSave").addEventListener("click", function () { savePlan(false); });
       $("plPub").addEventListener("click", function () { if (window.confirm(t("发布后，本校所有登录的人在这里看到的就是这个版本。发布？", "Once published, everyone of the school sees this version here. Publish?"))) savePlan(true); });
-      $("plUnpub").addEventListener("click", function () { if (!window.confirm(t("撤回后本校的人重新看到蜂巢默认的学分要求和课程地图（草稿保留）。撤回？", "The school's people go back to Hive's default requirements and map (the draft is kept). Unpublish?"))) return; var b = $("plUnpub"); savingButton(b, t("撤回中…", "Unpublishing…")); post("school-plan", "PUT", { domain: plState.domain, unpublish: true }).then(function (r) { restoreButton(b); if (!r.ok) { plMsg(errText(r), true); return; } plState.data = Object.assign({}, plState.data, r.body); plStatus(); flashOk(t("已撤回发布。", "Unpublished.")); }); });
-      $("plReset").addEventListener("click", function () { if (!window.confirm(t("把草稿全部清空（每条路径和每个阶段都回到蜂巢默认）？保存后才生效。", "Clear the whole draft (every track and stage back to Hive's defaults)? Takes effect when saved."))) return; plState.draft = { tracks: {}, map: {} }; plState.dirty = true; renderPlan(); });
+      $("plUnpub").addEventListener("click", function () { if (!window.confirm(t("撤回后本校的人重新看到系统默认的学分要求和课程地图（草稿保留）。撤回？", "The school's people go back to the system default requirements and map (the draft is kept). Unpublish?"))) return; var b = $("plUnpub"); savingButton(b, t("撤回中…", "Unpublishing…")); post("school-plan", "PUT", { domain: plState.domain, unpublish: true }).then(function (r) { restoreButton(b); if (!r.ok) { plMsg(errText(r), true); return; } plState.data = Object.assign({}, plState.data, r.body); plStatus(); flashOk(t("已撤回发布。", "Unpublished.")); }); });
+      $("plReset").addEventListener("click", function () { if (!window.confirm(t("把草稿全部清空（每条路径和每个阶段都回到系统默认）？保存后才生效。", "Clear the whole draft (every track and stage back to the system defaults)? Takes effect when saved."))) return; plState.draft = { tracks: {}, map: {} }; plState.dirty = true; renderPlan(); });
     }
     bindPlan(); // once per page: the listeners sit on #plbody, whose contents renderPlan() replaces
     loadPlan();
@@ -117,13 +117,16 @@
   function plBarHtml() {
     var kids = plChildren(), p = plState.pref || {};
     // 查看: a child from 补充资料, or 我自己 (a student, or anyone choosing by hand)
-    return (kids.length ? '<label class="plsel">' + t("查看", "For") + ' <select id="plChild">' + kids.map(function (k, i) { return '<option value="' + i + '"' + (p.child === i ? " selected" : "") + ">" + esc(k.name || t("孩子 ", "Child ") + (i + 1)) + (k.grade ? " · " + esc(plGradeLabel(String(k.grade))) : "") + "</option>"; }).join("") + '<option value=""' + (p.child == null ? " selected" : "") + ">" + t("我自己", "Myself") + "</option></select></label>" : "") + plSelsHtml();
+    // no child on file (common — Rick, 2026-10-19): the person chooses by hand, the choice is kept, and a
+    // quiet pointer to 补充资料 says where the children go so next time it is pre-filled
+    var noKids = !kids.length && !(me && me.hive && me.hive.identity === "学生") ? '<a class="plsel plhint" href="#/account">' + t("有孩子？在个人资料里登记后这里自动带出", "Have children? Add them in the profile and this fills itself") + "</a>" : "";
+    return (kids.length ? '<label class="plsel">' + t("查看", "For") + ' <select id="plChild">' + kids.map(function (k, i) { return '<option value="' + i + '"' + (p.child === i ? " selected" : "") + ">" + esc(k.name || t("孩子 ", "Child ") + (i + 1)) + (k.grade ? " · " + esc(plGradeLabel(String(k.grade))) : "") + "</option>"; }).join("") + '<option value=""' + (p.child == null ? " selected" : "") + ">" + t("我自己", "Myself") + "</option></select></label>" : "") + plSelsHtml() + noKids;
   }
   function plSelsHtml() {
     var p = plState.pref || {};
     var opt = function (v, label, cur) { return '<option value="' + v + '"' + (v === cur ? " selected" : "") + ">" + esc(label) + "</option>"; };
-    return '<span class="plsels"><label class="plsel">' + t("教学模式", "Pedagogy") + ' <select id="plPed">' + opt("classical", t("古典教育", "Classical"), p.pedagogy) + opt("nonclassical", t("非古典教育", "Non-classical"), p.pedagogy) + "</select></label>" +
-      '<label class="plsel">' + t("高等教育方向", "Higher-education direction") + ' <select id="plMode">' + opt("international", t("国际", "International"), p.mode) + opt("domestic", t("国内", "Domestic"), p.mode) + opt("hybrid", t("混合 2+2", "Hybrid 2+2"), p.mode) + "</select></label>" +
+    return '<span class="plsels"><label class="plsel">' + t("教学法", "Pedagogy") + ' <select id="plPed">' + opt("classical", t("古典教育", "Classical"), p.pedagogy) + opt("nonclassical", t("非古典", "Non-classical"), p.pedagogy) + "</select></label>" +
+      '<label class="plsel">' + t("高等教育方向", "Direction") + ' <select id="plMode">' + opt("international", t("国际", "International"), p.mode) + opt("domestic", t("国内", "Domestic"), p.mode) + opt("hybrid", t("混合 2+2", "Hybrid 2+2"), p.mode) + "</select></label>" +
       '<label class="plsel">' + t("年级", "Grade") + ' <select id="plGrade">' + PL_GRADES.map(function (g) { return opt(g, plGradeLabel(g), p.grade); }).join("") + "</select></label></span>";
   }
   function plMsg(text, bad) { $("plmsg").innerHTML = text ? '<div class="msg ' + (bad ? "err" : "ok") + '">' + esc(text) + "</div>" : ""; }
@@ -133,20 +136,17 @@
     return api(url).then(function (r) {
       if (!r.ok) { $("plbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
       plState.data = r.body; if (!plState.canEdit) plState.domain = r.body.domain || "";
-      // editors work on the draft; everyone else reads what is published (nothing published = Hive's defaults)
+      // editors work on the draft; everyone else reads what is published (nothing published = the system defaults)
       plState.draft = plFromBlob(r.body.plan && (plState.canEdit ? r.body.plan.draft : r.body.plan.published)); plState.dirty = false;
       plApplyPref();
       plStatus(); renderPlan();
     });
   }
+  // No status line in the bar (Rick, 2026-10-19: 「delete this … move the second line above」): the card tags say
+  // 系统默认 / 本校版本 / 学校版本, and 撤回发布 shows only while something is published.
   function plStatus() {
     var d = plState.data, p = d && d.plan; if (!d) return;
-    var pub = p && p.published;
-    var school = d.school && (pickName(d.school.name, d.school.nameEn) || d.school.domain) || dname(plState.domain);
-    if (!plState.canEdit) { $("plstatus").innerHTML = esc(school) + " · " + (pub ? '<span class="tag ok">' + t("学校版本", "School edition") + "</span> " + esc(day(pub.at)) : '<span class="tag muted">' + t("蜂巢默认", "Hive default") + "</span>"); return; }
-    $("plstatus").innerHTML = (pub ? '<span class="tag ok">' + t("已发布", "Published") + "</span> " + esc(when(pub.at)) + (pub.by ? " · " + esc(pub.by) : "") : '<span class="tag muted">' + t("未发布（本校看到蜂巢默认）", "Not published (the school sees Hive's defaults)") + "</span>") +
-      (p && p.updatedAt ? ' · ' + t("草稿 ", "Draft ") + esc(when(p.updatedAt)) : "");
-    $("plUnpub").hidden = !pub;
+    if ($("plUnpub")) $("plUnpub").hidden = !(p && p.published);
   }
   function savePlan(publish) {
     var b = publish ? $("plPub") : $("plSave"); savingButton(b, publish ? t("发布中…", "Publishing…") : undefined);
@@ -163,24 +163,25 @@
   function renderPlan() { if (!plState.data || !$("plbody")) return; $("plbody").innerHTML = planCreditsHtml() + planMapHtml(); }
   // The switch in a card's head (editors only): compact, no second line (Rick, 2026-10-19: 「单独占据了 1 行，实在不应该」).
   function plOwnSwitch(id, on, label, hint) { return plState.canEdit ? '<label class="sw head" title="' + esc(hint) + '"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + ' /><span class="track"></span><span class="swt">' + esc(label) + "</span></label>" : ""; }
-  function plEditionTag(on) { return on ? ' <span class="tag ok">' + t("本校版本", "School edition") + "</span>" : ' <span class="tag muted">' + t("蜂巢默认", "Hive default") + "</span>"; }
+  // the edition tag: 本校版本 / 学校版本, or 系统默认 (Rick, 2026-10-19: not "系统默认")
+  function plEditionTag(on) { return on ? ' <span class="tag ok">' + (plState.canEdit ? t("本校版本", "School edition") : t("学校版本", "School edition")) + "</span>" : ' <span class="tag muted">' + t("系统默认", "System default") + "</span>"; }
 
   // ---- 毕业学分要求 ------------------------------------------------------------------
   function planCreditsHtml() {
     var dfl = plState.data.defaults || {}, trs = dfl.tracks || [];
-    if (!trs.length) return '<div class="card"><p class="sub">' + t("蜂巢的数据快照里还没有毕业路径。", "Hive's data snapshot has no graduation tracks yet.") + "</p></div>";
+    if (!trs.length) return '<div class="card"><p class="sub">' + t("数据快照里还没有毕业路径。", "The data snapshot has no graduation tracks yet.") + "</p></div>";
     var tr = trs.filter(function (x) { return String(x.trackId) === plState.track; })[0];
-    if (!tr) return '<div class="card"><p class="sub">' + t("蜂巢的数据快照里没有这条毕业路径。", "Hive's data snapshot has no such graduation track.") + "</p></div>";
+    if (!tr) return '<div class="card"><p class="sub">' + t("数据快照里没有这条毕业路径。", "Hive's data snapshot has no such graduation track.") + "</p></div>";
     var ov = plState.draft.tracks[plState.track], edit = plState.canEdit && !!ov;
     // a K–8 child: the requirements apply from G9 — one line, not a whole card (readers only; editors always see it)
     if (!plState.canEdit && plState.stage !== "rhetoric") return '<div class="card plcard plfold"><div class="ch plhead"><h2>' + t("高中毕业要求", "High-school graduation requirements") + ' <span class="muted">' + esc(plTrackName(tr)) + "</span>" + plEditionTag(!!ov) + '</h2><span class="muted">' + t("升到 G9 后适用；上面把年级改到 9–12 可以先看。", "Applies from G9; set the grade to 9–12 above to read it now.") + "</span></div></div>";
     var unit = t("学分", "credits");
     var head = '<div class="card plcard"><div class="ch plhead"><h2>' + t("高中毕业要求", "High-school graduation requirements") + ' <span class="muted">' + esc(plTrackName(tr)) + "</span>" + plEditionTag(!!ov) + "</h2>" +
-      plOwnSwitch("plOwn", !!ov, t("本校自定义", "School's own"), t("打开：本校设置这条路径的学分要求；关闭：显示蜂巢默认的数字。", "On: the school sets this track's requirements; off: Hive's figures show.")) + "</div>";
+      plOwnSwitch("plOwn", !!ov, t("本校自定义", "School's own"), t("打开：本校设置这条路径的学分要求；关闭：显示系统默认的数字。", "On: the school sets this track's requirements; off: the system figures show.")) + "</div>";
     if (!edit) {
-      // read-only: Hive's figures, or the school's over them
+      // read-only: the system figures, or the school's over them
       var o = ov || { credits: {}, notes: {} };
-      var rowsR = PL_CREDITS.map(function (c) { var dv = tr.credits ? tr.credits[c[0]] : null, has = Object.prototype.hasOwnProperty.call(o.credits, c[0]), v = has ? o.credits[c[0]] : dv; return v == null ? "" : "<tr><td>" + esc(t(c[1], c[2])) + '</td><td class="num">' + esc(String(v)) + (has && dv != null && v !== dv ? ' <small class="muted">(' + t("蜂巢 ", "Hive ") + esc(String(dv)) + ")</small>" : "") + "</td></tr>"; }).join("");
+      var rowsR = PL_CREDITS.map(function (c) { var dv = tr.credits ? tr.credits[c[0]] : null, has = Object.prototype.hasOwnProperty.call(o.credits, c[0]), v = has ? o.credits[c[0]] : dv; return v == null ? "" : "<tr><td>" + esc(t(c[1], c[2])) + '</td><td class="num">' + esc(String(v)) + (has && dv != null && v !== dv ? ' <small class="muted">(' + t("系统 ", "system ") + esc(String(dv)) + ")</small>" : "") + "</td></tr>"; }).join("");
       var total = ov && ov.totalCredits != null ? ov.totalCredits : tr.totalCredits, hours = ov && ov.serviceHours != null ? ov.serviceHours : tr.serviceHours;
       var note = ov && (o.notes.zh || o.notes.en) ? pickName(o.notes.zh, o.notes.en) : pickName(tr.commentsZh, tr.commentsEn);
       return head + '<table class="data"><thead><tr><th>' + t("科目", "Subject") + '</th><th class="num">' + unit + "</th></tr></thead><tbody>" + rowsR +
@@ -192,11 +193,11 @@
       return '<tr data-k="' + k + '"><td>' + esc(t(c[1], c[2])) + '</td><td class="num muted">' + esc(dv == null ? "—" : String(dv)) + '</td><td class="num"><input type="number" min="0" step="0.5" class="sm" style="width:90px" data-credit="' + k + '" value="' + esc(has && v != null ? String(v) : "") + '" placeholder="' + esc(dv == null ? "" : String(dv)) + '"' + (off ? " disabled" : "") + ' /></td><td><label class="chk"><input type="checkbox" data-off="' + k + '"' + (off ? " checked" : "") + " /> " + t("不要求", "Not required") + "</label></td></tr>";
     }).join("");
     return head +
-      '<table class="data"><thead><tr><th>' + t("科目", "Subject") + '</th><th class="num">' + t("蜂巢默认", "Hive default") + '</th><th class="num">' + t("本校要求", "School") + "</th><th></th></tr></thead><tbody>" + rows +
+      '<table class="data"><thead><tr><th>' + t("科目", "Subject") + '</th><th class="num">' + t("系统默认", "System default") + '</th><th class="num">' + t("本校要求", "School") + "</th><th></th></tr></thead><tbody>" + rows +
       "<tr><td><b>" + t("总学分", "Total credits") + '</b></td><td class="num muted">' + esc(tr.totalCredits == null ? "—" : String(tr.totalCredits)) + '</td><td class="num"><input type="number" min="0" step="0.5" class="sm" style="width:90px" id="plTotal" value="' + esc(ov.totalCredits == null ? "" : String(ov.totalCredits)) + '" placeholder="' + esc(tr.totalCredits == null ? "" : String(tr.totalCredits)) + '" /></td><td></td></tr>' +
       "<tr><td>" + t("服务小时", "Service hours") + '</td><td class="num muted">' + esc(tr.serviceHours == null ? "—" : String(tr.serviceHours)) + '</td><td class="num"><input type="number" min="0" step="1" class="sm" style="width:90px" id="plHours" value="' + esc(ov.serviceHours == null ? "" : String(ov.serviceHours)) + '" placeholder="' + esc(tr.serviceHours == null ? "" : String(tr.serviceHours)) + '" /></td><td></td></tr></tbody></table>' +
-      '<p class="sub" style="margin:8px 0 4px">' + t("留空 = 沿用蜂巢默认；单位：", "Blank = Hive's default; unit: ") + unit + "</p>" +
-      '<div class="grid2" style="margin-top:8px"><label class="f">' + t("学校说明（中文）", "School note (Chinese)") + '<textarea id="plNoteZh" rows="3">' + esc(ov.notes.zh || "") + '</textarea><small>' + t("替代蜂巢的备注；两种语言都留空则显示蜂巢的。", "Replaces Hive's note; both blank = Hive's note.") + '</small></label><label class="f">' + t("学校说明（英文）", "School note (English)") + '<textarea id="plNoteEn" rows="3">' + esc(ov.notes.en || "") + "</textarea></label></div></div>";
+      '<p class="sub" style="margin:8px 0 4px">' + t("留空 = 沿用系统默认；单位：", "Blank = the system default; unit: ") + unit + "</p>" +
+      '<div class="grid2" style="margin-top:8px"><label class="f">' + t("学校说明（中文）", "School note (Chinese)") + '<textarea id="plNoteZh" rows="3">' + esc(ov.notes.zh || "") + '</textarea><small>' + t("替代系统的备注；两种语言都留空则显示系统的。", "Replaces the system note; both blank = the system note.") + '</small></label><label class="f">' + t("学校说明（英文）", "School note (English)") + '<textarea id="plNoteEn" rows="3">' + esc(ov.notes.en || "") + "</textarea></label></div></div>";
   }
 
   // ---- 课程地图 --------------------------------------------------------------------
@@ -208,7 +209,7 @@
     var trName = plTrackName((dfl.tracks || []).filter(function (x) { return String(x.trackId) === plState.track; })[0]);
     var head = '<div class="card plcard"><div class="ch plhead"><h2>' + t("课程地图", "Curriculum map") + ' <span class="muted">' + esc(plStageLabel(st, plState.pref.pedagogy)) + " · " + esc(trName) + "</span>" + plEditionTag(!!own) + "</h2>" +
       (edit ? '<label class="chk plall"><input type="checkbox" id="plAllRows"' + (plState.allRows ? " checked" : "") + " /> " + t("显示所有路径的行", "Rows of every track") + "</label>" : "") +
-      plOwnSwitch("plOwnMap", !!own, t("本校自定义", "School's own"), t("打开：从蜂巢默认地图复制一份作为起点，本校自己编排这个阶段；关闭：显示蜂巢默认的地图。", "On: start from a copy of Hive's map and lay out this stage yourself; off: Hive's map shows.")) + "</div>";
+      plOwnSwitch("plOwnMap", !!own, t("本校自定义", "School's own"), t("打开：从系统默认地图复制一份作为起点，本校自己编排这个阶段；关闭：显示系统默认的地图。", "On: start from a copy of the system map and lay out this stage yourself; off: the system map shows.")) + "</div>";
     var forTrack = function (r) { return plState.allRows && edit ? true : plRowForTrack(r, st); };
     // A cell shows its courses as chips; in the editor the whole cell is the editing area: click → a textarea
     // filling the cell (Rick, 2026-10-19: 「编辑口特别小……参考 Airtable」), blur → chips again.
@@ -253,7 +254,7 @@
     }).join("");
     return head + '<div class="tbl-wrap"><table class="data plmap edit">' + thead + "<tbody>" + rows + "</tbody></table></div>" +
       (hidden ? '<p class="sub" style="margin-top:6px">' + hidden + t(" 行属于其它路径，勾「显示所有路径的行」可见。", " row(s) belong to other tracks — tick “Rows of every track” to see them.") + "</p>" : "") +
-      '<div class="actions" style="margin-top:8px"><button type="button" class="btn secondary sm" id="plAddRow">' + t("＋ 添加一行", "+ Add a row") + '</button> <button type="button" class="btn secondary sm" id="plCopyDefault">' + t("从蜂巢默认重新复制", "Copy Hive's map again") + "</button></div>" +
+      '<div class="actions" style="margin-top:8px"><button type="button" class="btn secondary sm" id="plAddRow">' + t("＋ 添加一行", "+ Add a row") + '</button> <button type="button" class="btn secondary sm" id="plCopyDefault">' + t("从系统默认重新复制", "Copy the system map again") + "</button></div>" +
       '<p class="sub" style="margin-top:8px">' + t("点一个格子就能写：课程名用 英文 / 中文，多门课用分号或换行，离开格子即保存到草稿。行的科目决定家长点格子时看到哪些蜂巢课程。", "Click a cell to write: English / 中文 per course, several courses by semicolons or line breaks; leaving the cell keeps it in the draft. A row's subject decides which Hive courses families see when they tap a cell.") + "</p></div>";
   }
 
@@ -289,7 +290,7 @@
     body.addEventListener("click", function (e) {
       var c, dfl = (plState.data && plState.data.defaults) || {};
       if (e.target.closest("#plAddRow")) { var m = plState.draft.map[plState.stage], st0 = plState.stage; m.rows.push({ id: "n-" + Date.now().toString(36), subjects: dfl.subjects && dfl.subjects[0] ? [Object.assign({}, dfl.subjects[0])] : [], trackIds: st0 === "rhetoric" && !plState.allRows ? [Number(plState.track)] : [], pedagogy: st0 === "dialectic" && !plState.allRows ? plTrackPedagogy(plState.track) : null, spanAll: false, cells: {} }); plState.dirty = true; renderPlan(); return; }
-      if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用蜂巢默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with Hive's map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plState.dirty = true; renderPlan(); return; }
+      if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plState.dirty = true; renderPlan(); return; }
       // a cell opens into a textarea that fills it; the chip picker for tracks
       var cell = e.target.closest(".plcell.edit");
       if (cell && !cell.querySelector("textarea")) { plOpenCell(cell); return; }

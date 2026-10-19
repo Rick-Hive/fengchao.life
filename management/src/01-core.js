@@ -272,6 +272,13 @@
     else { fetch("/api/logout", { method: "POST", credentials: "same-origin" }).catch(function () {}).then(function () { location.replace("/?signedout=user"); }); }
   });
   function closeDrawer() { $("side").classList.remove("open"); $("scrim").classList.remove("show"); }
+  // The sidebar collapses and comes back any time (Rick, 2026-10-19: 「左边的操作栏要求随时可以缩进或打开」);
+  // the choice is remembered per browser. On a phone the drawer stays as it is.
+  function sideHidden() { try { return localStorage.getItem("fc-side") === "hide"; } catch (e) { return false; } }
+  function setSideHidden(on) { document.body.classList.toggle("sidehide", on); try { localStorage.setItem("fc-side", on ? "hide" : "show"); } catch (e) {} }
+  document.body.classList.toggle("sidehide", sideHidden());
+  $("sideHide").addEventListener("click", function () { setSideHidden(true); });
+  $("sideShow").addEventListener("click", function () { setSideHidden(false); });
   $("menuToggle").addEventListener("click", function () { $("side").classList.toggle("open"); $("scrim").classList.toggle("show"); });
   $("scrim").addEventListener("click", closeDrawer);
   $("nav").addEventListener("click", function (e) { if (e.target.closest("a")) closeDrawer(); });
