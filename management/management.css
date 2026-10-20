@@ -1171,6 +1171,10 @@ body.coedit .content > * { max-width: none; }
 .cosec h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 600; margin: 0 0 var(--s2); }
 .corowf { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: var(--s3); align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
 .corowf:first-of-type { border-top: 0; }
+/* one-field sections: the label line is the heading, the input takes the full width */
+.cosec.solo .corowf.solo { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0; border-top: 0; }
+.cosec.solo .colab { padding-top: 0; margin-bottom: var(--s2); }
+.cosec.solo .colab > span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 600; }
 .colab { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; padding-top: 7px; flex-wrap: wrap; min-width: 0; }
 .colab > span { white-space: nowrap; }
 .codetail { opacity: 0; background: none; border: 1px solid transparent; border-radius: 6px; width: 22px; height: 22px; cursor: pointer; color: var(--faint); font-size: 12px; margin-left: auto; }
@@ -1205,6 +1209,14 @@ body.coedit .content > * { max-width: none; }
 .cochip-x { background: none; border: 0; color: var(--accent-dark); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; border-radius: 4px; opacity: 0.7; }
 .cochip-x:hover { opacity: 1; background: rgba(0,0,0,0.06); }
 .cochip-add { position: relative; flex: 1; min-width: 90px; }
+.coprereq .cochip b { font-weight: 600; margin-right: 2px; }
+.coprereq .coprereq-q { width: 100%; min-width: 220px; border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; height: 26px; }
+.cochip-menu .free { color: var(--muted); font-style: italic; border-top: 1px solid var(--line); margin-top: 2px; }
+.coslots { display: flex; flex-direction: column; gap: 8px; }
+.coslots .cochip { align-self: flex-start; }
+.coslot-new { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px dashed var(--line-strong); border-radius: 8px; }
+.coslot-new .copills { margin: 0; }
+.coslot-new .coslot-t { height: 30px; width: 108px; font-size: 13px; }
 .cochip-q { border: 0 !important; outline: none !important; background: transparent !important; height: 26px !important; padding: 0 4px !important; width: 100%; font-size: 13px; }
 .cochip-menu { position: absolute; left: 0; top: calc(100% + 6px); min-width: 220px; max-width: 360px; max-height: 260px; overflow-y: auto; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: 0 12px 30px -12px rgba(15, 32, 60, 0.35); z-index: 8; padding: 4px; }
 .cochip-menu div { padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
@@ -1221,13 +1233,13 @@ body.coedit .content > * { max-width: none; }
 .cotextwin { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; }
 .cotextwin[hidden] { display: none; }
 .cotextwin-scrim { position: absolute; inset: 0; background: rgba(15, 32, 60, 0.12); }
-.cotextwin-box { position: relative; width: min(820px, calc(100vw - 32px)); height: min(72vh, 640px); display: flex; flex-direction: column; background: var(--card); border-radius: 12px; box-shadow: 0 16px 48px -12px rgba(15, 32, 60, 0.45); border: 1px solid var(--line-strong); padding: 8px 8px 8px; }
+.cotextwin-box { position: relative; width: min(820px, calc(100vw - 32px)); height: auto; max-height: calc(100vh - 24px); display: flex; flex-direction: column; background: var(--card); border-radius: 12px; box-shadow: 0 16px 48px -12px rgba(15, 32, 60, 0.45); border: 1px solid var(--line-strong); padding: 8px 8px 8px; }
 .cotextwin.anchored .cotextwin-box { position: fixed; } /* placed by coTextOpen() over the field itself */
 .cotextwin-head { padding: 0 4px; }
 .cotextwin-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 13.5px; }
 .cotextwin-head .btn { margin-left: auto; }
 .cotextwin-head .faint { font-size: 12px; }
-.cotextwin textarea.cobig { flex: 1; width: 100%; resize: none; font: inherit; font-size: 13.5px; line-height: 1.55; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.cotextwin textarea.cobig { flex: none; width: 100%; min-height: 150px; overflow: auto; resize: none; font: inherit; font-size: 13.5px; line-height: 1.55; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
 .cotextwin textarea.cobig:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .cofiles { display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--line-strong); border-radius: 8px; padding: 8px 10px; }
 .cofiles.over { border-color: var(--accent); background: var(--accent-soft); }

@@ -101,9 +101,10 @@ async function lookups(force) {
   if (!force && lookupCache.data && Date.now() - lookupCache.at < LOOKUP_TTL) return lookupCache.data;
   const base = baseFor.read();
   const t = cfg.tables;
-  const [grades, subjects, textbooks, teachers, schools, tracks, courseTable] = await Promise.all([
+  const [grades, subjects, textbooks, teachers, schools, tracks, courseTable, courseRows] = await Promise.all([
     base.list(t.grades.id), base.list(t.subjects.id), base.list(t.textbooks.id), base.list(t.teachers.id),
     base.list(t.schools.id), base.list(t.tracks.id), base.table([t.courses.id]).catch(() => null),
+    base.list(t.courses.id).catch(() => []), // every course, for the 前置课程 picker (code + names)
   ]);
   const gradeOrder = new Map(GRADE_ORDER.map((g, i) => [g, i]));
   const data = {
@@ -114,6 +115,8 @@ async function lookups(force) {
     teachers: teachers.map((r) => ({ id: r.id, name: text(first(r.fields, cfg.teacherFields.name)), upn: text(first(r.fields, cfg.teacherPrivateFields.teamsAccount)).toLowerCase() })).filter((x) => x.name).sort((a, b) => a.name.localeCompare(b.name)),
     schools: schools.map((r) => ({ id: r.id, name: text(first(r.fields, cfg.schoolFields.name)), abbr: text(first(r.fields, cfg.schoolFields.abbr)) })).filter((x) => x.name).sort((a, b) => a.name.localeCompare(b.name)),
     tracks: tracks.map((r) => ({ id: r.id, trackId: r.fields[cfg.trackFields.trackId], name: text(r.fields[cfg.trackFields.name]), nameZh: text(r.fields[cfg.trackFields.nameZh]) })).sort((a, b) => (a.trackId || 0) - (b.trackId || 0)),
+    // 前置课程 picker (Rick, 2026-10-20: 「前置课程增加搜索：课程 SKU、关键字」): code and both names of every course
+    courses: courseRows.map((r) => ({ id: r.id, code: text(first(r.fields, /^Course\s*ID/i)), nameEn: text(first(r.fields, /^Course\s*Name/i)), nameZh: text(first(r.fields, /^课程名称/)) })).filter((c) => c.code || c.nameEn || c.nameZh).sort((a, b) => (a.code || "").localeCompare(b.code || "")),
     options: { classType: PAIR_VALUES.classType.map(([en, zh]) => ({ en, zh })), language: PAIR_VALUES.language.map(([en, zh]) => ({ en, zh })), days: DAYS.slice() },
     fields: {},
   };

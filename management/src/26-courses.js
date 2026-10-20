@@ -29,7 +29,7 @@
   var CO_LABEL = { name: ["课程名称", "Course name"], subjects: ["学科", "Subject"], grades: ["年级", "Grades"], classType: ["课程类型", "Class type"], language: ["授课语言", "Teaching language"], creditHours: ["学分", "Credit hours"],
     academic: ["学术课程", "Academic course"], classical: ["古典课程", "Classical course"], description: ["课程描述", "Description"], numClasses: ["课时数", "Number of classes"], days: ["上课星期", "Days of week"], classTime: ["上课时间", "Class time"],
     prerequisite: ["前置课程", "Prerequisite"], syllabus: ["课程大纲", "Syllabus"], textbooks: ["教材", "Textbooks"], teachers: ["授课老师", "Teachers"], school: ["课程提供方", "Course deliverer"], price: ["价格", "Price"], available: ["可用", "Available"], tracks: ["毕业路径", "Graduation tracks"], comments: ["备注", "Comments"] };
-  var CO_HINT = { classTime: ["如 「周一 P3 10:00–10:45」，网站原样显示", "e.g. “Mon P3 10:00–10:45”, shown as typed"], creditHours: ["0.5 或 1", "0.5 or 1"], syllabus: ["PDF，最大 10 MB；发布后 Airtable 保存一份", "PDF up to 10 MB; Airtable keeps a copy after publishing"], academic: ["计入 GPA 的学术课", "Counts toward the GPA"], classical: ["古典教育的课程（网站的教育理念筛选）", "A classical-pedagogy course (the website's pedagogy filter)"], school: ["订单按它路由到对应的蜂巢", "Orders are routed to this hive"], available: ["不可用的课程不在网站上显示", "An unavailable course is not shown on the website"] };
+  var CO_HINT = { classTime: ["选星期和起止时间（北京时间），点「添加时段」；一门课可以有几个时段。网站按这里的顺序显示。", "Pick the weekdays and the start / end time (Beijing time) and press Add; a course may have several slots. The website shows them in this order."], creditHours: ["按 G.P.A. 计算器的定义：每周 5 节、上一学期 = 0.5 学分，全年 = 1 学分；即 课时数 ÷ 180，保留一位小数（每周 4 节一学期 = 0.4）。点「按课时数算」自动填入。", "As the G.P.A. calculator defines it: 5 periods a week for one semester = 0.5 credit, a full year = 1 credit — classes ÷ 180, one decimal (4 periods a week for a semester = 0.4). Click “from classes” to fill it in."], syllabus: ["PDF，最大 10 MB；发布后 Airtable 保存一份", "PDF up to 10 MB; Airtable keeps a copy after publishing"], academic: ["计入 GPA 的学术课", "Counts toward the GPA"], classical: ["古典教育的课程（网站的教育理念筛选）", "A classical-pedagogy course (the website's pedagogy filter)"], school: ["订单按它路由到对应的蜂巢", "Orders are routed to this hive"], available: ["不可用的课程不在网站上显示", "An unavailable course is not shown on the website"] };
   var DAY_ZH = { Monday: "周一", Tuesday: "周二", Wednesday: "周三", Thursday: "周四", Friday: "周五", Saturday: "周六", Sunday: "周日" };
   function coLabel(k) { var l = CO_LABEL[k] || [k, k]; return t(l[0], l[1]); }
   function coStatusTag(s) { var d = CO_STATUS[s] || CO_STATUS[""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
@@ -247,10 +247,14 @@
     return c.status === "returned" && c.returned ? '<div class="coreturn">' + t("退回意见", "Returned with a comment") + ' <small class="faint">' + esc((c.returned.by || "").split("@")[0]) + " · " + esc(when(c.returned.at)) + "</small><p>" + esc(c.returned.comment) + "</p></div>" : "";
   }
   function coSectionsNav() { return '<nav class="cosecnav" id="cosecnav">' + CO_SECTIONS.map(function (s) { return '<a href="#sec-' + s.id + '" data-sec="' + s.id + '">' + esc(t(s.zh, s.en)) + "</a>"; }).join("") + "</nav>"; }
+  // A section with one field named like itself (课程描述 / 前置课程 / 授课老师) shows that name once: the field's label
+  // line is the heading and the input takes the card's full width (Rick, 2026-10-20: 「2 次显示前置课程就是冗余」).
+  var CO_SOLO = { description: 1, prerequisite: 1, teachers: 1 };
   function coSectionHTML(s) {
     var lk = co.lookups;
     var keys = s.keys.filter(function (k) { return !(k === "classical" && lk.fields && lk.fields.classical === false); });
-    return '<section class="cosec" id="sec-' + s.id + '"><h2>' + esc(t(s.zh, s.en)) + "</h2>" + keys.map(coFieldHTML).join("") + "</section>";
+    var solo = keys.length === 1 && CO_SOLO[keys[0]];
+    return '<section class="cosec' + (solo ? " solo" : "") + '" id="sec-' + s.id + '">' + (solo ? "" : "<h2>" + esc(t(s.zh, s.en)) + "</h2>") + keys.map(coFieldHTML).join("") + "</section>";
   }
   // One field row: label, the typed editor, a detail button. `k` is a FIELDS key or a pair name (name / description).
   function coFieldHTML(k) {
@@ -264,22 +268,72 @@
     var body = "";
     switch (k) {
       case "name": body = '<input type="text" class="cof" data-k="' + pairKey + '" value="' + esc(f[pairKey] || "") + '" maxlength="120"' + (can ? "" : " readonly") + ' placeholder="' + esc(co.lang === "en" ? "Course name" : "课程名称") + '" />'; break;
-      case "description": case "prerequisite": case "comments": {
+      case "prerequisite": body = coPrereqHTML(f.prerequisite || "", can); break;
+      case "classTime": body = coSlotsHTML(f.classTime || "", f.days || [], can); break;
+      case "description": case "comments": {
         // Long text opens in a large editor window, like expanding an Airtable cell (Rick, 2026-10-19: 「点击字段弹出
         // 一个大编辑窗来改，而不是在表单里直接编辑」); the form shows the text itself, clamped.
         var key = k === "description" ? pairKey : k, txt = f[key] || "";
         body = '<div class="cotext' + (txt ? "" : " empty") + '" data-open="' + key + '" data-field="' + k + '" role="button" tabindex="0" title="' + esc(t("点击打开编辑窗", "Click to open the editor")) + '">' + (txt ? esc(txt) : esc(can ? t("点击填写…", "Click to write…") : t("（空）", "(empty)"))) + '<span class="coexpand" aria-hidden="true">⤢</span></div>'; break;
       }
-      case "classTime": body = '<input type="text" class="cof" data-k="classTime" value="' + esc(f.classTime || "") + '" maxlength="500"' + (can ? "" : " readonly") + ' />'; break;
-      case "creditHours": case "numClasses": case "price": body = '<input type="number" class="cof conum" data-k="' + k + '" value="' + esc(f[k] == null ? "" : f[k]) + '" min="0" step="' + (k === "creditHours" ? "0.5" : "1") + '"' + (can ? "" : " readonly") + ' />' + (k === "price" ? ' <span class="faint">' + t("¥ 人民币", "¥ RMB (CNY)") + "</span>" : ""); break;
+      case "creditHours": case "numClasses": case "price": body = '<input type="number" class="cof conum" data-k="' + k + '" value="' + esc(f[k] == null ? "" : f[k]) + '" min="0" step="' + (k === "creditHours" ? "0.1" : "1") + '"' + (can ? "" : " readonly") + ' />' + (k === "price" ? ' <span class="faint">' + t("¥ 人民币", "¥ RMB (CNY)") + "</span>" : ""); break;
       case "classType": case "language": body = coPillsHTML(k, (lk.options[k] || []), f[k] || {}, can); break;
       case "days": body = '<div class="copills" data-k="days">' + (lk.options.days || []).map(function (d) { return '<button type="button" class="copill' + ((f.days || []).indexOf(d) >= 0 ? " on" : "") + '" data-v="' + esc(d) + '"' + (can ? "" : " disabled") + ">" + esc(EN ? d.slice(0, 3) : DAY_ZH[d] || d) + "</button>"; }).join("") + "</div>"; break;
       case "academic": case "classical": case "available": body = '<label class="coswitch"><input type="checkbox" class="cof" data-k="' + k + '"' + (f[k] ? " checked" : "") + (can ? "" : " disabled") + ' /><i></i><span>' + (f[k] ? t("是", "Yes") : t("否", "No")) + "</span></label>"; break;
       case "subjects": case "grades": case "textbooks": case "teachers": case "school": case "tracks": body = coChipsHTML(k, f[k] || [], can); break;
       case "syllabus": body = coFilesHTML(f.syllabus || [], can); break;
     }
-    return '<div class="corowf" data-row="' + k + '"><div class="colab"><span>' + esc(coLabel(k)) + (k === "name" || k === "description" ? ' <small class="faint">' + (co.lang === "en" ? "EN" : "中") + "</small>" : "") + "</span>" + tag + ro + hint +
+    if (k === "creditHours") body += coCreditSuggestHTML(f, can);
+    return '<div class="corowf' + (CO_SOLO[k] ? " solo" : "") + '" data-row="' + k + '"><div class="colab"><span>' + esc(coLabel(k)) + (k === "name" || k === "description" ? ' <small class="faint">' + (co.lang === "en" ? "EN" : "中") + "</small>" : "") + "</span>" + tag + ro + hint +
       '<button type="button" class="codetail" data-detail="' + k + '" title="' + esc(t("详情：两种语言、修改记录", "Details: both languages, history")) + '">⤢</button></div><div class="coval">' + body + "</div></div>";
+  }
+  // 学分 follows the G.P.A. calculator's rule (Rick, 2026-10-20: 「学分数请参考 G.P.A. 设计模块的定义」): 5 periods a week for
+  // one semester = 0.5 credit, so credits = classes ÷ 180, one decimal.
+  function coCreditFromClasses(n) { return typeof n === "number" && n > 0 ? Math.round(n / 18) / 10 : null; }
+  function coCreditSuggestHTML(f, can) {
+    var v = coCreditFromClasses(f.numClasses); if (!can || v == null) return "";
+    return ' <button type="button" class="lnk" id="coCreditCalc" data-v="' + v + '">' + t("按课时数算：", "From classes: ") + esc(f.numClasses) + (EN ? " → " : " 节 → ") + v + "</button>";
+  }
+  // 前置课程: chips kept as one text ("SCI-HS-101 Biology / 生物; N/A"), each chip a course picked by code / keyword or
+  // free text (Rick, 2026-10-20: 「前置课程增加搜索：课程 SKU、关键字」). The Airtable column stays plain text.
+  function coPrereqItems(text) { return String(text || "").split(/\s*[;；\n]\s*/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  function coPrereqLabel(item) {
+    var m = /^(\S+)\s+(.*)$/.exec(item), c = m && (co.lookups.courses || []).filter(function (x) { return x.code && x.code === m[1]; })[0];
+    return c ? '<b>' + esc(c.code) + "</b> " + esc(EN ? c.nameEn || c.nameZh : c.nameZh || c.nameEn) : esc(item);
+  }
+  function coPrereqHTML(text, can) {
+    var items = coPrereqItems(text);
+    return '<div class="cochips coprereq" data-k="prerequisite">' + items.map(function (x) { return '<span class="cochip" data-item="' + esc(x) + '">' + coPrereqLabel(x) + (can ? '<button type="button" class="cochip-x" aria-label="remove">×</button>' : "") + "</span>"; }).join("") +
+      (can ? '<span class="cochip-add"><input type="text" class="coprereq-q" placeholder="' + esc(t("搜索课程编号或关键字；或输入文字后回车", "Course code or keyword; or type text and press Enter")) + '" autocomplete="off" /><div class="cochip-menu" hidden></div></span>' : (items.length ? "" : '<span class="faint">—</span>')) + "</div>";
+  }
+  function coPrereqMenu(q) {
+    var menu = q.nextElementSibling, s = q.value.trim().toLowerCase(), have = coPrereqItems(co.course.fields.prerequisite || "");
+    if (!s) { menu.hidden = true; return; }
+    var rows = (co.lookups.courses || []).filter(function (c) { return c.id !== co.id && (c.code + " " + c.nameEn + " " + c.nameZh).toLowerCase().indexOf(s) >= 0 && !have.some(function (h) { return c.code && h.indexOf(c.code + " ") === 0; }); }).slice(0, 10);
+    menu.innerHTML = rows.map(function (c, i) { return '<div data-item="' + esc(coPrereqText(c)) + '"' + (i === 0 ? ' class="cur"' : "") + "><b>" + hl(c.code, s) + "</b> " + hl((EN ? c.nameEn || c.nameZh : c.nameZh || c.nameEn) || "", s) + "</div>"; }).join("") +
+      '<div data-item="' + esc(q.value.trim()) + '" class="free' + (rows.length ? "" : " cur") + '">' + t("按文字添加：", "Add as text: ") + esc(q.value.trim()) + "</div>";
+    menu.hidden = false;
+  }
+  function coPrereqText(c) { var en = c.nameEn || "", zh = c.nameZh || ""; return c.code + " " + (en && zh ? en + " / " + zh : en || zh); }
+  function coPrereqSet(items) { coQueue("prerequisite", items.join("; "), 0); coRepaintField("prerequisite"); var q = document.querySelector(".coprereq .coprereq-q"); if (q) q.focus(); }
+  // 上课时间: slots built from weekdays + start / end, kept as text "周一、周三 10:00–10:45; 周五 14:00–14:45" (Rick, 2026-10-20:
+  // 「是否可以选择时间段？输入的话没有标准格式可遵循」). The website shows the text as is.
+  var DAY_SHORT = { Monday: "Mon", Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu", Friday: "Fri", Saturday: "Sat", Sunday: "Sun" };
+  function coSlotItems(text) { return String(text || "").split(/\s*[;；\n]\s*/).map(function (x) { return x.trim(); }).filter(Boolean); }
+  function coSlotsHTML(text, days, can) {
+    var items = coSlotItems(text), DAYS = ((co.lookups.options || {}).days || []);
+    return '<div class="coslots" data-k="classTime">' + (items.length ? items.map(function (x, i) { return '<span class="cochip" data-i="' + i + '">' + esc(x) + (can ? '<button type="button" class="cochip-x" aria-label="remove">×</button>' : "") + "</span>"; }).join("") : (can ? "" : '<span class="faint">—</span>')) +
+      (can ? '<div class="coslot-new"><div class="copills coslot-days">' + DAYS.map(function (d) { return '<button type="button" class="copill' + (days.indexOf(d) >= 0 ? " on" : "") + '" data-d="' + esc(d) + '">' + esc(EN ? DAY_SHORT[d] : DAY_ZH[d] || d) + "</button>"; }).join("") + "</div>" +
+        '<input type="time" class="coslot-t" id="coSlotFrom" step="300" /> <span class="faint">–</span> <input type="time" class="coslot-t" id="coSlotTo" step="300" /> <button type="button" class="btn secondary sm" id="coSlotAdd">' + t("添加时段", "Add slot") + "</button></div>" : "") + "</div>";
+  }
+  function coSlotAdd() {
+    var box = document.querySelector(".coslots"), from = $("coSlotFrom").value, to = $("coSlotTo").value;
+    var ds = Array.prototype.filter.call(box.querySelectorAll(".coslot-days .copill"), function (b) { return b.classList.contains("on"); }).map(function (b) { return b.getAttribute("data-d"); });
+    if (!ds.length || !from || !to) { flash(esc(t("请选星期并填起止时间。", "Pick the weekdays and both times.")), 2000); return; }
+    if (to <= from) { flash(esc(t("结束时间要晚于开始时间。", "The end must be after the start.")), 2000); return; }
+    var label = ds.map(function (d) { return EN ? DAY_SHORT[d] : DAY_ZH[d] || d; }).join(EN ? ", " : "、") + " " + from + "–" + to;
+    var items = coSlotItems(co.course.fields.classTime || ""); items.push(label);
+    coQueue("classTime", items.join("; "), 0); coRepaintField("classTime");
   }
   function coPillsHTML(k, options, cur, can) {
     return '<div class="copills" data-k="' + k + '" data-single="1">' + options.map(function (o) { var on = (cur.en && cur.en === o.en) || (cur.zh && cur.zh === o.zh); return '<button type="button" class="copill' + (on ? " on" : "") + '" data-en="' + esc(o.en) + '" data-zh="' + esc(o.zh) + '"' + (can ? "" : " disabled") + ">" + esc(EN ? o.en : o.zh) + "</button>"; }).join("") + "</div>";
@@ -327,7 +381,7 @@
     if (f.language && (f.language.en || f.language.zh)) tags.push(en ? f.language.en : f.language.zh);
     if (f.academic) tags.push(lab("学术课程", "Academic"));
     var days = (f.days || []).map(function (d) { return en ? d.slice(0, 3) : DAY_ZH[d] || d; }).join(en ? ", " : "、");
-    var sched = (days || f.classTime) ? esc((days ? days + " " : "") + (f.classTime || "")) : "";
+    var sched = f.classTime ? esc(f.classTime) : days ? esc(days) : ""; // a slot already names its weekdays
     var books = names("textbooks", f.textbooks), grades = names("grades", f.grades), subs = names("subjects", f.subjects), who = names("teachers", f.teachers), school = names("school", f.school);
     var syl = (f.syllabus || []).map(function (a) { return '<a href="' + esc(a.url || ("/api/f/" + a.id)) + '" target="_blank" rel="noopener">' + esc(a.name || "syllabus.pdf") + "</a>"; }).join(" · ");
     var row = function (z, e, v, wide) { return '<div class="pvrow' + (wide ? " wide" : "") + '"><div class="pvlab">' + esc(lab(z, e)) + '</div><div class="pvval">' + (v || none) + "</div></div>"; };
@@ -362,7 +416,7 @@
       (chips.length ? '<div class="pvchips">' + chips.map(function (x) { return '<span>' + esc(x) + "</span>"; }).join("") + "</div>" : "") +
       '<p class="pvdesc">' + esc(desc || (en ? "Description" : "课程描述")) + "</p>" +
       '<div class="pvline">' + (en ? "Teacher" : "老师") + "：" + (teachers.length ? esc(teachers.join(", ")) : '<span class="faint">—</span>') + "</div>" +
-      '<div class="pvline">' + (en ? "Class time" : "上课时间") + "：" + (f.classTime || days ? esc((days ? days + " " : "") + (f.classTime || "")) : '<span class="faint">' + (en ? "Time TBD" : "时间待定") + "</span>") + "</div>" +
+      '<div class="pvline">' + (en ? "Class time" : "上课时间") + "：" + (f.classTime || days ? esc(f.classTime || days) : '<span class="faint">' + (en ? "Time TBD" : "时间待定") + "</span>") + "</div>" +
       (f.language && (f.language.en || f.language.zh) ? '<div class="pvline">' + (en ? "Language" : "授课语言") + "：" + esc(en ? f.language.en : f.language.zh) + "</div>" : "") +
       (f.creditHours != null ? '<div class="pvline">' + (en ? "Credit" : "学分") + "：" + esc(f.creditHours) + "</div>" : "") +
       (f.prerequisite ? '<div class="pvline">' + (en ? "Prerequisite" : "前置课程") + "：" + esc(f.prerequisite) + "</div>" : "") +
@@ -406,7 +460,7 @@
         else { pill.classList.toggle("on"); coQueue(k, Array.prototype.map.call(box.querySelectorAll(".copill.on"), function (p) { return p.getAttribute("data-v"); }), 0); }
         return;
       }
-      var x = e.target.closest(".cochip-x"); if (x) { var chip = x.parentNode, box2 = chip.parentNode; chip.parentNode.removeChild(chip); coChipsChanged(box2); return; }
+      var x = e.target.closest(".cochip-x"); if (x && !x.closest(".coslots,.coprereq")) { var chip = x.parentNode, box2 = chip.parentNode; chip.parentNode.removeChild(chip); coChipsChanged(box2); return; }
       var det = e.target.closest("[data-detail]"); if (det) { coFieldPanel(det.getAttribute("data-detail")); return; }
       var rm = e.target.closest("[data-frm]"); if (rm) { var list = co.course.fields.syllabus || []; list.splice(+rm.getAttribute("data-frm"), 1); coQueue("syllabus", list, 0); coRepaintField("syllabus"); return; }
       var sec = e.target.closest(".cosecnav a"); if (sec) { e.preventDefault(); var tgt = $("sec-" + sec.getAttribute("data-sec")); if (tgt) { co.spyLock = Date.now() + 700; coSpyMark(sec.getAttribute("data-sec")); tgt.scrollIntoView({ behavior: "smooth", block: "start" }); } return; }
@@ -422,6 +476,23 @@
       if (e.target.closest("#coWithdraw")) return coOp("withdraw");
       if (e.target.closest("#coPublish")) return coPublishPanel();
     });
+    // 学分 from classes; 前置课程 picker; 上课时间 slots
+    root.addEventListener("click", function (e) {
+      var cc = e.target.closest("#coCreditCalc"); if (cc) { var inp = root.querySelector('.cof[data-k="creditHours"]'); if (inp) { inp.value = cc.getAttribute("data-v"); coQueue("creditHours", Number(cc.getAttribute("data-v")), 0); } return; }
+      var px = e.target.closest(".coprereq .cochip-x"); if (px) { var it = px.closest(".cochip").getAttribute("data-item"); coPrereqSet(coPrereqItems(co.course.fields.prerequisite || "").filter(function (x) { return x !== it; })); return; }
+      var sx = e.target.closest(".coslots .cochip-x"); if (sx) { var i = Number(sx.closest(".cochip").getAttribute("data-i")), its = coSlotItems(co.course.fields.classTime || ""); its.splice(i, 1); coQueue("classTime", its.join("; "), 0); coRepaintField("classTime"); return; }
+      var sd = e.target.closest(".coslot-days .copill"); if (sd) { sd.classList.toggle("on"); return; }
+      if (e.target.closest("#coSlotAdd")) { coSlotAdd(); return; }
+    });
+    root.addEventListener("input", function (e) { var q = e.target; if (q.classList && q.classList.contains("coprereq-q")) coPrereqMenu(q); if (q.classList && q.classList.contains("cof") && q.getAttribute("data-k") === "numClasses") { clearTimeout(co.creditT); co.creditT = setTimeout(function () { coRepaintField("creditHours"); }, 400); } });
+    root.addEventListener("keydown", function (e) {
+      var q = e.target; if (!(q.classList && q.classList.contains("coprereq-q"))) return;
+      var menu = q.nextElementSibling, cur = menu.querySelector(".cur");
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); var items = menu.querySelectorAll("[data-item]"); if (!items.length) return; var i = Array.prototype.indexOf.call(items, cur); i = e.key === "ArrowDown" ? Math.min(items.length - 1, i + 1) : Math.max(0, i - 1); items.forEach(function (x, j) { x.classList.toggle("cur", j === i); }); }
+      else if (e.key === "Enter") { e.preventDefault(); var v = q.value.trim(); if (!v) return; var pick = (!menu.hidden && cur) ? cur.getAttribute("data-item") : v; coPrereqSet(coPrereqItems(co.course.fields.prerequisite || "").concat([pick])); }
+      else if (e.key === "Escape") { menu.hidden = true; }
+    });
+    root.addEventListener("mousedown", function (e) { var it = e.target.closest(".coprereq .cochip-menu [data-item]"); if (it) { e.preventDefault(); coPrereqSet(coPrereqItems(co.course.fields.prerequisite || "").concat([it.getAttribute("data-item")])); } });
     // chip search: type to filter the lookup rows; Enter / click adds; chips drag to reorder
     root.addEventListener("input", function (e) { var q = e.target; if (q.classList && q.classList.contains("cochip-q")) coChipMenu(q); });
     root.addEventListener("focusin", function (e) { var q = e.target; if (q.classList && q.classList.contains("cochip-q")) coChipMenu(q); });
@@ -434,7 +505,7 @@
       else if (e.key === "Backspace" && !q.value) { var last = q.parentNode.previousElementSibling; if (last && last.classList.contains("cochip")) { last.parentNode.removeChild(last); coChipsChanged(q.closest(".cochips")); } }
     });
     root.addEventListener("mousedown", function (e) { var it = e.target.closest(".cochip-menu [data-id]"); if (it) { e.preventDefault(); coChipAdd(it.closest(".cochip-add").querySelector(".cochip-q"), it.getAttribute("data-id")); } });
-    root.addEventListener("focusout", function (e) { var q = e.target; if (q.classList && q.classList.contains("cochip-q")) setTimeout(function () { if (q.nextElementSibling) q.nextElementSibling.hidden = true; }, 150); });
+    root.addEventListener("focusout", function (e) { var q = e.target; if (q.classList && (q.classList.contains("cochip-q") || q.classList.contains("coprereq-q"))) setTimeout(function () { if (q.nextElementSibling) q.nextElementSibling.hidden = true; }, 150); });
     var dragging = null;
     root.addEventListener("dragstart", function (e) { var chip = e.target.closest(".cochip[draggable=true]"); if (!chip) return; dragging = chip; chip.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", chip.getAttribute("data-id")); } catch (x) {} });
     root.addEventListener("dragover", function (e) { if (!dragging) return; var over = e.target.closest(".cochip"); if (!over || over === dragging || over.parentNode !== dragging.parentNode) return; e.preventDefault(); var r = over.getBoundingClientRect(); over.parentNode.insertBefore(dragging, e.clientX < r.left + r.width / 2 ? over : over.nextSibling); });
@@ -530,12 +601,17 @@
     // Opens in place, like Airtable expanding a cell (Rick, 2026-10-19: a centred window 「will look odd」): the box
     // sits exactly where the field is, same left edge and width, and grows downward; near the bottom it slides up.
     var box = w.querySelector(".cotextwin-box"), src = document.querySelector('.cotext[data-open="' + key + '"]');
+    var ta = w.querySelector("textarea"), maxH = Math.max(200, Math.round(window.innerHeight * 0.6));
+    // the textarea follows its text: at least ~6 lines, at most 60% of the window, then a scrollbar (Rick, 2026-10-20)
+    function size() { ta.style.height = "auto"; ta.style.height = Math.min(maxH, Math.max(150, ta.scrollHeight + 2)) + "px"; }
+    ta.addEventListener("input", size);
     if (src && window.innerWidth > 700) {
-      var r = src.getBoundingClientRect(), h = Math.min(480, Math.round(window.innerHeight * 0.6)), top = r.top - 6;
-      if (top + h > window.innerHeight - 12) top = Math.max(12, window.innerHeight - 12 - h);
-      box.style.left = Math.round(r.left - 8) + "px"; box.style.top = Math.round(top) + "px"; box.style.width = Math.round(r.width + 16) + "px"; box.style.height = h + "px"; w.classList.add("anchored");
-    } else { box.style.cssText = ""; w.classList.remove("anchored"); }
-    var ta = w.querySelector("textarea"); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+      var r = src.getBoundingClientRect();
+      box.style.left = Math.round(r.left - 8) + "px"; box.style.top = Math.round(r.top - 6) + "px"; box.style.width = Math.round(r.width + 16) + "px"; box.style.height = "auto"; w.classList.add("anchored");
+      size();
+      var bh = box.getBoundingClientRect().height; if (r.top - 6 + bh > window.innerHeight - 12) box.style.top = Math.max(12, window.innerHeight - 12 - bh) + "px";
+    } else { box.style.cssText = ""; w.classList.remove("anchored"); size(); }
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
     function close() { if (w.hidden) return; coFlush(key); w.hidden = true; co.textWin = null; coRepaintField(k); var back = document.querySelector('.cotext[data-open="' + key + '"]'); if (back) back.focus(); }
     w.querySelector("#coTextDone").onclick = close;
     w.querySelector(".cotextwin-scrim").onclick = close;

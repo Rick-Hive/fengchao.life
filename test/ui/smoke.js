@@ -59,7 +59,7 @@ const CAL_SEED = { id: "h-seed", title: "联合教师培训", allDay: false, sta
 let CAL_SCHOOL = { domain: "bes.qiaoliang.online", timezone: "", events: [], updatedAt: null, updatedBy: "" };
 let CAL_HIVE = { events: [CAL_SEED], updatedAt: null, updatedBy: "" };
 // 课程管理 (2026-10-18): one course in memory, the editor's PATCHes and ops recorded.
-const CO_LOOK = { at: "2026-10-18T00:00:00Z", grades: [{ id: "recGRADE000000001", name: "G1" }, { id: "recGRADE000000009", name: "G9" }, { id: "recGRADE000000010", name: "G10" }],
+const CO_LOOK = { at: "2026-10-18T00:00:00Z", courses: [{ id: "recCOURSE00000001", code: "SCI-HS-101", nameEn: "Biology", nameZh: "生物" }, { id: "recCOURSE00000002", code: "SCI-MS-201", nameEn: "Life Science", nameZh: "生命科学" }, { id: "recCOURSE00000003", code: "MATH-HS-101", nameEn: "Algebra 1", nameZh: "代数 1" }], grades: [{ id: "recGRADE000000001", name: "G1" }, { id: "recGRADE000000009", name: "G9" }, { id: "recGRADE000000010", name: "G10" }],
   subjects: [{ id: "recSUBJ0000000001", nameEn: "Science", nameZh: "科学" }, { id: "recSUBJ0000000002", nameEn: "Math", nameZh: "数学" }], textbooks: [{ id: "recTB00000000001", sku: "SCI-9", nameEn: "Biology 9", nameZh: "九年级生物" }],
   teachers: [{ id: "recTEACH000000001", name: "Zhang Lao", upn: "zhang@kxc.edu" }, { id: "recTEACH000000002", name: "Mr Lee" }], schools: [{ id: "recSCHOOL00000001", name: "Kids X Center", abbr: "KXC" }], tracks: [{ id: "recTRACK000000001", trackId: 1, name: "International: Classical", nameZh: "国际·古典" }],
   options: { classType: [{ en: "Live Course", zh: "直播课" }, { en: "Prerecorded Course", zh: "录播课" }], language: [{ en: "English", zh: "英语" }, { en: "Chinese", zh: "中文" }], days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] },
@@ -1673,10 +1673,32 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.strictEqual((await p.$$(".costeps li")).length, 4); assert.ok(await p.$(".costeps li.cur:first-child"), "step 1 is current");
     assert.ok(/Biology/.test(await p.$eval("#coprevbody", e => e.innerText)) && /G9/.test(await p.$eval("#coprevbody", e => e.innerText)), "the preview shows the course");
     // autosave: type, wait, one PATCH with the whole value; the preview follows
-    await p.fill('.cof[data-k="classTime"]', "P4 11:00–11:45"); await p.waitForTimeout(1900);
-    const pt = coPatches.filter(x => x.key === "classTime"); assert.strictEqual(pt.length, 1, "one PATCH after the idle time: " + pt.length); assert.strictEqual(pt[0].value, "P4 11:00–11:45");
+    // 上课时间 is built from weekdays + start / end (Rick, 2026-10-20): the course's days are pre-selected; a slot
+    // joins the text ("P3 10:00–10:45; 周一、周三 11:00–11:45"); × takes one away
+    assert.ok(!(await p.$('.cof[data-k="classTime"]')) && await p.$(".coslots .cochip"), "no free-text class time; the existing text is a chip");
+    assert.deepStrictEqual(await p.$$eval(".coslot-days .copill.on", es => es.map(e => e.textContent)), ["周一", "周三"], "the course's days are pre-selected");
+    await p.fill("#coSlotFrom", "11:00"); await p.fill("#coSlotTo", "11:45"); await p.click("#coSlotAdd"); await p.waitForTimeout(300);
+    const pt = coPatches.filter(x => x.key === "classTime"); assert.strictEqual(pt.length, 1, "one PATCH at once: " + pt.length); assert.strictEqual(pt[0].value, "P3 10:00–10:45; 周一、周三 11:00–11:45");
     assert.ok(/已保存/.test(await p.$eval("#coSaved", e => e.innerText)), "says saved");
-    assert.ok(/P4 11:00/.test(await p.$eval("#coprevbody", e => e.innerText)), "the preview follows");
+    assert.ok(/11:00–11:45/.test(await p.$eval("#coprevbody", e => e.innerText)), "the preview follows");
+    await p.click('.coslots .cochip[data-i="0"] .cochip-x'); await p.waitForTimeout(300);
+    assert.strictEqual(coPatches.filter(x => x.key === "classTime").pop().value, "周一、周三 11:00–11:45", "× removes the old slot");
+    // 学分 follows the G.P.A. rule: classes ÷ 180; the link fills it in; the hint explains the rule
+    assert.ok(/课时数 ÷ 180/.test(await p.$eval('.corowf[data-row="creditHours"] .colab .info', e => e.dataset.tip)), "the hint says what to enter");
+    assert.ok(/按课时数算：30 节 → 0.2/.test(await p.$eval("#coCreditCalc", e => e.textContent)), "30 classes → 0.2");
+    await p.click("#coCreditCalc"); await p.waitForTimeout(200);
+    assert.strictEqual(coPatches.filter(x => x.key === "creditHours").pop().value, 0.2, "filled from classes");
+    // 前置课程: a course picked by code / keyword, or free text, kept as one text
+    assert.ok(!(await p.$('.cosec#sec-pre h2')) && /前置课程/.test(await p.$eval('.corowf[data-row="prerequisite"] .colab', e => e.innerText)), "one-field section: the label is the heading, no second title");
+    await p.fill(".coprereq-q", "life"); await p.waitForTimeout(150);
+    assert.ok(/SCI-MS-201/.test(await p.$eval(".coprereq .cochip-menu", e => e.innerText)), "search by keyword finds the course");
+    await p.keyboard.press("Enter"); await p.waitForTimeout(300);
+    await p.fill(".coprereq-q", "math-hs"); await p.waitForTimeout(150); await p.keyboard.press("Enter"); await p.waitForTimeout(300);
+    await p.fill(".coprereq-q", "或老师同意"); await p.waitForTimeout(150); await p.keyboard.press("Enter"); await p.waitForTimeout(300);
+    assert.strictEqual(coPatches.filter(x => x.key === "prerequisite").pop().value, "SCI-MS-201 Life Science / 生命科学; MATH-HS-101 Algebra 1 / 代数 1; 或老师同意", "codes, names and free text as one text");
+    assert.deepStrictEqual(await p.$$eval(".coprereq .cochip", es => es.map(e => e.firstChild.textContent)), ["SCI-MS-201", "MATH-HS-101", "或老师同意"], "chips show the code (bold) or the text");
+    await p.click('.coprereq .cochip:nth-child(2) .cochip-x'); await p.waitForTimeout(300);
+    assert.strictEqual(coPatches.filter(x => x.key === "prerequisite").pop().value, "SCI-MS-201 Life Science / 生命科学; 或老师同意", "× removes one");
     // pills save at once; chips: add a grade through the search, remove one with ×
     await p.click('.copills[data-k="classType"] .copill:not(.on)'); await p.waitForTimeout(200);
     assert.deepStrictEqual(coPatches.filter(x => x.key === "classType").pop().value, { en: "Prerecorded Course", zh: "录播课" });
@@ -1721,6 +1743,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.keyboard.press("Escape"); await p.waitForTimeout(150);
     assert.ok(await p.$eval("#coTextWin", e => e.hidden) && /细胞、遗传/.test(await p.$eval('.cotext[data-open="descriptionZh"]', e => e.innerText)), "Esc closes the window and the form shows the new text");
     await p.screenshot({ path: OUT + "/courses-editor.png" });
+    await p.click('#cosecnav a[data-sec="time"]'); await p.waitForTimeout(700); await p.screenshot({ path: OUT + "/courses-editor-time.png" });
     // the field panel: both languages and the history
     await p.hover('.corowf[data-row="description"]'); await p.click('.codetail[data-detail="description"]'); await p.waitForSelector("#panel.open");
     assert.ok(/English/i.test(await p.$eval("#panel", e => e.innerText)) && /修改记录/.test(await p.$eval("#panel", e => e.innerText)), "the field panel shows both languages and the history: " + (await p.$eval("#panel", e => e.innerText)).slice(0, 200));
@@ -1734,7 +1757,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click('#panel [data-see="v:x"]'); await p.waitForSelector("#panel2.open"); await p.waitForTimeout(200);
     assert.ok(await p.$("#panel2 .coverf.diff"), "differing fields are marked");
     await p.click("#coRestore"); await p.waitForTimeout(400);
-    assert.ok(coOps.some(o => o.op === "restore"), "restore was called"); assert.ok(/restored/.test(await p.$eval('.cof[data-k="classTime"]', e => e.value)), "the form shows the restored value");
+    assert.ok(coOps.some(o => o.op === "restore"), "restore was called"); assert.ok(/restored/.test(await p.$eval(".coslots", e => e.innerText)), "the form shows the restored value");
     // submit, then the steps move on and the primary button becomes 撤回
     await p.click("#coSubmit"); await p.waitForSelector("#panel.open"); await p.fill("#coNote", "ready"); await p.click("#coGo"); await p.waitForTimeout(400);
     assert.ok(coOps.some(o => o.op === "submit" && o.note === "ready")); assert.ok(await p.$(".costeps li:nth-child(2).cur") && await p.$("#coWithdraw"), "step 2 current, withdraw offered");
