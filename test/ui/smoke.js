@@ -41,8 +41,8 @@ const groups = {
 const CAN = { view: true, methods: true, people: true, plan: true, calendar: true, calendarEdit: false, broadcastOptout: true, full: true, groups: true, groupTenant: true, groupTenantSchool: false, groupScope: true }; // the sysadmin may add anyone; the school's switch is off
 // 课程方案 (2026-10-12): what /api/school-plan?domain= answers the editor, and the PUTs it makes.
 const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, { id: "recSci", nameEn: "Science", nameZh: "科学" }];
-const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }],
-  map: { grammar: { grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"], rows: [] }, dialectic: { grades: ["G7", "G8"], rows: [] }, rhetoric: { grades: ["G9", "G10", "G11", "G12"], rows: [{ id: "recA", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G9: [{ en: "Geometry", zh: "几何" }], G10: [{ en: "Algebra 2", zh: "代数2" }] } }] } } };
+const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }, { trackId: 3, nameEn: "Domestic: Classical", nameZh: "国内·古典", credits: { math: 5, science: 3, english: 3, bible: 2, elective: 3 }, totalCredits: 24, serviceHours: 30 }],
+  map: { grammar: { grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"], rows: [] }, dialectic: { grades: ["G7", "G8"], rows: [{ id: "recD", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G7: [{ en: "Pre-Algebra", zh: "预备代数" }] } }] }, rhetoric: { grades: ["G9", "G10", "G11", "G12"], rows: [{ id: "recA", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G9: [{ en: "Geometry", zh: "几何" }], G10: [{ en: "Algebra 2", zh: "代数2" }] } }] } } };
 let PLAN_DOC = { domain: "bes.qiaoliang.online", draft: { tracks: {}, map: {} }, published: null, updatedAt: null, updatedBy: "" };
 const planPuts = [];
 // 校历 (2026-10-16): the school's own events and the Hive layer, kept in memory; every POST is recorded.
@@ -1019,6 +1019,21 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if (!(await p.$eval("#plUnpub", e => !e.hidden))) throw new Error("撤回发布 should show after publishing");
     await p.click('#pltabs a[data-tab="map"]'); await p.waitForTimeout(200);
     const m1 = await p.$$eval('#plbody .plcell[data-cell="G9"]', es => es.map(e => Array.from(e.querySelectorAll(".plchip")).map(c => c.firstChild.textContent).join("; "))); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("after publish: " + m1.join("|"));
+    // a stage still on the system default: the first click on ＋ (or a book) turns 本校自定义 on and opens the editor
+    // (Rick, 2026-10-20: 「Dialectic 和 Rhetoric 中的课程不可以点击」)
+    await p.click('#plbody .plsub[data-stage="dialectic"]'); await p.waitForTimeout(200);
+    assert.ok(!(await p.$eval("#plOwnMap", e => e.checked)) && await p.$("#plbody .plcell.arm .plplus") && !(await p.$("#plbody .plcell.edit")), "dialectic shows the system default, armed");
+    await p.click("#plbody .plcell.arm .plplus"); await p.waitForSelector("#plpop:not([hidden])");
+    assert.ok(await p.$eval("#plOwnMap", e => e.checked) && await p.$("#plbody .plcell.edit"), "one click: the school's own is on and the editor is open");
+    await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+    // the same for a direction's figures on the credits tab
+    await p.click('#pltabs a[data-tab="credits"]'); await p.waitForTimeout(200);
+    await p.click('#plframe input[data-dir="domestic"]'); await p.waitForTimeout(200); await p.click('#plbody .plsub[data-track="3"]'); await p.waitForTimeout(200);
+    assert.ok(!(await p.$eval("#plOwn", e => e.checked)) && await p.$('#plbody td.plarm[data-credit="math"]'), "the domestic track shows the system figures, armed");
+    await p.click('#plbody td.plarm[data-credit="math"]'); await p.waitForTimeout(200);
+    assert.ok(await p.$eval("#plOwn", e => e.checked) && await p.evaluate(() => document.activeElement && document.activeElement.getAttribute("data-credit") === "math"), "one click: the school's own is on and the figure is focused");
+    await p.click('#plframe input[data-dir="domestic"]'); await p.waitForTimeout(200);
+    await p.click('#pltabs a[data-tab="map"]'); await p.waitForTimeout(200); await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForTimeout(200);
     await p.screenshot({ path: OUT + "/plan-leader.png" });
   });
   // A parent (no role) reads the school's published edition: two tabs, nothing to choose, nothing saved.
@@ -1659,13 +1674,11 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(await p.$(".cocard"), "a course card"); assert.ok(/SCI-HS-101/.test(await p.$eval(".cocard", e => e.innerText)));
     await p.screenshot({ path: OUT + "/courses-teacher-list.png" });
     await p.click(".cocard"); await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
-    assert.ok(await p.evaluate(() => document.body.classList.contains("cofocus")) && !(await p.$eval("#side", e => e.offsetWidth)), "focus layout: the sidebar is hidden");
-    // the sidebar can be kept open while editing (Rick, 2026-10-18); the choice is remembered
-    await p.click("#coSide"); await p.waitForTimeout(150);
-    assert.ok(await p.$eval("#side", e => e.offsetWidth > 0) && await p.$eval("#coSide", e => e.classList.contains("on")) && !(await p.$eval(".topbar", e => e.offsetHeight)), "the sidebar shows, the empty topbar does not");
-    assert.strictEqual(await p.evaluate(() => localStorage.getItem("fc-course-side")), "1");
+    // the sidebar stays as it is site-wide: no focus layout, no toggle of the editor's own (Rick, 2026-10-20)
+    assert.ok(!(await p.evaluate(() => document.body.classList.contains("cofocus"))) && await p.$eval("#side", e => e.offsetWidth > 0) && !(await p.$("#coSide")) && !(await p.$(".coback")), "sidebar shown, no editor toggle, no ←");
+    await p.click("#sideHide"); await p.waitForTimeout(150); assert.ok(!(await p.$eval("#side", e => e.offsetWidth)) && !(await p.$eval(".topbar", e => e.offsetHeight)), "the site-wide collapse works here too; the empty topbar stays hidden");
     await p.screenshot({ path: OUT + "/courses-editor-sidebar.png" });
-    await p.click("#coSide"); await p.waitForTimeout(150); assert.ok(!(await p.$eval("#side", e => e.offsetWidth)), "and hides again");
+    await p.click("#sideShow"); await p.waitForTimeout(150);
     assert.strictEqual(await p.$eval(".colang button.on", e => e.textContent), "EN", "editing language follows the source language (English)");
     assert.ok(await p.$('.cof[data-k="nameEn"]') && !(await p.$('.cof[data-k="nameZh"]')), "only one language is shown");
     assert.ok(/只读/.test(await p.$eval('.corowf[data-row="price"]', e => e.innerText)) && await p.$eval('.cof[data-k="price"]', e => e.readOnly), "price is read-only for a teacher");
@@ -1762,8 +1775,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click("#coSubmit"); await p.waitForSelector("#panel.open"); await p.fill("#coNote", "ready"); await p.click("#coGo"); await p.waitForTimeout(400);
     assert.ok(coOps.some(o => o.op === "submit" && o.note === "ready")); assert.ok(await p.$(".costeps li:nth-child(2).cur") && await p.$("#coWithdraw"), "step 2 current, withdraw offered");
     await p.screenshot({ path: OUT + "/courses-submitted.png" });
-    await p.click(".coback"); await p.waitForTimeout(300);
-    assert.ok(!(await p.evaluate(() => document.body.classList.contains("cofocus"))) && await p.$(".cocard"), "back to the cards, sidebar back");
+    assert.ok(!(await p.$(".coback")) && !(await p.$("#coSide")), "no ← and no second sidebar toggle in the editor bar (Rick, 2026-10-20)");
+    await p.click('#nav a[href="#/courses"]'); await p.waitForTimeout(300);
+    assert.ok(await p.$(".cocard"), "the sidebar item leads back to the cards");
   });
   // An approver: the table, assigning through the people picker, 审阅中 on open, the return comment, publish with the website refresh.
   await shot("courses-admin", 1280, 900, "#/courses", "zh", ["staff:curriculum"], async p => {

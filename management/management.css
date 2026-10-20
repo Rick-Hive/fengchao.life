@@ -106,7 +106,7 @@ body.hub-body .site-header { position: static; flex: none; }
   body.sidehide .main { position: relative; }
   body.sidehide .topbar { padding-left: 52px; }
   body.sidehide .topbar.noact ~ .content, body.sidehide .content { padding-top: 44px; }
-  body.coedit .side-show { display: none; } /* the course editor has its own sidebar button */
+  body.sidehide.coedit .cobar { padding-left: 44px; } /* room for the site-wide show-sidebar button (the editor has none of its own now) */
   body.coedit .content { padding-top: 0 !important; }
 }
 .menu-toggle { display: none; border: 1px solid var(--line-strong); background: var(--card); border-radius: 8px; height: 34px; padding: 0 10px; cursor: pointer; margin-top: 12px; }
@@ -861,7 +861,13 @@ table.plmap .plrowbtns .lnk { padding: 2px 5px; color: var(--muted); }
 table.plmap .plrowbtns .lnk.del:hover { color: var(--bad); }
 table.plmap .plrowbtns .lnk[disabled] { opacity: .35; cursor: default; }
 .plcell { min-height: 40px; min-width: 150px; display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; padding: 6px; border-radius: 8px; }
-.plcell.edit { flex-direction: column; align-items: stretch; }
+.plcell.edit, .plcell.arm { flex-direction: column; align-items: stretch; }
+.plcell.arm .plchip.book, .plcell.arm .plplus { cursor: pointer; }
+.plcell.arm .plchip.book:hover { background: var(--accent-soft); color: var(--accent-dark); }
+.plcell.arm .plx { display: none; } /* removing starts with a click on the book itself */
+.plcell.arm .plplus { align-self: flex-start; min-width: 28px; height: 24px; padding: 0 6px; border-radius: 6px; border: 1px dashed transparent; background: none; color: var(--faint); cursor: pointer; font-size: 14px; line-height: 1; }
+.plcell.arm:hover .plplus { border-color: var(--line-strong); color: var(--muted); }
+td.plarm { cursor: pointer; } td.plarm:hover { background: var(--accent-soft); color: var(--accent-dark); }
 .plcell.edit .plchip.book { position: relative; cursor: pointer; padding-right: 20px; }
 .plcell.edit .plchip.book:hover, .plcell.edit .plchip.book:focus-visible { background: var(--accent-soft); color: var(--accent-dark); outline: 0; }
 .plcell.edit .plx { position: absolute; right: 2px; top: 2px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 1px 4px; border-radius: 4px; visibility: hidden; }

@@ -53,7 +53,7 @@
     if (m) return viewCourseEditor(m[1]);
     if (!coHasCourses()) { location.hash = "#/account"; return; }
     var manage = coIsApprover() || coIsViewer();
-    if (/^#\/courses\/(pending|assign)/.test(h)) co.tab = RegExp.$1; else if (!/^#\/courses\/?$/.test(h) && manage) co.tab = co.tab || "all"; else co.tab = "all";
+    if (/^#\/courses\/(pending|assign|draft|returned|published)/.test(h)) co.tab = RegExp.$1; else if (!/^#\/courses\/?$/.test(h) && manage) co.tab = co.tab || "all"; else co.tab = "all";
     setTitle(manage ? t("经营", "Operations") : t("我的账号", "My account"), manage ? t("课程管理", "Course management") : t("我的课程", "My courses"), "",
       { info: manage ? t("老师在蜂巢里维护自己的课程，提交后由课程总监、CEO 或系统管理员审批发布，发布时写入 Airtable 并更新网站。这里分配老师、审批、查看每门课的状态。", "Teachers maintain their courses in Hive; the curriculum director, the CEO or the system administrator reviews and publishes, which writes to Airtable and refreshes the website. Assign teachers, review and follow every course here.")
         : t("分配给你的课程。打开一门课修改属性，保存后提交审批；发布后出现在网站上。", "The courses assigned to you. Open one to change it, then submit it for approval; once published it appears on the website.") });
@@ -84,14 +84,17 @@
     return h + "</span>";
   }
   function coRenderManage() {
+    // Status filter chips instead of two tabs (Rick, 2026-10-20: 「用 filter 更好：已发布的、已提交的、编辑中的…」): one row of
+    // chips with counts, like an issue list; 待审批 = submitted + reviewing (the same set the sidebar badge counts).
     var list = co.list || [], pending = list.filter(function (c) { return c.status === "submitted" || c.status === "reviewing"; });
+    var FILTERS = [["all", t("全部", "All"), list], ["draft", t("编辑中", "Editing"), list.filter(function (c) { return !c.status || c.status === "draft"; })], ["pending", t("待审批", "Pending approval"), pending], ["returned", t("已退回", "Returned"), list.filter(function (c) { return c.status === "returned"; })], ["published", t("已发布", "Published"), list.filter(function (c) { return c.status === "published"; })]];
+    if (!FILTERS.some(function (f) { return f[0] === co.tab; })) co.tab = "all";
     var q = co.q.trim().toLowerCase();
-    var rows = (co.tab === "pending" ? pending : list).filter(function (c) { return !q || [c.code, c.nameEn, c.nameZh, c.school].concat((c.assigned || []).map(function (p) { return p.name; }), c.teachers || []).some(function (x) { return String(x || "").toLowerCase().indexOf(q) >= 0; }); });
+    var rows = FILTERS.filter(function (f) { return f[0] === co.tab; })[0][2].filter(function (c) { return !q || [c.code, c.nameEn, c.nameZh, c.school].concat((c.assigned || []).map(function (p) { return p.name; }), c.teachers || []).some(function (x) { return String(x || "").toLowerCase().indexOf(q) >= 0; }); });
     if (co.tab === "pending") rows.sort(function (a, b) { return String(a.submittedAt || "").localeCompare(String(b.submittedAt || "")); });
     var sync = coursesInfo && coursesInfo.sync;
     $("cobody").innerHTML =
-      '<div class="pagetabs compact" id="cotabs"><a class="ptab' + (co.tab === "all" ? " on" : "") + '" href="#/courses" data-tab="all">' + t("课程", "Courses") + ' <small>' + list.length + '</small></a>' +
-        '<a class="ptab' + (co.tab === "pending" ? " on" : "") + '" href="#/courses/pending" data-tab="pending">' + t("待审批", "To review") + (pending.length ? ' <small class="cobadge">' + pending.length + "</small>" : "") + "</a>" +
+      '<div class="toolbar" id="cotabs">' + FILTERS.map(function (f) { return '<button type="button" class="chip" data-tab="' + f[0] + '" aria-pressed="' + (co.tab === f[0]) + '">' + esc(f[1]) + ' <span class="cnt' + (f[0] === "pending" && f[2].length ? " cobadge" : "") + '">' + f[2].length + "</span></button>"; }).join("") +
         '<div class="tabsRight"><input type="search" id="coq" placeholder="' + esc(t("搜索课程、老师", "Search courses, teachers")) + '" value="' + esc(co.q) + '" />' +
         (sync && sync.pending ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") + "</div></div>" +
       '<div class="tbl-wrap"><table class="data" id="cotable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学科", "Subject") + "</th><th>" + t("学校", "School") + "</th><th>" + t("老师", "Teachers") + "</th><th>" + t("进度", "Progress") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
@@ -102,8 +105,8 @@
           '<td class="coassigned">' + ((c.assigned || []).length ? (c.assigned || []).map(function (p) { return '<span class="tag">' + esc(p.name || p.upn) + "</span>"; }).join(" ") : '<span class="faint">' + ((c.teachers || []).join(", ") || "—") + "</span>") + ' <button type="button" class="linkbtn" data-assign="' + esc(c.id) + '">' + t("分配", "Assign") + "</button></td>" +
           "<td>" + coMiniSteps(c.status) + coStatusTag(c.status) + (waiting >= 1 ? ' <span class="' + (waiting > 7 ? "tag warn" : "faint") + '">' + t("等待 ", "waiting ") + Math.floor(waiting) + t(" 天", " d") + "</span>" : "") + "</td>" +
           '<td class="faint">' + esc(c.updatedAt ? when(c.updatedAt) : "") + "</td></tr>";
-      }).join("") : '<tr><td colspan="6" class="faint">' + (co.tab === "pending" ? t("没有待审批的课程。", "Nothing to review.") : t("没有匹配的课程。", "No matching course.")) + "</td></tr>") + "</tbody></table></div>";
-    $("cotabs").addEventListener("click", function (e) { var a = e.target.closest("a[data-tab]"); if (!a) return; e.preventDefault(); co.tab = a.getAttribute("data-tab"); history.replaceState(null, "", a.getAttribute("href")); coRenderManage(); });
+      }).join("") : '<tr><td colspan="6" class="faint">' + (co.tab === "pending" ? t("没有待审批的课程。", "Nothing to review.") : co.tab !== "all" && !q ? t("这个状态下没有课程。", "No course in this state.") : t("没有匹配的课程。", "No matching course.")) + "</td></tr>") + "</tbody></table></div>";
+    $("cotabs").addEventListener("click", function (e) { var a = e.target.closest("[data-tab]"); if (!a) return; co.tab = a.getAttribute("data-tab"); history.replaceState(null, "", co.tab === "all" ? "#/courses" : "#/courses/" + co.tab); coRenderManage(); });
     $("coq").addEventListener("input", debounce(function () { co.q = $("coq").value; var pos = $("coq").selectionStart; coRenderManage(); $("coq").focus(); try { $("coq").setSelectionRange(pos, pos); } catch (e) {} }, 150));
     $("cotable").addEventListener("click", function (e) {
       var b = e.target.closest("[data-assign]"); if (b) { e.stopPropagation(); coAssignPanel(b.getAttribute("data-assign")); return; }
@@ -156,7 +159,7 @@
   // the editor
   // ================================================================================
   function viewCourseEditor(id) {
-    document.body.classList.add("coedit"); document.body.classList.toggle("cofocus", !coSideOpen());   // the focus layout, unless this person keeps the sidebar
+    document.body.classList.add("coedit"); // the sidebar follows the site-wide collapse only (Rick, 2026-10-20: the editor's own toggle and ← were redundant)   // the focus layout, unless this person keeps the sidebar
     co.id = id; co.course = null; co.pending = {}; co.timers = {}; co.saving = 0; co.failed = false;
     setTitle("", "", "", { info: "" });
     $("content").innerHTML = '<div id="coed" class="coed"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
@@ -182,16 +185,6 @@
     tipify($("coed"));
   }
   // ---- the sidebar while editing: hidden by default (focus layout); a person can keep it open (Rick, 2026-10-18) ----
-  function coSideOpen() { try { return localStorage.getItem("fc-course-side") === "1"; } catch (e) { return false; } }
-  function coSideToggle() {
-    var open = document.body.classList.contains("cofocus");       // hidden now → open it
-    document.body.classList.toggle("cofocus", !open);
-    try { localStorage.setItem("fc-course-side", open ? "1" : "0"); } catch (e) {}
-    var b = $("coSide"); if (b) { b.classList.toggle("on", open); b.title = coSideTitle(open); }
-    coSpy();
-  }
-  function coSideTitle(open) { return open ? t("隐藏左侧导航（专注编辑）", "Hide the sidebar (focus on editing)") : t("显示左侧导航", "Show the sidebar"); }
-  var CO_SIDE_ICON = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7.5 3.5v13" stroke="currentColor" stroke-width="1.6"/></svg>';
   // ---- the status bar ----------------------------------------------------------------------
   function coBarHTML() {
     var c = co.course, appr = coIsApprover(), ro = coIsViewer() && !appr;
@@ -202,8 +195,7 @@
       else primary = '<button class="btn" id="coSubmit">' + t("提交审批", "Submit for approval") + "</button>";
     }
     return '<div class="cobar">' +
-      '<button type="button" class="coside' + (coSideOpen() ? " on" : "") + '" id="coSide" title="' + esc(coSideTitle(coSideOpen())) + '" aria-label="' + esc(t("左侧导航", "Sidebar")) + '">' + CO_SIDE_ICON + "</button>" +
-      '<a class="coback" href="#/courses" title="' + esc(t("返回课程列表", "Back to the list")) + '">←</a>' +
+
       '<div class="cobar-t"><span class="cocode">' + esc(c.code || "") + '</span><b id="coTitle">' + esc(coName(c)) + '</b>' + coStatusTag(c.status) + '<span class="cosaved" id="coSaved">' + coSavedText() + "</span></div>" +
       '<div class="cobar-r">' +
         '<span class="colang" role="group" aria-label="' + esc(t("编辑语言", "Editing language")) + '"><button type="button" data-lang="zh"' + (co.lang === "zh" ? ' class="on"' : "") + '>中文</button><button type="button" data-lang="en"' + (co.lang === "en" ? ' class="on"' : "") + '>EN</button></span>' +
@@ -469,7 +461,6 @@
       if (e.target.closest("#coMore")) { $("coMenu").hidden = !$("coMenu").hidden; return; }
       var mi = e.target.closest("#coMenu .mi[data-op]"); if (mi) { $("coMenu").hidden = true; coMenuOp(mi.getAttribute("data-op")); return; }
       if (!e.target.closest("#coMenu")) $("coMenu").hidden = true;
-      if (e.target.closest("#coSide")) return coSideToggle();
       if (e.target.closest("#coTranslate")) return coTranslate();
       if (e.target.closest("#coVersions")) return coVersionsPanel();
       if (e.target.closest("#coSubmit")) return coSubmit();

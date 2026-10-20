@@ -193,11 +193,12 @@
     if (!edit) {
       // read-only: the system figures, or the school's over them
       var o = ov || { credits: {}, notes: {} };
-      var rowsR = PL_CREDITS.map(function (c) { var dv = tr.credits ? tr.credits[c[0]] : null, has = Object.prototype.hasOwnProperty.call(o.credits, c[0]), v = has ? o.credits[c[0]] : dv; return v == null ? "" : "<tr><td>" + esc(t(c[1], c[2])) + '</td><td class="num">' + esc(String(v)) + (has && dv != null && v !== dv ? ' <small class="muted">(' + t("系统 ", "system ") + esc(String(dv)) + ")</small>" : "") + "</td></tr>"; }).join("");
+      var armC = plState.canEdit && !ov ? ' plarm" title="' + esc(t("点击修改（打开本校自定义）", "Click to change (turns on the school's own)")) + '"' : '"';
+      var rowsR = PL_CREDITS.map(function (c) { var dv = tr.credits ? tr.credits[c[0]] : null, has = Object.prototype.hasOwnProperty.call(o.credits, c[0]), v = has ? o.credits[c[0]] : dv; return v == null ? "" : "<tr><td>" + esc(t(c[1], c[2])) + '</td><td class="num' + armC + ' data-credit="' + c[0] + '">' + esc(String(v)) + (has && dv != null && v !== dv ? ' <small class="muted">(' + t("系统 ", "system ") + esc(String(dv)) + ")</small>" : "") + "</td></tr>"; }).join("");
       var total = ov && ov.totalCredits != null ? ov.totalCredits : tr.totalCredits, hours = ov && ov.serviceHours != null ? ov.serviceHours : tr.serviceHours;
       var note = ov && (o.notes.zh || o.notes.en) ? pickName(o.notes.zh, o.notes.en) : pickName(tr.commentsZh, tr.commentsEn);
       return head + '<table class="data"><thead><tr><th>' + t("科目", "Subject") + '</th><th class="num">' + unit + "</th></tr></thead><tbody>" + rowsR +
-        "<tr><td><b>" + t("总学分", "Total credits") + '</b></td><td class="num"><b>' + esc(total == null ? "—" : String(total)) + "</b></td></tr><tr><td>" + t("服务小时", "Service hours") + '</td><td class="num">' + esc(hours == null ? "—" : String(hours)) + "</td></tr></tbody></table>" +
+        "<tr><td><b>" + t("总学分", "Total credits") + '</b></td><td class="num' + armC + ' data-field="plTotal"><b>' + esc(total == null ? "—" : String(total)) + "</b></td></tr><tr><td>" + t("服务小时", "Service hours") + '</td><td class="num' + armC + ' data-field="plHours">' + esc(hours == null ? "—" : String(hours)) + "</td></tr></tbody></table>" +
         (note ? '<p class="sub" style="margin-top:8px">' + esc(note) + "</p>" : "") + "</div>";
     }
     var rows = PL_CREDITS.map(function (c) {
@@ -244,8 +245,12 @@
     var showScope = edit && (plState.allRows || (st === "rhetoric" && plTracksOfSchool().length > 1));
     var thead = "<thead><tr><th>" + t("科目", "Subject") + "</th>" + (showScope ? "<th>" + (st === "rhetoric" ? t("路径", "Tracks") : t("教育法", "Pedagogy")) + "</th>" : "") + grades.map(function (g) { return "<th>" + esc(g) + "</th>"; }).join("") + (edit ? "<th></th>" : "") + "</tr></thead>";
     if (!edit) {
-      var dconv = own || plFromBlob({ map: { x: dm } }).map.x, drows = (dconv ? dconv.rows : []).filter(forTrack);
-      return head + '<div class="tbl-wrap"><table class="data plmap">' + thead + "<tbody>" + (drows.length ? drows.map(function (r) { return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + cellsHtml(r, false) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + (showScope ? 2 : 1)) + '" class="muted">' + t("这个阶段还没有课程地图。", "No curriculum map for this stage yet.") + "</td></tr>") + "</tbody></table></div></div>";
+      var dconv = own || plFromBlob({ map: { x: dm } }).map.x, dall = dconv ? dconv.rows : [];
+      // An editor sees the system default: the cells are "armed" — the first click on a course or ＋ turns 本校自定义 on
+      // (a copy of the default) and opens that very cell (Rick, 2026-10-20: 「Dialectic 和 Rhetoric 中的课程不可以点击」).
+      var arm = plState.canEdit && !own;
+      var drows = dall.map(function (r, i) { return { r: r, id: "s-" + st + "-" + (i + 1) }; }).filter(function (x) { return forTrack(x.r); });
+      return head + '<div class="tbl-wrap"><table class="data plmap' + (arm ? " arm" : "") + '">' + thead + "<tbody>" + (drows.length ? drows.map(function (x) { var r = x.r; return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + (arm ? cellsHtml(Object.assign({}, r, { id: x.id }), true).replace(/class="plcell edit/g, 'class="plcell arm') : cellsHtml(r, false)) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + (showScope ? 2 : 1)) + '" class="muted">' + t("这个阶段还没有课程地图。", "No curriculum map for this stage yet.") + (arm ? ' <button type="button" class="lnk" id="plStartOwn">' + t("本校自己编排", "Lay it out for the school") + "</button>" : "") + "</td></tr>") + "</tbody></table></div></div>";
     }
     function scopeCell(r, editable) {
       if (!showScope || st === "grammar") return "";
@@ -349,6 +354,26 @@
       if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system default curriculum map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plDirty(); renderPlan(); return; }
       var sub = e.target.closest(".plsub[data-stage],.plsub[data-track]");
       if (sub) { if (sub.hasAttribute("data-stage")) plState.stage = sub.getAttribute("data-stage"); else plState.track = sub.getAttribute("data-track"); renderPlan(); return; }
+      // an armed cell (system default shown to an editor): turn 本校自定义 on, then open the same cell
+      var armCell = e.target.closest(".plcell.arm");
+      if (armCell) {
+        var stA = plState.stage, ridA = armCell.getAttribute("data-row"), gA = armCell.getAttribute("data-cell"), chipA = e.target.closest(".plchip"), iA = chipA ? Number(chipA.getAttribute("data-i")) : -1;
+        if (e.target.closest(".plx")) iA = -2;
+        if (!plState.draft.map[stA]) { plState.draft.map[stA] = { rows: plRowsFromDefault(stA) }; plDirty(); }
+        renderPlan();
+        var cellA = $("plbody").querySelector('.plcell.edit[data-row="' + ridA + '"][data-cell="' + gA + '"]'); if (!cellA) return;
+        if (iA === -2) { var rwA = plRowById(ridA); if (rwA) { var itA = plCellItems(rwA, gA); itA.splice(Number(chipA.querySelector(".plx").getAttribute("data-del-i")), 1); plSetCell(rwA, gA, itA); renderPlan(); } return; }
+        var anchorA = iA >= 0 ? cellA.querySelector('.plchip[data-i="' + iA + '"]') : cellA.querySelector(".plplus"); if (anchorA) plBookOpen(cellA, iA, anchorA);
+        return;
+      }
+      if (e.target.closest("#plStartOwn")) { plState.draft.map[plState.stage] = { rows: [] }; plDirty(); renderPlan(); return; }
+      var armNum = e.target.closest("td.plarm");
+      if (armNum) {
+        var tidA = plState.track; if (!plState.draft.tracks[tidA]) { plState.draft.tracks[tidA] = { credits: {}, totalCredits: null, serviceHours: null, notes: { en: "", zh: "" } }; plDirty(); }
+        renderPlan();
+        var inp = armNum.hasAttribute("data-credit") ? $("plbody").querySelector('input[data-credit="' + armNum.getAttribute("data-credit") + '"]') : $(armNum.getAttribute("data-field")); if (inp) { inp.focus(); inp.select(); }
+        return;
+      }
       // a chip is a book: click → the popover; × removes it; ＋ adds one
       var cell = e.target.closest(".plcell.edit");
       if (cell) {
