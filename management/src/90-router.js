@@ -40,6 +40,8 @@
     if (h.indexOf("#/calendar") === 0) return viewMyCalendar();
     if (h.indexOf("#/courses") === 0) return viewCourses();
     if (h.indexOf("#/security") === 0) return viewSecurity();
+    if (h.indexOf("#/teacher") === 0 && h.indexOf("#/teachers") !== 0) return viewTeacherMine();
+    if (h.indexOf("#/domain/teachers") === 0) return teCanManage() ? viewTeachers() : viewTeacherMine();
     if (h.indexOf("#/plan") === 0 || h.indexOf("#/domain/plan") === 0) return viewPlan(); // everyone: own school (editors: the editor)
     if (h.indexOf("#/domain") === 0) {
       if (!domainsInfo || !domainsInfo.domains.length) { location.hash = "#/account"; return; }

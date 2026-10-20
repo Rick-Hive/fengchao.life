@@ -36,6 +36,7 @@ async function domainAdmins(domain) {
 const { audit } = require("../shared/audit");
 const { guard, finish, describe } = require("../shared/session");
 const people = require("../shared/people");
+const { readSnapshot } = require("../shared/blob");
 
 const DAYS = 7;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -223,7 +224,9 @@ async function handler(context, req) {
     }
     if (method === "GET" && action === "summary") {
       const myDomain = upn.split("@")[1] || "";
-      const [ms, rolesAll, doc, inst, admins] = await Promise.all([methods(user.id), userRoles(req), people.readPeople(), people.readInstitutions(), domainAdmins(myDomain)]);
+      const [ms, rolesAll, doc, inst, admins, snap] = await Promise.all([methods(user.id), userRoles(req), people.readPeople(), people.readInstitutions(), domainAdmins(myDomain), readSnapshot().catch(() => null)]);
+      // 教师资料 (2026-10-20): the Teachers table names this account as a Hive course teacher → the page shows under 我的账号
+      const teacherRec = ((((snap || {}).private || {}).teachers) || []).find((t) => t.teamsAccount === upn) || null;
       const roles = rolesAll.roles;
       const rec = doc.people[upn] || {};
       context.res = {
@@ -231,6 +234,7 @@ async function handler(context, req) {
         body: {
           // Hive's own facts: 身份 (set by the school), 关联账号 and the person's 补充资料.
           hive: {
+            teacherId: teacherRec ? teacherRec.id : null,
             identity: people.identityOf(rec, user),
             linked: Array.isArray(rec.linked) ? rec.linked : [],
             extra: rec.extra || null,

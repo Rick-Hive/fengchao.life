@@ -1342,3 +1342,14 @@ body.coedit .content { padding-bottom: 140px; } /* room under the preview on a p
 .sw.head .track { margin-top: 0; }
 .sw.head .swt { font-size: 13px; color: var(--muted); }
 .plcard .tbl-wrap { margin-top: 0; }
+
+/* 教师资料 (2026-10-20) */
+.tehead { display: flex; gap: var(--s4); align-items: flex-start; margin-bottom: var(--s3); }
+.tephoto { flex: none; width: 140px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.tephoto img { width: 140px; height: 140px; border-radius: 12px; object-fit: cover; border: 1px solid var(--line); }
+.teph-empty { width: 140px; height: 140px; border-radius: 12px; border: 1px dashed var(--line-strong); display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 12px; }
+.tefacts { flex: 1; min-width: 0; }
+.tefacts h3 { margin: 0 8px 6px 0; display: inline-block; }
+.tefacts .kv { margin-top: 8px; }
+#teCard textarea, .panel textarea[data-k] { width: 100%; box-sizing: border-box; }
+#teActions .faint { margin-left: 8px; font-size: 12px; }

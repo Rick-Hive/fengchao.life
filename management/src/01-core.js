@@ -102,7 +102,7 @@
         { hash: "#/calendar", icon: "cal", zh: "我的日历", en: "Calendar" },
         { hash: "#/security", icon: "key", zh: "Teams 登录与安全", en: "Security & Sign-in" },
         { hash: "#/account", icon: "user", zh: "个人资料", en: "Profile" },
-      ].concat(coursesInfo && !coIsApprover() && !coIsViewer() && (coursesInfo.courses || []).length ? [{ hash: "#/courses", icon: "book", zh: "我的课程", en: "My courses", badge: coMyBadge() }] : []) },
+      ].concat(me && me.hive && me.hive.teacherId ? [{ hash: "#/teacher", icon: "user", zh: "教师资料", en: "Teacher profile" }] : []).concat(coursesInfo && !coIsApprover() && !coIsViewer() && (coursesInfo.courses || []).length ? [{ hash: "#/courses", icon: "book", zh: "我的课程", en: "My courses", badge: coMyBadge() }] : []) },
     ];
     if (domainsInfo && domainsInfo.domains && domainsInfo.domains.length) {
       // Accounts pages for whoever may view a school's accounts (IT 管理员, staff); 课程方案
@@ -113,6 +113,7 @@
         { hash: "#/domain/users", icon: "users", zh: "用户管理", en: "User management" },
         { hash: "#/domain/groups", icon: "tree", zh: "Teams 团队管理", en: "Teams management" },
       ] : []).concat(canSeeCalendar() ? [{ hash: "#/domain/calendar", icon: "cal", zh: "日历管理", en: "Calendar management" }] : [])
+        .concat(teCanManage() ? [{ hash: "#/domain/teachers", icon: "users", zh: "教师资料", en: "Teacher profiles" }] : [])
         .concat(seesAccounts ? [{ hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" }] : []) });
     }
     if (canSeeOrders() || isStaff()) {
@@ -120,7 +121,7 @@
         { hash: "#/dashboard", icon: "chart", zh: "仪表盘", en: "Dashboard" },
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
         { hash: "#/ops/people", icon: "users", zh: "人员库", en: "People Hub" },
-      ].concat(coIsApprover() || coIsViewer() ? [{ hash: "#/courses", icon: "book", zh: "课程管理", en: "Course Management", badge: coPendingBadge() }] : []).concat(crmLevel("partners") !== "none" ? [{ hash: "#/ops/partners", icon: "tree", zh: "合作伙伴", en: "Partners" }, { hash: "#/ops/institutions", icon: "tree", zh: "机构", en: "Institutions" }] : []).concat(crmLevel("drm") !== "none" ? [{ hash: "#/ops/licenses", icon: "key", zh: "许可", en: "Licences" }] : []).concat(canSeeStatements() ? [{ hash: "#/ops/statements", icon: "chart", zh: "对账单", en: "Statements" }] : []).concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
+      ].concat(coIsApprover() || coIsViewer() ? [{ hash: "#/courses", icon: "book", zh: "课程管理", en: "Course Management", badge: coPendingBadge() }] : []).concat(coIsApprover() && !(domainsInfo && domainsInfo.domains && domainsInfo.domains.length) ? [{ hash: "#/domain/teachers", icon: "users", zh: "教师资料", en: "Teacher profiles" }] : []).concat(crmLevel("partners") !== "none" ? [{ hash: "#/ops/partners", icon: "tree", zh: "合作伙伴", en: "Partners" }, { hash: "#/ops/institutions", icon: "tree", zh: "机构", en: "Institutions" }] : []).concat(crmLevel("drm") !== "none" ? [{ hash: "#/ops/licenses", icon: "key", zh: "许可", en: "Licences" }] : []).concat(canSeeStatements() ? [{ hash: "#/ops/statements", icon: "chart", zh: "对账单", en: "Statements" }] : []).concat(canSeeRoyalty() ? [{ hash: "#/ops/royalty", icon: "chart", zh: "版税结算", en: "Royalties" }] : []) });
     }
     if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [

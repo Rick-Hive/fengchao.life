@@ -125,7 +125,11 @@ function mkOrder(i, status, agoDays, notifyOk) {
   for (const s of chain) { cur = crm.transition(cur, s, "om@fengchao.life", s === "paid" ? "家长已转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
-const seated = [], createdUsers = [], merges = [];
+const seated = [], createdUsers = [], merges = [], tPatches = [], tPhotos = [], tApproved = [];
+// 教师资料: two teachers, one of them the signed-in account under x:teacher
+const TEACHERS = [{ id: "recTEACH000000001", name: "Zhang Lao", teamsAccount: "rick.zhang@bes.qiaoliang.online", domain: "bes.qiaoliang.online", organization: "北京某某学校", subjects: "Math", languages: "Chinese", gradeLevels: "G7-G9", bio: "", expertise: "", photoUrl: null },
+  { id: "recTEACH000000002", name: "Mr Lee", teamsAccount: "lee@kxc.edu", domain: "kxc.edu", organization: "Kids X Center", subjects: "Science", languages: "English", gradeLevels: "G9-G12", bio: "Twenty years of lab-based science teaching.", expertise: "Biology, chemistry", photoUrl: "/assets/apple-touch-icon.png" }];
+const TWORK = {};
 let CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
 let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 20, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "confirmed", 4, true), mkOrder(7, "submitted", 1, false)];
 function ordersBody(acc) {
@@ -204,10 +208,11 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if (process.env.ONLY && !new RegExp(process.env.ONLY).test(name)) return; // e.g. ONLY=calendar node test/ui/smoke.js
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
-    page.on("pageerror", e => errs.push(name + ": " + e.message));
+    page.on("pageerror", e => errs.push(name + ": " + e.message + " @ " + String(e.stack || "").split("\n").slice(1, 3).join(" | ")));
     page.on("console", m => { if (m.type() === "error" && !/status of (403|409)/.test(m.text())) errs.push(name + " console: " + m.text()); });
     const acc = crm.accessMap(rolesList);
     const me = Object.assign({}, summary, { roles: rolesList.filter(x => !/^x:/.test(x)), crm: acc });
+    if (rolesList.indexOf("x:teacher") >= 0) me.hive = Object.assign({}, me.hive, { teacherId: "recTEACH000000001" });
     const isAdm = rolesList.indexOf("admin") >= 0;
     await page.route("**/api/**", r => {
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
@@ -273,6 +278,13 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/crm/sync") { EQUIP_SYNCED = true; body = { ok: true, status: { syncedAt: new Date().toISOString(), counts: { orders: 2, items: 2, customers: 3, curriculums: 2, seminar: 1 }, warnings: ["Customers: field \"CRM ID\" not found (crmId)"] }, people: HUB.stats }; }
       else if (p === "/api/crm/people") { const canMerge = isAdm || acc.orders === "rw"; const famById = new Map((HUB.families || []).map(f => [f.id, f])); body = { people: hubMod.withMarks(HUB.people, MARKS).map(x => hubMod.maskPerson(x.familyId ? Object.assign({}, x, { family: famById.get(x.familyId) }) : x, acc)), queue: canMerge ? HUB.queue : [], stats: Object.assign({}, HUB.stats, hubMod.markStats(HUB.people, MARKS)), generatedAt: HUB.generatedAt, sources: HUB.sources, access: acc, canMerge, canMark: isAdm || acc.identity === "rw" }; }
       else if (p === "/api/crm/email-replace") { const b = JSON.parse(r.request().postData()); const person = HUB.people.find(x => x.crmId === b.crmId); const em = hubMod.replaceEmailOf(person); if (b.status) MARKS.marks[em] = { status: b.status, by: "om", at: new Date().toISOString() }; else delete MARKS.marks[em]; body = { ok: true, mark: b.status ? Object.assign({ email: em }, MARKS.marks[em]) : null, stats: hubMod.markStats(HUB.people, MARKS) }; }
+      else if (p === "/api/teachers/list") { const approver = isAdm || rolesList.indexOf("staff:curriculum") >= 0; const mineT = rolesList.indexOf("x:teacher") >= 0 ? "recTEACH000000001" : null; const leaderOf = rolesList.filter(x => /^domain_leader:/.test(x)).map(x => x.slice(14)); const vis = TEACHERS.filter(x => approver || leaderOf.includes(x.domain) || x.id === mineT); body = { teachers: vis.map(x => ({ id: x.id, name: x.name, teamsAccount: x.teamsAccount, domain: x.domain, organization: x.organization, photoUrl: (TWORK[x.id] && TWORK[x.id].draft.photo && TWORK[x.id].draft.photo.url) || x.photoUrl, hasBio: !!x.bio, hasExpertise: !!x.expertise, status: (TWORK[x.id] || {}).status || "", updatedAt: (TWORK[x.id] || {}).updatedAt || null, submittedAt: null, mine: x.id === mineT })), me: { teacher: mineT, approver, leaderOf } }; }
+      else if (p === "/api/teachers/one") { const x = TEACHERS.find(t => t.id === u.searchParams.get("id")); const w = TWORK[x.id] || { recId: x.id, name: x.name, status: "", draft: { bio: x.bio, expertise: x.expertise, photo: null }, baseline: { bio: x.bio, expertise: x.expertise, photoUrl: x.photoUrl }, submitted: null, published: null, returned: null, history: [], updatedAt: null }; const approver = isAdm || rolesList.indexOf("staff:curriculum") >= 0; const canEdit = approver || rolesList.indexOf("x:teacher") >= 0 && x.id === "recTEACH000000001" || rolesList.includes("domain_leader:" + x.domain); body = Object.assign({}, w, { profile: { id: x.id, name: x.name, teamsAccount: x.teamsAccount, domain: x.domain, organization: x.organization, subjects: x.subjects, languages: x.languages, courseTypes: "", gradeLevels: x.gradeLevels, photoUrl: x.photoUrl }, canEdit, canApprove: approver }); }
+      else if (p === "/api/teachers/field") { const b = JSON.parse(r.request().postData()); const x = TEACHERS.find(t => t.id === b.id); const w = TWORK[x.id] = TWORK[x.id] || { recId: x.id, name: x.name, status: "", draft: { bio: x.bio, expertise: x.expertise, photo: null }, baseline: { bio: x.bio, expertise: x.expertise, photoUrl: x.photoUrl }, submitted: null, published: null, returned: null, history: [], updatedAt: null }; w.draft[b.key] = b.value; w.status = "draft"; w.updatedAt = new Date().toISOString(); w.history.unshift({ at: w.updatedAt, by: me.profile.upn, action: "save", fields: [b.key] }); tPatches.push(b); body = { ok: true, status: "draft", updatedAt: w.updatedAt }; }
+      else if (p === "/api/teachers/photo") { const b = JSON.parse(r.request().postData()); const w = TWORK[b.id]; tPhotos.push(b.data.length); w.draft.photo = { key: "teachers/work/" + b.id + ".jpg", url: "/assets/apple-touch-icon.png", at: new Date().toISOString() }; w.status = "draft"; w.updatedAt = w.draft.photo.at; body = { ok: true, photo: w.draft.photo, status: "draft" }; }
+      else if (p === "/api/teachers/submit") { const b = JSON.parse(r.request().postData()); const w = TWORK[b.id]; w.status = "submitted"; w.submitted = { at: new Date().toISOString(), by: me.profile.upn }; w.history.unshift({ at: w.submitted.at, by: me.profile.upn, action: "submit" }); body = { ok: true, status: "submitted" }; }
+      else if (p === "/api/teachers/approve") { const b = JSON.parse(r.request().postData()); const w = TWORK[b.id]; tApproved.push(b.id); w.status = "published"; w.published = { at: new Date().toISOString(), by: me.profile.upn, written: ["bio"] }; w.submitted = null; w.history.unshift({ at: w.published.at, by: me.profile.upn, action: "approve", fields: ["bio"] }); body = { ok: true, status: "published", written: ["bio"], skipped: [], airtable: true }; }
+      else if (p === "/api/teachers/return") { const b = JSON.parse(r.request().postData()); const w = TWORK[b.id]; w.status = "draft"; w.returned = { at: new Date().toISOString(), by: me.profile.upn, comment: b.comment }; w.submitted = null; body = { ok: true, status: "draft" }; }
       else if (p === "/api/crm/merge") { const b = JSON.parse(r.request().postData()); merges.push(b); const pa = HUB.people.find(x => x.crmId === b.a), pb = HUB.people.find(x => x.crmId === b.b); const facetOf = (x) => { const f = x.facets || {}; return f.accounts && f.accounts[0] ? "account:" + f.accounts[0].upn : f.customers && f.customers[0] ? "customer:" + f.customers[0].recId : f.contacts && f.contacts[0] ? "contact:" + x.crmId : f.leads && f.leads[0] ? "lead:" + f.leads[0].recId : ""; }; const key = [facetOf(pa), facetOf(pb)].sort().join("|"); HUB_SRC.decisions.pairs[key] = { verdict: "same", manual: true }; merges[merges.length - 1].key = key; HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); const merged = HUB.people.find(x => x.crmId === b.a || x.crmId === b.b); body = { ok: true, crmId: merged.crmId, stats: HUB.stats }; }
       else if (p === "/api/crm/queue") { const b = JSON.parse(r.request().postData()); verdicts.push(b); HUB_SRC.decisions.pairs[b.key] = { verdict: b.verdict }; HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, stats: HUB.stats, queue: HUB.queue }; }
       else if (p === "/api/crm/writeback") { const b = JSON.parse(r.request().postData() || "{}"); writebacks.push(b); const pairs = HUB.people.flatMap(x => x.writeBack.map(id => ({ crmId: x.crmId, name: x.name, recId: id }))); if (b.dryRun) body = { ok: true, dryRun: true, count: pairs.length, preview: pairs }; else { pairs.forEach(pr => { const c = HUB_SRC.equip.customers.find(c => c.recId === pr.recId); if (c) c.crmId = pr.crmId; }); HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, written: pairs.length, already: 0, conflicts: [], missing: 0, stats: HUB.stats }; } }
@@ -344,7 +356,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await page.route("**/.auth/me", r => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ clientPrincipal: { identityProvider: "aad", userId: "x", userDetails: me.profile.upn, userRoles: ["anonymous", "authenticated"].concat(isAdm ? ["admin"] : []) } }) }));
     if (lang) await page.addInitScript(l => localStorage.setItem("fc-lang", l), lang);
     await page.goto(`http://127.0.0.1:${port}/management/${hash}`); await page.waitForTimeout(700);
-    try { if (act) await act(page); } catch (e) { errs.push(name + ": " + e.message); }
+    try { if (act) await act(page); } catch (e) { errs.push(name + ": " + e.message + " @ " + String(e.stack || "").split("\n").slice(1, 4).join(" | ")); }
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: false });
     const ov = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
@@ -1565,6 +1577,38 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForSelector('#nuPlans input[name="nuPlan"]'); await p.click('#nuPlans input[name="nuPlan"][value="faculty"]'); await p.click("#nuSave"); await p.waitForTimeout(500);
     assert.ok(/分配失败：Subscription with SKU … does not have any available licenses/.test(await p.$eval("#panel .pb", e => e.innerText)), "the failure carries Microsoft's reason");
     CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
+    await p.click("#panel .x"); await p.waitForSelector("#panel:not(.open)");
+  });
+  // 教师资料 (2026-10-20): a teacher edits photo / 简介 / 专长 as a draft and submits; the curriculum director approves.
+  await shot("teacher-mine", 1280, 900, "#/teacher", "zh", ["x:teacher"], async p => {
+    await p.waitForSelector("#teBio");
+    assert.ok(/教师资料/.test(await p.$eval("#nav", e => e.innerText)) && !/学校管理/.test(await p.$eval("#nav", e => e.innerText)), "a teacher sees 教师资料 under 我的账号 and no school group");
+    assert.ok(/Zhang Lao/.test(await p.$eval("#teCard", e => e.innerText)) && /Math/.test(await p.$eval("#teCard", e => e.innerText)) && !(await p.$("#teSubmit")), "own record, the Airtable facts, no submit before a change");
+    await p.fill("#teBio", "教数学十年，喜欢用故事讲概念。"); await p.waitForTimeout(1900);
+    assert.deepStrictEqual(tPatches[tPatches.length - 1], { id: "recTEACH000000001", key: "bio", value: "教数学十年，喜欢用故事讲概念。" }, "the biography autosaves");
+    await p.waitForSelector("#teSubmit");
+    await p.fill("#teExp", "小学数学、奥数入门"); await p.waitForTimeout(1900);
+    assert.strictEqual(tPatches[tPatches.length - 1].key, "expertise");
+    // the photo: a small PNG from the repo, cropped and sent as a JPEG data URL
+    await p.setInputFiles("#tePhotoFile", "/tmp/claude-0/-home-claude/27981cac-7b36-5135-8725-84dc55cbba17/scratchpad/photo.png"); await p.waitForTimeout(1200);
+    assert.ok(tPhotos.length === 1 && tPhotos[0] > 1000, "the photo went up as a JPEG data URL");
+    await p.waitForSelector("#teBio"); await p.screenshot({ path: OUT + "/teacher-mine.png" });
+    await p.click("#teSubmit"); await p.waitForTimeout(600);
+    assert.ok(/等待课程总监批准/.test(await p.$eval("#teStatus", e => e.innerText)) && !(await p.$("#teSubmit")), "submitted: waiting for the approver, no second submit");
+  });
+  await shot("teachers-admin", 1280, 900, "#/domain/teachers", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#tetable tr[data-id]");
+    assert.ok(/教师资料/.test(await p.$eval("#nav .nav-group:nth-of-type(2), #nav", e => e.innerText)), "教师资料 in the sidebar");
+    const txt = await p.$eval("#tetable", e => e.innerText);
+    assert.ok(/Zhang Lao/.test(txt) && /Mr Lee/.test(txt) && /待审批/.test(await p.$eval("#tebar", e => e.innerText)), "both teachers, a pending count: " + txt.slice(0, 200));
+    await p.click('#tebar .chip[data-f="pending"]'); await p.waitForTimeout(150);
+    assert.strictEqual((await p.$$("#tetable tr[data-id]")).length, 1, "the pending filter keeps the submitted one");
+    await p.click('#tetable tr[data-id="recTEACH000000001"]'); await p.waitForSelector("#panel.open #teApprove");
+    await p.screenshot({ path: OUT + "/teachers-admin.png" });
+    p.once("dialog", d => d.accept());
+    await p.click("#teApprove"); await p.waitForTimeout(700);
+    assert.deepStrictEqual(tApproved, ["recTEACH000000001"], "approved → Airtable");
+    assert.ok(/已发布到网站/.test(await p.$eval("#panel #teStatus", e => e.innerText)), "the panel says published");
     await p.click("#panel .x"); await p.waitForSelector("#panel:not(.open)");
   });
   await shot("users-sticky", 1280, 500, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {

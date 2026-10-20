@@ -109,6 +109,15 @@
       }
     },
     {
+      "route": "/api/teachers/*",
+      "allowedRoles": [
+        "authenticated"
+      ],
+      "headers": {
+        "Cache-Control": "no-store"
+      }
+    },
+    {
       "route": "/api/courses/*",
       "allowedRoles": [
         "authenticated"

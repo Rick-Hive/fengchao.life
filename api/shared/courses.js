@@ -548,6 +548,6 @@ async function list(who) {
   return { courses: rows, generatedAt: snap && snap.generatedAt, assignments: who.approver ? a.items : undefined };
 }
 
-module.exports = { FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
+module.exports = { writeBase, baseWrite: () => baseFor.write(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
   translateCourse, translationState, translationNeeds, publish, syncWebsite, syncStatus, versions, versionContent, restore, readAssignments, assign, unassign, assignedTo, list, readWork,
   _test: { baseFor: (b) => { baseFor = Object.assign({}, baseFor, b); }, resetLookups: () => { lookupCache = { at: 0, data: null }; }, hash } };
