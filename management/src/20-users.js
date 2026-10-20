@@ -179,6 +179,7 @@
   function viewUsers() {
     var canAll = allDomainList().length > 1;
     if (!canAll) state.allDomains = false;
+    else if (state.allDomains == null) state.allDomains = true; // 所有学校 by default for whoever manages several (Rick, 2026-10-20)
     var all = state.allDomains;
     setTitle(domainGroupTitle(), t("用户管理", "User management"),
       (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>",

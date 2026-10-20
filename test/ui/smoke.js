@@ -125,7 +125,7 @@ function mkOrder(i, status, agoDays, notifyOk) {
   for (const s of chain) { cur = crm.transition(cur, s, "om@fengchao.life", s === "paid" ? "家长已转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
-const seated = [], createdUsers = [];
+const seated = [], createdUsers = [], merges = [];
 let CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
 let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 20, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "confirmed", 4, true), mkOrder(7, "submitted", 1, false)];
 function ordersBody(acc) {
@@ -273,6 +273,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/crm/sync") { EQUIP_SYNCED = true; body = { ok: true, status: { syncedAt: new Date().toISOString(), counts: { orders: 2, items: 2, customers: 3, curriculums: 2, seminar: 1 }, warnings: ["Customers: field \"CRM ID\" not found (crmId)"] }, people: HUB.stats }; }
       else if (p === "/api/crm/people") { const canMerge = isAdm || acc.orders === "rw"; const famById = new Map((HUB.families || []).map(f => [f.id, f])); body = { people: hubMod.withMarks(HUB.people, MARKS).map(x => hubMod.maskPerson(x.familyId ? Object.assign({}, x, { family: famById.get(x.familyId) }) : x, acc)), queue: canMerge ? HUB.queue : [], stats: Object.assign({}, HUB.stats, hubMod.markStats(HUB.people, MARKS)), generatedAt: HUB.generatedAt, sources: HUB.sources, access: acc, canMerge, canMark: isAdm || acc.identity === "rw" }; }
       else if (p === "/api/crm/email-replace") { const b = JSON.parse(r.request().postData()); const person = HUB.people.find(x => x.crmId === b.crmId); const em = hubMod.replaceEmailOf(person); if (b.status) MARKS.marks[em] = { status: b.status, by: "om", at: new Date().toISOString() }; else delete MARKS.marks[em]; body = { ok: true, mark: b.status ? Object.assign({ email: em }, MARKS.marks[em]) : null, stats: hubMod.markStats(HUB.people, MARKS) }; }
+      else if (p === "/api/crm/merge") { const b = JSON.parse(r.request().postData()); merges.push(b); const pa = HUB.people.find(x => x.crmId === b.a), pb = HUB.people.find(x => x.crmId === b.b); const facetOf = (x) => { const f = x.facets || {}; return f.accounts && f.accounts[0] ? "account:" + f.accounts[0].upn : f.customers && f.customers[0] ? "customer:" + f.customers[0].recId : f.contacts && f.contacts[0] ? "contact:" + x.crmId : f.leads && f.leads[0] ? "lead:" + f.leads[0].recId : ""; }; const key = [facetOf(pa), facetOf(pb)].sort().join("|"); HUB_SRC.decisions.pairs[key] = { verdict: "same", manual: true }; merges[merges.length - 1].key = key; HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); const merged = HUB.people.find(x => x.crmId === b.a || x.crmId === b.b); body = { ok: true, crmId: merged.crmId, stats: HUB.stats }; }
       else if (p === "/api/crm/queue") { const b = JSON.parse(r.request().postData()); verdicts.push(b); HUB_SRC.decisions.pairs[b.key] = { verdict: b.verdict }; HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, stats: HUB.stats, queue: HUB.queue }; }
       else if (p === "/api/crm/writeback") { const b = JSON.parse(r.request().postData() || "{}"); writebacks.push(b); const pairs = HUB.people.flatMap(x => x.writeBack.map(id => ({ crmId: x.crmId, name: x.name, recId: id }))); if (b.dryRun) body = { ok: true, dryRun: true, count: pairs.length, preview: pairs }; else { pairs.forEach(pr => { const c = HUB_SRC.equip.customers.find(c => c.recId === pr.recId); if (c) c.crmId = pr.crmId; }); HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB })); body = { ok: true, written: pairs.length, already: 0, conflicts: [], missing: 0, stats: HUB.stats }; } }
       else if (p === "/api/crm/digest") { if (r.request().method() === "POST") { digests.push(1); body = { ok: true, sent: true, to: ["obadiah.sun@equipme.cloud"], status: 202, total: 3 }; } else body = { summary: { total: 3 }, to: ["obadiah.sun@equipme.cloud"], text: "x", subject: "s", last: null, configured: true, channel: true }; }
@@ -473,6 +474,22 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if ((await p.$$("#pkpi .sharebar")).length !== 3) throw new Error("share bars");
     await p.click('#ptable tbody tr[data-id="' + mei.crmId + '"]'); await p.waitForTimeout(300);
     const pb = await p.$eval("#panel .pb", e => e.innerText);
+    // manual merge (Rick, 2026-10-20): search another record inside the panel, confirm, one person afterwards
+    {
+      const other = HUB.people.find(x => x.crmId !== mei.crmId && !(x.facets.accounts || []).length && !(x.facets.customers || []).length) || HUB.people.find(x => x.crmId !== mei.crmId);
+      const before = HUB.stats.people, HUB0 = HUB;
+      await p.fill("#pMergeQ", other.crmId.toLowerCase()); await p.waitForTimeout(300);
+      assert.ok(await p.$('#pMergeList button[data-merge="' + other.crmId + '"]'), "the other record is found by CRM id");
+      p.once("dialog", d => d.accept());
+      await p.click('#pMergeList button[data-merge="' + other.crmId + '"]'); await p.waitForTimeout(800);
+      assert.deepStrictEqual([merges[merges.length - 1].a, merges[merges.length - 1].b], [mei.crmId, other.crmId], "the merge names both records");
+      assert.strictEqual(HUB.stats.people, before - 1, "one person fewer");
+      assert.ok(/mama@qq\.com/.test(await p.$eval("#panel .pb", e => e.innerText)), "the merged person's panel is open");
+      // undo for the checks that follow (the mock keeps its decisions in memory)
+      delete HUB_SRC.decisions.pairs[merges[merges.length - 1].key]; HUB = hubMod.build(Object.assign({}, HUB_SRC, { prev: HUB0 }));
+      await p.click("#panel .x"); await p.waitForSelector("#panel:not(.open)"); await p.click("#pReload"); await p.waitForTimeout(500);
+      await p.click('#ptable tbody tr[data-id="' + mei.crmId + '"]'); await p.waitForTimeout(300);
+    }
     if (!/mama@qq\.com/.test(pb) || !/待替换/.test(pb) || !/Teams 账号 · 1/i.test(pb) || !/Equip 客户 · 1/i.test(pb) || !/讲座名单/.test(pb) || !/首单 2026-10-01/.test(pb)) throw new Error("person panel: " + pb.slice(0, 400));
     await p.click("#panel .x");
     // 订单 / 消费 is a link: the panel opens at the textbook orders, each with its items, and one opens beside it.

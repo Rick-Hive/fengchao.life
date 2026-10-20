@@ -309,6 +309,28 @@ async function handler(context, req) {
     ok(context, { ok: true, stats: h.stats, queue: h.queue });
     return;
   }
+  // Manual merge (Rick, 2026-10-20: 「两个账号是同一个人，如何手动合并？」): two people by CRM id → one decision 是同一个人
+  // between one facet of each, stored like a queue verdict, hub rebuilt. Undo = the same call with verdict "different"
+  // is not offered: a wrong merge is split by removing the pair in crm/merge-decisions.json (sysadmin).
+  if (method === "POST" && action === "merge") {
+    if (!isAdmin(roles) && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const a = String(body.a || "").trim(), b = String(body.b || "").trim();
+    if (!/^HC-\d{6}$/.test(a) || !/^HC-\d{6}$/.test(b) || a === b) { fail(context, 400, "bad_ids"); return; }
+    const h = await hub.readHub();
+    const pa = h && h.people.find((p) => p.crmId === a), pb = h && h.people.find((p) => p.crmId === b);
+    if (!pa || !pb) { fail(context, 404, "not_found"); return; }
+    const facetOf = (p) => { const f = p.facets || {}; if (f.accounts && f.accounts[0]) return "account:" + f.accounts[0].upn; if (f.customers && f.customers[0]) return "customer:" + f.customers[0].recId; if (f.contacts && f.contacts[0]) return "contact:" + p.crmId; if (f.leads && f.leads[0]) return "lead:" + f.leads[0].recId; return ""; };
+    const fa = facetOf(pa), fb = facetOf(pb);
+    if (!fa || !fb) { fail(context, 400, "no_facet"); return; }
+    const key = [fa, fb].sort().join("|");
+    await hub.updateDecisions((d) => { d.pairs[key] = { verdict: "same", by: normUser(user), at: new Date().toISOString(), manual: true, ids: [a, b] }; });
+    await audit(context, { action: "crm.people.merge", by: normUser(user), key, verdict: "same", manual: true, ids: [a, b] });
+    const h2 = await hub.rebuild({ log: (m) => context.log(m) });
+    const merged = h2.people.find((p) => p.crmId === a || p.crmId === b);
+    ok(context, { ok: true, crmId: merged ? merged.crmId : a, stats: h2.stats });
+    return;
+  }
   // CRM ID write-back to the Airtable Customers (decision 3: the only write, confirmed each
   // run). dryRun lists what would be written; a real run writes empty CRM ID fields only.
   if (method === "POST" && action === "writeback") {
