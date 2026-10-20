@@ -513,7 +513,7 @@
         '<div class="grid2">' + f("efSur", "姓", "Surname", p.surname, 40) + f("efGiv", "名", "Given name", p.givenName, 40) + "</div>" +
         f("efDisp", "显示名", "Display name", p.displayName, 64, " required") +
         f("efJob", "职务", "Job title", p.jobTitle, 60) +
-        '<div class="grid2">' + f("efCity", "所在城市", "City", p.city, 40, " required") + f("efZip", "邮编", "Postcode", p.postalCode, 12, ' required inputmode="numeric"') + "</div>" +
+        '<div class="grid2">' + f("efCity", "所在城市", "City", p.city, 40, ' required data-geo="city" list="cnCities"') + f("efZip", "邮编", "Postcode", p.postalCode, 12, ' required inputmode="numeric" data-geo="zip"') + "</div>" +
         '<div class="grid2">' + f("efMail", "安全邮箱（找回密码用，不收 QQ/163）", "Safe email (account recovery; no QQ/163)", p.safeEmail, 120, ' type="email"') + f("efLoc", "使用地区（两位国家代码）", "Usage location (country code)", p.usageLocation, 2, ' required style="text-transform:uppercase"') + "</div>" +
         '<p class="muted" style="font-size:12px;margin:4px 0 0">' + t("保存后立即写入 Microsoft 365，Teams 和 Outlook 里通常几小时内更新。账号名和部门字段不在这里改。", "Saved to Microsoft 365 at once; Teams and Outlook usually follow within hours. The account name and the department are not changed here.") + "</p>" +
         '<div class="actions"><button class="btn" type="submit" id="efSave">' + t("保存到 Microsoft 365", "Save to Microsoft 365") + '</button><button class="btn secondary" type="button" id="efCancel">' + t("取消", "Cancel") + '</button></div><div id="efMsg"></div></form>';
@@ -593,8 +593,8 @@
         '<label class="f">' + t("账号", "Account") + '<div class="upnrow"><input type="text" id="nuAcct" maxlength="63" placeholder="li.ming" /><span class="upnsuf">@' + esc(dom) + '</span></div><small>' + t("字母、数字和 . _ -；建议「名.姓」拼音，如 li.ming。", "Letters, digits and . _ -; pinyin given.surname is the usual form, e.g. li.ming.") + "</small></label>" +
         '<div class="grid2"><label class="f">' + t("身份", "Identity") + ' <span class="req">*</span><select id="nuId"><option value="">' + t("请选择…", "Choose…") + "</option>" + IDENTITIES.map(function (i) { return '<option value="' + i + '">' + esc(vl(i)) + "</option>"; }).join("") + "</select></label>" +
         '<label class="f">' + t("职务（可选）", "Job title (optional)") + '<input type="text" id="nuJob" maxlength="60" placeholder="' + t("如：数学老师", "e.g. Maths teacher") + '" /></label></div>' +
-        '<div class="grid2"><label class="f">' + t("所在城市", "City") + ' <span class="req">*</span><input type="text" id="nuCity" maxlength="40" /></label>' +
-        '<label class="f">' + t("邮编", "Postcode") + ' <span class="req">*</span><input type="text" id="nuZip" maxlength="12" inputmode="numeric" /></label></div>' +
+        '<div class="grid2"><label class="f">' + t("所在城市", "City") + ' <span class="req">*</span><input type="text" id="nuCity" maxlength="40" data-geo="city" list="cnCities" /></label>' +
+        '<label class="f">' + t("邮编", "Postcode") + ' <span class="req">*</span><input type="text" id="nuZip" maxlength="12" inputmode="numeric" data-geo="zip" /></label></div>' +
         '<div class="f-title">' + t("许可证", "License") + ' <span class="req">*</span></div><div id="nuPlans" class="plans"><div class="muted" style="font-size:12px">' + t("载入中…", "Loading…") + "</div></div>" +
         '<p class="muted" style="font-size:12px;margin:4px 0 0">' + t("每个新账号同时获得 Microsoft Power Automate Free。没有许可证的账号不能使用 Teams 和 Outlook。", "Every new account also gets Microsoft Power Automate Free. Without a license the account cannot use Teams or Outlook.") + "</p>" +
         '<div class="actions"><button class="btn" type="submit" id="nuSave">' + t("创建账号", "Create account") + "</button></div><div id=\"nuMsg\"></div></form></div>");
@@ -647,7 +647,7 @@
             '<span class="k">' + t("显示名", "Display name") + "</span><span>" + esc(res.displayName) + "</span>" +
             '<span class="k">' + t("身份", "Identity") + "</span><span>" + esc(vl(body.identity)) + "</span>" +
             '<span class="k">' + t("城市 / 邮编", "City / postcode") + "</span><span>" + esc(body.city) + " · " + esc(body.postalCode) + "</span>" +
-            '<span class="k">' + t("许可证", "Licenses") + "</span><span>" + (res.license && res.license.ok ? esc((res.license.plans || []).join(" + ")) : '<span class="tag bad">' + t("分配失败：", "failed: ") + esc((res.license && res.license.error) || "") + "</span>") + "</span></div>" +
+            '<span class="k">' + t("许可证", "Licenses") + "</span><span>" + ((res.licence || res.license) && (res.licence || res.license).ok ? esc(((res.licence || res.license).plans || []).join(" + ")) : '<span class="tag bad">' + t("分配失败：", "failed: ") + esc(((res.licence || res.license) && (res.licence || res.license).error) || "") + "</span>") + "</span></div>" +
           '<div class="pwbox"><div class="lbl">' + t("临时密码（只显示这一次）", "Temporary password (shown only once)") + '</div><div class="val"><code id="pwVal">' + esc(res.password) + '</code><button class="btn secondary sm" type="button" id="pwCopy">' + t("复制", "Copy") + "</button></div>" +
             "<small>" + t("请电话或当面告知对方账号和临时密码。首次登录微软会要求设置新密码，并引导注册验证器——可把设置向导一并发给对方。关闭面板后不再显示。", "Give the account and temporary password by phone or in person. At the first sign-in Microsoft asks for a new password and walks them through registering an authenticator — send them the setup wizard too. Not shown again after this panel closes.") + "</small></div>" +
           '<div class="actions"><a class="btn secondary sm" href="/help/teams-setup.html" target="_blank" rel="noopener">' + t("设置向导 ↗", "Setup wizard ↗") + '</a><button class="btn secondary sm" type="button" id="nuAgain">' + t("再建一个", "Create another") + "</button></div>";

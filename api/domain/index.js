@@ -636,19 +636,27 @@ async function handler(context, req) {
         throw err;
       }
       // The chosen A1 plan plus every always-on extra (Power Automate Free), in one call.
+      // A just-created account can take a few seconds to replicate: a 404 / 400 from assignLicense right after
+      // POST /users is retried (3 × 2 s) before it counts as a failure. The failure carries Microsoft's own words
+      // so the page can say why (no seats left, no usage location, …), not just a code (Rick, 2026-10-20).
       let licence;
-      try {
-        await graph("POST", `/users/${created.id}/assignLicense`, { addLicenses: skuIds.map((id) => ({ skuId: id, disabledPlans: [] })), removeLicenses: [] });
-        licence = { ok: true, plans: [main.name].concat(lic.extras.filter((x) => x.free).map((x) => x.name)) };
-      } catch (err) {
-        licence = { ok: false, plans: [main.name], error: err.code || String(err.status) };
-        await audit(context, { actor, action: "license.assign", target: upn, skuIds, result: "failed", error: err.code || err.status });
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await graph("POST", `/users/${created.id}/assignLicense`, { addLicenses: skuIds.map((id) => ({ skuId: id, disabledPlans: [] })), removeLicenses: [] });
+          licence = { ok: true, plans: [main.name].concat(lic.extras.filter((x) => x.free).map((x) => x.name)) };
+          break;
+        } catch (err) {
+          if (attempt < 3 && (err.status === 404 || err.status === 400 || err.status === 503)) { await new Promise((r) => setTimeout(r, 2000)); continue; }
+          licence = { ok: false, plans: [main.name], error: (err.message && err.message.split(": ").slice(1).join(": ")) || err.code || String(err.status), code: err.code || err.status };
+          await audit(context, { actor, action: "license.assign", target: upn, skuIds, result: "failed", error: err.code || err.status, message: String(err.message || "").slice(0, 300) });
+          break;
+        }
       }
       // Hive's own record (身份) and the directory cache.
       try { await people.updatePeople((d) => { d.people[upn] = Object.assign({}, d.people[upn] || {}, { identity, updated: new Date().toISOString(), by: actor }); }); } catch { /* best effort */ }
       try { await dir.addUser(domain, Object.assign({ createdDateTime: new Date().toISOString(), accountEnabled: true, userType: "Member" }, created, body)); } catch { /* the next sync adds it */ }
       await audit(context, { actor, action: "user.create", target: upn, displayName, identity, plan, city, result: "ok" });
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: upn, id: created.id, displayName, password, mustChange: true, licence } };
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: upn, id: created.id, displayName, password, mustChange: true, licence, license: licence } };
       return;
     }
 

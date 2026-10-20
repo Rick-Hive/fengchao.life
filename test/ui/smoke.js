@@ -124,7 +124,8 @@ function mkOrder(i, status, agoDays, notifyOk) {
   for (const s of chain) { cur = crm.transition(cur, s, "om@fengchao.life", s === "paid" ? "家长已转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
-const seated = [];
+const seated = [], createdUsers = [];
+let CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
 let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 20, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "confirmed", 4, true), mkOrder(7, "submitted", 1, false)];
 function ordersBody(acc) {
   const counts = { all: ORDERS.length, submitted: 0, confirmed: 0, paid: 0, started: 0, cancelled: 0, overdue: 0, notifyFailed: 0 };
@@ -246,6 +247,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/school-plan" && r.request().method() === "GET" && u.searchParams.get("view") === "1") body = { domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, plan: { published: PLAN_DOC.published || null }, defaults: PLAN_DEFAULTS, canEdit: false };
       else if (p === "/api/school-plan" && r.request().method() === "GET") body = { domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校", nameEn: "Beijing Example School" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS, canEdit: true, isAdmin: isAdm };
       else if (p === "/api/school-plan" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); planPuts.push(b); const at = new Date().toISOString(); if (b.unpublish) PLAN_DOC = Object.assign({}, PLAN_DOC, { published: null, updatedAt: at }); else { const map = {}; Object.keys(b.map || {}).forEach(st => { map[st] = { grades: PLAN_DEFAULTS.map[st].grades, rows: (b.map[st].rows || []).map((row, i) => ({ id: row.id || "s" + i, order: i + 1, subjects: row.subjects, trackIds: row.trackIds || [], pedagogy: row.pedagogy || null, spanAll: !!row.spanAll, cells: Object.fromEntries(Object.entries(row.cells || {}).filter(([, v]) => String(v).trim()).map(([g, v]) => [g, String(v).split(/[;；\n]+/).map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf("/"); return i < 0 ? { en: x, zh: null } : { en: x.slice(0, i).trim(), zh: x.slice(i + 1).trim() }; })])) })) }; }); PLAN_DOC = Object.assign({}, PLAN_DOC, { draft: { tracks: b.tracks || {}, map }, updatedAt: at, updatedBy: me.profile.upn }); if (b.publish) PLAN_DOC.published = Object.assign({}, PLAN_DOC.draft, { at, by: me.profile.upn }); } body = { ok: true, domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS }; }
+      else if (p === "/api/domain/user" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); createdUsers.push(b); const upn = b.account + "@" + b.domain; body = { ok: true, user: upn, id: "u-new", displayName: b.displayName || (b.givenName + " " + b.surname), password: "Hive-2026-xyz", mustChange: true, licence: CREATE_LICENCE, license: CREATE_LICENCE }; }
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
       else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))) } : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
       else if (p === "/api/domain/user" && r.request().method() === "GET") { const up = u.searchParams.get("upn"); const hit = users.users.find(x => x.upn === up); body = { domain: u.searchParams.get("domain"), user: hit || null, gone: !hit, profile: u.searchParams.get("full") && hit ? { givenName: "", surname: "", displayName: hit.displayName, jobTitle: hit.jobTitle || "", city: hit.city || "南京", postalCode: "210000", usageLocation: "CN", safeEmail: hit.safeEmail || "" } : null }; }
@@ -1519,6 +1521,32 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(r.inBar && r.barShown && r.leftAligned && !r.titleShown && r.n > 0, "dashboard: a left-aligned command bar, no title: " + JSON.stringify(r));
     await p.evaluate(() => { location.hash = "#/domain/users"; }); await p.waitForTimeout(700);
     assert.ok(await p.$("#content .toolbar #topActions #csv"), "back on users the buttons are on the toolbar again");
+  });
+  // 新建账号: the result shows the licence that was assigned (the page read 'license' while the API said 'licence' and
+  // always printed 分配失败 — Rick, 2026-10-20); a real failure shows Microsoft's reason.
+  await shot("users-create", 1280, 900, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#newUser"); await p.click("#newUser"); await p.waitForSelector("#panel.open #nuAcct");
+    await p.fill("#nuAcct", "eason.huang"); await p.fill("#nuGiv", "Eason"); await p.fill("#nuSur", "Huang"); await p.selectOption("#nuId", "家长");
+    // city ⇄ postcode (Rick, 2026-10-20): typing 深圳市 fills 518000; typing a postcode fills the city
+    await p.fill("#nuCity", "深圳市"); await p.$eval("#nuCity", e => e.dispatchEvent(new Event("change", { bubbles: true })));
+    assert.strictEqual(await p.inputValue("#nuZip"), "518000", "the city fills the postcode");
+    await p.fill("#nuZip", ""); await p.fill("#nuCity", ""); await p.fill("#nuZip", "100086"); await p.$eval("#nuZip", e => e.dispatchEvent(new Event("change", { bubbles: true })));
+    assert.strictEqual(await p.inputValue("#nuCity"), "北京", "the postcode fills the city");
+    await p.fill("#nuCity", "深圳"); await p.fill("#nuZip", "518000");
+    await p.waitForSelector('#nuPlans input[name="nuPlan"]'); await p.click('#nuPlans input[name="nuPlan"][value="faculty"]');
+    await p.click("#nuSave"); await p.waitForTimeout(500);
+    const txt = await p.$eval("#panel .pb", e => e.innerText);
+    assert.ok(/账号已创建/.test(txt) && /Office 365 A1 for faculty \+ Power Automate Free/.test(txt) && !/分配失败/.test(txt), "the licence line names the plans: " + txt.slice(0, 300));
+    assert.strictEqual(createdUsers[createdUsers.length - 1].plan, "faculty");
+    await p.screenshot({ path: OUT + "/users-create.png" });
+    // a real failure says why
+    CREATE_LICENCE = { ok: false, plans: ["Office 365 A1 for faculty"], error: "Subscription with SKU … does not have any available licenses.", code: "Request_BadRequest" };
+    await p.click("#panel .x"); await p.waitForSelector("#panel:not(.open)"); await p.click("#newUser"); await p.waitForSelector("#panel.open #nuAcct");
+    await p.fill("#nuAcct", "mia.li"); await p.fill("#nuGiv", "Mia"); await p.fill("#nuSur", "Li"); await p.selectOption("#nuId", "家长"); await p.fill("#nuCity", "深圳"); await p.fill("#nuZip", "518000");
+    await p.waitForSelector('#nuPlans input[name="nuPlan"]'); await p.click('#nuPlans input[name="nuPlan"][value="faculty"]'); await p.click("#nuSave"); await p.waitForTimeout(500);
+    assert.ok(/分配失败：Subscription with SKU … does not have any available licenses/.test(await p.$eval("#panel .pb", e => e.innerText)), "the failure carries Microsoft's reason");
+    CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
+    await p.click("#panel .x"); await p.waitForSelector("#panel:not(.open)");
   });
   await shot("users-sticky", 1280, 500, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(500);

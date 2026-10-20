@@ -166,8 +166,8 @@
           '<label class="f">' + t("手机", "Mobile phone") + '<input type="tel" data-p="mobilePhone" maxlength="20" value="' + esc(p.mobilePhone) + '" placeholder="+86 138 0000 0000" /></label>' +
           '<label class="f">' + t("私人邮箱（推荐 Gmail 等海外安全邮箱）", "Personal email (Gmail or another secure overseas mailbox recommended)") + '<input type="email" data-p="safeEmail" value="' + esc(p.safeEmail) + '" placeholder="name@gmail.com" /></label>' +
           '<label class="f">' + t("语言", "Language") + '<select data-p="preferredLanguage"><option value="">' + t("未设置", "Not set") + '</option><option value="zh-CN"' + (p.preferredLanguage === "zh-CN" ? " selected" : "") + '>中文</option><option value="en-US"' + (p.preferredLanguage === "en-US" ? " selected" : "") + ">English</option></select></label>" +
-          '<label class="f">' + t("所在城市", "City") + '<input type="text" data-p="city" maxlength="40" value="' + esc(p.city) + '" /></label>' +
-          '<label class="f">' + t("邮编", "Postcode") + '<input type="text" data-p="postalCode" maxlength="12" value="' + esc(p.postalCode) + '" /></label>' +
+          '<label class="f">' + t("所在城市", "City") + '<input type="text" data-p="city" data-geo="city" list="cnCities" maxlength="40" value="' + esc(p.city) + '" /></label>' +
+          '<label class="f">' + t("邮编", "Postcode") + '<input type="text" data-p="postalCode" data-geo="zip" inputmode="numeric" maxlength="12" value="' + esc(p.postalCode) + '" /></label>' +
         '</div><footer class="cf"><button class="btn" type="submit" id="pSave">' + t("保存", "Save") + '</button><span id="pMsg"></span></footer></form></section>' +
 
       '<section class="card" id="extraCard"></section>';
