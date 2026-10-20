@@ -60,6 +60,8 @@ const FIELDS = {
   grades: { kind: "links", spec: cf.grades, table: "grades", teacher: true, required: true },
   creditHours: { kind: "number", spec: cf.creditHours, teacher: true },
   numClasses: { kind: "number", spec: cf.numClasses, teacher: true },
+  minSize: { kind: "number", spec: cf.minSize, teacher: true },
+  maxSize: { kind: "number", spec: cf.maxSize, teacher: true },
   classTime: { kind: "text", spec: cf.classTime, teacher: true, max: LIMITS.text },
   days: { kind: "multi", spec: cf.daysOfWeek, teacher: true },
   prerequisite: { kind: "long", spec: cf.re.prerequisite, teacher: true, max: LIMITS.text },

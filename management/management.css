@@ -508,6 +508,8 @@ table.data.resizing { user-select: none; cursor: col-resize; }
 .chip .cnt { font-weight: 400; opacity: .75; }
 .panel .ph .tag { flex: none; }
 .olist { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+tr.cldetail > td { background: var(--bg); padding: 8px 12px 12px; }
+tr.cldetail .orow { background: var(--card); }
 .orow { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); border-top: 1px solid var(--line); font-size: 13px; }
 .orow:first-child { border-top: 0; }
 .orow .omain { flex: 1; min-width: 0; display: flex; flex-direction: column; }

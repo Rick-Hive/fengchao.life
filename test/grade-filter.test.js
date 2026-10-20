@@ -107,7 +107,9 @@ vc.on("jsdomError", (e) => console.log("   [page error]", e.message.split("\n")[
 vc.on("error", (...a) => console.log("   [console.error]", ...a));
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://www.fengchao.life/", virtualConsole: vc });
 const { window } = dom;
-window.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve(snapshot) });
+// /api/data → the snapshot; /api/seats → open seats per course code (enrollment rules, 2026-10-20)
+const seatsBody = { at: "2026-10-20T00:00:00Z", seats: { "MTH-EL-101": { taken: 1, waitlist: 0, min: null, max: 3, open: 2, state: "few", belowMin: false, need: 0 }, "MTH-EL-103": { taken: 6, waitlist: 1, min: null, max: 6, open: 0, state: "full", belowMin: false, need: 0 }, "MTH-EL-105": { taken: 2, waitlist: 0, min: 5, max: null, open: null, state: "open", belowMin: true, need: 3 } } };
+window.fetch = (url) => Promise.resolve({ ok: true, json: () => Promise.resolve(/\/api\/seats/.test(String(url)) ? seatsBody : snapshot) });
 let scrollCalls = 0;
 window.scrollTo = () => { scrollCalls++; };
 // jsdom only provides rAF with pretendToBeVisual; the modal uses it to animate in.
@@ -187,6 +189,10 @@ setTimeout(() => {
   check("no stage rows anywhere", doc.querySelectorAll("#fGradePanel input[data-stage]").length, 0);
   check("grammar stage offers no high-school grade", rows().some(r => /高中|大学预科|G9|G1[012]/.test(r)), false);
   check("no filter -> the whole grammar-stage catalog, Pre-K course included", count(), 6);
+  const seatOf = (code) => { const card = Array.from(doc.querySelectorAll(".course-card")).find(c => c.querySelector(".code-inline")?.textContent === code); const l = card && card.querySelector(".seat-line"); return l ? [l.className.replace("card-line seat-line", "").trim(), l.textContent.trim()] : null; };
+  check("seats on the cards (from /api/seats): 2 of 3 left, full, 3 more to run, nothing for a course without limits",
+    [seatOf("MTH-EL-101"), seatOf("MTH-EL-103"), seatOf("MTH-EL-105"), seatOf("MTH-EL-102")],
+    [["few", "还剩 2 席（共 3）"], ["full", "已满 · 可候补"], ["need", "还差 3 人开班（已报 2 / 最少 5）"], null]);
   check("the Pre-K course is still in the catalog, just not filterable",
     names().indexOf("学前中文") !== -1, true);
 

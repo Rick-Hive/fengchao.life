@@ -149,6 +149,10 @@ module.exports = {
     languageZh: "授课语言",
     price: "Course Price/课程价格",
     numClasses: "Number of Classes/课时数",
+    // Class size (Rick, 2026-10-20, enrollment rules design): the course runs only with at least minSize students;
+    // maxSize seats and then the waitlist. Both optional columns; the sync and the editor tolerate their absence.
+    minSize: "Min Class Size/最小开班人数",
+    maxSize: "Max Class Size/最大人数",
     teachers: "Teacher/授课老师",
     classTime: "Class time/上课时间",   // text on the course (the Class Periods table it linked to was deleted 2026-09-28)
     // Multiple select on the Course table: Monday…Friday (English values).

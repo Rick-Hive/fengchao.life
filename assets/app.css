@@ -310,6 +310,14 @@ div.step-item:not(.active) { cursor: not-allowed; }
 .card-line svg { flex: none; color: var(--muted); }
 .teacher-line svg { color: var(--accent); }
 .sched-line svg { color: var(--accent); }
+/* seats (enrollment rules, 2026-10-20): open / few / full / below the minimum */
+.seat-line svg { color: var(--ok); }
+.seat-line.few, .seat-line.few svg, .seat-text.few { color: var(--accent-dark); }
+.seat-line.full, .seat-line.full svg, .seat-text.full { color: var(--err); font-weight: 600; }
+.seat-line.need, .seat-line.need svg, .seat-text.need { color: var(--accent-dark); }
+.seat-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #fef3c7; color: var(--err); font-size: 0.75rem; font-weight: 600; vertical-align: middle; }
+.waitlist-row { display: flex; align-items: flex-start; gap: 8px; margin: -2px 0 8px; font-size: 0.84rem; color: var(--accent-dark); cursor: pointer; }
+.waitlist-row input { margin-top: 3px; }
 .t-link {
   background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-size: 0.86rem;
   color: var(--ink); font-weight: 600;

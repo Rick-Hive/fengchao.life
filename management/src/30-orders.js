@@ -45,11 +45,40 @@
   function viewOrders() {
     // Equip textbook orders first and by default (Rick, 2026-10-08); the website's
     // course orders at #/ops/orders/hive. One compact tab row: name only, no subtitle.
-    var hiveTab = location.hash.indexOf("#/ops/orders/hive") === 0;
+    var hiveTab = location.hash.indexOf("#/ops/orders/hive") === 0, classTab = location.hash.indexOf("#/ops/orders/classes") === 0;
     $("content").innerHTML = '<div class="pagetabs compact" role="tablist">' +
-      '<a class="ptab' + (hiveTab ? "" : " on") + '" role="tab" aria-selected="' + !hiveTab + '" href="#/ops/orders" title="EquipMe · Airtable">' + t("Equip教材订单", "Equip textbook orders") + "</a>" +
-      '<a class="ptab' + (hiveTab ? " on" : "") + '" role="tab" aria-selected="' + hiveTab + '" href="#/ops/orders/hive" title="fengchao.life">' + t("蜂巢课程订单", "Hive course orders") + '</a><div class="tabsRight" id="tabsRight"></div></div><div id="opsBody"></div>';
-    if (hiveTab) viewCourseOrders(); else viewEquipOrders();
+      '<a class="ptab' + (hiveTab || classTab ? "" : " on") + '" role="tab" aria-selected="' + !(hiveTab || classTab) + '" href="#/ops/orders" title="EquipMe · Airtable">' + t("Equip教材订单", "Equip textbook orders") + "</a>" +
+      '<a class="ptab' + (hiveTab ? " on" : "") + '" role="tab" aria-selected="' + hiveTab + '" href="#/ops/orders/hive" title="fengchao.life">' + t("蜂巢课程订单", "Hive course orders") + "</a>" +
+      '<a class="ptab' + (classTab ? " on" : "") + '" role="tab" aria-selected="' + classTab + '" href="#/ops/orders/classes">' + t("班级人数", "Class sizes") + '</a><div class="tabsRight" id="tabsRight"></div></div><div id="opsBody"></div>';
+    if (classTab) viewClasses(); else if (hiveTab) viewCourseOrders(); else viewEquipOrders();
+  }
+  // 班级人数 (enrollment rules design, 2026-10-20): per course — enrolled / waitlist / min / max from the orders,
+  // the orders behind each number, 递补 for a waitlisted family. Cancelling a course that did not reach its minimum
+  // is done order by order (取消, note 未达开班人数) so each family gets its mail.
+  function viewClasses() {
+    setTitle(t("经营 › 订单", "Operations › Orders"), t("班级人数", "Class sizes"), '<button class="btn secondary sm" id="clReload">' + t("刷新", "Refresh") + "</button>",
+      { info: t("每门课的已报名、候补、最小开班人数和最大人数，按网站订单实时计算。已满的课可以为候补家庭递补。", "Enrolled, waitlist, minimum and maximum per course, counted from the website orders. Seat a waitlisted family when a course is full.") });
+    $("opsBody").innerHTML = '<div class="tbl-wrap"><table class="data" id="cltable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学校", "School") + '</th><th class="num">' + t("已报名", "Enrolled") + '</th><th class="num">' + t("候补", "Waitlist") + '</th><th class="num">' + t("最少 / 最多", "Min / max") + "</th><th>" + t("状态", "State") + '</th></tr></thead><tbody><tr><td colspan="6" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>";
+    $("clReload").addEventListener("click", loadClasses);
+    $("cltable").addEventListener("click", function (e) {
+      var seat = e.target.closest("button[data-seat]"); if (seat) { savingButton(seat); post("crm/seat", "POST", { orderId: seat.getAttribute("data-seat"), code: seat.getAttribute("data-code"), waitlist: seat.getAttribute("data-wl") === "1" }).then(function (r) { if (!r.ok) { restoreButton(seat); flash(esc(errText(r)), 4000); return; } flashOk(seat.getAttribute("data-wl") === "1" ? t("已改回候补。", "Back on the waitlist.") : t("已递补：请通知家长。", "Seated: tell the family."), 3000); loadClasses(); }); return; }
+      var tr = e.target.closest("tr[data-code]"); if (tr) { var d = tr.nextElementSibling; if (d && d.classList.contains("cldetail")) d.hidden = !d.hidden; }
+    });
+    loadClasses();
+  }
+  function loadClasses() {
+    api("crm/classes").then(function (r) {
+      var tb = $("cltable") && $("cltable").querySelector("tbody"); if (!tb) return;
+      if (!r.ok) { tb.innerHTML = '<tr><td colspan="6"><div class="msg err">' + esc(errText(r)) + "</div></td></tr>"; return; }
+      var rw = crmLevel("orders") === "rw", cls = r.body.classes || [];
+      if (!cls.length) { tb.innerHTML = '<tr><td colspan="6" class="faint">' + t("还没有设定人数上限的课程，也没有报名。", "No course has a size limit or an enrollment yet.") + "</td></tr>"; return; }
+      tb.innerHTML = cls.map(function (c) {
+        var state = c.state === "full" ? '<span class="tag warn">' + t("已满", "Full") + "</span>" : c.belowMin ? '<span class="tag">' + t("还差 " + c.need + " 人开班", c.need + " more to run") + "</span>" : c.state === "few" ? '<span class="tag accent">' + t("还剩 " + c.open + " 席", c.open + " left") + "</span>" : '<span class="tag ok">' + t("可报名", "Open") + "</span>";
+        var rows = c.orders.map(function (o) { return '<div class="orow"><div class="omain"><b>' + esc(o.orderId) + "</b> " + stTag(o.status) + (o.waitlist ? ' <span class="tag warn">' + t("候补", "Waitlist") + "</span>" : "") + '<span class="sub">' + esc(when(o.submittedAt)) + " · " + esc(o.email || "") + "</span></div>" + (rw ? '<div><button type="button" class="btn secondary sm" data-seat="' + esc(o.orderId) + '" data-code="' + esc(c.code) + '" data-wl="' + (o.waitlist ? "0" : "1") + '">' + (o.waitlist ? t("递补", "Seat") : t("改为候补", "To waitlist")) + "</button></div>" : "") + "</div>"; }).join("");
+        return '<tr class="pick" data-code="' + esc(c.code) + '"><td><span class="dn">' + esc(EN ? c.nameEn || c.nameZh : c.nameZh || c.nameEn) + '</span><span class="sub">' + esc(c.code) + "</span></td><td>" + esc(c.school) + '</td><td class="num"><b>' + c.taken + '</b></td><td class="num">' + (c.waitlist || "") + '</td><td class="num">' + (c.min != null ? c.min : "—") + " / " + (c.max != null ? c.max : "∞") + "</td><td>" + state + "</td></tr>" +
+          '<tr class="cldetail" hidden><td colspan="6"><div class="olist">' + (rows || '<span class="faint">' + t("还没有订单。", "No orders yet.") + "</span>") + "</div></td></tr>";
+      }).join("");
+    });
   }
   function viewCourseOrders() {
     setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>",
@@ -208,7 +237,7 @@
     $("panel").querySelector(".ph h3").textContent = o.orderId;
     var hdrTag = $("panel").querySelector(".ph .tag"); if (hdrTag) hdrTag.outerHTML = stTag(o.status);
     var items = (o.items || []).map(function (it) {
-      return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, side(it.classType), side(it.language), (it.grades || []).join("/")].filter(Boolean).join(" · ")) + "</span></div><div class=\"oprice\">" + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : money(it.price, o.currency)) + "</div></div>";
+      return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, side(it.classType), side(it.language), (it.grades || []).join("/")].filter(Boolean).join(" · ")) + "</span></div>" + (it.waitlist ? '<span class="tag warn" title="' + esc(t("课程已满时下的单，等待递补", "Ordered when the course was full; waiting for a seat")) + '">' + t("候补", "Waitlist") + "</span>" + (next.length ? ' <button type="button" class="btn secondary sm" data-seat-code="' + esc(it.code) + '">' + t("递补", "Seat") + "</button>" : "") : "") + "<div class=\"oprice\">" + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : money(it.price, o.currency)) + "</div></div>";
     }).join("");
     var hist = (o.history || []).slice().reverse().map(function (h) {
       return '<div class="hrow"><span class="hat">' + esc(when(h.at)) + '<span class="hwho">' + esc(h.by === "system" ? t("系统", "system") : h.by) + "</span></span><span>" + (h.from ? stTag(h.from) + " → " : "") + stTag(h.to) + (h.note ? '<span class="hnote">' + esc(h.note) + "</span>" : "") + "</span></div>";
@@ -228,6 +257,9 @@
       (next.length ? "<h4>" + t("推进状态", "Move on") + '</h4><label class="f">' + t("备注（可选）", "Note (optional)") + '<input type="text" id="oNote" maxlength="500" placeholder="' + t("例如：提供方已接单；家长已转账", "e.g. provider accepted; parent has paid") + '" /></label>' +
         '<div class="actions">' + next.map(function (s) { return '<button class="btn' + (s === "cancelled" ? " danger" : s === "submitted" ? " secondary" : "") + '" type="button" data-to="' + s + '">' + esc(t(ORDER_VERB[s][0], ORDER_VERB[s][1])) + "</button>"; }).join("") + '</div><div id="oMsg"></div>' : "") +
       "<h4>" + t("执行记录", "Fulfilment record") + '</h4><div class="hist">' + hist + "</div>";
+    pb.querySelectorAll("button[data-seat-code]").forEach(function (b) {
+      b.addEventListener("click", function () { savingButton(b); post("crm/seat", "POST", { orderId: o.orderId, code: b.getAttribute("data-seat-code"), waitlist: false }).then(function (r) { if (!r.ok) { restoreButton(b); $("oMsg") && ($("oMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"); return; } flashOk(t("已递补：请通知家长。", "Seated: tell the family."), 3000); drawOrderPanel(r.body.order, next); }); });
+    });
     pb.querySelectorAll("button[data-to]").forEach(function (b) {
       b.addEventListener("click", function () {
         var to = b.getAttribute("data-to");

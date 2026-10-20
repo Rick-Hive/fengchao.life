@@ -136,8 +136,8 @@ function overdue(order, now) {
 function orderRecord(order, notify) {
   const items = (order.items || []).map((it) => ({
     code: it.code || "",
-    nameZh: it.nameZh || "",
-    nameEn: it.nameEn || "",
+    nameZh: it.baseNameZh || it.nameZh || "",
+    nameEn: it.baseNameEn || it.nameEn || "",
     classType: it.classType || "",
     language: it.language || "",
     grades: it.grades || [],
@@ -146,6 +146,7 @@ function orderRecord(order, notify) {
     priceTbd: !!it.priceTbd,
     schoolName: it.schoolName || "",
     schoolAbbr: it.schoolAbbr || "",
+    waitlist: !!it.waitlist, // on the waitlist until the order manager seats it (enrollment rules, 2026-10-20)
   }));
   const hives = (order.routes || []).map((r) => ({
     key: r.hiveKey || "",

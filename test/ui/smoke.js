@@ -124,6 +124,7 @@ function mkOrder(i, status, agoDays, notifyOk) {
   for (const s of chain) { cur = crm.transition(cur, s, "om@fengchao.life", s === "paid" ? "家长已转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
+const seated = [];
 let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 20, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "confirmed", 4, true), mkOrder(7, "submitted", 1, false)];
 function ordersBody(acc) {
   const counts = { all: ORDERS.length, submitted: 0, confirmed: 0, paid: 0, started: 0, cancelled: 0, overdue: 0, notifyFailed: 0 };
@@ -288,6 +289,8 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/crm/import-teams") { const b = JSON.parse(r.request().postData() || "{}"); teamsCalls.push(b); if (!TEAMS_OK) { status = 403; body = { error: "teams_forbidden", team: "Hive Orders", channel: "CEFF" }; } else body = { ok: true, dryRun: !!b.dryRun, team: "Hive Orders", channels: ["General", "CEFF"], messages: 12, parsed: 5, created: ["FC-20260929-CAP-001"], existing: [], skipped: [] }; }
       else if (p === "/api/domain/groupnames-fill") { fillCalls.push(JSON.parse(r.request().postData())); body = { ok: true, filled: [{ id: "g2", zh: "五年级数学", en: "Math Grade 5" }] }; }
       else if (p === "/api/domain/groupname") { groupNamed.push(JSON.parse(r.request().postData())); body = { ok: true }; }
+      else if (p === "/api/crm/classes") { ORDERS[1].items[1].waitlist = ORDERS[1].items[1].waitlist !== false; const seatsMod = require("../../api/shared/seats"); const live = seatsMod.seatsFor(seatsMod.countOrders(ORDERS), [{ code: "KXC-MATH-7", nameZh: "七年级数学", nameEn: "Grade 7 Mathematics", minSize: 8, maxSize: 10, school: { abbr: "KXC" } }, { code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grade 7 Science", minSize: null, maxSize: 5, school: { abbr: "KXC" } }]); const classes = Object.keys(live).map(code => Object.assign({ code, nameZh: code === "KXC-MATH-7" ? "七年级数学" : "七年级科学", nameEn: code === "KXC-MATH-7" ? "Grade 7 Mathematics" : "Grade 7 Science", school: "KXC", orders: ORDERS.filter(o => seatsMod.ALIVE.has(o.status)).flatMap(o => o.items.filter(it => it.code === code).map(it => ({ orderId: o.orderId, status: o.status, submittedAt: o.submittedAt, email: crm.mask(o, acc).email, waitlist: !!it.waitlist }))) }, live[code])); body = { classes, at: new Date().toISOString() }; }
+      else if (p === "/api/crm/seat") { const b = JSON.parse(r.request().postData()); seated.push(b); const o = ORDERS.find(x => x.orderId === b.orderId); o.items.forEach(it => { if (it.code === b.code) it.waitlist = b.waitlist; }); body = { ok: true, order: crm.mask(o, acc) }; }
       else if (p === "/api/crm/order" && r.request().method() === "GET") { const o = ORDERS.find(x => x.orderId === u.searchParams.get("id")); body = { order: Object.assign(crm.mask(o, acc), { overdue: crm.overdue(o) }), next: acc.orders === "rw" ? crm.nextStatuses(o.status, rolesList) : [] }; }
       else if (p === "/api/crm/order" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); patched.push(b); const i = ORDERS.findIndex(x => x.orderId === b.orderId); ORDERS[i] = crm.transition(ORDERS[i], b.status, me.profile.upn, b.note, rolesList); body = { ok: true, order: Object.assign(crm.mask(ORDERS[i], acc), { overdue: crm.overdue(ORDERS[i]) }), next: crm.nextStatuses(ORDERS[i].status, rolesList) }; }
       else if (p === "/api/crm/partners") { const type = u.searchParams.get("type") || "it"; const canEdit = isAdm || acc.partners === "rw"; if (!ptMod.TYPES[type]) { status = 400; body = { error: "bad_type" }; } else { const projects = Object.values(PRJ.items); const rows = ptMod.listByType(REL, type, {}, Date.now(), u.searchParams.get("all") === "1").map(x => ptRow(x, projects)); const counts = {}; for (const t of ptMod.visibleTypes()) counts[t] = Object.values(REL.items).filter(x => x.type === t && !x.closed).length; body = { type, rows, summary: ptMod.summary(rows, Date.now()), stages: ptMod.STAGES[type], kinds: ptMod.PROJECT_KINDS[type], contactRoles: ptMod.CONTACT_ROLES[type], regions: ptMod.REGION_LABELS, types: ptMod.TYPES, counts, canEdit, access: acc }; } }
@@ -345,6 +348,19 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await ctx.close();
   }
   const SALES = ["staff:sales"];
+  // 班级人数 (enrollment rules, 2026-10-20): per course from the orders; a waitlisted family can be seated
+  await shot("orders-classes", 1280, 900, "#/ops/orders/classes", "zh", SALES, async p => {
+    await p.waitForSelector("#cltable tr[data-code]");
+    const txt = await p.$eval("#cltable", e => e.innerText);
+    assert.ok(/七年级科学/.test(txt) && /候补/.test(txt) && /已满/.test(txt), "the science course is full with a waitlist: " + txt.slice(0, 200));
+    assert.ok(/七年级数学/.test(txt) && /还差 \d+ 人开班/.test(txt), "the maths course is below its minimum");
+    await p.click('#cltable tr[data-code="KXC-SCI-7"]'); await p.waitForTimeout(150);
+    assert.ok(await p.$eval('#cltable tr[data-code="KXC-SCI-7"] + tr.cldetail', e => !e.hidden), "the row opens its orders");
+    await p.screenshot({ path: OUT + "/orders-classes.png" });
+    await p.click('#cltable button[data-seat][data-wl="0"]'); await p.waitForTimeout(500);
+    assert.deepStrictEqual(seated[seated.length - 1], { orderId: ORDERS[1].orderId, code: "KXC-SCI-7", waitlist: false }, "递补 seats that family's item");
+    assert.ok(!(await p.$$eval("#cltable tbody .tag", es => es.some(e => /候补/.test(e.textContent)))), "nobody left on the waitlist");
+  });
   await shot("orders-zh", 1280, 900, "#/ops/orders/hive", "zh", SALES, async p => {
     const nav = await p.$eval("#nav", e => e.innerText); if (!/经营[\s\S]*订单/.test(nav)) throw new Error("no 经营›订单 nav: " + nav);
     if (/系统/.test(nav)) throw new Error("order manager sees System group");
@@ -406,7 +422,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   await shot("orders-tabs-equip", 1280, 900, "#/ops/orders", "zh", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(400);
     const tabs = await p.$$eval(".pagetabs .ptab", es => es.map(e => [e.textContent.trim().slice(0, 4), e.classList.contains("on")]));
-    if (tabs.length !== 2 || !tabs[0][1] || tabs[1][1] || !/Equi/.test(tabs[0][0])) throw new Error("tabs (Equip first and active): " + JSON.stringify(tabs));
+    if (tabs.length !== 3 || !tabs[0][1] || tabs[1][1] || tabs[2][1] || !/Equi/.test(tabs[0][0]) || !/班级人数/.test(tabs[2][0])) throw new Error("tabs (Equip first and active): " + JSON.stringify(tabs));
     if (await p.$("#otable") || await p.$("#etable")) throw new Error("an order table on the textbook tab");
     const empty = await p.$eval("#evgrid", e => e.innerText); if (!/AIRTABLE_EQUIP_PAT/.test(empty)) throw new Error("empty state: " + empty.slice(0, 100));
     const open = await p.$eval("#eOpen", e => [e.getAttribute("href"), e.getAttribute("target")]); if (open[0] !== "https://airtable.com/appae5kpY1qXn6XLq" || open[1] !== "_blank") throw new Error("Airtable link: " + open);

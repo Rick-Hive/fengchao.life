@@ -594,6 +594,8 @@ async function handler(context, req, internal) {
         languageZh: f(fields, cf.languageZh) ?? "",
         price: typeof f(fields, cf.price) === "number" ? f(fields, cf.price) : null,
         numClasses: f(fields, cf.numClasses) ?? null,
+        minSize: typeof f(fields, cf.minSize) === "number" ? f(fields, cf.minSize) : null,
+        maxSize: typeof f(fields, cf.maxSize) === "number" ? f(fields, cf.maxSize) : null,
         creditHours: typeof f(fields, cf.creditHours) === "number" ? f(fields, cf.creditHours) : null,
         // Never fall back to the raw record id here — an unresolved link (blank
         // Name field, or the linked Teacher record was deleted) is dropped from

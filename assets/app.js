@@ -37,6 +37,8 @@
     data: null,       // snapshot
     filters: { subject: "", grade: "", language: "", classType: "", q: "" },
     cart: {},         // courseId -> true
+    seats: {},        // course code -> { taken, waitlist, min, max, open, state, belowMin, need } from /api/seats
+    waitlistOk: {},   // courseId -> true: the family agreed to the waitlist for a full course
     done: null,       // {orderId}
     submitting: false,
     formErr: "",
@@ -403,6 +405,21 @@
     return fmtTime(p.start) + (p.end ? "–" + fmtTime(p.end) : "");
   }
 
+  // Seats (enrollment rules, 2026-10-20): /api/seats counts Hive's own orders per course code; the snapshot carries
+  // only the limits. Nothing is shown for a course with neither a limit nor an enrollment.
+  function loadSeats() {
+    return fetch("/api/seats", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { state.seats = (j && j.seats) || {}; state.seatsAt = Date.now(); }).catch(function () {});
+  }
+  function fill(s, vars) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? vars[k] : m; }); }
+  function seatInfo(c) {
+    var st = state.seats && c && state.seats[c.code]; if (!st) return null;
+    if (st.state === "full") return { cls: "full", text: t().seatsFull, full: true };
+    if (st.belowMin) return { cls: "need", text: fill(t().seatsNeed, { n: st.need, taken: st.taken, min: st.min }) };
+    if (st.max != null) return { cls: st.state === "few" ? "few" : "", text: fill(t().seatsLeft, { n: st.open, max: st.max }) };
+    if (st.min != null) return { cls: "", text: fill(t().seatsMin, { min: st.min }) };
+    return null;
+  }
+  function seatLine(c) { var si = seatInfo(c); return si ? '<div class="card-line seat-line ' + si.cls + '"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="7" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="14" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M2.5 16c.6-3 2.6-4.5 4.5-4.5s3.9 1.5 4.5 4.5M11.5 15.5c.4-2 1.4-3.3 2.5-3.3s2.2 1.3 2.6 3.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' + esc(si.text) + "</div>" : ""; }
   function schedShort(c) {
     var times = (c.schedule || []).map(periodTime).filter(Boolean);
     var days = daysLabel(c, { shortEn: true });
@@ -1284,6 +1301,7 @@
         ? '<p class="course-desc">' + esc(courseDesc(c)) + "</p>"
         : '<p class="course-desc desc-tbd">' + esc(t().comingSoon) + "</p>") +
       ((c.teachers || []).length ? '<div class="card-line teacher-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' + teacherLinks(c, "t-link") + "</div>" : "") +
+      seatLine(c) +
       (sched ? '<div class="card-line sched-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 5.5V10l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> ' + esc(sched) + "</div>" : "") +
       '<div class="course-bottom"><span class="more-hint">' + esc(t().details) + " ›</span>" + selectBtn(c) + "</div></article>"
     );
@@ -1580,12 +1598,16 @@
   }
 
   function renderStep5() {
+    // seats as of now, not as of the catalog page a while ago
+    if (!state.seatsAt || Date.now() - state.seatsAt > 30000) { state.seatsAt = Date.now(); loadSeats().then(function () { if (state.step === 5 && !state.done) render(); }); }
     var items = cartCourses();
     var rows = items.map(function (c) {
+      var si = seatInfo(c), full = si && si.full;
       return (
-        '<div class="summary-item"><span>' + esc(courseName(c)) + ' <span class="code">' + esc(c.code) + "</span></span>" +
+        '<div class="summary-item"><span>' + esc(courseName(c)) + ' <span class="code">' + esc(c.code) + "</span>" + (full ? ' <span class="seat-tag">' + esc(t().seatsFull) + "</span>" : "") + "</span>" +
         "<span>" + (typeof c.price === "number" ? esc(fmtPrice(c.price)) : esc(t().priceTBD)) +
-        ' <button class="rm" data-id="' + esc(c.id) + '" type="button">' + esc(t().remove) + "</button></span></div>"
+        ' <button class="rm" data-id="' + esc(c.id) + '" type="button">' + esc(t().remove) + "</button></span></div>" +
+        (full ? '<label class="waitlist-row"><input type="checkbox" class="wl" data-id="' + esc(c.id) + '"' + (state.waitlistOk[c.id] ? " checked" : "") + " /> " + esc(t().waitlistJoin) + "</label>" : "")
       );
     }).join("");
     return (
@@ -1804,6 +1826,7 @@
       row(t().dNumClasses, typeof c.numClasses === "number" ? esc(c.numClasses) + " " + esc(t().classes) : "") +
       row(t().dCreditHours, typeof c.creditHours === "number" ? esc(c.creditHours) : "") +
       row(t().dSchedule, schedFull(c) || '<span class="tbd">' + esc(t().scheduleTBD) + "</span>", true) +
+      row(t().dSeats, seatInfo(c) ? '<span class="seat-text ' + seatInfo(c).cls + '">' + esc(seatInfo(c).text) + "</span>" : "", true) +
       row(t().dTeachers, (c.teachers || []).length ? teacherLinks(c, "t-chip") : "", true) +
       row(t().dSchool, c.school && c.school.name ? esc(c.school.name) + (c.school.abbr ? ' <span class="muted">(' + esc(c.school.abbr) + ")</span>" : "") : "") +
       row(t().dTextbooks, textbooks, true) +
@@ -2251,6 +2274,7 @@
 
 
     var summary = app.querySelector(".summary-card");
+    if (summary) summary.addEventListener("change", function (e) { var wl = e.target.closest("input.wl"); if (wl) { state.waitlistOk[wl.getAttribute("data-id")] = wl.checked; } });
     if (summary) summary.addEventListener("click", function (e) {
       var rm = e.target.closest(".rm");
       if (!rm) return;
@@ -2329,6 +2353,7 @@
         teamsAccount: (state.teams || "").trim(),
         trackId: trackId(),
         courseIds: cartIds(),
+        waitlist: cartIds().filter(function (id) { return state.waitlistOk[id]; }),
         // Drives the language of the confirmation email and the hive's Teams
         // notification — the family should be answered in the language they chose.
         lang: state.lang,
@@ -2360,6 +2385,10 @@
           state.formErr = t().errSnapshot;
         } else if (r.body && r.body.error === "unknown_course") {
           state.formErr = t().errCourseGone;
+        } else if (r.body && r.body.error === "course_full") {
+          // the seats moved while the family was deciding: show the waitlist tick for those courses
+          state.formErr = t().errFull;
+          (r.body.full || []).forEach(function (f) { state.seats[f.code] = Object.assign({}, state.seats[f.code] || {}, { state: "full" }); });
         } else {
           state.formErr = t().errGeneric;
         }
@@ -2459,6 +2488,7 @@
       var n = document.getElementById("loadingNotice");
       if (n) n.remove();
       render();
+      loadSeats().then(function () { if (Object.keys(state.seats).length) render(); });
     })
     .catch(function () {
       app.innerHTML = '<div class="notice">' + esc(t().loadErr) + "</div>";

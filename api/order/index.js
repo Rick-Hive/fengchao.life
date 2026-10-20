@@ -13,6 +13,7 @@ const { readSnapshot, nextSequence } = require("../shared/blob");
 const crm = require("../shared/crm");
 const { buildMessages, escapeHtml } = require("../shared/messages");
 const { groupByHive } = require("../shared/hive");
+const seats = require("../shared/seats");
 
 // Best-effort in-memory rate limit (per function instance).
 const hits = new Map();
@@ -169,6 +170,8 @@ module.exports = async function (context, req) {
   const teamsAccount = String(body.teamsAccount || "").trim().slice(0, 200);
   const trackId = Number(body.trackId);
   const courseIds = Array.isArray(body.courseIds) ? body.courseIds.slice(0, 60) : [];
+  // courses the family agreed to join the waitlist for, should they be full at this moment (enrollment rules, 2026-10-20)
+  const waitlistIds = new Set(Array.isArray(body.waitlist) ? body.waitlist.map(String) : []);
   // The language the parent actually ordered in. Everything they receive — the
   // confirmation email — and the hive's Teams notification are rendered in it,
   // so the hive replies in the language the family already chose.
@@ -247,7 +250,23 @@ module.exports = async function (context, req) {
         // the "所属蜂巢" line, since payment and enrolment are settled per hive.
         schoolName: (c.school && c.school.name) || "",
         schoolAbbr: (c.school && c.school.abbr) || "",
+        courseId: c.id,
+        waitlist: false,
       });
+    }
+    // Seats are checked here, against the orders as they are now (no cache): a full course is refused unless the
+    // family asked for the waitlist; a course with room is never put on the waitlist, whatever was asked.
+    {
+      const live = seats.seatsFor(seats.countOrders(await crm.listOrders()), snapshot.courses || []);
+      const full = [];
+      for (const it of items) {
+        const st = live[it.code];
+        if (st && st.state === "full") { if (waitlistIds.has(String(it.courseId))) it.waitlist = true; else full.push({ courseId: it.courseId, code: it.code, waitlist: st.waitlist }); }
+      }
+      if (full.length) { context.res = { status: 409, body: { error: "course_full", full } }; return; }
+      // the messages say 候补; the stored record keeps the plain names (baseName*) so a seated item reads normally later
+      for (const it of items) if (it.waitlist) { it.baseNameZh = it.nameZh; it.baseNameEn = it.nameEn; it.name = it.name + " [候补 / waitlist]"; it.nameZh = it.nameZh + "（候补）"; it.nameEn = it.nameEn + " (waitlist)"; }
+      seats.forget();
     }
     const total = items.reduce((s, i) => s + (typeof i.price === "number" ? i.price : 0), 0);
     // trackId 7 is the K–G8 catalog (not a graduation track) — give it a readable

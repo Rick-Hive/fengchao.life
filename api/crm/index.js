@@ -35,6 +35,7 @@ const hub = require("../shared/hub");
 const digest = require("../shared/digest");
 const royalty = require("../shared/royalty");
 const licenses = require("../shared/licenses");
+const seats = require("../shared/seats");
 const { readSnapshot } = require("../shared/blob");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
@@ -488,6 +489,42 @@ async function handler(context, req) {
     return;
   }
 
+  // 班级人数 (enrollment rules design, 2026-10-20): every course with a limit or an enrollment — taken / waitlist /
+  // min / max from the orders, plus the orders behind each number, so the order manager can seat a waitlisted item
+  // (递补) or cancel a course that did not reach its minimum.
+  if (method === "GET" && action === "classes") {
+    const all = await crm.listOrders(), snap = await readSnapshot();
+    const live = seats.seatsFor(seats.countOrders(all), (snap && snap.courses) || []);
+    const byCode = {};
+    for (const c of (snap && snap.courses) || []) if (live[c.code]) byCode[c.code] = Object.assign({ code: c.code, nameZh: c.nameZh || "", nameEn: c.nameEn || "", school: (c.school && (c.school.abbr || c.school.name)) || "", orders: [] }, live[c.code]);
+    for (const o of all) {
+      if (!seats.ALIVE.has(o.status)) continue;
+      for (const it of o.items || []) if (it && byCode[it.code]) byCode[it.code].orders.push({ orderId: o.orderId, status: o.status, submittedAt: o.submittedAt, email: crm.mask(o, acc).email, waitlist: !!it.waitlist });
+    }
+    const classes = Object.values(byCode).sort((a, b) => (b.waitlist - a.waitlist) || (b.taken - a.taken) || a.code.localeCompare(b.code));
+    classes.forEach((c) => c.orders.sort((a, b) => String(a.submittedAt || "").localeCompare(String(b.submittedAt || ""))));
+    ok(context, { classes, at: new Date().toISOString() });
+    return;
+  }
+  // 递补: an item leaves the waitlist (the family is seated) — or goes back on it. Does not touch the order's status.
+  if (method === "POST" && action === "seat") {
+    if (!crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const id = String(body.orderId || "").trim(), code = String(body.code || "").trim(), waitlist = !!body.waitlist;
+    if (!crm.ID_RE.test(id) || !code) { fail(context, 400, "bad_id"); return; }
+    const cur = await crm.readOrder(id);
+    if (!cur) { fail(context, 404, "not_found"); return; }
+    const items = (cur.order.items || []).map((it) => (it.code === code ? Object.assign({}, it, { waitlist }) : it));
+    if (!items.some((it) => it.code === code)) { fail(context, 404, "no_item"); return; }
+    const at = new Date().toISOString();
+    const next = Object.assign({}, cur.order, { items, history: (cur.order.history || []).concat([{ at, by: user, from: cur.order.status, to: cur.order.status, note: (waitlist ? "候补 / waitlisted: " : "递补 / seated: ") + code }]) });
+    try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && (err.statusCode === 412 || err.statusCode === 409)) { fail(context, 409, "changed_meanwhile"); return; } throw err; }
+    seats.forget();
+    await audit(context, { action: "crm.order.seat", by: normUser(user), orderId: id, code, waitlist });
+    ok(context, { ok: true, order: Object.assign(crm.mask(next, acc), { overdue: crm.overdue(next) }) });
+    return;
+  }
+
   if (action === "order") {
     const id = String((method === "GET" ? req.query && req.query.id : req.body && req.body.orderId) || "").trim();
     if (!crm.ID_RE.test(id)) { fail(context, 400, "bad_id"); return; }
@@ -517,6 +554,7 @@ async function handler(context, req) {
       if (err && (err.statusCode === 412 || err.statusCode === 409)) { fail(context, 409, "changed_meanwhile"); return; }
       throw err;
     }
+    seats.forget();
     await audit(context, { action: "crm.order.status", by: normUser(user), orderId: id, from: cur.order.status, to, note: String(body.note || "").slice(0, 500) });
     ok(context, { ok: true, order: Object.assign(crm.mask(next, acc), { overdue: crm.overdue(next) }), next: crm.nextStatuses(next.status, roles) });
     return;
