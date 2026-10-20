@@ -14,6 +14,21 @@ const crm = require("../shared/crm");
 const { buildMessages, escapeHtml } = require("../shared/messages");
 const { groupByHive } = require("../shared/hive");
 const seats = require("../shared/seats");
+const { getPrincipal } = require("../shared/auth");
+const fee = require("../shared/fee");
+
+// The signed-in account, when the family ordered from the management centre or while signed in on the website: Static
+// Web Apps puts the verified principal on every API call that carries its cookie, so this is the platform's word, never
+// the form's (design 2026-10-20: 「订单自动归入该用户的账号下」). Anonymous orders keep "".
+function accountOf(req) {
+  const p = getPrincipal(req);
+  const upn = String((p && p.userDetails) || "").trim().toLowerCase();
+  return EMAIL_RE.test(upn) ? upn : "";
+}
+
+// One submission = one visit to the order page. Today it holds one order; when a submission spanning several hives is
+// split into one order per hive (stage 2), they share this id — and the selection fee is charged once per submission.
+function makeSubmissionId() { return `FS-${ymdBeijing()}-${randomSuffix(5)}`; }
 
 // Best-effort in-memory rate limit (per function instance).
 const hits = new Map();
@@ -301,8 +316,13 @@ module.exports = async function (context, req) {
 
     const order = {
       orderId: await makeOrderId(items, (m) => context.log.warn(m)),
+      submission: makeSubmissionId(),
       submittedAt: new Date().toISOString(),
       email,
+      // the signed-in account the order belongs to ("" for an anonymous order); the people hub joins it to the customer
+      account: accountOf(req),
+      // the selection fee (null until one is configured; see api/shared/fee.js)
+      fee: fee.feeRecord(fee.selectionFee()),
       // The trigger schema types these as strings; sending null or omitting `name`
       // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
       teamsAccount: teamsAccount || "",
@@ -397,49 +417,58 @@ module.exports = async function (context, req) {
     });
     order.routeCount = order.routes.length;
 
-    // 1. The record. If even this fails the order is refused — nothing would
-    //    remember it — and the family is asked to try again.
-    const record = crm.orderRecord(order, { ok: false, at: order.submittedAt, pending: true });
-    try {
-      await crm.writeOrder(record);
-    } catch (err) {
-      context.log.error(`order ${order.orderId} could not be stored: ${String(err && err.message || err)}`);
-      context.res = { status: 503, body: { error: "store_failed", message: "Order could not be recorded; please try again." } };
-      return;
-    }
-
-    // 2. The notifications (Teams per hive + the family's email), via the flow.
-    const headers = { "Content-Type": "application/json" };
-    if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;
-    let notify;
-    try {
-      const res = await fetch(flowUrl, { method: "POST", headers, body: JSON.stringify(order) });
-      if (!res.ok && res.status !== 202) {
-        const text = await res.text();
-        context.log.error(`Power Automate -> HTTP ${res.status}: ${text.slice(0, 300)}`);
-        notify = { ok: false, at: new Date().toISOString(), error: `HTTP ${res.status}` };
-      } else {
-        notify = { ok: true, at: new Date().toISOString() };
-      }
-    } catch (err) {
-      context.log.error(`Power Automate unreachable: ${String(err && err.message || err)}`);
-      notify = { ok: false, at: new Date().toISOString(), error: String(err && err.message || err).slice(0, 200) };
-    }
-    // Best effort: the outcome of the notification is written back onto the
-    // record. A failure here is logged; the order itself is already safe.
-    try {
-      const cur = await crm.readOrder(order.orderId);
-      if (cur) await crm.writeOrder(Object.assign({}, cur.order, { notify }), cur.etag);
-    } catch (err) {
-      context.log.warn(`order ${order.orderId}: notify status not recorded: ${String(err && err.message || err)}`);
-    }
-
+    // The order is final: stored, then announced. With a selection fee (stage 3) the record is stored as
+    // pending_fee here instead, and finalize() runs from the Stripe webhook once the fee is paid.
+    const result = await finalize(context, order, flowUrl);
+    if (!result.ok) { context.res = { status: 503, body: { error: "store_failed", message: "Order could not be recorded; please try again." } }; return; }
     context.res = {
       status: 200,
-      body: { ok: true, orderId: order.orderId, itemCount: order.itemCount, totalPrice: order.totalPrice, notified: notify.ok },
+      body: { ok: true, orderId: order.orderId, submission: order.submission, itemCount: order.itemCount, totalPrice: order.totalPrice, notified: result.notify.ok },
     };
   } catch (err) {
     context.log.error("order failed", err);
     context.res = { status: 500, body: { error: String(err.message || err) } };
   }
 };
+
+// Store the record and send the notifications (Teams per hive + the family's email, via the flow). The step after
+// the family's part is done — today straight from the submission, later from the paid-fee webhook.
+async function finalize(context, order, flowUrl) {
+  // 1. The record. If even this fails the order is refused — nothing would
+  //    remember it — and the family is asked to try again.
+  const record = crm.orderRecord(order, { ok: false, at: order.submittedAt, pending: true });
+  try {
+    await crm.writeOrder(record);
+  } catch (err) {
+    context.log.error(`order ${order.orderId} could not be stored: ${String(err && err.message || err)}`);
+    return { ok: false };
+  }
+
+  // 2. The notifications.
+  const headers = { "Content-Type": "application/json" };
+  if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;
+  let notify;
+  try {
+    const res = await fetch(flowUrl, { method: "POST", headers, body: JSON.stringify(order) });
+    if (!res.ok && res.status !== 202) {
+      const text = await res.text();
+      context.log.error(`Power Automate -> HTTP ${res.status}: ${text.slice(0, 300)}`);
+      notify = { ok: false, at: new Date().toISOString(), error: `HTTP ${res.status}` };
+    } else {
+      notify = { ok: true, at: new Date().toISOString() };
+    }
+  } catch (err) {
+    context.log.error(`Power Automate unreachable: ${String(err && err.message || err)}`);
+    notify = { ok: false, at: new Date().toISOString(), error: String(err && err.message || err).slice(0, 200) };
+  }
+  // Best effort: the outcome of the notification is written back onto the
+  // record. A failure here is logged; the order itself is already safe.
+  try {
+    const cur = await crm.readOrder(order.orderId);
+    if (cur) await crm.writeOrder(Object.assign({}, cur.order, { notify }), cur.etag);
+  } catch (err) {
+    context.log.warn(`order ${order.orderId}: notify status not recorded: ${String(err && err.message || err)}`);
+  }
+  return { ok: true, notify };
+}
+module.exports.accountOf = accountOf;

@@ -163,6 +163,12 @@ function orderRecord(order, notify) {
     submittedAt: order.submittedAt,
     email: order.email || "",
     teamsAccount: order.teamsAccount || "",
+    // the signed-in account the order belongs to ("" when ordered anonymously on the website); design 2026-10-20
+    account: String(order.account || "").toLowerCase(),
+    // the submission this order came from (several orders share one when a submission is split per hive)
+    submission: order.submission || order.orderId,
+    // the selection fee: null when none was configured (api/shared/fee.js)
+    fee: order.fee && typeof order.fee === "object" ? order.fee : null,
     lang: order.lang || "zh",
     track: order.track ? { trackId: order.track.trackId, nameZh: order.track.nameZh || "", nameEn: order.track.nameEn || "" } : null,
     items,

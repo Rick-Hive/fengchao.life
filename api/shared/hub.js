@@ -132,7 +132,7 @@ function build(src) {
   }
   for (const l of equip.seminar || []) add({ kind: "lead", id: l.recId, keys: [l.email], name: l.name, session: l.session, createdTime: l.createdTime });
   for (const m of Object.values(src.contacts || {})) add({ kind: "contact", id: m.crmId, keys: [m.email], name: m.name, crmId: m.crmId, org: m.org || "", lang: m.lang || "", createdTime: m.at || null });
-  for (const o of src.hiveOrders || []) add({ kind: "hive", id: o.orderId, keys: [o.email, o.teamsAccount], name: "", orderId: o.orderId, status: o.status, total: o.totalPrice, at: o.submittedAt, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean) });
+  for (const o of src.hiveOrders || []) add({ kind: "hive", id: o.orderId, keys: [o.email, o.teamsAccount, o.account], name: "", orderId: o.orderId, status: o.status, total: o.totalPrice, at: o.submittedAt, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean) });
 
   // Levels 1 and 2: any shared key (email or UPN) joins facets. Level 0: a customer's
   // CRM ID joins it to whichever facets the previous build knew under that id.

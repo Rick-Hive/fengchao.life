@@ -44,6 +44,19 @@ const PLAN_SUBJ = [{ id: "recMath", nameEn: "Mathematics", nameZh: "数学" }, {
 const PLAN_DEFAULTS = { k8TrackId: 7, subjects: PLAN_SUBJ, tracks: [{ trackId: 1, nameEn: "International: Classical", nameZh: "国际·古典", credits: { math: 4, science: 3, english: 4, bible: 2, speaking: 1, elective: 2 }, totalCredits: 24, serviceHours: 50, commentsZh: "蜂巢备注" }, { trackId: 2, nameEn: "College prep", nameZh: "大学预备", credits: { math: 4, science: 4, english: 4, elective: 6 }, totalCredits: 26, serviceHours: 40 }, { trackId: 3, nameEn: "Domestic: Classical", nameZh: "国内·古典", credits: { math: 5, science: 3, english: 3, bible: 2, elective: 3 }, totalCredits: 24, serviceHours: 30 }],
   map: { grammar: { grades: ["K", "G1", "G2", "G3", "G4", "G5", "G6"], rows: [] }, dialectic: { grades: ["G7", "G8"], rows: [{ id: "recD", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G7: [{ en: "Pre-Algebra", zh: "预备代数" }] } }] }, rhetoric: { grades: ["G9", "G10", "G11", "G12"], rows: [{ id: "recA", order: 1, subjects: [PLAN_SUBJ[0]], trackIds: [], pedagogy: null, spanAll: false, cells: { G9: [{ en: "Geometry", zh: "几何" }], G10: [{ en: "Algebra 2", zh: "代数2" }] } }] } } };
 let PLAN_DOC = { domain: "bes.qiaoliang.online", draft: { tracks: {}, map: {} }, published: null, updatedAt: null, updatedBy: "" };
+// Hive courses on the map (2026-10-20): the public catalog the plan page counts into the cells, and the family's orders
+const CATALOG = [
+  { id: "recC1", code: "KXC-MATH-HS-101", nameEn: "Geometry", nameZh: "几何", subjects: [PLAN_SUBJ[0]], grades: ["G9", "G10"], trackIds: [1, 2, 3], pedagogy: false, available: true, price: 2400, teachers: ["Zhang Lao"], school: { name: "KXC", abbr: "KXC" }, classTypeZh: "直播课", classTypeEn: "Live", languageZh: "中文", languageEn: "Chinese", descriptionZh: "欧氏几何入门。", descriptionEn: "Euclid.", days: ["Monday"], schedule: [{ range: "19:00–19:45" }], minSize: 4, maxSize: 12 },
+  { id: "recC2", code: "KXC-MATH-HS-301", nameEn: "Calculus", nameZh: "微积分", subjects: [PLAN_SUBJ[0]], grades: ["G12"], trackIds: [2], pedagogy: false, available: true, price: 2600, teachers: [], school: { name: "KXC", abbr: "KXC" } },
+  { id: "recC3", code: "BES-SCI-MS-201", nameEn: "Life Science", nameZh: "生命科学", subjects: [PLAN_SUBJ[1]], grades: ["G7", "G8"], trackIds: [1, 3], pedagogy: false, available: true, price: 1800, teachers: ["Mr Lee"], school: { name: "BES", abbr: "BES" } },
+  { id: "recC4", code: "BES-ART-HS-101", nameEn: "Choir", nameZh: "合唱", subjects: [{ id: "recArt", nameEn: "Fine Arts", nameZh: "艺术" }], grades: ["G9", "G10", "G11", "G12"], trackIds: [1, 3], pedagogy: false, available: true, price: null, teachers: [], school: { name: "BES", abbr: "BES" } },
+  { id: "recC5", code: "KXC-MATH-HS-999", nameEn: "Hidden", nameZh: "下架课", subjects: [PLAN_SUBJ[0]], grades: ["G9"], trackIds: [1], pedagogy: false, available: false, price: 1, teachers: [], school: { name: "KXC", abbr: "KXC" } },
+];
+let MY_ORDERS = [];
+const MY_ORDERS0 = () => [
+  { orderId: "FC-20261020-KXC-003", submission: "FS-20261020-ABCDE", submittedAt: "2026-10-20T03:00:00Z", status: "submitted", email: "h.safe@gmail.com", account: "", items: [{ code: "KXC-MATH-HS-101", nameZh: "几何", nameEn: "Geometry", price: 2400, schoolAbbr: "KXC", grades: ["G9", "G10"], waitlist: false, prereq: null }], hives: [{ key: "kxc", name: "KXC", abbr: "KXC" }], itemCount: 1, totalPrice: 2400, currency: "CNY", fee: null, notify: { ok: true }, history: [{ at: "2026-10-20T03:00:00Z", to: "submitted", from: null }], canCancel: true },
+  { orderId: "FC-20261018-BES-001", submission: "FC-20261018-BES-001", submittedAt: "2026-10-18T03:00:00Z", status: "confirmed", email: "h.safe@gmail.com", account: "", items: [{ code: "BES-SCI-MS-201", nameZh: "生命科学", nameEn: "Life Science", price: 1800, schoolAbbr: "BES", grades: ["G7"], waitlist: true, prereq: { text: "BES-SCI-MS-101 Earth Science / 地球科学", codes: ["BES-SCI-MS-101"], met: "none" } }], hives: [{ key: "bes", name: "BES", abbr: "BES" }], itemCount: 1, totalPrice: 1800, currency: "CNY", fee: { amount: 100, currency: "usd", status: "paid", receiptUrl: "https://pay.stripe.com/receipts/x" }, notify: { ok: true }, history: [], canCancel: false },
+];
 const planPuts = [];
 // 校历 (2026-10-16): the school's own events and the Hive layer, kept in memory; every POST is recorded.
 const TEAM_G5 = "11111111-1111-1111-1111-111111111111";
@@ -349,7 +362,11 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
         else status = 404;
       }
       else if (p === "/api/me/photo") return r.fulfill({ status: 204, body: "" });
-      else if (p === "/api/data") body = { generatedAt: new Date().toISOString(), counts: { products: 12, posts: 8 } };
+      else if (p === "/api/data") body = { generatedAt: new Date().toISOString(), counts: { products: 12, posts: 8 }, courses: CATALOG, teacherProfiles: [] };
+      else if (p === "/api/seats") body = { seats: { "KXC-MATH-HS-101": { taken: 10, waitlist: 0, min: null, max: 12, open: 2, state: "few" }, "BES-SCI-MS-201": { taken: 8, waitlist: 1, min: null, max: 8, open: 0, state: "full" } } };
+      else if (p === "/api/me/orders" && r.request().method() === "GET") body = { orders: MY_ORDERS, addresses: [me.profile.upn, "h.safe@gmail.com"] };
+      else if (p === "/api/me/orders" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); const o = MY_ORDERS.find(x => x.orderId === b.orderId); if (!o) status = 404; else if (o.status !== "submitted") status = 409; else { o.status = "cancelled"; o.canCancel = false; o.history.push({ at: new Date().toISOString(), from: "submitted", to: "cancelled" }); body = { ok: true, order: o }; } if (status !== 200) body = { error: "no" }; }
+      else if (p === "/api/me/contact") body = { upn: me.profile.upn, displayName: me.profile.displayName, mail: "", safeEmail: "h.safe@gmail.com" };
       else status = 404;
       r.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     });
@@ -415,7 +432,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   await shot("orders-none", 1280, 900, "#/ops/orders/hive", "zh", ["domain_it:bes.qiaoliang.online"], async p => {
     await p.waitForTimeout(300);
     const h = await p.evaluate(() => location.hash); if (/^#\/ops\/orders/.test(h)) throw new Error("domain admin reached the orders page");
-    const nav = await p.$eval("#nav", e => e.innerText); if (/订单/.test(nav)) throw new Error("domain admin sees 订单 in nav");
+    const nav = await p.$eval("#nav", e => e.innerText.replace(/我的订单/g, "")); if (/订单/.test(nav)) throw new Error("domain admin sees 订单 in nav"); // 我的订单 (the family's own) is everyone's
   });
   await shot("roles-ceo", 1280, 900, "#/system/roles", "en", ["staff:ceo"], async p => {
     const nav = await p.$eval("#nav", e => e.innerText); if (!/Roles/.test(nav)) throw new Error("CEO has no Roles nav: " + nav);
@@ -1004,9 +1021,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const m0 = await p.$eval("#plbody", e => e.innerText); if (!/几何/.test(m0) || !/系统默认/.test(m0)) throw new Error("map default: " + m0.slice(0, 300));
     assert.ok(!(await p.$("#plbody .plhead + label.sw")) && await p.$("#plbody .plhead label.sw:has(#plOwnMap)"), "the school's-own switch sits in the card head");
     await p.click("label.sw:has(#plOwnMap) .track"); await p.waitForTimeout(200);
-    if ((await p.$$("#plbody table.plmap.edit tbody tr")).length !== 1) throw new Error("Hive's row was not copied");
+    if ((await p.$$("#plbody table.plmap.edit tbody tr:not(.plother)")).length !== 1) throw new Error("Hive's row was not copied");
     await p.click("#plAddRow"); await p.waitForTimeout(200);
-    const rows = await p.$$("#plbody table.plmap.edit tbody tr"); if (rows.length !== 2) throw new Error("add row");
+    const rows = await p.$$("#plbody table.plmap.edit tbody tr:not(.plother)"); if (rows.length !== 2) throw new Error("add row");
     const rid = await rows[1].getAttribute("data-row");
     assert.ok(!(await p.$("#plbody .plmap th:nth-child(2)")) || !/路径/.test(await p.$eval("#plbody .plmap thead", e => e.innerText)), "one direction served: no 路径 column (Rick, 2026-10-19)");
     await p.click("#plAllRows"); await p.waitForTimeout(200);
@@ -1022,25 +1039,27 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.fill("#plpopEn", "Biology"); await p.fill("#plpopZh", "生物"); await p.keyboard.press("Enter"); await p.waitForTimeout(150);
     await p.click(cellSel + " .plplus"); await p.waitForSelector("#plpop:not([hidden])");
     await p.fill("#plpopEn", "Chemistry"); await p.fill("#plpopZh", "化学"); await p.click("#plpopOk"); await p.waitForTimeout(150);
+    // chips show the site language only; the pair stays in the title and the popover (Rick, 2026-10-20)
     const chipText = async () => p.$$eval(cellSel + " .plchip", es => es.map(e => e.firstChild.textContent));
-    assert.deepStrictEqual(await chipText(), ["Biology / 生物", "Chemistry / 化学"], "two chips, one per book");
+    assert.deepStrictEqual(await chipText(), ["生物", "化学"], "two chips, one per book");
+    assert.deepStrictEqual(await p.$$eval(cellSel + " .plchip", es => es.map(e => e.getAttribute("title"))), ["Biology / 生物", "Chemistry / 化学"], "the pair in the title");
     await p.click(cellSel + ' .plchip[data-i="1"]'); await p.waitForSelector("#plpop:not([hidden])");
     assert.strictEqual(await p.inputValue("#plpopZh"), "化学", "the popover opens on the chip's own names");
     await p.fill("#plpopZh", "化学（删）"); await p.keyboard.press("Escape"); await p.waitForTimeout(150);
-    assert.deepStrictEqual(await chipText(), ["Biology / 生物", "Chemistry / 化学"], "Esc drops the change");
+    assert.deepStrictEqual(await chipText(), ["生物", "化学"], "Esc drops the change");
     await p.click(cellSel + " .plplus"); await p.waitForSelector("#plpop:not([hidden])"); await p.fill("#plpopEn", "Physics"); await p.click("#plpopOk"); await p.waitForTimeout(150);
     await p.hover(cellSel + ' .plchip[data-i="2"]'); await p.click(cellSel + ' .plchip[data-i="2"] .plx'); await p.waitForTimeout(150);
-    assert.deepStrictEqual(await chipText(), ["Biology / 生物", "Chemistry / 化学"], "× removes the third book again");
+    assert.deepStrictEqual(await chipText(), ["生物", "化学"], "× removes the third book again");
     assert.ok(!/课程地图\s+语法阶段/.test(await p.$eval("#plbody .plhead", e => e.innerText)), "no repeated card title");
     // a row of a track the school does not serve is hidden unless asked for: the ＋ menu toggles tracks
     await p.click('#plbody tr[data-row="' + rid + '"] .plscope .plchip .x'); await p.waitForTimeout(150);
     await p.click('#plbody button[data-trkmenu="' + rid + '"]'); await p.waitForTimeout(100);
     await p.click('#plbody input[data-trk="2"][data-row="' + rid + '"]'); await p.waitForTimeout(200);
     await p.click("#plAllRows"); await p.waitForTimeout(200);
-    assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr")).length, 1, "the row moved to track 2 is hidden for a classical-international school");
+    assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr:not(.plother)")).length, 1, "the row moved to track 2 is hidden for a classical-international school");
     assert.ok(/1 行属于本校未选/.test(await p.$eval("#plbody", e => e.innerText)));
     await p.click("#plAllRows"); await p.waitForTimeout(200);
-    assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr")).length, 2, "every track's rows on request");
+    assert.strictEqual((await p.$$("#plbody table.plmap.edit tbody tr:not(.plother)")).length, 2, "every track's rows on request");
     // 高中毕业要求: one direction → no sub-tabs; the switch in the head; the school's figures
     await p.click('#pltabs a[data-tab="credits"]'); await p.waitForTimeout(200);
     assert.ok(!(await p.$("#plbody .plsub[data-track]")), "one direction served: no direction sub-tabs");
@@ -1067,7 +1086,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if (planPuts[planPuts.length - 1].publish !== true) throw new Error("publish body: " + JSON.stringify(planPuts[planPuts.length - 1]).slice(0, 200));
     if (!(await p.$eval("#plUnpub", e => !e.hidden))) throw new Error("撤回发布 should show after publishing");
     await p.click('#pltabs a[data-tab="map"]'); await p.waitForTimeout(200);
-    const m1 = await p.$$eval('#plbody .plcell[data-cell="G9"]', es => es.map(e => Array.from(e.querySelectorAll(".plchip")).map(c => c.firstChild.textContent).join("; "))); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "Geometry / 几何|Biology / 生物; Chemistry / 化学") throw new Error("after publish: " + m1.join("|"));
+    const m1 = await p.$$eval('#plbody .plcell[data-cell="G9"]', es => es.map(e => Array.from(e.querySelectorAll(".plchip")).map(c => c.firstChild.textContent).join("; "))); if (!/本校版本/.test(await p.$eval("#plbody", e => e.innerText)) || m1.join("|") !== "几何|生物; 化学") throw new Error("after publish (chips show the site language only): " + m1.join("|"));
     // a stage still on the system default: the first click on ＋ (or a book) turns 本校自定义 on and opens the editor
     // (Rick, 2026-10-20: 「Dialectic 和 Rhetoric 中的课程不可以点击」)
     await p.click('#plbody .plsub[data-stage="dialectic"]'); await p.waitForTimeout(200);
@@ -1089,7 +1108,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   await shot("plan-parent", 1280, 900, "#/plan", "zh", [], async p => {
     await p.waitForTimeout(800);
     const nv = await p.$eval("#nav", e => e.innerText.replace(/\s+/g, " "));
-    assert.ok(/毕业要求与课程地图 i? ?我的 Teams 团队 我的日历 Teams 登录与安全 个人资料/.test(nv), "我的账号 order: " + nv.slice(0, 120));
+    assert.ok(/毕业要求与课程地图 i? ?我的订单 我的 Teams 团队 我的日历 Teams 登录与安全 个人资料/.test(nv), "我的账号 order: " + nv.slice(0, 120));
     assert.ok(!(await p.$("#topActions #plPub")) && !(await p.$("#plframe select")) && !(await p.$("#plbody label.sw")) && !(await p.$("#plbody textarea")) && !(await p.$("#plChild")), "read-only: no actions, frame, switches, inputs or choices");
     assert.deepStrictEqual(await p.$$eval("#plbody .plsub[data-stage]", es => es.map(e => e.textContent.trim())), ["语法阶段 K–G6", "逻辑阶段 G7–G8", "修辞阶段 G9–G12 本校"], "stage sub-tabs for readers too");
     await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForTimeout(200);
@@ -1102,6 +1121,50 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     txt = await p.$eval("#plbody", e => e.innerText);
     assert.ok(/数学\s*5/.test(txt) && !/公众演讲/.test(txt) && /总学分\s*26/.test(txt) && /学校版本/.test(txt), "the school's figures: " + txt.slice(0, 300));
     await p.screenshot({ path: OUT + "/plan-parent.png" });
+  });
+  // Hive courses on the map (2026-10-20): every cell counts the catalog courses that fit; the panel lists them with 选择,
+  // which fills the website's own cart; 去下单 opens the website's order page. Nothing of the catalog is editable here.
+  await shot("map-courses", 1280, 900, "#/plan", "zh", [], async p => {
+    await p.waitForSelector('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForTimeout(400);
+    assert.ok(!(await p.$("#plbody .plavail")), "the grammar stage has no course in the catalog: no counts");
+    await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForSelector("#plbody .plavail");
+    const counts = await p.$$eval("#plbody .plavail", es => es.map(e => e.getAttribute("data-avail-g") + ":" + e.textContent.trim()));
+    assert.deepStrictEqual(counts, ["G9:● 1 门可选", "G10:● 1 门可选", ":● 1 门可选"], "math G9/G10 fit Geometry (the unavailable course and the track-2 Calculus do not); Choir has no row → 其它课程: " + JSON.stringify(counts));
+    assert.ok(/其它课程/.test(await p.$eval("#plbody tr.plother", e => e.innerText)) && (await p.$("#plCart")) && await p.$eval("#plCart", e => e.hidden), "the other-courses row; the cart link waits for a selection");
+    await p.click('#plbody .plavail[data-avail-g="G9"]'); await p.waitForSelector("#panel.open .plcourse");
+    let txt = await p.$eval("#panel", e => e.innerText);
+    assert.ok(/几何/.test(txt) && /KXC-MATH-HS-101/.test(txt) && /Zhang Lao/.test(txt) && /¥2,400/.test(txt) && /还剩 2 席/.test(txt) && /学校计划/.test(txt) && /Geometry \/ 几何|几何/.test(txt), "the panel: code, name, teacher, price, seats, planned items: " + txt);
+    await p.click("#panel button[data-sel]"); await p.waitForTimeout(300);
+    assert.deepStrictEqual(await p.evaluate(() => { const w = JSON.parse(localStorage.getItem("fc-wizard-v1")); return [Object.keys(w.cart), w.pedagogy, w.stage, w.mode, w.done]; }), [["recC1"], "classical", "rhetoric", "international", null], "the website's cart, with what its order page needs to open");
+    assert.ok(/已选/.test(await p.$eval("#panel button[data-sel]", e => e.textContent)) && !(await p.$eval("#plCart", e => e.hidden)) && /去下单（1 门）/.test(await p.$eval("#plCart", e => e.textContent)) && (await p.$eval("#plCart", e => e.getAttribute("href"))) === "/order", "selected; 去下单 (1) → the website");
+    await p.click("#panel button[data-course]"); await p.waitForSelector("#panel2.open .pvdetail");
+    txt = await p.$eval("#panel2", e => e.innerText);
+    assert.ok(/欧氏几何入门/.test(txt) && /最少 4 · 最多 12/.test(txt) && /KXC/.test(txt) && /已选/.test(txt) && !(await p.$("#panel2 input, #panel2 textarea")), "the detail: description, class size, provider, the same 选择 — nothing to edit");
+    await p.screenshot({ path: OUT + "/map-courses.png" });
+    // the same state after a reload: the cart persists, the picture for the record (the compositor in this harness
+    // keeps a stale frame after the select click; the DOM is right, see the assertions)
+    await p.reload(); await p.waitForSelector('#plbody .plsub[data-stage="rhetoric"]'); await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForSelector('#plbody .plavail[data-avail-g="G9"]');
+    assert.ok(/去下单（1 门）/.test(await p.$eval("#plCart", e => e.textContent)) && !(await p.$eval("#plCart", e => e.hidden)), "the selection survives a reload");
+    await p.click('#plbody .plavail[data-avail-g="G9"]'); await p.waitForSelector("#panel.open .plcourse"); await p.click("#panel button[data-course]"); await p.waitForSelector("#panel2.open .pvdetail"); await p.waitForTimeout(400);
+    await p.screenshot({ path: OUT + "/map-courses-detail.png" });
+    await p.click("#panel2 button[data-sel]"); await p.waitForTimeout(200);
+    assert.deepStrictEqual(await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("fc-wizard-v1")).cart)), [], "unselected again");
+    await p.keyboard.press("Escape"); await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+    await p.click('#plbody .plavail[data-avail-i="-1"]'); await p.waitForSelector("#panel.open .plcourse");
+    assert.ok(/合唱/.test(await p.$eval("#panel", e => e.innerText)), "其它课程 lists the course whose subject is not on the map");
+    await p.keyboard.press("Escape");
+  });
+  // 我的订单 (2026-10-20): the account's orders, the family's own cancellation while still submitted
+  MY_ORDERS = MY_ORDERS0();
+  await shot("orders-mine", 1280, 900, "#/myorders", "zh", [], async p => {
+    await p.waitForSelector(".mocard");
+    const txt = await p.$eval("#mobody", e => e.innerText);
+    assert.ok(/FC-20261020-KXC-003/.test(txt) && /已提交/.test(txt) && /几何/.test(txt) && /FC-20261018-BES-001/.test(txt) && /机构已确认/.test(txt) && /候补/.test(txt) && /前置课程未确认/.test(txt) && /USD 1\.00 · 已付/.test(txt) && /收据/.test(txt), "both orders, their tags and the fee: " + txt);
+    assert.strictEqual((await p.$$("#mobody button[data-cancel]")).length, 1, "only the submitted order can be cancelled by the family");
+    await p.screenshot({ path: OUT + "/orders-mine.png" });
+    p.once("dialog", d => d.accept());
+    await p.click("#mobody button[data-cancel]"); await p.waitForTimeout(500);
+    assert.ok(/已取消/.test(await p.$eval('.mocard[data-order="FC-20261020-KXC-003"]', e => e.innerText)) && !(await p.$("#mobody button[data-cancel]")), "cancelled, no more cancel buttons");
   });
   // an ordinary account lands on 毕业要求与课程地图 (Rick, 2026-10-19)
   await shot("plan-landing", 1280, 700, "", "zh", [], async p => {

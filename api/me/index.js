@@ -37,6 +37,23 @@ const { audit } = require("../shared/audit");
 const { guard, finish, describe } = require("../shared/session");
 const people = require("../shared/people");
 const { readSnapshot } = require("../shared/blob");
+const seats = require("../shared/seats");
+
+// 我的订单 (design 2026-10-20): the orders that are this person's — placed while signed in as this account, or under
+// one of the account's addresses (the UPN itself, the work mail, the safe email). Theirs to read in full and, while
+// still only submitted, to cancel; everything after that is the hive's and the order manager's.
+function orderAddresses(upn, user) {
+  return Array.from(new Set([upn, user.mail, (user.otherMails || [])[0]].map((v) => String(v || "").trim().toLowerCase()).filter(Boolean)));
+}
+function isMine(o, upn, addrs) {
+  if (!o) return false;
+  if (o.account && String(o.account).toLowerCase() === upn) return true;
+  return addrs.includes(String(o.email || "").toLowerCase()) || addrs.includes(String(o.teamsAccount || "").toLowerCase());
+}
+function myOrderView(o) {
+  // what a family needs: the status, the courses, waitlist and prerequisite flags, the fee; not the fulfilment notes
+  return { orderId: o.orderId, submission: o.submission || o.orderId, submittedAt: o.submittedAt, status: o.status, email: o.email || "", account: o.account || "", items: o.items || [], hives: o.hives || [], itemCount: o.itemCount, totalPrice: o.totalPrice, currency: o.currency || "CNY", fee: o.fee || null, track: o.track || null, notify: o.notify ? { ok: !!o.notify.ok, pending: !!o.notify.pending } : null, history: (o.history || []).map((h) => ({ at: h.at, to: h.to, from: h.from })), canCancel: o.status === "submitted" };
+}
 
 const DAYS = 7;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -277,6 +294,35 @@ async function handler(context, req) {
           days: DAYS,
         },
       };
+      return;
+    }
+
+    // The order page on the website, for a signed-in family: the account and its addresses to fill the form with.
+    if (method === "GET" && action === "contact") {
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { upn, displayName: user.displayName || "", mail: user.mail || "", safeEmail: (user.otherMails || [])[0] || "" } };
+      return;
+    }
+    if (method === "GET" && action === "orders") {
+      const addrs = orderAddresses(upn, user);
+      const all = await crm.listOrders();
+      const mine = all.filter((o) => isMine(o, upn, addrs)).map(myOrderView);
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { orders: mine, addresses: addrs } };
+      return;
+    }
+    // A family takes back an order it just placed (still 已提交): the seat goes free again. Later than that, the hive
+    // has been in touch and the cancellation is a request to the order manager (手动).
+    if (method === "PATCH" && action === "orders") {
+      const b = req.body && typeof req.body === "object" ? req.body : {};
+      const orderId = String(b.orderId || "");
+      if (!crm.ID_RE.test(orderId)) return fail(context, 400, "bad order id");
+      const cur = await crm.readOrder(orderId);
+      if (!cur || !isMine(cur.order, upn, orderAddresses(upn, user))) return fail(context, 404, "no such order");
+      if (cur.order.status !== "submitted") return fail(context, 409, "the order has moved on; ask the order manager to cancel it", { status: cur.order.status });
+      const next = crm.transition(cur.order, "cancelled", upn, String(b.note || "").slice(0, 500) || "cancelled by the family", []);
+      try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && err.statusCode === 412) return fail(context, 409, "changed meanwhile"); throw err; }
+      seats.forget();
+      await audit(context, { actor: upn, action: "order.cancel.self", target: orderId, result: "ok" });
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, order: myOrderView(next) } };
       return;
     }
 

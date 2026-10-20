@@ -98,6 +98,7 @@
       // Order and wording (Rick, 2026-10-19): the plan first, for everyone; profile last.
       { title: t("我的账号", "My account"), items: [
         { hash: "#/plan", icon: "book", zh: "毕业要求与课程地图", en: "Curriculum Map" },
+        { hash: "#/myorders", icon: "cart", zh: "我的订单", en: "My Orders" },
         { hash: "#/teams", icon: "teams", zh: "我的 Teams 团队", en: "Teams Groups" },
         { hash: "#/calendar", icon: "cal", zh: "我的日历", en: "Calendar" },
         { hash: "#/security", icon: "key", zh: "Teams 登录与安全", en: "Security & Sign-in" },

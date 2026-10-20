@@ -45,6 +45,9 @@
     formErr: "",
     email: "",
     teams: "",
+    // The signed-in account (the management centre's sign-in is this site's too), or null: the order page fills
+    // the family's addresses from it and the order is filed under the account (design 2026-10-20).
+    account: null,
     // The signed-in family's school edition of the graduation requirements and the
     // curriculum map (/api/school-plan, published by the school's 教育领袖), or null:
     // then the wizard generates the requirements from the track and shows Hive's map.
@@ -412,6 +415,28 @@
     return fetch("/api/seats", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { state.seats = (j && j.seats) || {}; state.seatsAt = Date.now(); }).catch(function () {});
   }
   function fill(s, vars) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return vars[k] != null ? vars[k] : m; }); }
+  // Who is signed in, if anyone (the platform's own answer, /.auth/me), then the account's addresses
+  // (/api/me/contact). The order form is filled from them only where the family typed nothing, and
+  // the order page says which account the order will be filed under.
+  function loadAccount() {
+    return fetch("/.auth/me", { cache: "no-store", credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var p = j && j.clientPrincipal, upn = p && String(p.userDetails || "").trim().toLowerCase();
+        if (!upn || upn.indexOf("@") < 0) return null;
+        state.account = { upn: upn };
+        return fetch("/api/me/contact", { cache: "no-store", credentials: "same-origin" }).then(function (r) { return r.ok ? r.json() : null; });
+      })
+      .then(function (c) {
+        if (!c || !state.account) return;
+        state.account.name = c.displayName || "";
+        var mail = [c.safeEmail, c.mail].filter(function (v) { return v && !isBlockedEmail(v); })[0] || "";
+        if (!state.email && mail) state.email = mail;
+        if (!state.teams) state.teams = state.account.upn;
+        if (state.step === 5 && !state.done) render();
+      })
+      .catch(function () {});
+  }
   function seatInfo(c) {
     var st = state.seats && c && state.seats[c.code]; if (!st) return null;
     if (st.state === "full") return { cls: "full", text: t().seatsFull, full: true };
@@ -1644,6 +1669,7 @@
       '<div class="summary-card"><h3>' + esc(t().orderSummary) + " (" + items.length + ")</h3>" + rows +
       '<div class="summary-total"><span>' + esc(t().total) + "</span><span>" + esc(fmtPrice(cartTotal()) || "—") + "</span></div></div>" +
       '<div class="form-card"><h3>' + esc(t().submitOrder) + "</h3>" +
+      (state.account ? '<p class="signed-in">' + esc(fill(t().signedInAs, { who: state.account.name ? state.account.name + " · " + state.account.upn : state.account.upn })) + "</p>" : "") +
       '<label for="email">' + esc(t().emailLabel) + '</label>' +
       '<input id="email" type="email" placeholder="' + esc(t().emailPh) + '" value="' + esc(state.email) + '" autocomplete="email" />' +
       '<p class="field-note">' + esc(t().emailNote) + "</p>" +
@@ -2528,4 +2554,5 @@
     .catch(function () {
       app.innerHTML = '<div class="notice">' + esc(t().loadErr) + "</div>";
     });
+  loadAccount();
 })();

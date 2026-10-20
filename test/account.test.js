@@ -201,5 +201,39 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
   assert.strictEqual(r.status, 200);
   assert.ok(r.isRaw && Buffer.isBuffer(r.body) && r.body.length === photoBytes.length, "photo served back as bytes");
 
+  // 我的订单 (design 2026-10-20): the account's orders — filed under the UPN, or under one of its addresses — and the
+  // family's own cancellation while the order is only submitted.
+  {
+    const crm = require(path.join(__dirname, "..", "api", "shared", "crm.js"));
+    const seatsMod = require(path.join(__dirname, "..", "api", "shared", "seats.js"));
+    const mk = (id, extra) => Object.assign({ orderId: id, submittedAt: "2026-10-20T01:00:00Z", email: "other@gmail.com", teamsAccount: "", account: "", status: "submitted", items: [{ code: "C1", nameZh: "课", nameEn: "Course", price: 100 }], hives: [], itemCount: 1, totalPrice: 100, currency: "CNY", history: [{ at: "2026-10-20T01:00:00Z", by: "system", from: null, to: "submitted", note: "" }], notify: { ok: true } }, extra);
+    const store = {
+      "FC-20261020-KXC-001": mk("FC-20261020-KXC-001", { account: "teacher.h@example.edu" }),
+      "FC-20261020-KXC-002": mk("FC-20261020-KXC-002", { email: "H.Safe@gmail.com", status: "confirmed", history: [{ at: "2026-10-20T01:00:00Z", by: "system", from: null, to: "submitted", note: "" }, { at: "2026-10-20T02:00:00Z", by: "om", from: "submitted", to: "confirmed", note: "secret note" }] }),
+      "FC-20261020-KXC-003": mk("FC-20261020-KXC-003", { teamsAccount: "teacher.h@example.edu" }),
+      "FC-20261020-KXC-004": mk("FC-20261020-KXC-004"),
+    };
+    crm.listOrders = async () => Object.values(store);
+    crm.readOrder = async (id) => (store[id] ? { order: store[id], etag: "e1" } : null);
+    const writes = [];
+    crm.writeOrder = async (o, etag) => { writes.push({ o, etag }); store[o.orderId] = o; };
+    let forgot = 0; seatsMod.forget = () => { forgot++; };
+    r = await call(meFn, { action: "orders" });
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual(r.body.orders.map((o) => o.orderId).sort(), ["FC-20261020-KXC-001", "FC-20261020-KXC-002", "FC-20261020-KXC-003"], "by account, by safe email, by Teams account — not the stranger's");
+    assert.deepStrictEqual(r.body.addresses, ["teacher.h@example.edu", "h.safe@gmail.com"]);
+    const o2 = r.body.orders.find((o) => o.orderId === "FC-20261020-KXC-002");
+    assert.ok(o2.history.every((h) => !("note" in h)) && !o2.canCancel, "the fulfilment notes stay with the staff; a confirmed order is not the family's to cancel");
+    assert.ok(r.body.orders.find((o) => o.orderId === "FC-20261020-KXC-001").canCancel);
+    r = await call(meFn, { action: "orders", method: "PATCH", body: { orderId: "FC-20261020-KXC-004" } });
+    assert.strictEqual(r.status, 404, "not mine");
+    r = await call(meFn, { action: "orders", method: "PATCH", body: { orderId: "FC-20261020-KXC-002" } });
+    assert.strictEqual(r.status, 409, "moved on");
+    r = await call(meFn, { action: "orders", method: "PATCH", body: { orderId: "FC-20261020-KXC-001" } });
+    assert.strictEqual(r.status, 200);
+    assert.deepStrictEqual([r.body.order.status, writes[0].etag, writes[0].o.history[1].by, forgot], ["cancelled", "e1", "teacher.h@example.edu", 1], "cancelled by the family, conditionally written, seats recounted");
+    r = await call(meFn, { action: "contact" });
+    assert.deepStrictEqual(r.body, { upn: "teacher.h@example.edu", displayName: "H Teacher", mail: "", safeEmail: "h.safe@gmail.com" });
+  }
   console.log("account: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -880,6 +880,23 @@ td.plarm { cursor: pointer; } td.plarm:hover { background: var(--accent-soft); c
 .plcell.edit .plplus { align-self: flex-start; min-width: 28px; height: 24px; padding: 0 6px; border-radius: 6px; border: 1px dashed transparent; background: none; color: var(--faint); cursor: pointer; font-size: 14px; line-height: 1; }
 .plcell.edit:hover .plplus { border-color: var(--line-strong); color: var(--muted); }
 .plcell.edit .plplus:hover { border-color: var(--accent); color: var(--accent-dark); background: var(--card); }
+.btn[hidden], a.btn[hidden] { display: none; }
+/* Hive courses on the map (2026-10-20): the count in a cell, the 其它课程 row, the cell panel */
+.plavail { flex-basis: 100%; align-self: flex-end; width: max-content; border: 0; background: none; padding: 2px 4px; margin-top: 2px; font: inherit; font-size: 12px; font-weight: 600; color: #15803d; cursor: pointer; border-radius: 6px; }
+.plavail:hover, .plavail:focus-visible { background: #dcfce7; outline: 0; }
+.plcell.edit .plavail { order: 9; }
+tr.plother td:first-child { color: var(--faint); }
+tr.plother .plcell { min-height: 0; }
+.panel .plcourse .lnk.b { font-weight: 600; font-size: 13px; }
+.panel .plcourse .oprice { display: flex; align-items: center; gap: 8px; }
+.panel .plplanned { margin: 4px 0 8px; padding-left: 20px; font-size: 13px; }
+.panel .plplanned li { margin: 2px 0; }
+.plsel-btn.on { background: #15803d; border-color: #15803d; color: #fff; }
+.panel .pvcard { box-shadow: none; padding: 0; border: 0; }
+.mocard { margin-bottom: var(--s3); }
+.mocard .ch h2 .tag { margin-left: 6px; vertical-align: middle; }
+.mocard .kv { margin-bottom: var(--s2); }
+.mocard .mostep { margin: 8px 0 0; }
 .plpop { position: fixed; z-index: 70; background: var(--card); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 32px -8px rgba(15, 32, 60, 0.35); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .plpop[hidden] { display: none; }
 .plpop label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }

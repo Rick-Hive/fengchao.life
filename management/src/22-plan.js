@@ -70,7 +70,8 @@
     if (plState.canEdit) { if (!plState.domain || !ds.some(function (d) { return d.domain === plState.domain; })) plState.domain = (ds.filter(function (d) { return d.domain === currentDomain; })[0] || ds.filter(function (d) { return d.domain === domainsInfo.mine; })[0] || ds[0]).domain; }
     else plState.domain = (domainsInfo && domainsInfo.mine) || "";
     if (/^#\/plan\/credits/.test(location.hash)) plState.tab = "credits";
-    var plActions = plState.canEdit ? '<button class="btn secondary sm" id="plReset">' + t("重置为系统默认", "Reset to system defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <span class="plsaved muted" id="plSaved" hidden>' + t("已保存", "Saved") + '</span> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>" : "";
+    // 去下单 (the website's cart, filled from the cells' panels) for everyone; the editing buttons for editors
+    var plActions = '<a class="btn sm" id="plCart" href="/order" target="_blank" rel="noopener" hidden></a>' + (plState.canEdit ? ' <button class="btn secondary sm" id="plReset">' + t("重置为系统默认", "Reset to system defaults") + '</button> <button class="btn secondary sm" id="plUnpub" hidden>' + t("撤回发布", "Unpublish") + '</button> <span class="plsaved muted" id="plSaved" hidden>' + t("已保存", "Saved") + '</span> <button class="btn sm" id="plPub">' + t("发布", "Publish") + "</button>" : "");
     setTitle(t("我的账号", "My account"), t("毕业要求与课程地图", "Graduation requirements & curriculum map"), plActions,
       { info: plState.canEdit
         ? t("设定教学法与方向，编辑课程地图和毕业要求；发布后本校可见。", "Set pedagogy and directions, edit the curriculum map and graduation requirements; publish to show the school.")
@@ -80,6 +81,7 @@
         "</div>" +
       '<div id="plframe"></div><div id="plmsg"></div><div id="plbody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     plState.schools = plState.canEdit && ds.length > 1 ? ds : [];
+    plCartBtn();
     $("pltabs").addEventListener("click", function (e) { var a = e.target.closest("a[data-tab]"); if (!a) return; e.preventDefault(); plState.tab = a.getAttribute("data-tab"); history.replaceState(null, "", a.getAttribute("href")); $("pltabs").querySelectorAll(".ptab").forEach(function (x) { x.classList.toggle("on", x === a); }); renderPlan(); });
     if (plState.canEdit) {
       $("plPub").addEventListener("click", function () { if (window.confirm(t("发布后，本校所有登录的人看到的就是这个版本。发布？", "Once published, everyone at the school sees this version. Publish?"))) savePlan(true); });
@@ -115,6 +117,7 @@
       // editors work on the draft; everyone else reads what is published (nothing published = the system defaults)
       plState.draft = plFromBlob(r.body.plan && (plState.canEdit ? r.body.plan.draft : r.body.plan.published)); plState.dirty = false;
       plStatus(); renderPlan();
+      plLoadCatalog().then(function () { if (plState.tab === "map") renderPlan(); });
     });
   }
   // No status line in the bar (Rick, 2026-10-19: 「delete this … move the second line above」): the card tags say
@@ -229,16 +232,18 @@
     // 2026-10-19: 「每一个小格子都是一本书，点击一本书弹出编辑；最下方增加 + 号」): click → a popover with the English
     // and Chinese names and 删除; ＋ under the chips adds one; × on a hovered chip removes it at once.
     function chipsOf(text) { return String(text || "").split(/[;\n]/).map(function (x) { return x.trim(); }).filter(Boolean); }
-    function cellBox(r, g, text, editable) {
-      var items = chipsOf(text);
-      return '<div class="plcell' + (editable ? " edit" : "") + (items.length ? "" : " empty") + '"' + (editable ? ' data-cell="' + esc(g) + '" data-row="' + esc(r.id) + '"' : "") + '>' +
-        items.map(function (x, i) { return '<span class="plchip' + (editable ? " book" : "") + '"' + (editable ? ' data-i="' + i + '" tabindex="0"' : "") + ">" + esc(x) + (editable ? '<button type="button" class="plx" data-del-i="' + i + '" title="' + t("删除", "Remove") + '">×</button>' : "") + "</span>"; }).join("") +
-        (editable ? '<button type="button" class="plplus" title="' + t("添加", "Add") + '">＋</button>' : "") + "</div>";
+    function cellBox(r, g, text, editable, ri) {
+      var items = chipsOf(text), n = plCat ? plCellCourses(r, g, st).length : 0;
+      return '<div class="plcell' + (editable ? " edit" : "") + (items.length || n ? "" : " empty") + '"' + (editable ? ' data-cell="' + esc(g) + '" data-row="' + esc(r.id) + '"' : "") + '>' +
+        items.map(function (x, i) { return '<span class="plchip' + (editable ? " book" : "") + '"' + (editable ? ' data-i="' + i + '" tabindex="0"' : "") + ' title="' + esc(x) + '">' + esc(plChipLabel(x)) + (editable ? '<button type="button" class="plx" data-del-i="' + i + '" title="' + t("删除", "Remove") + '">×</button>' : "") + "</span>"; }).join("") +
+        (editable ? '<button type="button" class="plplus" title="' + t("添加", "Add") + '">＋</button>' : "") + plAvailBtn(n, ri, g) + "</div>";
     }
-    function cellsHtml(r, editable) {
-      if (r.spanAll) return '<td colspan="' + grades.length + '">' + cellBox(r, "", r.cells[grades[0]] || r.cells[""] || firstCell(r), editable) + "</td>";
-      return grades.map(function (g) { return "<td>" + cellBox(r, g, r.cells[g] || "", editable) + "</td>"; }).join("");
+    function cellsHtml(r, editable, ri) {
+      if (r.spanAll) return '<td colspan="' + grades.length + '">' + cellBox(r, "", r.cells[grades[0]] || r.cells[""] || firstCell(r), editable, ri) + "</td>";
+      return grades.map(function (g) { return "<td>" + cellBox(r, g, r.cells[g] || "", editable, ri) + "</td>"; }).join("");
     }
+    // the courses whose subject is in no row: one last row, every course selectable, nothing to edit
+    function otherRow(rows, cols) { var n = plCat ? plOtherCourses(rows, st).length : 0; return n ? '<tr class="plother"><td>' + t("其它课程", "Other courses") + tipI(t("学科不在课程地图里的蜂巢课程。", "Hive courses whose subject is not on the map.")) + '</td><td colspan="' + cols + '"><div class="plcell">' + plAvailBtn(n, -1, "") + "</div></td></tr>" : ""; }
     function firstCell(r) { for (var i = 0; i < grades.length; i++) if (r.cells[grades[i]]) return r.cells[grades[i]]; return ""; }
     // The 路径 / 教育法 column only when it carries information (Rick, 2026-10-19: 「课程设置中为什么要显示路径？」):
     // never for readers (the rows are already the school's), for editors only with several directions or every row shown.
@@ -250,7 +255,8 @@
       // (a copy of the default) and opens that very cell (Rick, 2026-10-20: 「Dialectic 和 Rhetoric 中的课程不可以点击」).
       var arm = plState.canEdit && !own;
       var drows = dall.map(function (r, i) { return { r: r, id: "s-" + st + "-" + (i + 1) }; }).filter(function (x) { return forTrack(x.r); });
-      return head + '<div class="tbl-wrap"><table class="data plmap' + (arm ? " arm" : "") + '">' + thead + "<tbody>" + (drows.length ? drows.map(function (x) { var r = x.r; return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + (arm ? cellsHtml(Object.assign({}, r, { id: x.id }), true).replace(/class="plcell edit/g, 'class="plcell arm') : cellsHtml(r, false)) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + (showScope ? 2 : 1)) + '" class="muted">' + t("这个阶段还没有课程地图。", "No curriculum map for this stage yet.") + (arm ? ' <button type="button" class="lnk" id="plStartOwn">' + t("本校自己编排", "Lay it out for the school") + "</button>" : "") + "</td></tr>") + "</tbody></table></div></div>";
+      plState.mapRows = drows.map(function (x) { return x.r; });
+      return head + '<div class="tbl-wrap"><table class="data plmap' + (arm ? " arm" : "") + '">' + thead + "<tbody>" + (drows.length ? drows.map(function (x, ri) { var r = x.r; return "<tr><td>" + esc(r.subjects.map(plSubjectName).join(" · ") || "—") + "</td>" + scopeCell(r, false) + (arm ? cellsHtml(Object.assign({}, r, { id: x.id }), true, ri).replace(/class="plcell edit/g, 'class="plcell arm') : cellsHtml(r, false, ri)) + "</tr>"; }).join("") : '<tr><td colspan="' + (grades.length + (showScope ? 2 : 1)) + '" class="muted">' + t("这个阶段还没有课程地图。", "No curriculum map for this stage yet.") + (arm ? ' <button type="button" class="lnk" id="plStartOwn">' + t("本校自己编排", "Lay it out for the school") + "</button>" : "") + "</td></tr>") + otherRow(plState.mapRows, grades.length + (showScope ? 1 : 0)) + "</tbody></table></div></div>";
     }
     function scopeCell(r, editable) {
       if (!showScope || st === "grammar") return "";
@@ -271,15 +277,16 @@
     }
     var subjects = dfl.subjects || [];
     var shown = own.rows.filter(forTrack), hidden = own.rows.length - shown.length;
+    plState.mapRows = shown;
     var rows = shown.map(function (r, i) {
       var cur = r.subjects[0] ? (r.subjects[0].id || r.subjects[0].nameEn) : "";
       var known = subjects.some(function (s) { return (s.id || s.nameEn) === cur; });
-      return '<tr data-row="' + esc(r.id) + '"><td><select class="sm" data-subj="' + esc(r.id) + '">' + (known ? "" : '<option value="' + esc(cur) + '" selected>' + esc(plSubjectName(r.subjects[0]) || t("（选择科目）", "(choose a subject)")) + "</option>") + subjects.map(function (s) { var k = s.id || s.nameEn; return '<option value="' + esc(k) + '"' + (k === cur ? " selected" : "") + ">" + esc(plSubjectName(s)) + "</option>"; }).join("") + "</select></td>" + scopeCell(r, true) + cellsHtml(r, true) +
+      return '<tr data-row="' + esc(r.id) + '"><td><select class="sm" data-subj="' + esc(r.id) + '">' + (known ? "" : '<option value="' + esc(cur) + '" selected>' + esc(plSubjectName(r.subjects[0]) || t("（选择科目）", "(choose a subject)")) + "</option>") + subjects.map(function (s) { var k = s.id || s.nameEn; return '<option value="' + esc(k) + '"' + (k === cur ? " selected" : "") + ">" + esc(plSubjectName(s)) + "</option>"; }).join("") + "</select></td>" + scopeCell(r, true) + cellsHtml(r, true, i) +
         // 各年级相同 (spanAll: one course across every grade of the stage, from Airtable's "All grades" column) is a
         // row option, not a line under the subject (Rick, 2026-10-19: 「为什么会出现各年级相同」): a small toggle by ↑ ↓ ×.
         '<td class="plrowbtns"><button type="button" class="lnk span" data-span="' + esc(r.id) + '" aria-pressed="' + (r.spanAll ? "true" : "false") + '" title="' + t("各年级相同：一门课贯穿本阶段所有年级（合并为一格）", "Same every grade: one course across the whole stage (one merged cell)") + '">↔</button><button type="button" class="lnk" data-up="' + esc(r.id) + '" title="' + t("上移", "Move up") + '"' + (i === 0 ? " disabled" : "") + '>↑</button><button type="button" class="lnk" data-down="' + esc(r.id) + '" title="' + t("下移", "Move down") + '"' + (i === shown.length - 1 ? " disabled" : "") + '>↓</button><button type="button" class="lnk del" data-del="' + esc(r.id) + '" title="' + t("删除这一行", "Delete the row") + '">×</button></td></tr>';
     }).join("");
-    return head + '<div class="tbl-wrap"><table class="data plmap edit">' + thead + "<tbody>" + rows + "</tbody></table></div>" +
+    return head + '<div class="tbl-wrap"><table class="data plmap edit">' + thead + "<tbody>" + rows + otherRow(shown, grades.length + (showScope ? 1 : 0) + 1) + "</tbody></table></div>" +
       (hidden ? '<p class="sub" style="margin-top:6px">' + hidden + t(" 行属于本校未选的路径或教学法，勾「显示所有路径的行」可见。", " row(s) belong to tracks or a pedagogy the school does not serve — tick “Rows of every track” to see them.") + "</p>" : "") +
       '<div class="actions" style="margin-top:8px"><button type="button" class="btn secondary sm" id="plAddRow">' + t("＋ 添加一行", "+ Add a row") + '</button> <button type="button" class="btn secondary sm" id="plCopyDefault">' + t("从系统默认重新复制", "Copy the system default map again") + "</button></div>" +
       '<p class="sub" style="margin-top:8px">' + t("点一本书或一门课可修改，格子下方的 ＋ 添加，悬停时的 × 删除；改动自动保存。行的科目决定家长点格子时看到哪些蜂巢课程。", "Click a book or course to edit it, ＋ under the cell adds one, × on hover removes it; changes save themselves. A row's subject decides which Hive courses parents see when they tap a cell.") + "</p></div>";
@@ -295,6 +302,9 @@
     if (row.spanAll) { row.cells = {}; grades.forEach(function (gg) { if (v) row.cells[gg] = v; }); } else if (v) row.cells[g] = v; else delete row.cells[g];
     plDirty();
   }
+  // A chip shows the item in the site's language only (Rick, 2026-10-20: 「显示了双语课程，这是没必要的」); the stored text
+  // keeps both names ("English / 中文"), the popover edits both, the title shows the pair.
+  function plChipLabel(x) { var p = plSplitItem(x); return (EN ? p.en || p.zh : p.zh || p.en) || x; }
   function plSplitItem(x) { var m = /^(.*?)\s*\/\s*(.*)$/.exec(x || ""); if (m) return { en: m[1].trim(), zh: m[2].trim() }; return /[\u3400-\u9fff]/.test(x || "") ? { en: "", zh: (x || "").trim() } : { en: (x || "").trim(), zh: "" }; }
   function plJoinItem(en, zh) { en = (en || "").trim(); zh = (zh || "").trim(); return en && zh ? en + " / " + zh : en || zh; }
   var plPop = { cell: null, i: -1 };
@@ -352,6 +362,8 @@
       var c, dfl = (plState.data && plState.data.defaults) || {};
       if (e.target.closest("#plAddRow")) { var m = plState.draft.map[plState.stage], st0 = plState.stage; m.rows.push({ id: "n-" + Date.now().toString(36), subjects: dfl.subjects && dfl.subjects[0] ? [Object.assign({}, dfl.subjects[0])] : [], trackIds: st0 === "rhetoric" && !plState.allRows ? plTracksOfSchool().map(Number) : [], pedagogy: st0 === "dialectic" && !plState.allRows ? plSettings().pedagogy : null, spanAll: false, cells: {} }); plDirty(); renderPlan(); return; }
       if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system default curriculum map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plDirty(); renderPlan(); return; }
+      var av = e.target.closest("button[data-avail-i]");
+      if (av) { plCellPanel(Number(av.getAttribute("data-avail-i")), av.getAttribute("data-avail-g") || ""); return; }
       var sub = e.target.closest(".plsub[data-stage],.plsub[data-track]");
       if (sub) { if (sub.hasAttribute("data-stage")) plState.stage = sub.getAttribute("data-stage"); else plState.track = sub.getAttribute("data-track"); renderPlan(); return; }
       // an armed cell (system default shown to an editor): turn 本校自定义 on, then open the same cell
@@ -420,3 +432,113 @@
       if (c.hasAttribute("data-ped")) { row.pedagogy = c.value || null; plDirty(); return; }
     });
   }
+
+  // ---- the Hive courses on the map (Rick, 2026-10-20: 「蜂巢所有可售课程出现在课程地图上，普通用户和学校管理员
+  // 都能看、能选进订单，但不能编辑」) ---------------------------------------------------------
+  // Every cell shows how many catalog courses fit it — same subject, same grade, within the school's frame — as on the
+  // website; the cell opens a panel with the courses (code, name, teacher, price, seats) and the planned items, each
+  // course with 选择. A course whose subject is in no row goes to the 其它课程 row, so every course is on the map.
+  // Selecting writes the website's own cart (same origin, same key): 去下单 opens the website's order page, so the
+  // order goes down the one path there is — seats, waitlist, prerequisites, Teams, CRM — filed under the signed-in account.
+  var plCat = null, plCatLoading = null, plSeats = {};
+  var PL_STAGE_GRADES = { grammar: ["Pre-K", "K1", "K2", "K3", "G1", "G2", "G3", "G4", "G5", "G6"], dialectic: ["G7", "G8"], rhetoric: ["G9", "G10", "G11", "G12"] };
+  var PL_CODE_STAGE = { KG: "grammar", EL: "grammar", MS: "dialectic", HS: "rhetoric", CLP: "rhetoric" };
+  var PL_WIZARD_KEY = "fc-wizard-v1";
+  function plLoadCatalog() {
+    if (plCat) return Promise.resolve(plCat);
+    if (plCatLoading) return plCatLoading;
+    plCatLoading = Promise.all([api("data"), api("seats")]).then(function (rs) {
+      plCatLoading = null;
+      plCat = { courses: (rs[0].ok && rs[0].body && rs[0].body.courses) || [], teachers: (rs[0].ok && rs[0].body && rs[0].body.teacherProfiles) || [] };
+      plSeats = (rs[1].ok && rs[1].body && rs[1].body.seats) || {};
+      return plCat;
+    });
+    return plCatLoading;
+  }
+  function plDash(v) { return String(v || "").replace(/[‐-―−－]/g, "-").toUpperCase(); }
+  function plCourseInStage(c, st) {
+    var want = PL_STAGE_GRADES[st] || [], have = c.grades || [];
+    if (have.length) return have.some(function (g) { return want.indexOf(g) >= 0; });
+    var m = /-(KG|EL|MS|HS|CLP)-/.exec(plDash(c.code)); return !!m && PL_CODE_STAGE[m[1]] === st;
+  }
+  // The catalog for one stage within the school's frame: the school's tracks narrow the rhetoric stage; the pedagogy
+  // narrows the others only when the "Classical" column is in use (as the website does).
+  function plStageCourses(st) {
+    if (!plCat) return [];
+    var list = plCat.courses.filter(function (c) { return c.available !== false && plCourseInStage(c, st); });
+    if (st === "rhetoric") { var tracks = plTracksOfSchool(); return list.filter(function (c) { return (c.trackIds || []).some(function (id) { return tracks.indexOf(String(id)) >= 0; }); }); }
+    if (plCat.courses.some(function (c) { return !!c.pedagogy; })) { var cl = plSettings().pedagogy === "classical"; list = list.filter(function (c) { return !!c.pedagogy === cl; }); }
+    return list;
+  }
+  function plGradeMembers(g) { return g === "K" ? ["K", "K1", "K2", "K3"] : [g]; }
+  function plSubjectFits(c, row) { return (c.subjects || []).some(function (s) { return (row.subjects || []).some(function (r) { return r.id && s.id ? r.id === s.id : r.nameEn === s.nameEn; }); }); }
+  function plCellCourses(row, g, st) {
+    var members = g ? plGradeMembers(g) : null;
+    return plStageCourses(st || plState.stage).filter(function (c) { return plSubjectFits(c, row) && (!members || (c.grades || []).some(function (x) { return members.indexOf(x) >= 0; })); });
+  }
+  function plOtherCourses(rows, st) { return plStageCourses(st || plState.stage).filter(function (c) { return !rows.some(function (r) { return plSubjectFits(c, r); }); }); }
+  function plAvailBtn(n, i, g) { return n ? '<button type="button" class="plavail" data-avail-i="' + i + '" data-avail-g="' + esc(g || "") + '" title="' + esc(t("点击查看并选课", "See and select the courses")) + '">● ' + esc(EN ? n + (n === 1 ? " course" : " courses") : n + " 门可选") + "</button>" : ""; }
+  // ---- the website's cart ----
+  function plCartRead() { try { var w = JSON.parse(localStorage.getItem(PL_WIZARD_KEY) || "null"); return w && typeof w === "object" ? w : {}; } catch (e) { return {}; } }
+  function plCartIds() { var w = plCartRead(); return Object.keys(w.cart && typeof w.cart === "object" ? w.cart : {}); }
+  function plCartHas(id) { return plCartIds().indexOf(id) >= 0; }
+  function plCartToggle(id) {
+    var w = plCartRead(); w.cart = w.cart && typeof w.cart === "object" && !Array.isArray(w.cart) ? w.cart : {};
+    if (w.cart[id]) delete w.cart[id]; else w.cart[id] = true;
+    w.cartAt = Date.now(); w.done = null;
+    // what the website's order page needs to open at all: a pedagogy and a stage (and a direction for the rhetoric stage)
+    var st = plSettings(); w.pedagogy = st.pedagogy; w.stage = plState.stage; if (!w.mode) w.mode = st.directions[0] || "international";
+    try { localStorage.setItem(PL_WIZARD_KEY, JSON.stringify(w)); } catch (e) { flash(esc(t("浏览器不允许保存选课，请在网站上选课。", "The browser does not allow saving the selection; please select on the website.")), 4000); return false; }
+    plCartBtn(); return !!w.cart[id];
+  }
+  function plCartBtn() { var b = $("plCart"); if (!b) return; var n = plCartIds().length; b.hidden = !n; b.textContent = t("去下单（" + n + " 门）", "Place the order (" + n + ")"); }
+  function plSelBtn(id, cls) { var on = plCartHas(id); return '<button type="button" class="btn sm plsel-btn' + (on ? " on" : " secondary") + (cls ? " " + cls : "") + '" data-sel="' + esc(id) + '">' + (on ? t("已选 ✓", "Selected ✓") : t("选择", "Select")) + "</button>"; }
+  function plRefreshSel() { document.querySelectorAll("button[data-sel]").forEach(function (b) { var on = plCartHas(b.getAttribute("data-sel")); b.classList.toggle("on", on); b.classList.toggle("secondary", !on); b.textContent = on ? t("已选 ✓", "Selected ✓") : t("选择", "Select"); }); }
+  // ---- the cell panel and the course detail ----
+  function plCourseName(c) { return pickName(c.nameZh, c.nameEn) || c.code || ""; }
+  function plPrice(c) { return typeof c.price === "number" ? "¥" + c.price.toLocaleString("zh-CN", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : t("价格待定", "Price TBD"); }
+  function plSeatTag(c) {
+    var s = plSeats[c.code]; if (!s) return "";
+    if (s.state === "full") return '<span class="tag warn">' + t("已满 · 可候补", "Full · waitlist") + "</span>";
+    if (s.belowMin) return '<span class="tag muted">' + esc(t("还差 " + s.need + " 人开班", s.need + " more to run")) + "</span>";
+    if (s.max != null) return '<span class="tag ' + (s.state === "few" ? "accent" : "muted") + '">' + esc(t("还剩 " + s.open + " 席", s.open + " seats left")) + "</span>";
+    return "";
+  }
+  function plCourseRow(c) {
+    var who = (c.teachers || []).join(EN ? ", " : "、"), school = c.school && (c.school.abbr || c.school.name);
+    return '<div class="orow plcourse"><div class="omain"><button type="button" class="lnk b" data-course="' + esc(c.id) + '">' + esc(plCourseName(c)) + '</button> <span class="muted">' + esc(c.code || "") + '</span><span class="sub">' + esc([school, who, (c.grades || []).join("/"), pickName(c.classTypeZh, c.classTypeEn)].filter(Boolean).join(" · ")) + "</span>" + plSeatTag(c) + '</div><div class="oprice">' + esc(plPrice(c)) + " " + plSelBtn(c.id) + "</div></div>";
+  }
+  function plCellPanel(i, g) {
+    var rows = plState.mapRows || [], row = i >= 0 ? rows[i] : null, st = plState.stage;
+    var courses = row ? plCellCourses(row, row.spanAll ? "" : g, st) : plOtherCourses(rows, st);
+    var items = row ? chipsOfText(row.spanAll ? (row.cells[plGrades()[0]] || "") : (row.cells[g] || "")) : [];
+    var title = row ? (row.subjects || []).map(plSubjectName).join(" · ") + (g && !row.spanAll ? " · " + g : "") : t("其它课程", "Other courses");
+    panelOpen('<div class="ph"><h3>' + esc(title) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+      "<h4>" + t("蜂巢可选课程", "Hive courses") + " · " + courses.length + "</h4>" + (courses.length ? '<div class="olist">' + courses.map(plCourseRow).join("") + "</div>" : '<p class="sub">' + t("这一格还没有可选的课程。", "No course fits this cell yet.") + "</p>") +
+      (row ? "<h4>" + t("学校计划", "Planned") + " · " + items.length + "</h4>" + (items.length ? "<ol class=\"plplanned\">" + items.map(function (x) { return "<li>" + esc(plChipLabel(x)) + "</li>"; }).join("") + "</ol>" : '<p class="sub">—</p>') : '<p class="sub">' + t("学科不在课程地图里的课程。", "Courses whose subject is not on the map.") + "</p>") +
+      '<p class="sub">' + t("「选择」加入网站购物车；下单在网站完成，订单记入你的账号。", "Select adds to the website cart; the order is placed on the website and filed under your account.") + "</p></div>");
+  }
+  function plCourseDetail(id) {
+    var c = (plCat ? plCat.courses : []).filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    var row = function (z, e, v, wide) { return v ? '<div class="pvrow' + (wide ? " wide" : "") + '"><div class="pvlab">' + esc(t(z, e)) + '</div><div class="pvval">' + v + "</div></div>" : ""; };
+    var desc = pickName(c.descriptionZh, c.descriptionEn), days = (c.days || []).map(function (d) { return EN ? d : DAY_ZH[d] || d; }).join(EN ? ", " : "、"), sched = (c.schedule || []).map(function (p) { return p.range || p.start || ""; }).filter(Boolean).join("; ");
+    var books = (c.textbooks || []).map(function (b) { return pickName(b.nameZh, b.nameEn) || b.sku; }).filter(Boolean);
+    var syl = (c.syllabus || []).map(function (s) { return '<a href="' + esc(s.url || "/api/asset?key=" + encodeURIComponent(s.key || "")) + '" target="_blank" rel="noopener">' + esc(s.filename || "syllabus.pdf") + "</a>"; }).join(" · ");
+    var tags = [pickName(c.classTypeZh, c.classTypeEn), pickName(c.languageZh, c.languageEn), c.academic ? t("学术课程", "Academic") : ""].filter(Boolean);
+    panelOpen('<div class="ph"><h3>' + esc(plCourseName(c)) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="pvcard pvdetail">' +
+      '<div class="pvcode">' + esc(c.code || "") + "</div>" + (tags.length ? '<div class="pvchips">' + tags.map(function (x) { return "<span>" + esc(x) + "</span>"; }).join("") + "</div>" : "") +
+      (desc ? '<div class="pvlab" style="margin-top:12px">' + t("课程描述", "Description") + '</div><p class="pvfull">' + esc(desc) + "</p>" : "") +
+      '<div class="pvgrid">' + row("学科", "Subject", esc((c.subjects || []).map(function (s) { return pickName(s.nameZh, s.nameEn); }).join(EN ? " · " : "、"))) + row("年级", "Grades", esc((c.grades || []).join(" · "))) +
+      row("课时数", "Classes", typeof c.numClasses === "number" ? esc(c.numClasses) + (EN ? " classes" : " 节") : "") + row("学分", "Credit hours", typeof c.creditHours === "number" ? esc(c.creditHours) : "") +
+      row("班级规模", "Class size", (typeof c.minSize === "number" || typeof c.maxSize === "number") ? esc([typeof c.minSize === "number" ? t("最少 ", "min ") + c.minSize : "", typeof c.maxSize === "number" ? t("最多 ", "max ") + c.maxSize : ""].filter(Boolean).join(" · ")) : "") + row("名额", "Seats", plSeatTag(c), false) +
+      row("上课安排", "Schedule", esc([days, sched].filter(Boolean).join(" ")), true) + row("授课老师", "Teachers", (c.teachers || []).map(function (n) { return '<span class="pvchip">' + esc(n) + "</span>"; }).join(""), true) +
+      row("课程提供方", "Course deliverer", c.school ? esc(c.school.name || "") + (c.school.abbr ? ' <span class="muted">(' + esc(c.school.abbr) + ")</span>" : "") : "") +
+      row("前置课程", "Prerequisite", c.prerequisite && !/^n\/?a$/i.test(c.prerequisite) ? esc(c.prerequisite) : "", true) + row("教材", "Textbooks", books.map(function (x) { return "<div>" + esc(x) + "</div>"; }).join(""), true) + row("课程大纲", "Syllabus", syl, true) + row("备注", "Comments", c.comments ? esc(c.comments) : "", true) +
+      '</div><div class="pvfoot"><span class="pvprice">' + esc(plPrice(c)) + "</span>" + plSelBtn(c.id) + "</div></div></div>", "second");
+  }
+  document.addEventListener("click", function (e) {
+    var sel = e.target.closest("button[data-sel]");
+    if (sel && e.target.closest("#panel, #panel2")) { var on = plCartToggle(sel.getAttribute("data-sel")); plRefreshSel(); if (on) flashOk(t("已加入选课。右上「去下单」到网站完成订单。", "Added. “Place the order” (top right) opens the website to finish."), 3000); return; }
+    var cd = e.target.closest("button[data-course]");
+    if (cd && e.target.closest("#panel")) { plCourseDetail(cd.getAttribute("data-course")); return; }
+  });

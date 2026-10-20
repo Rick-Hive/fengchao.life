@@ -71,6 +71,22 @@ assert.strictEqual(rec.crmId, null);
   assert.deepStrictEqual([r2.items[0].waitlist, r2.items[0].nameZh, r2.items[0].nameEn, r2.items[0].prereq], [true, "数学", "Math", { text: "KXC-MATH-6 Math 6 / 六年级数学", codes: ["KXC-MATH-6"], met: "confirmed" }]);
   assert.deepStrictEqual([rec.items[0].waitlist, rec.items[0].prereq], [false, null], "an ordinary item carries no flags");
 }
+// the account, the submission and the fee (design 2026-10-20): an anonymous website order carries none of them
+assert.deepStrictEqual([rec.account, rec.submission, rec.fee], ["", "FC-20261006-KXC-001", null]);
+{
+  const r3 = C.orderRecord(Object.assign({}, wire, { account: "Parent@BES.qiaoliang.online", submission: "FS-20261006-ABCDE", fee: { amount: 100, currency: "usd", status: "unpaid", stripeSessionId: null, paymentIntentId: null, paidAt: null, receiptUrl: null, coupon: null } }), { ok: true, at: wire.submittedAt });
+  assert.deepStrictEqual([r3.account, r3.submission, r3.fee.amount, r3.fee.status], ["parent@bes.qiaoliang.online", "FS-20261006-ABCDE", 100, "unpaid"], "a signed-in order is filed under the account, lower-cased");
+}
+{
+  const fee = require("../api/shared/fee.js");
+  delete process.env.SELECTION_FEE_CENTS;
+  assert.strictEqual(fee.selectionFee(), null, "no fee until SELECTION_FEE_CENTS is set");
+  assert.strictEqual(fee.feeRecord(fee.selectionFee()), null);
+  process.env.SELECTION_FEE_CENTS = "100";
+  assert.deepStrictEqual(fee.selectionFee(), { amount: 100, currency: "usd" });
+  assert.strictEqual(fee.feeRecord(fee.selectionFee()).status, "unpaid");
+  delete process.env.SELECTION_FEE_CENTS;
+}
 
 // Transitions: submitted → confirmed → paid → started; cancelled from any live state; terminal states stay.
 const sales = ["staff:sales"];
@@ -147,4 +163,12 @@ assert.strictEqual(E.tier("a@example.org"), "replace", "the list is configuratio
 assert.strictEqual(E.tier("a@qq.com"), "safe", "a configured list replaces the default one entirely");
 assert.strictEqual(E.tier("a@x.cn"), "replace", "the .cn rule is not configuration");
 
+// the account comes from the platform's principal header, never from the form
+{
+  const { accountOf } = require("../api/order/index.js");
+  const hdr = (p) => ({ headers: { "x-ms-client-principal": Buffer.from(JSON.stringify(p)).toString("base64") } });
+  assert.strictEqual(accountOf({ headers: {} }), "", "anonymous");
+  assert.strictEqual(accountOf(hdr({ userDetails: "Parent@BES.qiaoliang.online", userRoles: ["authenticated"] })), "parent@bes.qiaoliang.online");
+  assert.strictEqual(accountOf(hdr({ userDetails: "not-an-upn" })), "", "a principal without an address is nobody");
+}
 console.log("crm: all assertions passed");

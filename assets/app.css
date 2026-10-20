@@ -485,6 +485,7 @@ span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(-
 }
 .form-card input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
 .field-note { margin: 6px 0 0; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+.signed-in { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: #eef6ff; color: #1d4a83; font-size: 0.82rem; line-height: 1.5; }
 .hp { position: absolute; left: -9999px; top: -9999px; height: 0; width: 0; overflow: hidden; }
 .form-err { color: var(--err); font-size: 0.85rem; margin: 10px 0 0; min-height: 1.2em; }
 
