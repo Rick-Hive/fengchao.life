@@ -39,6 +39,7 @@
     cart: {},         // courseId -> true
     seats: {},        // course code -> { taken, waitlist, min, max, open, state, belowMin, need } from /api/seats
     waitlistOk: {},   // courseId -> true: the family agreed to the waitlist for a full course
+    prereqOk: {},     // courseId -> true: the family confirmed the prerequisites not in the cart
     done: null,       // {orderId}
     submitting: false,
     formErr: "",
@@ -420,6 +421,30 @@
     return null;
   }
   function seatLine(c) { var si = seatInfo(c); return si ? '<div class="card-line seat-line ' + si.cls + '"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="7" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="14" cy="8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M2.5 16c.6-3 2.6-4.5 4.5-4.5s3.9 1.5 4.5 4.5M11.5 15.5c.4-2 1.4-3.3 2.5-3.3s2.2 1.3 2.6 3.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' + esc(si.text) + "</div>" : ""; }
+  // Prerequisites (enrollment rules, 2026-10-20): the course's text "CODE English / 中文; or the teacher's consent"
+  // becomes items; one that starts with a known course code links to that course. "N/A" is nothing.
+  function prereqItems(c) {
+    var txt = String((c && c.prerequisite) || "").trim(); if (!txt || /^n\/?a$/i.test(txt)) return [];
+    var codes = {}; (state.data ? state.data.courses : []).forEach(function (x) { if (x.code) codes[x.code] = x; });
+    return txt.split(/\s*[;；\n]\s*/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) {
+      var m = /^(\S+)\s*(.*)$/.exec(x), hit = m && codes[m[1]];
+      return hit ? { code: hit.code, course: hit, text: x } : { code: "", course: null, text: x };
+    });
+  }
+  function prereqLabel(it) { return it.course ? (courseName(it.course) || it.course.code) : it.text; }
+  function prereqHtml(c, cls) {
+    var items = prereqItems(c); if (!items.length) return "";
+    return items.map(function (it) { return it.course ? '<button type="button" class="' + (cls || "prereq-link") + '" data-course="' + esc(it.course.id) + '">' + esc(it.course.code) + " " + esc(courseName(it.course)) + "</button>" : '<span class="prereq-text">' + esc(it.text) + "</span>"; }).join('<span class="prereq-sep">·</span>');
+  }
+  // in the order step: which prerequisite courses are in the cart too, and what the family must confirm
+  function prereqStatus(c) {
+    var items = prereqItems(c); if (!items.length) return null;
+    // coded prerequisites decide: all of them in the cart → satisfied; some missing → confirm those; no codes at all
+    // (free text only) → confirm the text
+    var coded = items.filter(function (it) { return it.course; }), inCart = coded.filter(function (it) { return state.cart[it.course.id]; });
+    var rest = coded.length ? coded.filter(function (it) { return !state.cart[it.course.id]; }) : items;
+    return { items: items, inCart: inCart, rest: rest, confirmed: !!state.prereqOk[c.id] };
+  }
   function schedShort(c) {
     var times = (c.schedule || []).map(periodTime).filter(Boolean);
     var days = daysLabel(c, { shortEn: true });
@@ -1302,6 +1327,7 @@
         : '<p class="course-desc desc-tbd">' + esc(t().comingSoon) + "</p>") +
       ((c.teachers || []).length ? '<div class="card-line teacher-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="7" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' + teacherLinks(c, "t-link") + "</div>" : "") +
       seatLine(c) +
+      (prereqItems(c).length ? '<div class="card-line prereq-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><path d="M4 10h9M9 6l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="prereq-k">' + esc(t().prereqLine) + "</span>" + prereqHtml(c) + "</div>" : "") +
       (sched ? '<div class="card-line sched-line"><svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 5.5V10l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> ' + esc(sched) + "</div>" : "") +
       '<div class="course-bottom"><span class="more-hint">' + esc(t().details) + " ›</span>" + selectBtn(c) + "</div></article>"
     );
@@ -1602,12 +1628,14 @@
     if (!state.seatsAt || Date.now() - state.seatsAt > 30000) { state.seatsAt = Date.now(); loadSeats().then(function () { if (state.step === 5 && !state.done) render(); }); }
     var items = cartCourses();
     var rows = items.map(function (c) {
-      var si = seatInfo(c), full = si && si.full;
+      var si = seatInfo(c), full = si && si.full, pq = prereqStatus(c);
+      var prereqRows = !pq ? "" : (pq.inCart.length ? '<div class="prereq-row ok">' + esc(t().prereqLine) + "：" + pq.inCart.map(function (it) { return esc(prereqLabel(it)); }).join(" · ") + ' <span class="prereq-ok">' + esc(t().prereqInCart) + "</span></div>" : "") +
+        (pq.rest.length ? '<label class="prereq-row"><input type="checkbox" class="pq" data-id="' + esc(c.id) + '"' + (pq.confirmed ? " checked" : "") + " /> " + esc(fill(pq.rest.some(function (it) { return it.course; }) ? t().prereqConfirm : t().prereqConfirmGeneric, { x: pq.rest.map(prereqLabel).join(" · ") })) + "</label>" : "");
       return (
         '<div class="summary-item"><span>' + esc(courseName(c)) + ' <span class="code">' + esc(c.code) + "</span>" + (full ? ' <span class="seat-tag">' + esc(t().seatsFull) + "</span>" : "") + "</span>" +
         "<span>" + (typeof c.price === "number" ? esc(fmtPrice(c.price)) : esc(t().priceTBD)) +
         ' <button class="rm" data-id="' + esc(c.id) + '" type="button">' + esc(t().remove) + "</button></span></div>" +
-        (full ? '<label class="waitlist-row"><input type="checkbox" class="wl" data-id="' + esc(c.id) + '"' + (state.waitlistOk[c.id] ? " checked" : "") + " /> " + esc(t().waitlistJoin) + "</label>" : "")
+        (full ? '<label class="waitlist-row"><input type="checkbox" class="wl" data-id="' + esc(c.id) + '"' + (state.waitlistOk[c.id] ? " checked" : "") + " /> " + esc(t().waitlistJoin) + "</label>" : "") + prereqRows
       );
     }).join("");
     return (
@@ -1830,7 +1858,7 @@
       row(t().dTeachers, (c.teachers || []).length ? teacherLinks(c, "t-chip") : "", true) +
       row(t().dSchool, c.school && c.school.name ? esc(c.school.name) + (c.school.abbr ? ' <span class="muted">(' + esc(c.school.abbr) + ")</span>" : "") : "") +
       row(t().dTextbooks, textbooks, true) +
-      row(t().dPrereq, c.prerequisite && c.prerequisite !== "N/A" ? esc(c.prerequisite) : "") +
+      row(t().dPrereq, prereqHtml(c), true) +
       row(t().dSyllabus, syllabus, true) +
       row(t().dComments, c.comments ? esc(c.comments) : "", true) +
       "</div></div>" +
@@ -1886,7 +1914,9 @@
         return;
       }
       var tl = e.target.closest("[data-teacher]");
-      if (tl) openTeacherModal(tl.getAttribute("data-teacher"));
+      if (tl) { openTeacherModal(tl.getAttribute("data-teacher")); return; }
+      var pl = e.target.closest(".prereq-link");
+      if (pl) openCourseModal(pl.getAttribute("data-course"));
     });
   }
 
@@ -2260,6 +2290,8 @@
         if (sel) { toggleCourse(sel.getAttribute("data-select")); return; }
         var tl = e.target.closest("[data-teacher]");
         if (tl) { openTeacherModal(tl.getAttribute("data-teacher")); return; }
+        var pl = e.target.closest(".prereq-link");
+        if (pl) { openCourseModal(pl.getAttribute("data-course")); return; }
         var card = e.target.closest(".course-card");
         if (card) openCourseModal(card.getAttribute("data-id"));
       });
@@ -2274,7 +2306,7 @@
 
 
     var summary = app.querySelector(".summary-card");
-    if (summary) summary.addEventListener("change", function (e) { var wl = e.target.closest("input.wl"); if (wl) { state.waitlistOk[wl.getAttribute("data-id")] = wl.checked; } });
+    if (summary) summary.addEventListener("change", function (e) { var wl = e.target.closest("input.wl"); if (wl) { state.waitlistOk[wl.getAttribute("data-id")] = wl.checked; } var pq = e.target.closest("input.pq"); if (pq) { state.prereqOk[pq.getAttribute("data-id")] = pq.checked; } });
     if (summary) summary.addEventListener("click", function (e) {
       var rm = e.target.closest(".rm");
       if (!rm) return;
@@ -2342,6 +2374,8 @@
       state.formErr = t().errEmailDomain; render(); return;
     }
     if (cartIds().length === 0) { state.formErr = t().errEmpty; render(); return; }
+    var unconfirmed = cartCourses().filter(function (c) { var pq = prereqStatus(c); return pq && pq.rest.length && !pq.confirmed; });
+    if (unconfirmed.length) { state.formErr = t().errPrereq; render(); return; }
     state.submitting = true; state.formErr = ""; render();
 
     var hp = document.getElementById("fcHpField");
@@ -2354,6 +2388,7 @@
         trackId: trackId(),
         courseIds: cartIds(),
         waitlist: cartIds().filter(function (id) { return state.waitlistOk[id]; }),
+        prereqOk: cartIds().filter(function (id) { return state.prereqOk[id]; }),
         // Drives the language of the confirmation email and the hive's Teams
         // notification — the family should be answered in the language they chose.
         lang: state.lang,

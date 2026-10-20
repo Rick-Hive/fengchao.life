@@ -147,6 +147,7 @@ function orderRecord(order, notify) {
     schoolName: it.schoolName || "",
     schoolAbbr: it.schoolAbbr || "",
     waitlist: !!it.waitlist, // on the waitlist until the order manager seats it (enrollment rules, 2026-10-20)
+    prereq: it.prereq && typeof it.prereq === "object" ? { text: String(it.prereq.text || ""), codes: Array.isArray(it.prereq.codes) ? it.prereq.codes.slice(0, 10) : [], met: String(it.prereq.met || "none") } : null,
   }));
   const hives = (order.routes || []).map((r) => ({
     key: r.hiveKey || "",

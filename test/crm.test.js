@@ -64,6 +64,13 @@ assert.ok(!("emailHtml" in rec) && !("notifyText" in rec), "rendered messages ar
 assert.strictEqual(rec.hives[0].abbr, "KXC");
 assert.strictEqual(rec.items[0].price, 1200);
 assert.strictEqual(rec.crmId, null);
+// enrollment rules (2026-10-20): waitlist and prerequisite flags travel into the record; a waitlisted item keeps its plain names
+{
+  const w2 = Object.assign({}, wire, { items: [Object.assign({}, wire.items[0], { waitlist: true, baseNameZh: "数学", baseNameEn: "Math", nameZh: "数学（候补）", nameEn: "Math (waitlist)", prereq: { text: "KXC-MATH-6 Math 6 / 六年级数学", codes: ["KXC-MATH-6"], met: "confirmed" } })] });
+  const r2 = C.orderRecord(w2, { ok: true, at: wire.submittedAt });
+  assert.deepStrictEqual([r2.items[0].waitlist, r2.items[0].nameZh, r2.items[0].nameEn, r2.items[0].prereq], [true, "数学", "Math", { text: "KXC-MATH-6 Math 6 / 六年级数学", codes: ["KXC-MATH-6"], met: "confirmed" }]);
+  assert.deepStrictEqual([rec.items[0].waitlist, rec.items[0].prereq], [false, null], "an ordinary item carries no flags");
+}
 
 // Transitions: submitted → confirmed → paid → started; cancelled from any live state; terminal states stay.
 const sales = ["staff:sales"];

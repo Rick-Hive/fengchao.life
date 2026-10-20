@@ -172,6 +172,8 @@ module.exports = async function (context, req) {
   const courseIds = Array.isArray(body.courseIds) ? body.courseIds.slice(0, 60) : [];
   // courses the family agreed to join the waitlist for, should they be full at this moment (enrollment rules, 2026-10-20)
   const waitlistIds = new Set(Array.isArray(body.waitlist) ? body.waitlist.map(String) : []);
+  // courses whose prerequisites the family confirmed on the order page (enrollment rules, step 4)
+  const prereqOkIds = new Set(Array.isArray(body.prereqOk) ? body.prereqOk.map(String) : []);
   // The language the parent actually ordered in. Everything they receive — the
   // confirmation email — and the hive's Teams notification are rendered in it,
   // so the hive replies in the language the family already chose.
@@ -254,10 +256,29 @@ module.exports = async function (context, req) {
         waitlist: false,
       });
     }
+    // Prerequisites (enrollment rules, 2026-10-20): "CODE English / 中文; …" — a leading course code is a course. The
+    // order records, per item, how each prerequisite is met: cart (ordered together), ordered (this family's earlier
+    // order, confirmed / paid / started), confirmed (the family ticked it), none (nothing known) — never refused here;
+    // the order manager sees the flags.
+    const codeOf = new Map((snapshot.courses || []).filter((c) => c.code).map((c) => [c.code, c]));
+    const cartCodes = new Set(items.map((it) => it.code));
+    const allOrders = await crm.listOrders();
+    const mine = allOrders.filter((o) => o && String(o.email || "").toLowerCase() === email.toLowerCase() && ["confirmed", "paid", "started"].includes(o.status));
+    const ordered = new Set(mine.flatMap((o) => (o.items || []).filter((it) => it && !it.waitlist).map((it) => it.code)));
+    for (const it of items) {
+      const c = byId.get(it.courseId), txt = String((c && c.prerequisite) || "").trim();
+      if (!txt || /^n\/?a$/i.test(txt)) continue;
+      const parts = txt.split(/\s*[;；\n]\s*/).map((x) => x.trim()).filter(Boolean);
+      const codes = parts.map((x) => (/^(\S+)/.exec(x) || [])[1]).filter((code) => code && codeOf.has(code));
+      let met = "none";
+      if (codes.length && codes.every((code) => cartCodes.has(code) || ordered.has(code))) met = codes.every((code) => cartCodes.has(code)) ? "cart" : "ordered";
+      else if (prereqOkIds.has(String(it.courseId))) met = "confirmed";
+      it.prereq = { text: txt, codes, met };
+    }
     // Seats are checked here, against the orders as they are now (no cache): a full course is refused unless the
     // family asked for the waitlist; a course with room is never put on the waitlist, whatever was asked.
     {
-      const live = seats.seatsFor(seats.countOrders(await crm.listOrders()), snapshot.courses || []);
+      const live = seats.seatsFor(seats.countOrders(allOrders), snapshot.courses || []);
       const full = [];
       for (const it of items) {
         const st = live[it.code];

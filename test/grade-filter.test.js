@@ -42,7 +42,7 @@ const snapshot = {
   subjects: [{ nameEn: "Math", nameZh: "数学", filterKey: "Math", filterNameEn: "Math", filterNameZh: "数学" }],
   courses: [
     { id: "c1", code: "MTH-EL-101", nameEn: "Math G1",     nameZh: "数学一年级", grades: ["G1"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [MATH], teachers: [] },
-    { id: "c2", code: "MTH-EL-103", nameEn: "Math G3",     nameZh: "数学三年级", grades: ["G3"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
+    { id: "c2", code: "MTH-EL-103", nameEn: "Math G3",     nameZh: "数学三年级", grades: ["G3"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [], prerequisite: "MTH-EL-101 Math G1 / 数学一年级; 或老师同意" },
     { id: "c3", code: "MTH-EL-105", nameEn: "Math G5",     nameZh: "数学五年级", grades: ["G5"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c4", code: "MTH-EL-102", nameEn: "Math G2",     nameZh: "数学二年级", grades: ["G2"],            trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
     { id: "c5", code: "CHL-KG-101", nameEn: "Kinder Chin", nameZh: "幼儿中文",   grades: ["K1","K2"],       trackIds: [1,2,3,4,5,6], price: 100, subjects: [], teachers: [] },
@@ -190,6 +190,33 @@ setTimeout(() => {
   check("grammar stage offers no high-school grade", rows().some(r => /高中|大学预科|G9|G1[012]/.test(r)), false);
   check("no filter -> the whole grammar-stage catalog, Pre-K course included", count(), 6);
   const seatOf = (code) => { const card = Array.from(doc.querySelectorAll(".course-card")).find(c => c.querySelector(".code-inline")?.textContent === code); const l = card && card.querySelector(".seat-line"); return l ? [l.className.replace("card-line seat-line", "").trim(), l.textContent.trim()] : null; };
+  // prerequisites (enrollment rules, 2026-10-20): the card names them, a known code is a link to that course
+  {
+    const card = Array.from(doc.querySelectorAll(".course-card")).find(c => c.querySelector(".code-inline")?.textContent === "MTH-EL-103");
+    const line = card.querySelector(".prereq-line");
+    check("the card lists the prerequisites: the course as a link, the rest as text",
+      [line && line.querySelector(".prereq-link")?.textContent, line && line.querySelector(".prereq-text")?.textContent, line && line.querySelector(".prereq-link")?.getAttribute("data-course")],
+      ["MTH-EL-101 数学一年级", "或老师同意", "c1"]);
+    line.querySelector(".prereq-link").click();
+    check("clicking the prerequisite opens that course's detail, not the card's", doc.querySelector(".modal h2, .modal h3")?.textContent.includes("数学一年级"), true);
+    doc.querySelectorAll("[data-close]").forEach(b => b.click());
+    check("the detail is closed again", doc.querySelectorAll(".modal-overlay.show").length, 0);
+    doc.querySelectorAll(".modal-overlay").forEach(o => o.remove()); // closeModal removes the node after its 180 ms fade
+    // the order step: the prerequisite not in the cart must be confirmed; in the cart it reads 同时报名
+    card.querySelector("[data-select]").click();
+    doc.getElementById("cartNext").click();
+    check("a course with a prerequisite outside the cart asks for the confirmation tick", !!doc.querySelector('.summary-card input.pq[data-id="c2"]'), true);
+    doc.getElementById("email").value = "mama@example.com"; doc.getElementById("email").dispatchEvent(new window.Event("input", { bubbles: true }));
+    doc.getElementById("submitBtn").click();
+    check("submitting without the tick is refused with the prerequisite message", /前置课程/.test(doc.getElementById("formErr").textContent), true);
+    const pq = doc.querySelector('.summary-card input.pq[data-id="c2"]'); pq.checked = true; pq.dispatchEvent(new window.Event("change", { bubbles: true }));
+    doc.getElementById("back5").click();
+    Array.from(doc.querySelectorAll(".course-card")).find(c => c.querySelector(".code-inline")?.textContent === "MTH-EL-101").querySelector("[data-select]").click();
+    doc.getElementById("cartNext").click();
+    check("with the prerequisite course in the cart too the line reads 同时报名 and no tick is asked", [!!doc.querySelector(".summary-card .prereq-row.ok .prereq-ok"), !!doc.querySelector('.summary-card input.pq[data-id="c2"]')], [true, false]);
+    doc.querySelectorAll(".summary-card .rm").forEach(b => b.click()); // empty the cart again (the last removal returns to the catalog)
+    if (!doc.querySelector(".course-card")) goToCatalog("grammar");
+  }
   check("seats on the cards (from /api/seats): 2 of 3 left, full, 3 more to run, nothing for a course without limits",
     [seatOf("MTH-EL-101"), seatOf("MTH-EL-103"), seatOf("MTH-EL-105"), seatOf("MTH-EL-102")],
     [["few", "还剩 2 席（共 3）"], ["full", "已满 · 可候补"], ["need", "还差 3 人开班（已报 2 / 最少 5）"], null]);

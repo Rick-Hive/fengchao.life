@@ -119,6 +119,7 @@ function mkOrder(i, status, agoDays, notifyOk) {
             { code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grade 7 Science", classType: "录播课 / Prerecorded", language: "英语 / English", grades: ["G7", "G8"], teachers: ["Mr Lee"], price: i % 4 ? 900 : 0, priceTbd: i % 4 === 0, schoolName: "Kids X Center", schoolAbbr: "KXC" }],
     hives: [{ key: "kxc", name: "Kids X Center", abbr: "KXC", itemCount: 2, subtotal: 2100, notified: true }], itemCount: 2, totalPrice: 2100, currency: "CNY",
     status: "submitted", history: [{ at, by: "system", from: null, to: "submitted", note: "" }], notify: { ok: notifyOk, at, error: notifyOk ? undefined : "HTTP 502" }, crmId: null };
+  if (i === 1) o.items[1].prereq = { text: "KXC-SCI-6 Grade 6 Science / 六年级科学", codes: ["KXC-SCI-6"], met: "none" };
   let cur = o; const chain = { confirmed: ["confirmed"], paid: ["confirmed", "paid"], started: ["confirmed", "paid", "started"], cancelled: ["cancelled"] }[status] || [];
   let step = agoDays - 1;
   for (const s of chain) { cur = crm.transition(cur, s, "om@fengchao.life", s === "paid" ? "家长已转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
@@ -376,6 +377,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click('#otable tbody tr[data-id="FC-20261002-KXC-002"]'); await p.waitForTimeout(500);
     const pb = await p.$eval("#panel .pb", e => e.innerText);
     if (!/七年级数学/.test(pb) || !/执行记录/.test(pb) || !/确认接单/.test(pb) || !/取消订单/.test(pb)) throw new Error("panel: " + pb.slice(0, 200));
+    assert.ok(/前置课程：KXC-SCI-6 Grade 6 Science \/ 六年级科学/.test(pb) && /未确认/.test(pb), "the panel shows the item's prerequisite and that the family did not confirm it: " + pb.slice(0, 300));
     if (!/¥2,100/.test(pb)) throw new Error("no total in panel: " + pb);
     await p.fill("#oNote", "提供方已接单"); await p.click('#panel button[data-to="confirmed"]'); await p.waitForTimeout(600);
     if (!patched.length || patched[0].status !== "confirmed" || patched[0].note !== "提供方已接单") throw new Error("patch not sent: " + JSON.stringify(patched));
