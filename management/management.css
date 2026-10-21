@@ -349,6 +349,8 @@ table.roles th { color: var(--faint); font-weight: 600; font-size: 11px; text-tr
 
 /* clickable tags and member rows (open a panel) */
 button.tag.link { cursor: pointer; font: inherit; font-size: 12px; line-height: 18px; }
+/* a group chip never runs out of its cell (Rick, 2026-10-21: the names overlapped the next column) */
+#utable button.tag.link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
 button.tag.link:hover { border-color: var(--accent); color: var(--accent-dark); }
 button.mrow.link { width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; cursor: pointer; padding: var(--s1) var(--s1); margin: 0 calc(-1 * var(--s1)); }
 button.mrow.link:hover { background: #f1f4f8; }

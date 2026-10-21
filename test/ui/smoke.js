@@ -605,7 +605,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const txt = await p.$eval("#content", e => e.innerText);
     if (!/\bHive\b/.test(txt) || /蜂巢/.test(txt.replace(/.*蜂巢.*Hive\/蜂巢.*/g, ""))) { /* slash name shows the English side */ }
     const names = await p.$$eval("#gtree .tname", es => es.map(e => e.firstChild && e.firstChild.textContent.trim()));
-    if (!names.some(n => n === "Hive · 蜂巢")) throw new Error("slash name not shown bilingually: " + names.join(" | "));
+    if (!names.some(n => n === "Hive")) throw new Error("slash name: the English page shows its English side alone (2026-10-21): " + names.join(" | "));
     if (await p.$("#gFill")) throw new Error("the auto-fill button should be gone");
   });
   await shot("orders-equip-finance", 1280, 700, "#/ops/orders", "en", ["staff:curriculum"], async p => {
@@ -624,7 +624,8 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   });
   await shot("group-name-editor", 1280, 900, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(600);
-    const tag = await p.$eval('#utable button[data-group="g1"]', e => e.textContent); if (tag.trim() !== "English Grade 5 · 五年级英语") throw new Error("user table shows " + tag);
+    const tag = await p.$eval('#utable button[data-group="g1"]', e => e.textContent); if (tag.trim() !== "五年级英语") throw new Error("user table shows the Chinese name alone (the pair is the tooltip): " + tag);
+    if ((await p.$eval('#utable button[data-group="g1"]', e => e.getAttribute("title"))) !== "五年级英语 · English Grade 5") throw new Error("tooltip should carry both names");
     await p.click('#utable button[data-group="g1"]'); await p.waitForTimeout(700);
     const pb = await p.$eval("#panel .pb", e => e.innerText); if (!/Teams 名称/.test(pb) || !/显示名称/.test(pb)) throw new Error("group panel: " + pb.slice(0, 200));
     await p.fill("#gnEn", "Grade 5 English"); await p.click("#gnSave"); await p.waitForTimeout(500);

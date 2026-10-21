@@ -62,7 +62,7 @@
           (g.mail ? '<span class="k">' + t("邮箱", "Mail") + "</span><span>" + esc(g.mail) + "</span>" : "") +
           (g.created ? '<span class="k">' + t("创建", "Created") + "</span><span>" + esc(day(g.created)) + "</span>" : "") +
           '<span class="k">' + t("成员", "Members") + "</span><span>" + g.members.length + "</span>" +
-          (g.description ? '<span class="k">' + t("简介", "About") + "</span><span>" + esc(gdesc(g)) + (gdescOther(g) ? '<br><span class="muted">' + esc(gdescOther(g)) + "</span>" : "") + "</span>" : "") + "</div>" +
+          (g.description ? '<span class="k">' + t("简介", "About") + "</span><span>" + esc(gdesc(g)) + "</span>" : "") + "</div>" +
         "<h4>" + t("成员", "Members") + "</h4>" +
         (g.members.length ? g.members.map(function (m) {
           return '<button class="mrow link" type="button" data-upn="' + esc(m.upn) + '" data-name="' + esc(m.displayName || "") + '" data-owner="' + (m.owner ? "1" : "0") + '"><span class="avatar sm" style="background:' + hue(m.upn) + '">' + esc(initials(m.displayName || m.upn)) + '</span><span class="mname">' + esc(m.displayName) + '</span><span class="mupn">' + esc(m.upn) + "</span>" + (m.owner ? '<span class="tag accent">' + t("所有者", "Owner") + "</span>" : "<span></span>") + "</button>";
@@ -310,7 +310,7 @@
         dev = u.otherMethods.length ? '<span class="muted">' + esc(u.otherMethods.map(function (k) { return (KIND[k] || [k, k])[EN ? 1 : 0]; }).join(", ")) + "</span>" : '<span class="muted">—</span>';
       }
       var gs = u.groups.filter(function (g) { return g.kind === "team" || g.kind === "class" || g.kind === "m365"; });
-      var gl = gs.slice(0, 2).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + hl(gname(g), state.userQ) + "</button>"; }).join("") + (gs.length > 2 ? '<span class="tag muted" title="' + esc(gs.slice(2).map(function (g) { return gname(g); }).join(", ")) + '">+' + (gs.length - 2) + "</span>" : "");
+      var gl = gs.slice(0, 2).map(function (g) { return '<button class="tag link" type="button" data-group="' + esc(g.id) + '" title="' + esc(gnamePair(g)) + '">' + hl(gname(g), state.userQ) + "</button>"; }).join("") + (gs.length > 2 ? '<span class="tag muted" title="' + esc(gs.slice(2).map(function (g) { return gname(g); }).join(", ")) + '">+' + (gs.length - 2) + "</span>" : "");
       var signTip = u.lastSignIn ? t("最近登录 ", "Last sign-in ") + when(u.lastSignIn) : neverSigned(u) ? t("从未登录", "Never signed in") : t("已登录过（登记了验证器），微软还没给出最近登录时间，通常要等几小时", "Has signed in (an authenticator is registered); Microsoft has not reported the time yet, usually a few hours");
       var roleTags = (u.roles || []).length ? ' <span class="info" tabindex="0" data-tip="' + esc((u.roles || []).map(function (r) { return EN ? (r.en || r.role) : (r.zh || r.role); }).join("\n")) + '">i</span>' : "";
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"' + (u.domain ? ' data-dom="' + esc(u.domain) + '"' : "") + '><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
@@ -397,7 +397,7 @@
           (isSelf ? "" : "<h4>" + t("密码", "Password") + '</h4><div id="ppw"><div class="devrow"><div class="m"><b>' + t("重置密码", "Reset password") + "</b><small>" + t("生成一个临时密码，对方下次登录必须改掉。", "Makes a temporary password that must be changed at the next sign-in.") + '</small></div><button class="btn secondary sm" type="button" id="pwReset">' + t("重置", "Reset") + "</button></div></div>") +
           (isSelf || (u.roles || []).length ? "" : "<h4>" + t("删除账号", "Delete account") + '</h4><div class="devrow"><div class="m"><b>' + t("删除这个账号", "Delete this account") + "</b><small>" + t("账号、邮箱和 OneDrive 进入微软的回收站，30 天内可由系统管理员在 Microsoft 365 管理中心恢复。", "The account, mailbox and OneDrive go to Microsoft's recycle bin; restorable for 30 days in the Microsoft 365 admin center.") + '</small></div><button class="btn danger sm" type="button" id="uDel">' + t("删除", "Delete") + "</button></div>")
           : '<div class="note">' + t("登录设备由本校的 IT 管理员管理。", "Sign-in devices are managed by the school's IT administrator.") + "</div>") +
-        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '" title="' + esc(g.name) + '">' + esc(gname(g)) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
+        "<h4>" + t("Teams 群组", "Teams groups") + '</h4><div class="tags" style="display:flex;gap:4px;flex-wrap:wrap">' + (u.groups.length ? u.groups.map(function (g) { return '<button class="tag link' + (g.kind === "team" || g.kind === "class" ? " accent" : "") + '" type="button" data-group="' + esc(g.id) + '" title="' + esc(gnamePair(g)) + '">' + esc(gname(g)) + "</button>"; }).join("") : '<span class="muted">—</span>') + "</div>" +
         (u.extra ? "<h4>" + t("补充资料（本人填写）", "Additional information (self-reported)") + '</h4><div class="kv">' +
           ((u.extra.roles || []).length ? '<span class="k">' + t("身份/角色", "Roles") + "</span><span>" + esc(u.extra.roles.map(vl).join("、") + (u.extra.rolesOther ? "（" + u.extra.rolesOther + "）" : "")) + "</span>" : "") +
           ((u.extra.topics || []).length ? '<span class="k">' + t("感兴趣", "Interests") + "</span><span>" + esc(u.extra.topics.map(function (x) { return x === "其它" && u.extra.topicsOther ? u.extra.topicsOther : vl(x); }).join(EN ? ", " : "、")) + "</span>" : "") +
@@ -692,7 +692,7 @@
             (g.mail ? '<span class="k">' + t("邮箱", "Mail") + "</span><span>" + esc(g.mail) + "</span>" : "") +
             '<span class="k">' + t("学校", "School") + "</span><span>" + dlabel(dom) + "</span>" +
             '<span class="k">' + t("本校成员", "Members here") + "</span><span id=\"gpCount\">" + g.domainMembers + "</span>" +
-            (g.description ? '<span class="k">' + t("简介", "About") + "</span><span>" + esc(gdesc(g)) + (gdescOther(g) ? '<br><span class="muted">' + esc(gdescOther(g)) + "</span>" : "") + "</span>" : "") + "</div>" +
+            (g.description ? '<span class="k">' + t("简介", "About") + "</span><span>" + esc(gdesc(g)) + "</span>" : "") + "</div>" +
           (canManageTeam
             ? '<div id="gmgr">' + membersHtml + "</div>"
             : membersHtml + '<p class="hint">' + t("只读：成员的增减在 Teams 或 Microsoft 365 管理中心完成。", "Read-only: members are added or removed in Teams or the Microsoft 365 admin center.") + "</p>") +

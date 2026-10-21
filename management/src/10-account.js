@@ -15,18 +15,28 @@
     "欧美大学": "University in Europe / North America", "东南亚大学": "University in Southeast Asia", "英国/澳洲大学": "University in the UK / Australia", "国内大学": "University in China", "2+2混合制大学": "2+2 programme", "未定": "Undecided",
   };
   function vl(v) { return EN ? (VOCAB_EN[v] || v) : v; }
-  // A Teams group's name in the page language (groupnames.json, set in the management centre;
-  // the tenant's own name is the fallback and is never changed — Rick, 2026-10-06).
-  function gname(g) {
-    if (!g) return "";
+  // A Teams group's name in the page language only (groupnames.json, set in the management centre; the tenant's own
+  // name is the fallback and is never changed — Rick, 2026-10-06). Since 2026-10-21 one language, not the pair: most
+  // names are Chinese, so the Chinese page shows them as they are and the English page shows the translation
+  // (Rick: 「teams 名称因为双语翻译变得显示不开」). The pair stays available for tooltips (gnamePair).
+  function gnameSides(g) {
     var name = g.name || "", zh = g.nameZh || "", en = g.nameEn || "";
     // "Hive/蜂巢": a name already carrying both scripts around a slash is its own pair.
     var m = /^(.+?)\s*[\/／]\s*(.+)$/.exec(name);
     if (m && (!zh || !en)) { var a = /[\u3400-\u9fff]/.test(m[1]), b = /[\u3400-\u9fff]/.test(m[2]); if (a !== b) { zh = zh || (a ? m[1] : m[2]).trim(); en = en || (a ? m[2] : m[1]).trim(); } }
-    if (!zh || !en || zh === en) return (EN ? (en || zh) : (zh || en)) || name;
-    // Both known: the tenant's own name first, its translation after it (Rick, 2026-10-07).
-    var orig = m ? (EN ? "en" : "zh") : /[\u3400-\u9fff]/.test(name) ? "zh" : "en";
-    return orig === "zh" ? zh + " · " + en : en + " · " + zh;
+    return { name: name, zh: zh, en: en };
+  }
+  function gname(g) {
+    if (!g) return "";
+    var s = gnameSides(g);
+    return (EN ? (s.en || s.zh) : (s.zh || s.en)) || s.name;
+  }
+  // both names when both are known ("五年级英语 · English Grade 5"), for a tooltip; else the one name
+  function gnamePair(g) {
+    if (!g) return "";
+    var s = gnameSides(g);
+    if (!s.zh || !s.en || s.zh === s.en) return gname(g);
+    return EN ? s.en + " · " + s.zh : s.zh + " · " + s.en;
   }
   // The group's description in the page's language, with the other language after it when both are known
   // (Rick, 2026-10-18: 简介 bilingual too; the translation comes from api/shared/people.js, cached in groupnames.json).
@@ -35,12 +45,6 @@
     var zh = g.descZh || "", en = g.descEn || "";
     if (!zh || !en || zh === en) return g.description;
     return EN ? en : zh;
-  }
-  function gdescOther(g) {
-    if (!g || !g.description) return "";
-    var zh = g.descZh || "", en = g.descEn || "";
-    if (!zh || !en || zh === en) return "";
-    return EN ? zh : en;
   }
   var extraDraft = null; // the form's working copy, so adding a child does not lose typed values
   function readExtraForm() {
