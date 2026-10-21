@@ -88,6 +88,17 @@ jobs:
             -H "content-type: application/json" -H "x-hive-sync-key: $KEY" -d '{}' 2>&1) || true
           echo "$out" | head -c 600; echo
 
+      # The order sweep (v3): expiries, pay-by reminders, provider nudges, automatic seating from the waitlist —
+      # before the digest, so the digest reports the day as it stands after the sweep.
+      - name: Run the order sweep
+        if: always()
+        env:
+          KEY: ${{ secrets.HIVE_SYNC_KEY }}
+        run: |
+          out=$(curl -sS --max-time 120 -X POST "https://fengchao.life/api/crm-sweep" \
+            -H "content-type: application/json" -H "x-hive-sync-key: $KEY" -d '{}' 2>&1) || true
+          echo "$out" | head -c 800; echo
+
       # 待处理与异常 → the order manager, once a day when there is something to act on
       # (decision 18). Goes through the order-notification flow; nothing to send → "nothing_to_do".
       - name: Send the CRM exceptions digest

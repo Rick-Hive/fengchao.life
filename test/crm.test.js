@@ -113,7 +113,7 @@ assert.deepStrictEqual(C.providerNext("expired"), []);
 assert.strictEqual(C.statusOf({ status: "confirmed" }), "contacted");
 try { C.transition(rec, "started", "x", "", sales); assert.fail("should throw"); } catch (e) { assert.strictEqual(e.code, "bad_transition"); assert.deepStrictEqual(e.allowed, ["contacted", "parent_paid", "paid", "cancelled"]); }
 
-// Expiry (lazy, 21 days from submission while submitted / contacted; +14 days per extension) and overdue reminders
+// Expiry (v3: 14 days from the LAST step while submitted / contacted; +14 days per extension) and overdue reminders
 // (submitted 3, contacted 14, parent_paid 7, paid 30 days since the last change).
 const day = 24 * 3600 * 1000;
 const t0 = Date.parse("2026-10-06T02:00:00.000Z");
@@ -124,16 +124,20 @@ assert.deepStrictEqual(C.overdue(t1, Date.parse("2026-10-07T00:00:00Z") + 15 * d
 assert.deepStrictEqual(C.overdue(Object.assign({}, t1, { status: "confirmed" }), Date.parse("2026-10-07T00:00:00Z") + 15 * day), { rule: "contacted", days: 15, limit: 14 }, "an old confirmed record uses the contacted rule");
 assert.strictEqual(C.overdue(t3, t0 + 400 * day), null, "started never goes overdue");
 assert.strictEqual(C.overdue(tc, t0 + 400 * day), null, "nor cancelled");
-assert.ok(!C.isExpired(rec, t0 + 20 * day) && C.isExpired(rec, t0 + 22 * day), "21 days from submission");
-assert.ok(C.isExpired(t1, t0 + 22 * day) && !C.isExpired(tp, t0 + 60 * day) && !C.isExpired(t2, t0 + 60 * day), "only while submitted or contacted");
-const ex = C.withExpiry(t1, t0 + 22 * day);
+assert.ok(!C.isExpired(rec, t0 + 13 * day) && C.isExpired(rec, t0 + 15 * day), "14 days from submission while nothing happened");
+const tContact = Date.parse(t1.history[t1.history.length - 1].at);
+assert.ok(!C.isExpired(t1, t0 + 14 * day) && !C.isExpired(t1, tContact + 13 * day) && C.isExpired(t1, tContact + 15 * day), "the provider's 已联系 restarts the clock: 14 days from the contact");
+assert.ok(!C.isExpired(tp, t0 + 60 * day) && !C.isExpired(t2, t0 + 60 * day), "only while submitted or contacted");
+const ex = C.withExpiry(t1, tContact + 15 * day);
 assert.deepStrictEqual([ex.status, ex.history[ex.history.length - 1].by, ex.history[ex.history.length - 1].to, C.isLive(ex), C.nextStatuses(ex.status, sales), C.nextStatuses(ex.status, ["admin"])], ["expired", "system", "expired", false, [], ["submitted"]]);
 assert.strictEqual(C.withExpiry(t1, t0 + 5 * day), t1, "not expired: the same object");
-const xt = C.extend(t1, "head@kxc.edu", t0 + 20 * day);
-assert.strictEqual(xt.expiresAt, new Date(t0 + 35 * day).toISOString(), "+14 days on the original deadline");
-assert.ok(!C.isExpired(xt, t0 + 30 * day) && C.isExpired(xt, t0 + 36 * day) && /延长 14 天/.test(xt.history[xt.history.length - 1].note));
-const xt2 = C.extend(xt, "head@kxc.edu", t0 + 40 * day);
-assert.strictEqual(xt2.expiresAt, new Date(t0 + 54 * day).toISOString(), "extended after it lapsed: 14 days from now");
+const xt = C.extend(t1, "head@kxc.edu", tContact + 10 * day);
+assert.strictEqual(xt.expiresAt, new Date(tContact + 28 * day).toISOString(), "+14 days on the current deadline");
+assert.ok(!C.isExpired(xt, tContact + 27 * day) && C.isExpired(xt, tContact + 29 * day) && /延长 14 天/.test(xt.history[xt.history.length - 1].note));
+const xt2 = C.extend(xt, "head@kxc.edu", tContact + 40 * day);
+assert.strictEqual(xt2.expiresAt, new Date(tContact + 54 * day).toISOString(), "extended after it lapsed: 14 days from now");
+const xp = C.transition(xt, "parent_paid", "parent@gmail.com", "", [], tContact + 11 * day, ["parent_paid"]);
+assert.ok(!("expiresAt" in xp), "a status change drops the extension: the clock belongs to the new step");
 
 // Masking: contact details need identity ≥ read, amounts need money ≥ read.
 const full = C.mask(t1, C.accessMap(["staff:sales"]));

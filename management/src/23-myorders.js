@@ -43,7 +43,7 @@
         (o.canConfirmPay ? '<button type="button" class="btn sm" data-paid="' + esc(o.orderId) + '">' + t("我已付款", "I have paid") + "</button>" : "") +
         (o.canCancel ? '<button type="button" class="btn secondary sm danger" data-cancel="' + esc(o.orderId) + '">' + t("取消订单", "Cancel") + "</button>" : "") + "</div></div>" +
         '<div class="kv"><span class="k">' + t("提交时间", "Submitted") + "</span><span>" + esc(when(o.submittedAt)) + "</span>" +
-          (o.expiresAt ? '<span class="k">' + t("付款期限", "Pay by") + "</span><span>" + esc(day(o.expiresAt)) + ' <span class="faint">' + t("（到期未付款的订单自动取消；需要更多时间请联系课程提供方）", "(an unpaid order is cancelled after this date; ask the provider for more time)") + "</span></span>" : "") +
+          (o.expiresAt ? '<span class="k">' + t("付款期限", "Pay by") + "</span><span>" + esc(day(o.expiresAt)) + ' <span class="faint">' + t("（到期未付款的订单自动关闭，到期前 3 天会邮件提醒；需要更多时间请联系课程提供方）", "(an unpaid order closes after this date, with an email reminder 3 days before; ask the provider for more time)") + "</span></span>" : "") +
           '<span class="k">' + t("课程提供方", "Provider") + "</span><span>" + esc((o.hives || []).map(function (h) { return h.name || h.abbr || h.key; }).filter(Boolean).join("; ") || "—") + "</span>" +
           '<span class="k">' + t("联系邮箱", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" + moFee(o) +
           (o.notify && !o.notify.ok && !o.notify.pending ? '<span class="k">' + t("通知", "Notification") + '</span><span><span class="tag bad">' + t("确认邮件未送达", "Confirmation not delivered") + "</span></span>" : "") + "</div>" +

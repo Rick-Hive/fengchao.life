@@ -38,6 +38,7 @@ const { guard, finish, describe } = require("../shared/session");
 const people = require("../shared/people");
 const { readSnapshot } = require("../shared/blob");
 const seats = require("../shared/seats");
+const notify = require("../shared/notify");
 
 // 我的订单 (design 2026-10-20): the orders that are this person's — placed while signed in as this account, or under
 // one of the account's addresses (the UPN itself, the work mail, the safe email). Theirs to read in full and, while
@@ -336,6 +337,8 @@ async function handler(context, req) {
       try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && err.statusCode === 412) return fail(context, 409, "changed meanwhile"); throw err; }
       seats.forget();
       await audit(context, { actor: upn, action: want === "cancelled" ? "order.cancel.self" : "order.parent_paid", target: orderId, result: "ok" });
+      // v3: the family's step reaches the provider (and the family gets its own cancellation mail)
+      await notify.notify(next, want === "cancelled" ? "cancelled" : "parent_paid", { byFamily: true, by: upn, note: String(b.note || "").slice(0, 200), log: (m) => context.log.warn(m) });
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, order: myOrderView(next) } };
       return;
     }

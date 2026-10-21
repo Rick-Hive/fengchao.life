@@ -28,6 +28,7 @@
 // to read and `rw` to change. Masking happens here, before the reply.
 const { userRoles, normUser, isAdmin, staffFunctions, DOMAIN_LEADER_RE } = require("../shared/roles");
 const crm = require("../shared/crm");
+const notify = require("../shared/notify");
 const equip = require("../shared/equip");
 const teamsOrders = require("../shared/teamsOrders");
 const teamsFetch = require("../shared/teamsFetch");
@@ -145,6 +146,7 @@ async function handler(context, req) {
     try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && (err.statusCode === 412 || err.statusCode === 409)) { fail(context, 409, "changed_meanwhile"); return; } throw err; }
     seats.forget();
     await audit(context, { action: "crm.order.extend", by: normUser(user), orderId: id, until: next.expiresAt });
+    await notify.notify(next, "extended", { by: normUser(user), log: (m) => context.log.warn(m) });
     ok(context, { ok: true, order: Object.assign({}, next, { status: crm.statusOf(next), expiresAt: next.expiresAt }), next: provider ? crm.providerNext(next.status) : crm.nextStatuses(next.status, roles) });
     return;
   }
@@ -603,6 +605,7 @@ async function handler(context, req) {
     try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && (err.statusCode === 412 || err.statusCode === 409)) { fail(context, 409, "changed_meanwhile"); return; } throw err; }
     seats.forget();
     await audit(context, { action: "crm.order.seat", by: normUser(user), orderId: id, code, waitlist });
+    if (!waitlist) await notify.notify(next, "seated", { by: normUser(user), log: (m) => context.log.warn(m) });
     ok(context, { ok: true, order: Object.assign(provider ? next : crm.mask(next, acc), { overdue: crm.overdue(next), status: crm.statusOf(next) }) });
     return;
   }
@@ -642,6 +645,9 @@ async function handler(context, req) {
     }
     seats.forget();
     await audit(context, { action: "crm.order.status", by: normUser(user), orderId: id, from: cur.order.status, to, note: String(body.note || "").slice(0, 500), provider });
+    // v3: every step tells the family (and the provider where it must act) — the family's email, the provider's Teams
+    const event = to === "submitted" ? "reopened" : to;
+    if (notify.EVENTS[event]) await notify.notify(next, event, { by: normUser(user), note: String(body.note || "").slice(0, 200), log: (m) => context.log.warn(m) });
     ok(context, { ok: true, order: view(next), next: nextFor(next), provider });
     return;
   }

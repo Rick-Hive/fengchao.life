@@ -85,8 +85,9 @@ const PREFIX = "crm/orders/";
 // The status flow since stage 2 (design 2026-10-20, Rick 2026-10-21): the course fee is paid by the family to the
 // provider directly, so the order records both sides' word for it — the family's 我已付款 (parent_paid), then the
 // provider's 已收款 (paid). `confirmed` from the first flow is kept as an alias of `contacted` (机构沟通中).
-//   submitted → contacted → parent_paid → paid → started; cancelled from any live state; expired when the family has
-//   not paid EXPIRE_DAYS after submission (extendable by the provider, +EXTEND_DAYS at a time).
+//   submitted → contacted → parent_paid → paid → started; cancelled from any live state; expired when an unpaid order
+//   (submitted / contacted) has not moved on for EXPIRE_DAYS (v3, Rick 2026-10-21: 14 days from the LAST step, so a
+//   provider that answers on day 13 restarts the family's clock; extendable by the provider, +EXTEND_DAYS at a time).
 const STATUSES = ["submitted", "contacted", "parent_paid", "paid", "started", "cancelled", "expired"];
 const STATUS_ALIAS = { confirmed: "contacted" };
 const statusOf = (o) => STATUS_ALIAS[o && o.status] || (o && o.status) || "";
@@ -124,13 +125,16 @@ function nextStatuses(status, roles) {
 const PROVIDER_NEXT = { submitted: ["contacted", "paid", "cancelled"], contacted: ["paid", "cancelled"], parent_paid: ["paid", "cancelled"], paid: ["started", "cancelled"], started: [], cancelled: [], expired: [] };
 function providerNext(status) { return (PROVIDER_NEXT[STATUS_ALIAS[status] || status] || []).slice(); }
 
-// ---- expiry (lazy: the Static Web Apps functions have no timer) ------------------------------------------------
-// An order the family has not paid EXPIRE_DAYS after submission expires; the provider may extend it (+EXTEND_DAYS,
-// written as expiresAt). Evaluated when orders are read or seats are counted; the readers write it back best-effort.
-const EXPIRE_DAYS = 21, EXTEND_DAYS = 14;
+// ---- expiry ------------------------------------------------------------------------------------------------------
+// An unpaid order (submitted / contacted) expires EXPIRE_DAYS after its last step (the last history entry: the
+// submission, the provider's 已联系, a seating, an extension); every status change restarts the clock (transition()
+// drops an explicit expiresAt). The provider may extend it (+EXTEND_DAYS on the current deadline, written as
+// expiresAt). The nightly sweep (api/crm-sweep) writes expiries and sends the reminders; the readers still evaluate
+// it lazily (withExpiry) so a same-day read is right too.
+const EXPIRE_DAYS = 14, EXTEND_DAYS = 14;
 function expiresAt(order) {
   if (order.expiresAt) return Date.parse(order.expiresAt);
-  const t = Date.parse(order.submittedAt || "");
+  const t = Date.parse(lastChange(order) || "");
   return Number.isFinite(t) ? t + EXPIRE_DAYS * 24 * 60 * 60 * 1000 : NaN;
 }
 function isExpired(order, now) {
@@ -244,6 +248,8 @@ function transition(order, to, by, note, roles, now, allowedOverride) {
   }
   const at = (now ? new Date(now) : new Date()).toISOString();
   const next = Object.assign({}, order, { status: to, history: (order.history || []).concat([{ at, by, from: order.status, to, note: String(note || "").slice(0, 500) }]) });
+  // the clock restarts with the step: an extension granted in the old status does not carry over
+  delete next.expiresAt; delete next.expiryReminded;
   return next;
 }
 

@@ -20,10 +20,10 @@ let crmMod = null; const crmLazy = () => crmMod || (crmMod = require("./crm"));
 const FEW = 3;
 
 // orders → { CODE: { taken, waitlist } }
-function countOrders(orders) {
+function countOrders(orders, now) {
   const by = {};
   for (const o of orders || []) {
-    if (!o || !ALIVE.has(o.status) || crmLazy().isExpired(o)) continue;
+    if (!o || !ALIVE.has(o.status) || crmLazy().isExpired(o, now)) continue;
     for (const it of o.items || []) {
       const code = it && it.code; if (!code) continue;
       const s = by[code] || (by[code] = { taken: 0, waitlist: 0 });

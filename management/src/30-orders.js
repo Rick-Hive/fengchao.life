@@ -16,7 +16,8 @@
   var ORDER_TABS = [["all", "全部", "All"], ["submitted", "已提交", "Submitted"], ["contacted", "沟通中", "In touch"], ["parent_paid", "家长已付款", "Parent paid"], ["paid", "已收款", "Received"], ["started", "已开课", "Started"], ["cancelled", "已取消", "Cancelled"], ["expired", "已过期", "Expired"], ["overdue", "超期", "Overdue"], ["notifyFailed", "通知失败", "Notification failed"]];
   var ORDER_ST = { submitted: ["已提交", "Submitted", "accent"], contacted: ["机构沟通中", "Provider in touch", "accent"], confirmed: ["机构沟通中", "Provider in touch", "accent"], parent_paid: ["家长已付款", "Parent paid", "warn"], paid: ["已收款", "Payment received", "ok"], started: ["已开课", "Started", "ok"], cancelled: ["已取消", "Cancelled", "muted"], expired: ["已过期", "Expired", "muted"] };
   var ORDER_VERB = { contacted: ["已联系家长", "Contacted the family"], parent_paid: ["记家长已付款", "Record parent paid"], paid: ["已收款", "Payment received"], started: ["开课", "Start"], cancelled: ["取消订单", "Cancel order"], submitted: ["重新打开", "Reopen"] };
-  var ordersState = { list: null, counts: {}, tab: "all", q: "", access: {}, provider: null, expireDays: 21 };
+  var ordersState = { list: null, counts: {}, tab: "all", q: "", access: {}, provider: null, expireDays: 14 };
+  var NOTICE_EVENT = { contacted: ["已联系", "contacted"], parent_paid: ["家长已付款", "parent paid"], parent_paid_nudge: ["催机构确认收款", "nudge: confirm receipt"], paid: ["已收款", "payment received"], started: ["已开课", "started"], cancelled: ["已取消", "cancelled"], cancel_request: ["申请取消", "cancel request"], expired: ["已过期", "expired"], reminder_expiry: ["到期提醒", "expiry reminder"], seated: ["递补", "seated"], extended: ["延长", "extended"], reopened: ["重新打开", "reopened"] };
   function crmLevel(domain) { return (me && me.crm && me.crm[domain]) || "none"; }
   function canSeeRoyalty() { return crmLevel("money") === "rw" || hasFn("ceo"); }
   function canSeeOrders() { return crmLevel("orders") !== "none"; }
@@ -32,7 +33,7 @@
   function expiryDays(o) { if (!o.expiresAt) return null; return Math.ceil((Date.parse(o.expiresAt) - Date.now()) / 86400000); }
   function expiryTag(o) {
     var d = expiryDays(o); if (d === null || d > 7) return "";
-    return '<span class="tag ' + (d <= 3 ? "bad" : "warn") + '" title="' + esc(t("未付款的订单在提交 " + ordersState.expireDays + " 天后自动过期；机构可延长。", "An unpaid order expires " + ordersState.expireDays + " days after submission; the provider can extend it.")) + '">' + esc(d <= 0 ? t("今天到期", "Expires today") : t(d + " 天后到期", "Expires in " + d + " d")) + "</span>";
+    return '<span class="tag ' + (d <= 3 ? "bad" : "warn") + '" title="' + esc(t("未付款的订单在最后一次推进后 " + ordersState.expireDays + " 天自动过期；到期前 3 天提醒双方；机构可延长。", "An unpaid order expires " + ordersState.expireDays + " days after its last step; both sides are reminded 3 days before; the provider can extend it.")) + '">' + esc(d <= 0 ? t("今天到期", "Expires today") : t(d + " 天后到期", "Expires in " + d + " d")) + "</span>";
   }
   function money(v, cur) { if (v === null || v === undefined) return '<span class="muted">' + t("不可见", "hidden") + "</span>"; return esc((cur === "CNY" || !cur ? "¥" : cur + " ") + Number(v).toLocaleString(EN ? "en-US" : "zh-CN")); }
   // the child a course is for (stage 2, 2026-10-21), under the course on an order's line
@@ -114,7 +115,7 @@
       // The Teams import buttons are gone (Rick, 2026-10-08: 「不需要有"从Teams中读取订单"选项」; the
       // Hive Orders history is test data, decision of 2026-10-08). The endpoints stay; the handlers below are inert without the buttons.
       isProviderOnly()
-        ? t("贵机构课程的订单。请在 3 天内联系家长；课程费由家长直接付给贵机构，收到后点「已收款」。未付款的订单在提交 " + ordersState.expireDays + " 天后自动过期，可延长。", "Orders for your institution's courses. Contact the family within 3 days; the course fee is paid to you directly — click “Payment received” when it arrives. An unpaid order expires " + ordersState.expireDays + " days after submission; you can extend it.")
+        ? t("贵机构课程的订单。请在 3 天内联系家长；课程费由家长直接付给贵机构，收到后点「已收款」。未付款的订单在最后一次推进后 " + ordersState.expireDays + " 天自动过期（每一步都会通知家长），可延长。", "Orders for your institution's courses. Contact the family within 3 days; the course fee is paid to you directly — click “Payment received” when it arrives. An unpaid order expires " + ordersState.expireDays + " days after its last step (the family is emailed at every step); you can extend it.")
         : t("网站下单的课程订单，下单即记录；课程提供方联系家长、收取课程费，家长和机构各自确认付款，每一步都留有记录。超期未推进的单会标出。", "Course orders from the website, recorded at checkout; the provider contacts the family and collects the course fee, both sides confirm the payment, and every step is kept. Orders that stall are flagged."));
     $("opsBody").innerHTML =
       '<div class="toolbar" id="obar">' + ORDER_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (ordersState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
@@ -299,7 +300,9 @@
       "<h4>" + t("课程", "Courses") + " · " + (o.itemCount || (o.items || []).length) + '</h4><div class="olist">' + items + '</div><div class="ototal">' + t("合计", "Total") + " " + money(o.totalPrice, o.currency) + "</div>" +
       (next.length ? "<h4>" + t("推进状态", "Move on") + '</h4><label class="f">' + t("备注（可选）", "Note (optional)") + '<input type="text" id="oNote" maxlength="500" placeholder="' + t("例如：已电话沟通；已收到转账", "e.g. spoke by phone; transfer received") + '" /></label>' +
         '<div class="actions">' + next.map(function (s) { var v = ORDER_VERB[s] || [s, s]; return '<button class="btn' + (s === "cancelled" ? " danger" : s === "submitted" || s === "parent_paid" ? " secondary" : "") + '" type="button" data-to="' + s + '">' + esc(t(v[0], v[1])) + "</button>"; }).join("") + '</div><div id="oMsg"></div>' : "") +
-      "<h4>" + t("执行记录", "Fulfilment record") + '</h4><div class="hist">' + hist + "</div>";
+      "<h4>" + t("执行记录", "Fulfilment record") + '</h4><div class="hist">' + hist + "</div>" +
+      // v3: every status change mails the family and / or posts to the provider; what went out, and whether it arrived
+      ((o.notices || []).length ? "<h4>" + t("通知记录", "Notices sent") + '</h4><div class="hist">' + o.notices.slice().reverse().map(function (n) { var who = [n.to && n.to.family ? t("家长邮件", "family email") : "", n.to && n.to.provider ? t("机构 Teams", "provider Teams") : ""].filter(Boolean).join(" + "); return '<div class="hrow"><span class="hat">' + esc(when(n.at)) + "</span><span>" + esc(NOTICE_EVENT[n.event] ? t(NOTICE_EVENT[n.event][0], NOTICE_EVENT[n.event][1]) : n.event) + (who ? ' <span class="muted">' + who + "</span>" : "") + (n.ok ? ' <span class="tag ok">' + t("已发", "sent") + "</span>" : ' <span class="tag bad">' + t("失败", "failed") + "</span>") + "</span></div>"; }).join("") + "</div>" : "");
     var ext = $("oExtend");
     if (ext) ext.addEventListener("click", function () {
       savingButton(ext);

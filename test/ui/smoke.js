@@ -150,9 +150,10 @@ const TEACHERS = [{ id: "recTEACH000000001", name: "Zhang Lao", teamsAccount: "r
   { id: "recTEACH000000002", name: "Mr Lee", teamsAccount: "lee@kxc.edu", domain: "kxc.edu", organization: "Kids X Center", subjects: "Science", languages: "English", gradeLevels: "G9-G12", bio: "Twenty years of lab-based science teaching.", expertise: "Biology, chemistry", photoUrl: "/assets/apple-touch-icon.png" }];
 const TWORK = {};
 let CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
-let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 20, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "parent_paid", 4, true), mkOrder(7, "submitted", 1, false), mkOrder(8, "submitted", 25, true)];
+let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 12, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "parent_paid", 4, true), mkOrder(7, "submitted", 1, false), mkOrder(8, "submitted", 25, true)];
 // the ninth is another hive's (BES): a provider's leader must not see it; its clock ran out 4 days ago → expired on read
 ORDERS[8].orderId = "FC-20260926-BES-009"; ORDERS[8].hives = [{ key: "bes", name: "BES School", abbr: "BES", itemCount: 2, subtotal: 2100, notified: true }]; ORDERS[8].items.forEach(it => { it.schoolAbbr = "BES"; it.schoolName = "BES School"; it.code = it.code.replace("KXC", "BES"); });
+ORDERS[1].notices = [{ event: "contacted", at: new Date(Date.now() - 2 * dayMs).toISOString(), ok: true, status: 202, to: { family: true, provider: false } }, { event: "reminder_expiry", at: new Date().toISOString(), ok: false, status: 502, to: { family: true, provider: true } }];
 const PROVIDER_KEYS = ["kxc"];
 const liveOrders = () => { ORDERS = ORDERS.map(o => crm.withExpiry(o)); return ORDERS; };
 const orderView = (o, acc, provider) => Object.assign(provider ? o : crm.mask(o, acc), { overdue: crm.overdue(o), status: crm.statusOf(o), expiresAt: crm.isLive(o) && ["submitted", "contacted"].includes(crm.statusOf(o)) ? new Date(crm.expiresAt(o)).toISOString() : null });
@@ -419,14 +420,14 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const rows = await p.$$("#otable tbody tr[data-id]"); if (rows.length !== 9) throw new Error("rows " + rows.length);
     const kpi = await p.$eval("#okpi", e => e.innerText); if (!/本月成交额/.test(kpi)) throw new Error("order manager should see money KPI");
     assert.ok(/待联系/.test(kpi) && /待确认收款/.test(kpi), "the stage-2 tiles: " + kpi);
-    const over = await p.$eval('#obar [data-cnt="overdue"]', e => e.textContent); if (over !== "(2)") throw new Error("overdue count " + over);
+    const over = await p.$eval('#obar [data-cnt="overdue"]', e => e.textContent); if (over !== "(1)") throw new Error("overdue count " + over); // v3 clock: the contacted order (11 d) is within its 14
     const nf = await p.$eval('#obar [data-cnt="notifyFailed"]', e => e.textContent); if (nf !== "(2)") throw new Error("notifyFailed count " + nf);
     // stage 2: the legacy 已确认 record reads as 机构沟通中, the 25-day-old unpaid order expired on read, the family's 我已付款 is a tab
     assert.deepStrictEqual(await Promise.all(["contacted", "parent_paid", "expired"].map(k => p.$eval('#obar [data-cnt="' + k + '"]', e => e.textContent))), ["(1)", "(1)", "(1)"], "stage-2 counts");
     assert.ok(/已过期/.test(await p.$eval('#otable tbody tr[data-id="FC-20260926-BES-009"]', e => e.innerText)), "the stale order shows as expired");
     assert.ok(/机构沟通中/.test(await p.$eval('#otable tbody tr[data-id="FC-20261003-KXC-003"]', e => e.innerText)), "confirmed reads as contacted");
     await p.click('#obar .chip[data-f="overdue"]'); await p.waitForTimeout(200);
-    const r2 = await p.$$("#otable tbody tr[data-id]"); if (r2.length !== 2) throw new Error("overdue rows " + r2.length);
+    const r2 = await p.$$("#otable tbody tr[data-id]"); if (r2.length !== 1) throw new Error("overdue rows " + r2.length);
     await p.click('#obar .chip[data-f="all"]'); await p.waitForTimeout(200);
     await p.click('#otable tbody tr[data-id="FC-20261002-KXC-002"]'); await p.waitForTimeout(500);
     const pb = await p.$eval("#panel .pb", e => e.innerText);
@@ -434,6 +435,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/学生：李小红 · 7 年级/.test(pb), "the child on the order's line: " + pb.slice(0, 300));
     // the clock: an unpaid order shows when it must be paid by, and 延长 14 天 moves it
     assert.ok(/付款期限/.test(pb) && await p.$("#oExtend"), "pay-by line and the extend button: " + pb.slice(0, 300));
+    assert.ok(/通知记录/.test(pb) && /到期提醒[\s\S]*家长邮件 \+ 机构 Teams[\s\S]*失败/.test(pb) && /已联系[\s\S]*已发/.test(pb), "the notices sent, newest first, with their outcome: " + pb.slice(-400));
     await p.click("#oExtend"); await p.waitForTimeout(500);
     assert.deepStrictEqual(extended, [{ orderId: "FC-20261002-KXC-002" }], "extend posted");
     assert.ok(/延长 14 天/.test(await p.$eval("#panel .pb", e => e.innerText)), "the extension is in the record");
