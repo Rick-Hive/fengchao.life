@@ -210,7 +210,7 @@
       '<div class="muted ufoot" id="ufoot" style="font-size:.8rem"></div>';
     var sel = $("dsel");
     if (sel) sel.addEventListener("change", function () { if (this.value === "*") state.allDomains = true; else { state.allDomains = false; currentDomain = this.value; } viewUsers(); });
-    var refilter = function () { if (state.allDomains) reloadAllUsers(0); else renderUsers(); };
+    var refilter = function () { if (state.allDomains) reloadAllUsers(0); else { pageReset("users:" + currentDomain); renderUsers(); } };
     $("urole").addEventListener("change", function () { state.userRole = this.value; refilter(); });
     $("ubar").addEventListener("click", function (e) {
       var c = e.target.closest(".chip[data-f]"); if (!c) return;
@@ -240,10 +240,9 @@
       if (f === "teacher") { state.userRole = state.userRole === "role:teacher" ? "" : "role:teacher"; $("urole").value = state.userRole; refilter(); return; }
       state.userFilter = f; refilter();
     });
-    $("ufoot").addEventListener("click", function (e) {
+    $("ukpi").addEventListener("click", function (e) {
       var b = e.target.closest("button[data-offset]"); if (!b) return;
-      reloadAllUsers(Number(b.getAttribute("data-offset")));
-      var c = $("content"); if (c) c.scrollTop = 0;
+      e.stopPropagation(); reloadAllUsers(Number(b.getAttribute("data-offset")));
     });
     var nu = $("newUser"); if (nu) nu.addEventListener("click", function () { openNewUserPanel(currentDomain); });
     $("utable").addEventListener("click", function (e) {
@@ -308,10 +307,13 @@
       kpi("never", t("从未登录", "Never signed in"), anySignIn || !n ? never : "—", never && anySignIn ? " warn" : "", anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") +
       kpi("noauth", t("未登记验证器", "No authenticator"), noauth, noauth ? " bad" : "") +
       kpi("noid", t("身份未填", "No identity"), noid) +
-      (anomalies ? kpi("anomaly", t("异常 Teams 数据", "Teams data anomalies"), anomalies, " bad", '<div class="s">' + t("身份与许可证不符", "identity contradicts the license") + "</div>") : "") +
-      (teachers ? '<button type="button" class="kpi' + (state.userRole === "role:teacher" ? " on" : "") + '" data-kf="teacher"><div class="l">' + t("蜂巢课程教师", "Hive course teachers") + '</div><div class="v">' + teachers + "</div></button>" : "") +
+      (anomalies ? kpi("anomaly", t("异常 Teams 数据", "Anomalies"), anomalies, " bad", '<div class="s">' + t("身份与许可证不符", "identity contradicts the license") + "</div>") : "") +
+      (teachers ? '<button type="button" class="kpi' + (state.userRole === "role:teacher" ? " on" : "") + '" data-kf="teacher"><div class="l">' + t("蜂巢课程教师", "Course teachers") + '</div><div class="v">' + teachers + "</div></button>" : "") +
       (d.all ? kpi("", t("学校", "Schools"), allDomainList().length) : kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)));
     $("ubar").querySelectorAll(".chip[data-f]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-f") === state.userFilter ? "true" : "false"); });
+    // one school: the rows are filtered here and shown a page at a time (a school can have 500+ accounts)
+    var upg = null;
+    if (!d.all) { upg = pageOf("users:" + currentDomain, rows, renderUsers); rows = upg.rows; $("ukpi").insertAdjacentHTML("beforeend", pagerTile("users:" + currentDomain, upg)); }
     $("utable").tBodies[0].innerHTML = rows.length ? rows.map(function (u) {
       var auth = u.verified === null ? '<span class="tag">?</span>' : u.verified ? '<span class="tag ok">Yes</span>' : '<span class="tag bad">No</span>';
       // One line per account (Rick, 2026-10-05): details that used to take a second line
@@ -339,12 +341,13 @@
     if (d.all) {
       // the pager: "1–100 / 2,143 matching · 2,143 accounts · 21 schools", 上一页 / 下一页; the sysadmin also sees the server's timing
       var from = d.matched ? d.offset + 1 : 0, to = Math.min(d.offset + rows.length, d.matched), per = typeof d.limit === "number" ? d.limit : U_PAGE;
-      var pager = d.matched > per ? ' <span class="upager"><button type="button" class="btn secondary sm" data-offset="' + Math.max(0, d.offset - per) + '"' + (d.offset <= 0 ? " disabled" : "") + ">" + t("上一页", "Previous") + '</button> <button type="button" class="btn secondary sm" data-offset="' + (d.offset + per) + '"' + (to >= d.matched ? " disabled" : "") + ">" + t("下一页", "Next") + "</button></span>" : "";
+      // the pager sits at the right end of the tile strip, so paging needs no scroll to the bottom (Rick, 2026-10-21)
+      if (d.matched > per) $("ukpi").insertAdjacentHTML("beforeend", '<div class="kpi pager">' + pagerLabel(d.offset, to, d.matched) + pagerButtons(d.offset, per, to, d.matched) + "</div>");
       var timing = d.timing && isAdmin() ? ' <span class="faint" title="' + esc(t("服务端耗时：共用数据 / 各校缓存 / 筛选分页", "Server time: shared reads / school caches / filter and page")) + '">' + esc(d.timing.total + " ms (" + d.timing.shared + "/" + d.timing.schools + "/" + d.timing.page + ")") + "</span>" : "";
-      $("ufoot").innerHTML = esc(t("第 " + from + "–" + to + " / 匹配 " + d.matched.toLocaleString("zh-CN") + " · 共 " + n.toLocaleString("zh-CN") + " 个账号 · " + allDomainList().length + " 所学校", from + "–" + to + " of " + d.matched.toLocaleString("en-US") + " matching · " + n.toLocaleString("en-US") + " accounts · " + allDomainList().length + " schools")) + pager + (d.sync ? " · " + esc(syncLine(d.sync)) : "") + (d.partial ? esc(t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read")) : "") + timing;
+      $("ufoot").innerHTML = esc(t("第 " + from + "–" + to + " / 匹配 " + d.matched.toLocaleString("zh-CN") + " · 共 " + n.toLocaleString("zh-CN") + " 个账号 · " + allDomainList().length + " 所学校", from + "–" + to + " of " + d.matched.toLocaleString("en-US") + " matching · " + n.toLocaleString("en-US") + " accounts · " + allDomainList().length + " schools")) + (d.sync ? " · " + esc(syncLine(d.sync)) : "") + (d.partial ? esc(t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read")) : "") + timing;
       return;
     }
-    $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号 · ", rows.length + " of " + n + " accounts · ") + (d.sync ? syncLine(d.sync) : "") + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
+    $("ufoot").textContent = t("共 " + upg.matched + " / " + n + " 个账号 · ", upg.matched + " of " + n + " accounts · ") + (d.sync ? syncLine(d.sync) : "") + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
   }
   function uniqueGroups(users) { var s = {}; users.forEach(function (u) { u.groups.forEach(function (g) { s[g.id] = 1; }); }); return Object.keys(s).length; }
   function exportUsersCsv() {

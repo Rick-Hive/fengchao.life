@@ -418,6 +418,26 @@
   document.addEventListener("mouseout", function (e) { if (e.target.closest && e.target.closest(".navinfo[data-tip]")) navTipHide(); });
   document.addEventListener("focusin", function (e) { var n = e.target.closest && e.target.closest(".navinfo[data-tip]"); if (n) navTipShow(n); });
   document.addEventListener("focusout", function (e) { if (e.target.closest && e.target.closest(".navinfo[data-tip]")) navTipHide(); });
+  // ---- paging of long tables (Rick, 2026-10-21: every table over 100 rows shows one page; the pager sits in the
+  // sticky tile strip or toolbar, so 上一页 / 下一页 stay in view while the page scrolls) ----
+  // pageOf(key, rows, rerender) → { rows (this page), offset, matched, per }; pagerTile(key, pg) → the tile (empty under
+  // one page). The 所有学校 users table and the people hub page on the server and draw their own tile.
+  var PAGE_SIZE = 100, pageState = {}, pageRender = {};
+  function pageOf(key, rows, rerender) {
+    pageRender[key] = rerender;
+    var off = Math.min(pageState[key] || 0, Math.max(0, rows.length - 1)); off -= off % PAGE_SIZE; pageState[key] = off;
+    return { rows: rows.slice(off, off + PAGE_SIZE), offset: off, matched: rows.length, per: PAGE_SIZE };
+  }
+  function pageReset(key) { pageState[key] = 0; }
+  // compact: the window "1–100 / 1,686" and two arrow buttons, so the tile fits the English strip on a laptop (Rick, 2026-10-21)
+  function pagerButtons(offset, per, to, matched) { return '<span class="upager"><button type="button" class="btn secondary sm" data-offset="' + Math.max(0, offset - per) + '"' + (offset <= 0 ? " disabled" : "") + ' title="' + t("上一页", "Previous page") + '" aria-label="' + t("上一页", "Previous page") + '">‹</button><button type="button" class="btn secondary sm" data-offset="' + (offset + per) + '"' + (to >= matched ? " disabled" : "") + ' title="' + t("下一页", "Next page") + '" aria-label="' + t("下一页", "Next page") + '">›</button></span>'; }
+  function pagerLabel(offset, to, matched) { return '<span class="pg">' + esc(t("第 " + (matched ? offset + 1 : 0) + "–" + to + " / " + Math.round(matched).toLocaleString("zh-CN"), (matched ? offset + 1 : 0) + "–" + to + " of " + Math.round(matched).toLocaleString("en-US"))) + "</span>"; }
+  function pagerTile(key, pg) { if (pg.matched <= pg.per) return ""; var to = Math.min(pg.offset + pg.per, pg.matched); return '<div class="kpi pager" data-pager="' + esc(key) + '">' + pagerLabel(pg.offset, to, pg.matched) + pagerButtons(pg.offset, pg.per, to, pg.matched) + "</div>"; }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-pager] button[data-offset]"); if (!b) return;
+    var key = b.closest("[data-pager]").getAttribute("data-pager"); if (!pageRender[key]) return;
+    e.stopPropagation(); pageState[key] = Number(b.getAttribute("data-offset")); pageRender[key]();
+  }, true);
   function panelOpen(html, which) {
     var p = $(which === "second" ? "panel2" : "panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false");
     // The second panel (a person opened from a group) gets a ← back to the group

@@ -58,7 +58,7 @@
   function viewClasses() {
     setTitle(t("经营 › 订单", "Operations › Orders"), t("班级人数", "Class sizes"), '<button class="btn secondary sm" id="clReload">' + t("刷新", "Refresh") + "</button>",
       { info: t("每门课的已报名、候补、最小开班人数和最大人数，按网站订单实时计算。已满的课可以为候补家庭递补。", "Enrolled, waitlist, minimum and maximum per course, counted from the website orders. Seat a waitlisted family when a course is full.") });
-    $("opsBody").innerHTML = '<div class="tbl-wrap"><table class="data" id="cltable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学校", "School") + '</th><th class="num">' + t("已报名", "Enrolled") + '</th><th class="num">' + t("候补", "Waitlist") + '</th><th class="num">' + t("最少 / 最多", "Min / max") + "</th><th>" + t("状态", "State") + '</th></tr></thead><tbody><tr><td colspan="6" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>";
+    $("opsBody").innerHTML = '<div class="toolbar sticky" id="clbar"></div><div class="tbl-wrap"><table class="data" id="cltable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学校", "School") + '</th><th class="num">' + t("已报名", "Enrolled") + '</th><th class="num">' + t("候补", "Waitlist") + '</th><th class="num">' + t("最少 / 最多", "Min / max") + "</th><th>" + t("状态", "State") + '</th></tr></thead><tbody><tr><td colspan="6" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>";
     $("clReload").addEventListener("click", loadClasses);
     $("cltable").addEventListener("click", function (e) {
       var seat = e.target.closest("button[data-seat]"); if (seat) { savingButton(seat); post("crm/seat", "POST", { orderId: seat.getAttribute("data-seat"), code: seat.getAttribute("data-code"), waitlist: seat.getAttribute("data-wl") === "1" }).then(function (r) { if (!r.ok) { restoreButton(seat); flash(esc(errText(r)), 4000); return; } flashOk(seat.getAttribute("data-wl") === "1" ? t("已改回候补。", "Back on the waitlist.") : t("已递补：请通知家长。", "Seated: tell the family."), 3000); loadClasses(); }); return; }
@@ -71,14 +71,22 @@
       var tb = $("cltable") && $("cltable").querySelector("tbody"); if (!tb) return;
       if (!r.ok) { tb.innerHTML = '<tr><td colspan="6"><div class="msg err">' + esc(errText(r)) + "</div></td></tr>"; return; }
       var rw = crmLevel("orders") === "rw", cls = r.body.classes || [];
-      if (!cls.length) { tb.innerHTML = '<tr><td colspan="6" class="faint">' + t("还没有设定人数上限的课程，也没有报名。", "No course has a size limit or an enrollment yet.") + "</td></tr>"; return; }
+      clState.classes = cls; clState.rw = rw;
+      renderClasses();
+    });
+  }
+  var clState = { classes: [], rw: false };
+  function renderClasses() {
+      var tb = $("cltable") && $("cltable").querySelector("tbody"); if (!tb) return;
+      var rw = clState.rw, cpg = pageOf("classes", clState.classes, renderClasses), cls = cpg.rows;
+      var bar = $("clbar"); if (bar) bar.innerHTML = pagerTile("classes", cpg);
+      if (!clState.classes.length) { tb.innerHTML = '<tr><td colspan="6" class="faint">' + t("还没有设定人数上限的课程，也没有报名。", "No course has a size limit or an enrollment yet.") + "</td></tr>"; return; }
       tb.innerHTML = cls.map(function (c) {
         var state = c.state === "full" ? '<span class="tag warn">' + t("已满", "Full") + "</span>" : c.belowMin ? '<span class="tag">' + t("还差 " + c.need + " 人开班", c.need + " more to run") + "</span>" : c.state === "few" ? '<span class="tag accent">' + t("还剩 " + c.open + " 席", c.open + " left") + "</span>" : '<span class="tag ok">' + t("可报名", "Open") + "</span>";
         var rows = c.orders.map(function (o) { return '<div class="orow"><div class="omain"><b>' + esc(o.orderId) + "</b> " + stTag(o.status) + (o.waitlist ? ' <span class="tag warn">' + t("候补", "Waitlist") + "</span>" : "") + '<span class="sub">' + esc(when(o.submittedAt)) + " · " + esc(o.email || "") + "</span></div>" + (rw ? '<div><button type="button" class="btn secondary sm" data-seat="' + esc(o.orderId) + '" data-code="' + esc(c.code) + '" data-wl="' + (o.waitlist ? "0" : "1") + '">' + (o.waitlist ? t("递补", "Seat") : t("改为候补", "To waitlist")) + "</button></div>" : "") + "</div>"; }).join("");
         return '<tr class="pick" data-code="' + esc(c.code) + '"><td><span class="dn">' + esc(EN ? c.nameEn || c.nameZh : c.nameZh || c.nameEn) + '</span><span class="sub">' + esc(c.code) + "</span></td><td>" + esc(c.school) + '</td><td class="num"><b>' + c.taken + '</b></td><td class="num">' + (c.waitlist || "") + '</td><td class="num">' + (c.min != null ? c.min : "—") + " / " + (c.max != null ? c.max : "∞") + "</td><td>" + state + "</td></tr>" +
           '<tr class="cldetail" hidden><td colspan="6"><div class="olist">' + (rows || '<span class="faint">' + t("还没有订单。", "No orders yet.") + "</span>") + "</div></td></tr>";
       }).join("");
-    });
   }
   function viewCourseOrders() {
     setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>",
@@ -94,11 +102,11 @@
       '<p class="muted" id="ofoot" style="font-size:.8rem"></p>';
     $("obar").addEventListener("click", function (e) {
       var c = e.target.closest(".chip[data-f]"); if (!c) return;
-      ordersState.tab = c.getAttribute("data-f");
+      ordersState.tab = c.getAttribute("data-f"); pageReset("orders");
       $("obar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x === c ? "true" : "false"); });
       renderOrders();
     });
-    $("oq").addEventListener("input", debounce(function () { ordersState.q = $("oq").value.trim(); renderOrders(); }, 120));
+    $("oq").addEventListener("input", debounce(function () { ordersState.q = $("oq").value.trim(); pageReset("orders"); renderOrders(); }, 120));
     $("oReload").addEventListener("click", function () { loadOrders(true).then(renderOrders); });
     $("oCsv").addEventListener("click", exportOrdersCsv);
     var tb0 = $("oTeams");
@@ -153,7 +161,7 @@
     }
     $("okpi").addEventListener("click", function (e) {
       var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
-      ordersState.tab = k.getAttribute("data-kf");
+      ordersState.tab = k.getAttribute("data-kf"); pageReset("orders");
       $("obar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-f") === ordersState.tab ? "true" : "false"); });
       renderOrders();
     });
@@ -197,7 +205,9 @@
       '<button class="kpi" data-kf="confirmed"><div class="l">' + t("待付款", "Awaiting payment") + '</div><div class="v">' + (c.confirmed || 0) + "</div></button>" +
       '<button class="kpi" data-kf="overdue"><div class="l">' + t("超期", "Overdue") + '</div><div class="v' + (c.overdue ? " bad" : "") + '">' + (c.overdue || 0) + "</div></button>" +
       '<button class="kpi" data-kf="notifyFailed"><div class="l">' + t("通知失败", "Notification failed") + '</div><div class="v' + (c.notifyFailed ? " bad" : "") + '">' + (c.notifyFailed || 0) + "</div></button>";
-    var rows = ordersNow();
+    var rows = ordersNow(), opg = pageOf("orders", rows, renderOrders);
+    $("okpi").insertAdjacentHTML("beforeend", pagerTile("orders", opg));
+    rows = opg.rows;
     var tb = $("otable").tBodies[0];
     tb.innerHTML = rows.length ? rows.map(function (o) {
       var courses = orderCourses(o);
@@ -210,7 +220,7 @@
         '<td class="nowrap">' + stTag(o.status) + "</td>" +
         '<td class="nowrap"><span class="tags">' + overdueTag(o) + (o.notify && o.notify.ok === false && !o.notify.pending ? '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span>" : "") + "</span></td></tr>";
     }).join("") : '<tr><td colspan="8" class="empty">' + t("没有符合条件的订单。", "No orders match.") + "</td></tr>";
-    $("ofoot").textContent = t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 单", " orders") + (list.length ? "" : t("。网站还没有新订单落库。", ". No orders have been recorded from the website yet."));
+    $("ofoot").textContent = t("显示 ", "Showing ") + opg.matched + " / " + list.length + t(" 单", " orders") + (list.length ? "" : t("。网站还没有新订单落库。", ". No orders have been recorded from the website yet."));
   }
   function exportOrdersCsv() {
     var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };

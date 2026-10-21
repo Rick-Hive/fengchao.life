@@ -93,10 +93,12 @@
     var rows = FILTERS.filter(function (f) { return f[0] === co.tab; })[0][2].filter(function (c) { return !q || [c.code, c.nameEn, c.nameZh, c.school].concat((c.assigned || []).map(function (p) { return p.name; }), c.teachers || []).some(function (x) { return String(x || "").toLowerCase().indexOf(q) >= 0; }); });
     if (co.tab === "pending") rows.sort(function (a, b) { return String(a.submittedAt || "").localeCompare(String(b.submittedAt || "")); });
     var sync = coursesInfo && coursesInfo.sync;
+    // a page of the table at a time (155+ courses); the pager rides in the sticky toolbar
+    var cpg = pageOf("courses", rows, coRenderManage); rows = cpg.rows;
     $("cobody").innerHTML =
-      '<div class="toolbar" id="cotabs">' + FILTERS.map(function (f) { return '<button type="button" class="chip" data-tab="' + f[0] + '" aria-pressed="' + (co.tab === f[0]) + '">' + esc(f[1]) + ' <span class="cnt' + (f[0] === "pending" && f[2].length ? " cobadge" : "") + '">' + f[2].length + "</span></button>"; }).join("") +
+      '<div class="toolbar sticky" id="cotabs">' + FILTERS.map(function (f) { return '<button type="button" class="chip" data-tab="' + f[0] + '" aria-pressed="' + (co.tab === f[0]) + '">' + esc(f[1]) + ' <span class="cnt' + (f[0] === "pending" && f[2].length ? " cobadge" : "") + '">' + f[2].length + "</span></button>"; }).join("") +
         '<div class="tabsRight"><input type="search" id="coq" placeholder="' + esc(t("搜索课程、老师", "Search courses, teachers")) + '" value="' + esc(co.q) + '" />' +
-        (sync && sync.pending ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") + "</div></div>" +
+        (sync && sync.pending ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") + "</div>" + pagerTile("courses", cpg) + "</div>" +
       '<div class="tbl-wrap"><table class="data" id="cotable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学科", "Subject") + "</th><th>" + t("学校", "School") + "</th><th>" + t("老师", "Teachers") + "</th><th>" + t("进度", "Progress") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (c) {
         var waiting = c.status === "submitted" || c.status === "reviewing" ? (Date.now() - new Date(c.submittedAt).getTime()) / 86400000 : 0;
@@ -106,8 +108,8 @@
           "<td>" + coMiniSteps(c.status) + coStatusTag(c.status) + (waiting >= 1 ? ' <span class="' + (waiting > 7 ? "tag warn" : "faint") + '">' + t("等待 ", "waiting ") + Math.floor(waiting) + t(" 天", " d") + "</span>" : "") + "</td>" +
           '<td class="faint">' + esc(c.updatedAt ? when(c.updatedAt) : "") + "</td></tr>";
       }).join("") : '<tr><td colspan="6" class="faint">' + (co.tab === "pending" ? t("没有待审批的课程。", "Nothing to review.") : co.tab !== "all" && !q ? t("这个状态下没有课程。", "No course in this state.") : t("没有匹配的课程。", "No matching course.")) + "</td></tr>") + "</tbody></table></div>";
-    $("cotabs").addEventListener("click", function (e) { var a = e.target.closest("[data-tab]"); if (!a) return; co.tab = a.getAttribute("data-tab"); history.replaceState(null, "", co.tab === "all" ? "#/courses" : "#/courses/" + co.tab); coRenderManage(); });
-    $("coq").addEventListener("input", debounce(function () { co.q = $("coq").value; var pos = $("coq").selectionStart; coRenderManage(); $("coq").focus(); try { $("coq").setSelectionRange(pos, pos); } catch (e) {} }, 150));
+    $("cotabs").addEventListener("click", function (e) { var a = e.target.closest("[data-tab]"); if (!a) return; co.tab = a.getAttribute("data-tab"); pageReset("courses"); history.replaceState(null, "", co.tab === "all" ? "#/courses" : "#/courses/" + co.tab); coRenderManage(); });
+    $("coq").addEventListener("input", debounce(function () { co.q = $("coq").value; pageReset("courses"); var pos = $("coq").selectionStart; coRenderManage(); $("coq").focus(); try { $("coq").setSelectionRange(pos, pos); } catch (e) {} }, 150));
     $("cotable").addEventListener("click", function (e) {
       var b = e.target.closest("[data-assign]"); if (b) { e.stopPropagation(); coAssignPanel(b.getAttribute("data-assign")); return; }
       var tr = e.target.closest("tr[data-id]"); if (tr) location.hash = "#/courses/" + tr.getAttribute("data-id");

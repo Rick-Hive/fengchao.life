@@ -661,9 +661,17 @@ button.orow.link:hover { background: #f8fafc; }
 /* 用户管理 paged (2026-10-21): the footer carries the pager; the table dims while the next page loads */
 .ufoot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: var(--s2) 0; }
 .ufoot .upager { display: inline-flex; gap: 6px; }
+/* the pager tile at the right end of a stat strip: the page window and ‹ › (Rick, 2026-10-21: 放在页面上方) */
+.kpis.strip .kpi.pager { margin-left: auto; border-right: 0; border-left: 1px solid var(--line); gap: 10px; align-items: center; }
+.kpis.strip .kpi.pager .pg { font-size: 12px; color: var(--faint); white-space: nowrap; }
+.kpis.strip .kpi.pager .upager { display: inline-flex; gap: 4px; }
+.kpis.strip .kpi.pager .btn.sm { padding: 2px 9px; font-size: 15px; line-height: 1.1; }
+.toolbar .kpi.pager { margin-left: auto; border: 0; background: none; padding: 0; display: inline-flex; align-items: center; gap: 8px; }
+.toolbar .kpi.pager .pg { font-size: 12px; color: var(--faint); white-space: nowrap; }
+.toolbar .kpi.pager .btn.sm { padding: 2px 9px; font-size: 15px; line-height: 1.1; }
 #utable tbody.dim { opacity: 0.45; transition: opacity 0.15s; }
 .kpis.strip { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 var(--s2); padding: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
-.kpis.strip .kpi, .kpis.strip .kpi.stat { container-type: normal; flex: 0 0 auto; max-width: 100%; display: flex; align-items: baseline; gap: 6px; padding: 7px 12px; border: 0; border-radius: 0; border-right: 1px solid var(--line); background: transparent; box-shadow: none; overflow: hidden; }
+.kpis.strip .kpi, .kpis.strip .kpi.stat { container-type: normal; flex: 0 0 auto; max-width: 100%; display: flex; align-items: baseline; gap: 5px; padding: 7px 10px; border: 0; border-radius: 0; border-right: 1px solid var(--line); background: transparent; box-shadow: none; overflow: hidden; }
 .kpis.strip .kpi:last-child { border-right: 0; }
 .kpis.strip .kpi .head { display: contents; }
 .kpis.strip .kpi .l { font-size: 11.5px; color: var(--faint); white-space: nowrap; }

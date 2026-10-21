@@ -61,6 +61,8 @@ const planPuts = [];
 // 所有学校 is paged (2026-10-21): the mock pages with the real module; every query the page sent is recorded
 const userList = require("../../api/shared/userList.js");
 const usersPages = [];
+const peopleList = require("../../api/shared/peopleList.js");
+const peoplePages = [];
 // 校历 (2026-10-16): the school's own events and the Hive layer, kept in memory; every POST is recorded.
 const TEAM_G5 = "11111111-1111-1111-1111-111111111111";
 const CAL_AUD = { people: [
@@ -292,7 +294,8 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/crm/orders") body = ordersBody(acc);
       else if (p === "/api/crm/equip-orders") body = EQUIP_SYNCED ? { orders: EQUIP.map(o => Object.assign({}, o, acc.money === "none" ? { amount: null, received: null } : {})), status: { syncedAt: "2026-10-06T17:05:00Z", counts: { orders: EQUIP.length }, warnings: ["Customers: field \"CRM ID\" not found (crmId)"] }, access: acc } : { orders: [], status: { syncedAt: null, counts: null, warnings: [], configured: false }, access: acc };
       else if (p === "/api/crm/sync") { EQUIP_SYNCED = true; body = { ok: true, status: { syncedAt: new Date().toISOString(), counts: { orders: 2, items: 2, customers: 3, curriculums: 2, seminar: 1 }, warnings: ["Customers: field \"CRM ID\" not found (crmId)"] }, people: HUB.stats }; }
-      else if (p === "/api/crm/people") { const canMerge = isAdm || acc.orders === "rw"; const famById = new Map((HUB.families || []).map(f => [f.id, f])); body = { people: hubMod.withMarks(HUB.people, MARKS).map(x => hubMod.maskPerson(x.familyId ? Object.assign({}, x, { family: famById.get(x.familyId) }) : x, acc)), queue: canMerge ? HUB.queue : [], stats: Object.assign({}, HUB.stats, hubMod.markStats(HUB.people, MARKS)), generatedAt: HUB.generatedAt, sources: HUB.sources, access: acc, canMerge, canMark: isAdm || acc.identity === "rw" }; }
+      else if (p === "/api/crm/people") { const canMerge = isAdm || acc.orders === "rw"; const famById = new Map((HUB.families || []).map(f => [f.id, f])); const opts = peopleList.parseQuery(Object.fromEntries(u.searchParams)); peoplePages.push(opts); const pg = peopleList.page(hubMod.withMarks(HUB.people, MARKS), opts); body = { people: pg.people.map(x => hubMod.maskPerson(x.familyId ? Object.assign({}, x, { family: famById.get(x.familyId) }) : x, acc)), matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: opts, queue: canMerge ? HUB.queue : [], stats: Object.assign({}, HUB.stats, hubMod.markStats(HUB.people, MARKS)), generatedAt: HUB.generatedAt, sources: HUB.sources, access: acc, canMerge, canMark: isAdm || acc.identity === "rw", timing: { read: 5, page: 1, total: 6 } }; }
+      else if (p === "/api/crm/person") { const x0 = HUB.people.find(x => x.crmId === u.searchParams.get("id")); if (!x0) { status = 404; body = { error: "not_found" }; } else { const x = hubMod.withMarks([x0], MARKS)[0]; const fam = (HUB.families || []).find(f => f.id === x.familyId); body = { person: hubMod.maskPerson(fam ? Object.assign({}, x, { family: fam }) : x, acc), access: acc }; } }
       else if (p === "/api/crm/email-replace") { const b = JSON.parse(r.request().postData()); const person = HUB.people.find(x => x.crmId === b.crmId); const em = hubMod.replaceEmailOf(person); if (b.status) MARKS.marks[em] = { status: b.status, by: "om", at: new Date().toISOString() }; else delete MARKS.marks[em]; body = { ok: true, mark: b.status ? Object.assign({ email: em }, MARKS.marks[em]) : null, stats: hubMod.markStats(HUB.people, MARKS) }; }
       else if (p === "/api/teachers/list") { const approver = isAdm || rolesList.indexOf("staff:curriculum") >= 0; const mineT = rolesList.indexOf("x:teacher") >= 0 ? "recTEACH000000001" : null; const leaderOf = rolesList.filter(x => /^domain_leader:/.test(x)).map(x => x.slice(14)); const vis = TEACHERS.filter(x => approver || leaderOf.includes(x.domain) || x.id === mineT); body = { teachers: vis.map(x => ({ id: x.id, name: x.name, teamsAccount: x.teamsAccount, domain: x.domain, organization: x.organization, photoUrl: (TWORK[x.id] && TWORK[x.id].draft.photo && TWORK[x.id].draft.photo.url) || x.photoUrl, hasBio: !!x.bio, hasExpertise: !!x.expertise, status: (TWORK[x.id] || {}).status || "", updatedAt: (TWORK[x.id] || {}).updatedAt || null, submittedAt: null, mine: x.id === mineT })), me: { teacher: mineT, approver, leaderOf } }; }
       else if (p === "/api/teachers/one") { const x = TEACHERS.find(t => t.id === u.searchParams.get("id")); const w = TWORK[x.id] || { recId: x.id, name: x.name, status: "", draft: { bio: x.bio, expertise: x.expertise, photo: null }, baseline: { bio: x.bio, expertise: x.expertise, photoUrl: x.photoUrl }, submitted: null, published: null, returned: null, history: [], updatedAt: null }; const approver = isAdm || rolesList.indexOf("staff:curriculum") >= 0; const canEdit = approver || rolesList.indexOf("x:teacher") >= 0 && x.id === "recTEACH000000001" || rolesList.includes("domain_leader:" + x.domain); body = Object.assign({}, w, { profile: { id: x.id, name: x.name, teamsAccount: x.teamsAccount, domain: x.domain, organization: x.organization, subjects: x.subjects, languages: x.languages, courseTypes: "", gradeLevels: x.gradeLevels, photoUrl: x.photoUrl }, canEdit, canApprove: approver }); }
@@ -532,9 +535,10 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const p2 = await p.$eval("#panel2 .pb", e => e.innerText); if (!/购买的教材 · 1/i.test(p2) || !/2 × ¥648/.test(p2) || !/Royalty Rate 15%/.test(p2)) throw new Error("equip order panel: " + p2.slice(0, 300));
     await p.screenshot({ path: `${OUT}/people-order-panels.png` });
     await p.click("#panel2 .x"); await p.click("#panel .x");
-    await p.fill("#pq", "lead@"); await p.waitForTimeout(300);
+    await p.fill("#pq", "lead@"); await p.waitForTimeout(800);
     const found = await p.$$eval("#ptable tbody tr[data-id]", es => es.map(e => e.innerText)); if (found.length !== 1 || !/Lead One/.test(found[0]) || !/蜂巢/.test(found[0])) throw new Error("search: " + found);
-    const ft = await p.$eval("#pfoot", e => e.innerText); if (!/显示 1 \/ \d+ 人/.test(ft) || !/筛选：搜索 “lead@”/.test(ft) || !/显示全部/.test(ft)) throw new Error("footer with a search: " + ft);
+    const ft = await p.$eval("#pfoot", e => e.innerText); if (!/第 1–1 \/ 匹配 1 · 共 \d+ 人/.test(ft) || !/筛选：搜索 “lead@”/.test(ft) || !/显示全部/.test(ft)) throw new Error("footer with a search: " + ft);
+    assert.ok(peoplePages[peoplePages.length - 1].q === "lead@" && peoplePages[peoplePages.length - 1].sort === "crmId", "the search went to the server, sorted by CRM ID by default: " + JSON.stringify(peoplePages[peoplePages.length - 1]));
     await p.click("#pClear"); await p.waitForTimeout(300);
     if ((await p.$eval("#pq", e => e.value)) !== "" || /筛选/.test(await p.$eval("#pfoot", e => e.innerText))) throw new Error("clear did not reset the search");
     // 待替换邮箱: Wang Wu on old@163.com — mark contacted, then replaced; the sub-chips and the todo count follow.
@@ -568,12 +572,14 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const wbAfter = await p.$eval("#pkpi", e => e.innerText); if (!/待回写 CRM ID\s*0/.test(wbAfter)) throw new Error("pending tile after: " + wbAfter);
     // Sorting by heading (Rick 2026-10-08): CRM ID ascending, again descending, 阶段 by stage order; the resize handle does not sort.
     const ids = async () => p.$$eval("#ptable tbody tr[data-id]", es => es.map(e => e.getAttribute("data-id")));
-    await p.click('#ptable th[data-sort="crmId"]'); await p.waitForTimeout(200);
-    let got = await ids(); if (JSON.stringify(got) !== JSON.stringify(got.slice().sort())) throw new Error("not ascending: " + got);
+    // CRM ID ascending is the default (Rick, 2026-10-21); the heading's first click reverses it, the second restores it
+    let got = await ids(); if (JSON.stringify(got) !== JSON.stringify(got.slice().sort())) throw new Error("not ascending by default: " + got);
     if (!/ascending/.test(await p.$eval('#ptable th[data-sort="crmId"]', e => e.getAttribute("aria-sort")))) throw new Error("aria-sort");
-    await p.click('#ptable th[data-sort="crmId"]'); await p.waitForTimeout(200);
+    await p.click('#ptable th[data-sort="crmId"]'); await p.waitForTimeout(300);
     got = await ids(); if (JSON.stringify(got) !== JSON.stringify(got.slice().sort().reverse())) throw new Error("not descending: " + got);
-    await p.click('#ptable th[data-sort="stage"]'); await p.waitForTimeout(200);
+    await p.click('#ptable th[data-sort="crmId"]'); await p.waitForTimeout(300);
+    got = await ids(); if (JSON.stringify(got) !== JSON.stringify(got.slice().sort())) throw new Error("not ascending again: " + got);
+    await p.click('#ptable th[data-sort="stage"]'); await p.waitForTimeout(300);
     const stages = await p.$$eval("#ptable tbody tr[data-id] td:last-child", es => es.map(e => e.innerText.trim()));
     if (stages[0] !== "潜在" || stages[stages.length - 1] !== "沉寂") throw new Error("stage order: " + stages);
     await p.click('#ptable th[data-sort="name"] .rz'); await p.waitForTimeout(200);
@@ -1714,7 +1720,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForSelector("#utable tr[data-dom]");
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 15, "12 + 3 across two schools: " + rows);
     assert.ok(!(await p.$("#newUser")) && !(await p.$("#usNew")), "no new-account or sync buttons across all schools");
-    let foot = await p.$eval("#ufoot", e => e.textContent); assert.ok(/第 1–15 \/ 匹配 15/.test(foot) && /共 15 个账号/.test(foot) && /2 所学校/.test(foot) && /44 ms/.test(foot) && !(await p.$("#ufoot .upager")), "paged footer, the server's timing for the sysadmin, no pager under one page: " + foot);
+    let foot = await p.$eval("#ufoot", e => e.textContent); assert.ok(/第 1–15 \/ 匹配 15/.test(foot) && /共 15 个账号/.test(foot) && /2 所学校/.test(foot) && /44 ms/.test(foot) && !(await p.$("#ukpi .upager")), "paged footer, the server's timing for the sysadmin, no pager under one page: " + foot);
     assert.ok(/从未登录/.test(await p.$eval("#ukpi", e => e.innerText)), "tiles come from the server's counts");
     // the filters are the server's now: the role filter sends a query and the page shows what came back
     usersPages.length = 0;
@@ -1736,19 +1742,30 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.selectOption("#dsel", "*"); await p.waitForSelector("#utable tr[data-dom]");
     const N = Number((/匹配 (\d+)/.exec(await p.$eval("#ufoot", e => e.textContent)) || [])[1]); assert.ok(N >= 15, "all rows first: " + N);
     // a smaller page, through the same query the page builds (U_PAGE is a constant; the mock honours any limit)
-    await p.evaluate(() => { const a = document.querySelector("#ufoot"); a.insertAdjacentHTML("beforeend", '<button type="button" id="tinyPage" data-offset="0" hidden></button>'); });
+    await p.evaluate(() => { const a = document.querySelector("#ukpi"); a.insertAdjacentHTML("beforeend", '<button type="button" id="tinyPage" data-offset="0" hidden></button>'); });
     usersPages.length = 0;
     await p.route(/\/api\/domain\/users\?domain=\*&offset=\d+&limit=100/, r => r.fallback({ url: r.request().url().replace("limit=100", "limit=4") }));
     await p.$eval("#tinyPage", b => b.click()); await p.waitForTimeout(500);
     let foot = await p.$eval("#ufoot", e => e.textContent);
-    assert.ok(new RegExp("第 1–4 / 匹配 " + N).test(foot) && (await p.$$("#utable tr[data-upn]")).length === 4 && (await p.$("#ufoot .upager")), "first page of four with a pager: " + foot);
-    assert.ok(await p.$eval('#ufoot button[data-offset="0"]:not(#tinyPage)', b => b.disabled) === true, "上一页 disabled on the first page");
-    await p.click('#ufoot button[data-offset="4"]'); await p.waitForTimeout(500);
+    assert.ok(new RegExp("第 1–4 / 匹配 " + N).test(foot) && (await p.$$("#utable tr[data-upn]")).length === 4 && (await p.$("#ukpi .kpi.pager .upager")), "first page of four with a pager in the tile strip: " + foot);
+    assert.ok(await p.$eval('#ukpi button[data-offset="0"]:not(#tinyPage)', b => b.disabled) === true, "上一页 disabled on the first page");
+    await p.click('#ukpi button[data-offset="4"]'); await p.waitForTimeout(500);
     foot = await p.$eval("#ufoot", e => e.textContent);
-    assert.ok(new RegExp("第 5–8 / 匹配 " + N).test(foot), "second page: " + foot);
+    assert.ok(new RegExp("第 5–8 / 匹配 " + N).test(foot) && new RegExp("第 5–8 / " + N).test(await p.$eval("#ukpi .kpi.pager", e => e.textContent)), "second page, in the strip too: " + foot);
     const upns = await p.$$eval("#utable tr[data-upn]", rs => rs.map(r => r.getAttribute("data-upn")));
     assert.strictEqual(upns.length, 4);
     await p.screenshot({ path: OUT + "/users-paged.png" });
+  });
+  // the English strip with the pager: does it fit on one line at a laptop width? (Rick, 2026-10-21)
+  await shot("users-paged-en", 1280, 600, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#utable tr[data-upn]");
+    await p.selectOption("#dsel", "*"); await p.waitForSelector("#utable tr[data-dom]");
+    await p.evaluate(() => { const a = document.querySelector("#ukpi"); a.insertAdjacentHTML("beforeend", '<button type="button" id="tinyPage" data-offset="0" hidden></button>'); });
+    await p.route(/\/api\/domain\/users\?domain=\*&offset=\d+&limit=100/, r => r.fallback({ url: r.request().url().replace("limit=100", "limit=4") }));
+    await p.$eval("#tinyPage", b => b.click()); await p.waitForTimeout(500);
+    const tops = await p.$$eval("#ukpi .kpi", es => es.map(e => Math.round(e.getBoundingClientRect().top)));
+    console.log("users-paged-en strip rows:", Array.from(new Set(tops)).length, "tiles:", tops.length);
+    await p.screenshot({ path: OUT + "/users-paged-en.png" });
   });
   // Narrow panes wrap instead of clipping (Rick, 2026-10-08: "use two rows"); no sideways scroll.
   await shot("users-narrow", 1000, 700, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {

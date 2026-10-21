@@ -11,7 +11,17 @@
   var PEOPLE_TABS = [["all", "全部", "All"], ["replace", "待替换邮箱", "Email to replace"], ["missing", "无邮箱", "No email"], ["viaTeams", "Teams 代用", "Via Teams"], ["queue", "待合并", "To merge"]];
   var STAGES = { lead: ["潜在", "Lead", ""], registered: ["已注册", "Registered", "accent"], active: ["活跃", "Active", "ok"], dormant: ["沉寂", "Dormant", "muted"] };
   var TIERS = { safe: ["可用", "OK", "ok"], replace: ["待替换", "Replace", "warn"], missing: ["无邮箱", "No email", "bad"] };
-  var peopleState = { hub: null, tab: "all", q: "", stage: "", mark: "", sort: { key: "", dir: 1 } };
+  // Paged since 2026-10-21 (Rick: the same design as 用户管理): the server filters, sorts (CRM ID by default), counts and
+  // answers one page of P_PAGE people; `hub.people` is that page. A person not on the page (a family member, a partner
+  // contact) is fetched alone (crm/person) into `extra`.
+  var peopleState = { hub: null, extra: {}, tab: "all", q: "", stage: "", mark: "", sort: { key: "crmId", dir: 1 }, offset: 0 };
+  var P_PAGE = 100;
+  function pQuery(offset, limit) { return "offset=" + (offset || 0) + "&limit=" + (limit || P_PAGE) + "&q=" + encodeURIComponent(peopleState.q || "") + "&tab=" + encodeURIComponent(peopleState.tab) + "&stage=" + encodeURIComponent(peopleState.stage || "") + "&mark=" + encodeURIComponent(peopleState.tab === "replace" ? peopleState.mark || "" : "") + "&sort=" + encodeURIComponent(peopleState.sort.key || "crmId") + "&dir=" + (peopleState.sort.dir < 0 ? "desc" : "asc"); }
+  // the filters or the sort changed: back to the first page (or to `offset`)
+  function reloadPeople(offset) {
+    var tb = $("ptable") && $("ptable").tBodies[0]; if (tb) tb.classList.add("dim");
+    return loadPeople(true, offset || 0).then(renderPeople).catch(function (r) { if ($("pbody")) $("pbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; });
+  }
   var MARK_TABS = [["", "全部", "All"], ["none", "未通知", "Not contacted"], ["notified", "已通知", "Contacted"], ["replaced", "已替换", "Replaced"]];
   function markOf(p) { return p.replaceMark ? p.replaceMark.status : "none"; }
   function markTag(p) { var m = p.replaceMark; return !m ? "" : m.status === "replaced" ? '<span class="tag ok">' + t("已替换", "Replaced") + "</span>" : '<span class="tag accent">' + t("已通知", "Contacted") + "</span>"; }
@@ -61,16 +71,20 @@
         '<span class="spacer"></span><select id="pstage"><option value="">' + t("所有阶段", "All stages") + "</option>" + Object.keys(STAGES).map(function (s) { return '<option value="' + s + '"' + (peopleState.stage === s ? " selected" : "") + ">" + esc(t(STAGES[s][0], STAGES[s][1])) + "</option>"; }).join("") + "</select>" +
         '<div class="search">' + ICON.search + '<input type="search" id="pq" value="' + esc(peopleState.q) + '" placeholder="' + t("搜索姓名、邮箱、Teams 账号、CRM ID…", "Search name, email, Teams account, CRM ID…") + '" /></div></div>' +
       '<div id="pbody"></div>' +
-      '<p class="muted" id="pfoot" style="font-size:.8rem"></p>';
+      '<div class="muted ufoot" id="pfoot" style="font-size:.8rem"></div>';
     $("pbar").addEventListener("click", function (e) {
       var c = e.target.closest(".chip[data-f]"); if (!c) return;
       peopleState.tab = c.getAttribute("data-f");
       $("pbar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x === c ? "true" : "false"); });
-      renderPeople();
+      reloadPeople(0);
     });
-    $("pq").addEventListener("input", debounce(function () { peopleState.q = $("pq").value.trim(); renderPeople(); }, 120));
-    $("pstage").addEventListener("change", function () { peopleState.stage = this.value; renderPeople(); });
-    $("pReload").addEventListener("click", function () { loadPeople(true).then(renderPeople); });
+    $("pq").addEventListener("input", debounce(function () { peopleState.q = $("pq").value.trim(); reloadPeople(0); }, 350));
+    $("pstage").addEventListener("change", function () { peopleState.stage = this.value; reloadPeople(0); });
+    $("pReload").addEventListener("click", function () { reloadPeople(peopleState.offset); });
+    $("pkpi").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-offset]"); if (!b) return;
+      e.stopPropagation(); reloadPeople(Number(b.getAttribute("data-offset")));
+    });
     $("pCsv").addEventListener("click", exportPeopleCsv);
     var rb = $("pRebuild");
     if (rb) rb.addEventListener("click", function () {
@@ -109,7 +123,7 @@
       var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
       peopleState.tab = k.getAttribute("data-kf");
       $("pbar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-f") === peopleState.tab ? "true" : "false"); });
-      renderPeople();
+      reloadPeople(0);
     });
     $("pbody").addEventListener("click", function (e) {
       var v = e.target.closest("button[data-verdict]");
@@ -121,25 +135,20 @@
     });
     loadPeople(false).then(renderPeople).catch(function (r) { $("pbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; });
   }
-  function loadPeople(force) {
-    if (peopleState.hub && !force) return Promise.resolve(peopleState.hub);
-    return api("crm/people").then(function (r) {
+  function loadPeople(force, offset) {
+    if (offset != null) peopleState.offset = offset;
+    var key = pQuery(peopleState.offset);
+    if (peopleState.hub && !force && peopleState.hub.key === key) return Promise.resolve(peopleState.hub);
+    return api("crm/people?" + key).then(function (r) {
       if (!r.ok) throw r;
-      peopleState.hub = r.body;
+      peopleState.hub = Object.assign({ key: key }, r.body);
       return peopleState.hub;
     });
   }
-  function peopleNow() {
-    var h = peopleState.hub || {}, q = peopleState.q.toLowerCase();
-    return (h.people || []).filter(function (p) {
-      if (peopleState.tab !== "all" && personTabs(p).indexOf(peopleState.tab) < 0) return false;
-      if (peopleState.tab === "replace" && peopleState.mark && markOf(p) !== peopleState.mark) return false;
-      if (peopleState.stage && p.stage !== peopleState.stage) return false;
-      if (!q) return true;
-      var hay = [p.crmId, p.name, (p.emails || []).map(function (e) { return e.email; }).join(" "), ((p.facets || {}).accounts || []).map(function (a) { return a.upn || a.domain; }).join(" "), ((p.facets || {}).customers || []).map(function (c) { return c.teams + " " + c.city; }).join(" ")].join(" ").toLowerCase();
-      return hay.indexOf(q) >= 0;
-    });
-  }
+  // the rows of the current page (filtered and sorted by the server)
+  function peopleNow() { return ((peopleState.hub || {}).people || []); }
+  // one person, from the page or fetched alone
+  function personById(id) { return peopleNow().filter(function (x) { return x.crmId === id; })[0] || peopleState.extra[id] || null; }
   var STAGE_ORDER = { lead: 0, registered: 1, active: 2, dormant: 3 };
   function sortPeople(list) {
     var k = peopleState.sort.key, dir = peopleState.sort.dir;
@@ -168,30 +177,30 @@
   function lastActive(p) { var d = [p.lastOrder, p.lastSignIn].filter(Boolean).sort().pop(); return d ? day(d) : "—"; }
   function renderPeople() {
     var h = peopleState.hub || {}, s = h.stats || {}, list = h.people || [];
-    var counts = { all: list.length, replace: s.replace || 0, missing: s.missing || 0, viaTeams: s.viaTeams || 0, queue: (h.queue || []).length };
+    var counts = { all: s.people != null ? s.people : (h.counts ? h.counts.all : list.length), replace: s.replace || 0, missing: s.missing || 0, viaTeams: s.viaTeams || 0, queue: (h.queue || []).length };
     PEOPLE_TABS.forEach(function (tb) { var el = $("pbar").querySelector('[data-cnt="' + tb[0] + '"]'); if (el) el.textContent = counts[tb[0]] ? "(" + counts[tb[0]] + ")" : ""; });
     var st = s.stages || {};
     var stageParts = [{ label: t("活跃", "Active"), value: st.active || 0, color: VIZ.seq }, { label: t("已注册", "Registered"), value: st.registered || 0, color: VIZ.seq2 }, { label: t("潜在", "Leads"), value: st.lead || 0, color: VIZ.seq3 }, { label: t("沉寂", "Dormant"), value: st.dormant || 0, color: VIZ.gray }];
     var srcParts = [{ label: "Equip", value: s.customers || 0, color: VIZ.cat[0] }, { label: "Teams", value: s.accounts || 0, color: VIZ.cat[1] }, { label: t("讲座", "Seminar"), value: s.leads || 0, color: VIZ.cat[2] }, { label: t("蜂巢", "Hive"), value: s.hive || 0, color: VIZ.cat[3] }];
-    var tierParts = [{ label: t("可用", "OK"), value: Math.max(0, list.length - (s.replace || 0) - (s.missing || 0)), color: VIZ.seq }, { label: t("待替换", "Replace"), value: s.replace || 0, color: VIZ.cat[1] }, { label: t("无邮箱", "None"), value: s.missing || 0, color: VIZ.gray }];
+    var tierParts = [{ label: t("可用", "OK"), value: Math.max(0, counts.all - (s.replace || 0) - (s.missing || 0)), color: VIZ.seq }, { label: t("待替换", "Replace"), value: s.replace || 0, color: VIZ.cat[1] }, { label: t("无邮箱", "None"), value: s.missing || 0, color: VIZ.gray }];
     $("pkpi").innerHTML =
-      '<button type="button" class="kpi stat wide" data-kf="all"><div class="l">' + t("人员", "People") + '</div><div class="v">' + fmtNum(list.length) + "</div>" + shareBar(stageParts, list.length) + "</button>" +
+      '<button type="button" class="kpi stat wide" data-kf="all"><div class="l">' + t("人员", "People") + '</div><div class="v">' + fmtNum(counts.all) + "</div>" + shareBar(stageParts, counts.all) + "</button>" +
       '<div class="kpi stat wide"><div class="l">' + t("来源", "Sources") + '</div><div class="v">' + fmtNum(s.facets || 0) + ' <span class="unit">' + t("条记录", "records") + "</span></div>" + shareBar(srcParts) + "</div>" +
-      '<button type="button" class="kpi stat wide" data-kf="replace"><div class="l">' + t("邮箱", "Email") + '</div><div class="v' + (counts.replace ? " warn" : "") + '">' + fmtNum(counts.replace) + ' <span class="unit">' + t("待替换", "to replace") + "</span></div>" + shareBar(tierParts, list.length) + "</button>" +
+      '<button type="button" class="kpi stat wide" data-kf="replace"><div class="l">' + t("邮箱", "Email") + '</div><div class="v' + (counts.replace ? " warn" : "") + '">' + fmtNum(counts.replace) + ' <span class="unit">' + t("待替换", "to replace") + "</span></div>" + shareBar(tierParts, counts.all) + "</button>" +
       (h.canMerge ? '<button type="button" class="kpi stat" data-kf="queue"><div class="l">' + t("待合并", "To merge") + '</div><div class="v' + (counts.queue ? " warn" : "") + '">' + fmtNum(counts.queue) + '</div><div class="s"><span>' + t("需要人判断的配对", "pairs for a person to decide") + "</span></div></button>" : "") +
       '<div class="kpi stat"><div class="l">' + t("待回写 CRM ID", "CRM IDs to write back") + '</div><div class="v">' + fmtNum(s.writeBack || 0) + '</div><div class="s"><span>' + t("Airtable 客户表还没有的", "customers not yet tagged in Airtable") + "</span></div></div>";
     if (peopleState.tab === "queue") { renderQueue(); return; }
-    var rows = sortPeople(peopleNow());
+    var rows = peopleNow(), total = s.people != null ? s.people : (h.counts ? h.counts.all : list.length);
     // On 待替换邮箱: progress by mark (decision 14 — prompt, never force), with orders first in mind.
     var subbar = "";
     if (peopleState.tab === "replace") {
-      var all = list.filter(function (p) { return p.primaryTier === "replace"; }), cnt = function (k) { return k ? all.filter(function (p) { return markOf(p) === k; }).length : all.length; };
+      var mk = (h.counts && h.counts.marks) || {}, cnt = function (k) { return k ? (mk[k] || 0) : (h.counts ? h.counts.replace : 0); };
       subbar = '<div class="toolbar sub" id="pmarks">' + MARK_TABS.map(function (m) { return '<button class="chip" data-m="' + m[0] + '" aria-pressed="' + (peopleState.mark === m[0]) + '">' + esc(t(m[1], m[2])) + ' <span class="cnt">(' + cnt(m[0]) + ")</span></button>"; }).join("") +
-        '<span class="muted" style="font-size:12px">' + esc(t("有订单的 " + all.filter(function (p) { return (p.orders || 0) > 0; }).length + " 人优先 · 本月已替换 " + (s.replacedThisMonth || 0), all.filter(function (p) { return (p.orders || 0) > 0; }).length + " with orders first · replaced this month " + (s.replacedThisMonth || 0))) + "</span></div>";
+        '<span class="muted" style="font-size:12px">' + esc(t("有订单的 " + (mk.withOrders || 0) + " 人优先 · 本月已替换 " + (s.replacedThisMonth || 0), (mk.withOrders || 0) + " with orders first · replaced this month " + (s.replacedThisMonth || 0))) + "</span></div>";
     }
     var th = function (key, label) { var on = peopleState.sort.key === key; return '<th class="sortable' + (on ? " on" : "") + '" data-sort="' + key + '" aria-sort="' + (on ? (peopleState.sort.dir > 0 ? "ascending" : "descending") : "none") + '">' + label + '<span class="sortind">' + (on ? (peopleState.sort.dir > 0 ? "▲" : "▼") : "") + "</span></th>"; };
     var html = '<div class="tbl-wrap"><table class="data fixed" id="ptable"><colgroup><col style="width:11%"><col style="width:14%"><col style="width:28%"><col style="width:11%"><col style="width:14%"><col style="width:12%"><col style="width:10%"></colgroup><thead><tr>' + th("crmId", "CRM ID") + th("name", t("姓名", "Name")) + th("accounts", t("账号 / 邮箱", "Account / email")) + th("sources", t("来源", "Sources")) + th("orders", t("订单 / 金额", "Orders / Amount")) + th("active", t("最近活动", "Last active")) + th("stage", t("阶段", "Stage")) + "</tr></thead><tbody>";
-    if (!list.length) html += '<tr><td colspan="7" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
+    if (!counts.all) html += '<tr><td colspan="7" class="empty">' + (h.generatedAt ? t("还没有人员记录。", "No people yet.") : t("人员库还没有生成：同步一次 Equip 订单，或点「重新匹配」。", "The people hub has not been built yet: sync the Equip orders once, or click “Rebuild”.")) + "</td></tr>";
     else if (!rows.length) html += '<tr><td colspan="7" class="empty">' + t("没有符合条件的人。", "Nobody matches.") + "</td></tr>";
     else html += rows.map(function (p) {
       var acc = (p.facets && p.facets.accounts) || [];
@@ -211,14 +220,14 @@
     html += "</tbody></table></div>";
     $("pbody").innerHTML = subbar + html;
     colResize($("ptable"));
-    if ($("pmarks")) $("pmarks").addEventListener("click", function (e) { var c = e.target.closest(".chip[data-m]"); if (!c) return; peopleState.mark = c.getAttribute("data-m"); renderPeople(); });
+    if ($("pmarks")) $("pmarks").addEventListener("click", function (e) { var c = e.target.closest(".chip[data-m]"); if (!c) return; peopleState.mark = c.getAttribute("data-m"); reloadPeople(0); });
     // Click a heading to sort by it; again to reverse (Rick, 2026-10-08: 「CRM ID field, when clicking, should be 排序」).
     $("ptable").tHead.addEventListener("click", function (e) {
       if (e.target.closest(".rz")) return;
       var h = e.target.closest("th[data-sort]"); if (!h) return;
       var k = h.getAttribute("data-sort");
       peopleState.sort = { key: k, dir: peopleState.sort.key === k ? -peopleState.sort.dir : 1 };
-      renderPeople();
+      reloadPeople(0);
     });
     // The footer says why fewer people show than exist (Rick, 2026-10-08: 「Why only shows
     // 6 / 1980 people?」 — a search was still in the box) and offers to clear it.
@@ -226,15 +235,21 @@
     if (peopleState.tab !== "all") { var tb = PEOPLE_TABS.filter(function (x) { return x[0] === peopleState.tab; })[0]; if (tb) filters.push(t(tb[1], tb[2])); }
     if (peopleState.stage) filters.push(t("阶段 ", "stage ") + t(STAGES[peopleState.stage][0], STAGES[peopleState.stage][1]));
     if (peopleState.q) filters.push(t("搜索 ", "search ") + "“" + peopleState.q + "”");
-    $("pfoot").innerHTML = (list.length ? esc(t("显示 ", "Showing ") + rows.length + " / " + list.length + t(" 人", " people")) + (filters.length ? ' <span class="status warn">' + esc(t("筛选：", "filter: ") + filters.join(" · ")) + '</span> <a href="#" id="pClear">' + t("显示全部", "Show all") + "</a>" : "") + " · " : "") + (h.generatedAt ? esc(t("匹配于 ", "Matched ") + when(h.generatedAt)) : "") +
-      (h.sources && h.sources.equipSyncedAt ? " · " + esc(t("Equip 数据同步于 ", "Equip data synced ") + when(h.sources.equipSyncedAt)) : "");
+    // the pager: "第 1–100 / 匹配 N · 共 M 人", 上一页 / 下一页; the sysadmin also sees the server's timing
+    var matched = h.matched != null ? h.matched : rows.length, off = h.offset || 0, per = typeof h.limit === "number" ? h.limit : P_PAGE;
+    var from = matched ? off + 1 : 0, to = Math.min(off + rows.length, matched);
+    // the pager at the right end of the tile strip (Rick, 2026-10-21: 放在页面上方)
+    if (matched > per && peopleState.tab !== "queue") $("pkpi").insertAdjacentHTML("beforeend", '<div class="kpi pager">' + pagerLabel(off, to, matched) + pagerButtons(off, per, to, matched) + "</div>");
+    var timing = h.timing && isAdmin() ? ' <span class="faint" title="' + esc(t("服务端耗时：读取 / 筛选分页", "Server time: read / filter and page")) + '">' + esc(h.timing.total + " ms (" + h.timing.read + "/" + h.timing.page + ")") + "</span>" : "";
+    $("pfoot").innerHTML = (counts.all ? esc(t("第 " + from + "–" + to + " / 匹配 " + fmtNum(matched) + " · 共 " + fmtNum(counts.all) + " 人", from + "–" + to + " of " + fmtNum(matched) + " matching · " + fmtNum(counts.all) + " people")) + (filters.length ? ' <span class="status warn">' + esc(t("筛选：", "filter: ") + filters.join(" · ")) + '</span> <a href="#" id="pClear">' + t("显示全部", "Show all") + "</a>" : "") + " · " : "") + (h.generatedAt ? esc(t("匹配于 ", "Matched ") + when(h.generatedAt)) : "") +
+      (h.sources && h.sources.equipSyncedAt ? " · " + esc(t("Equip 数据同步于 ", "Equip data synced ") + when(h.sources.equipSyncedAt)) : "") + timing;
     var clr = $("pClear");
     if (clr) clr.addEventListener("click", function (e) {
       e.preventDefault();
       peopleState.tab = "all"; peopleState.stage = ""; peopleState.q = "";
       if ($("pq")) $("pq").value = ""; if ($("pstage")) $("pstage").value = "";
       $("pbar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-f") === "all" ? "true" : "false"); });
-      renderPeople();
+      reloadPeople(0);
     });
   }
   function renderQueue() {
@@ -265,9 +280,13 @@
     });
   }
   function exportPeopleCsv() {
+    var b = $("pCsv"); savingButton(b, t("准备中…", "Preparing…"));
+    api("crm/people?" + pQuery(0, "all")).then(function (r) { restoreButton(b); if (!r.ok) { flash(esc(errText(r)), 4000); return; } exportPeopleCsvRows(r.body.people || []); });
+  }
+  function exportPeopleCsvRows(rowsAll) {
     var cell = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     var head = ["CRM ID", t("姓名", "Name"), t("主邮箱", "Primary email"), t("邮箱状态", "Email status"), '<span title="' + esc(t("这个人是从哪些数据来源认识的：Equip = Equip 教材订单的客户表；Teams = 某校租户里的 Microsoft 365 账号；讲座 = 讲座报名；蜂巢 = 蜂巢课程订单；联系人 = 在合作伙伴模块里手工加入", "Where we know this person from: Equip = the Equip orders base's Customers table; Teams = a Microsoft 365 account in a school tenant; Seminar = a seminar sign-up; Hive = a Hive course order; Contact = added by hand in the partner module")) + '">' + t("来源", "Sources") + "</span>", t("账号", "Accounts"), t("订单", "Orders"), t("金额", "Amount"), t("最近活动", "Last active"), t("阶段", "Stage")].join(",");
-    var lines = peopleNow().map(function (p) {
+    var lines = rowsAll.map(function (p) {
       var s = p.sources || {};
       return [p.crmId, p.name, p.primaryEmail, p.primaryTier, [s.customer && "Equip", s.account && "Teams", s.lead && t("讲座", "Seminar"), s.hive && t("蜂巢", "Hive")].filter(Boolean).join("; "), ((p.facets || {}).accounts || []).map(function (a) { return a.upn || a.domain; }).join("; "), (p.orders || 0) + (p.hiveOrders || 0), p.spend == null ? "" : p.spend, lastActive(p), t(STAGES[p.stage] ? STAGES[p.stage][0] : p.stage, STAGES[p.stage] ? STAGES[p.stage][1] : p.stage)].map(cell).join(",");
     });
@@ -297,12 +316,13 @@
       post("crm/email-replace", "POST", { crmId: id, status: status }).then(function (r) {
         restoreButton(b);
         if (!r.ok) { flash(esc(errText(r)), 6000); return; }
-        var p = ((peopleState.hub || {}).people || []).filter(function (x) { return x.crmId === id; })[0];
+        var p = personById(id);
         if (p) { if (r.body.mark) p.replaceMark = r.body.mark; else delete p.replaceMark; }
         if (peopleState.hub && peopleState.hub.stats) Object.assign(peopleState.hub.stats, r.body.stats || {});
         flashOk(status === "replaced" ? t("已标记为已替换。", "Marked as replaced.") : status === "notified" ? t("已标记为已通知。", "Marked as contacted.") : t("已撤销标记。", "Mark cleared."), 3000);
-        if ($("ptable")) renderPeople();
-        openPersonPanel(id);
+        // the mark counts and the page's membership of a mark filter are the server's: fetch the page again
+        if ($("ptable")) reloadPeople(peopleState.offset).then(function () { openPersonPanel(id); });
+        else openPersonPanel(id);
       });
       return;
     }
@@ -310,8 +330,11 @@
     if (c) { var ta = c.previousElementSibling; if (ta && navigator.clipboard) navigator.clipboard.writeText(ta.value).then(function () { c.textContent = t("已复制 ✓", "Copied ✓"); setTimeout(function () { c.textContent = c.getAttribute("data-copy") === "zh" ? t("复制中文", "Copy Chinese") : t("复制英文", "Copy English"); }, 1500); }); }
   });
   function openPersonPanel(id, toOrders) {
-    var p = ((peopleState.hub || {}).people || []).filter(function (x) { return x.crmId === id; })[0];
-    if (!p) return;
+    var p = personById(id);
+    if (!p) { // not on this page (a family member, a partner's contact): fetch the one person, then open
+      api("crm/person?id=" + encodeURIComponent(id)).then(function (r) { if (!r.ok) { flash(esc(t("人员库里没有这条记录。", "Not in the people hub.")), 4000); return; } peopleState.extra[id] = r.body.person; openPersonPanel(id, toOrders); });
+      return;
+    }
     var f = p.facets || {};
     var emails = (p.emails || []).length ? (p.emails || []).map(function (e) { return '<div class="orow"><div class="omain"><b>' + esc(e.email) + "</b>" + (e.upn ? '<span class="sub">' + t("Teams 账号", "Teams account") + "</span>" : "") + "</div><div>" + tierTag(e.tier) + (e.email === p.primaryEmail ? ' <span class="tag accent">' + t("主邮箱", "primary") + "</span>" : "") + "</div></div>"; }).join("") : '<div class="orow muted">' + t("没有邮箱。", "No email.") + "</div>";
     var accounts = (f.accounts || []).map(function (a) {

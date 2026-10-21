@@ -32,6 +32,7 @@ const equip = require("../shared/equip");
 const teamsOrders = require("../shared/teamsOrders");
 const teamsFetch = require("../shared/teamsFetch");
 const hub = require("../shared/hub");
+const peopleList = require("../shared/peopleList");
 const digest = require("../shared/digest");
 const royalty = require("../shared/royalty");
 const licenses = require("../shared/licenses");
@@ -195,15 +196,23 @@ async function handler(context, req) {
   // GET queue           the merge suggestions (level 3) still waiting for a verdict
   // POST queue          { key, verdict: "same" | "different" } → stored, hub rebuilt
   // POST people-rebuild rebuild from the current sources (orders rw or sysadmin)
+  // Paged since 2026-10-21 (Rick: the same design as 用户管理, sorted by CRM ID by default): ?offset&limit&q&tab&stage&mark
+  // &sort&dir → one page of the people that match, how many match, the tabs' counts over everyone; limit=all for the CSV.
   if (method === "GET" && action === "people") {
+    const t0 = Date.now();
     const h = await hub.readHub();
-    if (!h) { ok(context, { people: [], queue: [], stats: null, generatedAt: null, access: acc }); return; }
+    if (!h) { ok(context, { people: [], queue: [], stats: null, matched: 0, offset: 0, limit: 100, counts: peopleList.counts([]), generatedAt: null, access: acc }); return; }
     const canMerge = isAdmin(roles) || crm.atLeast(roles, "orders", "rw");
     const canMark = isAdmin(roles) || crm.atLeast(roles, "identity", "rw");
     const marks = await hub.readMarks().catch(() => ({ marks: {} }));
     const famById = new Map((h.families || []).map((f) => [f.id, f]));
-    const people = hub.withMarks(h.people, marks).map((p) => hub.maskPerson(p.familyId && famById.has(p.familyId) ? Object.assign({}, p, { family: famById.get(p.familyId) }) : p, acc));
-    ok(context, { people, queue: canMerge ? h.queue : [], stats: Object.assign({}, h.stats, hub.markStats(h.people, marks)), generatedAt: h.generatedAt, sources: h.sources, access: acc, canMerge, canMark });
+    const t1 = Date.now();
+    const opts = peopleList.parseQuery(req.query);
+    // filter and sort on the unmasked rows (the search needs the real addresses), mask only the page that leaves
+    const pg = peopleList.page(hub.withMarks(h.people, marks), opts);
+    const people = pg.people.map((p) => hub.maskPerson(p.familyId && famById.has(p.familyId) ? Object.assign({}, p, { family: famById.get(p.familyId) }) : p, acc));
+    const t2 = Date.now();
+    ok(context, { people, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: { q: opts.q, tab: opts.tab, stage: opts.stage, mark: opts.mark, sort: opts.sort, dir: opts.dir > 0 ? "asc" : "desc" }, queue: canMerge ? h.queue : [], stats: Object.assign({}, h.stats, hub.markStats(h.people, marks)), generatedAt: h.generatedAt, sources: h.sources, access: acc, canMerge, canMark, timing: { read: t1 - t0, page: t2 - t1, total: t2 - t0 } });
     return;
   }
   // 机构 (phase 3): one row per school domain with its names, partnership stage, accounts,
@@ -290,10 +299,13 @@ async function handler(context, req) {
   if (method === "GET" && action === "person") {
     const id = String((req.query && req.query.id) || "").trim().toUpperCase();
     if (!/^HC-\d{6}$/.test(id)) { fail(context, 400, "bad_id"); return; }
-    const h = await hub.readHub();
-    const p = h && h.people.find((x) => x.crmId === id);
-    if (!p) { fail(context, 404, "not_found"); return; }
-    ok(context, { person: hub.maskPerson(p, acc), access: acc });
+    const [h, marks] = await Promise.all([hub.readHub(), hub.readMarks().catch(() => ({ marks: {} }))]);
+    const p0 = h && h.people.find((x) => x.crmId === id);
+    if (!p0) { fail(context, 404, "not_found"); return; }
+    // the same shape as a row of the paged list: the replace mark and the family ride along (the panel reads them)
+    const p = hub.withMarks([p0], marks)[0];
+    const fam = p.familyId && (h.families || []).find((f) => f.id === p.familyId);
+    ok(context, { person: hub.maskPerson(fam ? Object.assign({}, p, { family: fam }) : p, acc), access: acc });
     return;
   }
   if (action === "queue") {
