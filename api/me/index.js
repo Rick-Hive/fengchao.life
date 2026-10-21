@@ -15,7 +15,7 @@
 // to Microsoft's own change-password and self-service reset pages.
 const { graph, graphRaw, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
-const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_ADMIN_RE } = require("../shared/roles");
+const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, isSchoolAccount } = require("../shared/roles");
 const dir = require("../shared/directory");
 const crm = require("../shared/crm");
 
@@ -299,7 +299,8 @@ async function handler(context, req) {
 
     // The order page on the website, for a signed-in family: the account and its addresses to fill the form with.
     if (method === "GET" && action === "contact") {
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { upn, displayName: user.displayName || "", mail: user.mail || "", safeEmail: (user.otherMails || [])[0] || "" } };
+      const ur = await userRoles(req);
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { upn, displayName: user.displayName || "", mail: user.mail || "", safeEmail: (user.otherMails || [])[0] || "", schoolAccount: isSchoolAccount(ur.roles) } };
       return;
     }
     if (method === "GET" && action === "orders") {

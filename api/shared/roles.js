@@ -275,6 +275,10 @@ async function userRoles(req) {
   return { user, roles: Array.from(roles) };
 }
 
+// A school's account — IT administrator or education leader — is not a family: it may look and select on the map but
+// never orders for a family (Rick, 2026-10-20: 「管理员不能代下单」; a school buys in bulk instead, 团购, to come).
+function isSchoolAccount(roles) { return (roles || []).some((r) => DOMAIN_IT_RE.test(r) || DOMAIN_ADMIN_RE.test(r) || DOMAIN_LEADER_RE.test(r)); }
+
 // True when the account holds `role`, or is an admin.
 async function userHasRole(req, role) {
   if (hasRole(req, "admin")) return true;
@@ -282,4 +286,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser };
+module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser, isSchoolAccount };

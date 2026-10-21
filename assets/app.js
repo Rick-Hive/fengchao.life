@@ -430,6 +430,7 @@
       .then(function (c) {
         if (!c || !state.account) return;
         state.account.name = c.displayName || "";
+        state.account.schoolAccount = !!c.schoolAccount; // a school's administrator or leader: may look, never orders for a family
         var mail = [c.safeEmail, c.mail].filter(function (v) { return v && !isBlockedEmail(v); })[0] || "";
         if (!state.email && mail) state.email = mail;
         if (!state.teams) state.teams = state.account.upn;
@@ -1669,7 +1670,7 @@
       '<div class="summary-card"><h3>' + esc(t().orderSummary) + " (" + items.length + ")</h3>" + rows +
       '<div class="summary-total"><span>' + esc(t().total) + "</span><span>" + esc(fmtPrice(cartTotal()) || "—") + "</span></div></div>" +
       '<div class="form-card"><h3>' + esc(t().submitOrder) + "</h3>" +
-      (state.account ? '<p class="signed-in">' + esc(fill(t().signedInAs, { who: state.account.name ? state.account.name + " · " + state.account.upn : state.account.upn })) + "</p>" : "") +
+      (state.account ? '<p class="signed-in' + (state.account.schoolAccount ? " warn" : "") + '">' + esc(state.account.schoolAccount ? fill(t().schoolAccount, { who: state.account.upn }) : fill(t().signedInAs, { who: state.account.name ? state.account.name + " · " + state.account.upn : state.account.upn })) + "</p>" : "") +
       '<label for="email">' + esc(t().emailLabel) + '</label>' +
       '<input id="email" type="email" placeholder="' + esc(t().emailPh) + '" value="' + esc(state.email) + '" autocomplete="email" />' +
       '<p class="field-note">' + esc(t().emailNote) + "</p>" +
@@ -1684,7 +1685,7 @@
       // aria-hidden so screen readers skip it, and autocomplete is off.
       '<div class="hp" aria-hidden="true"><input id="fcHpField" name="fc_hp_field" type="text" tabindex="-1" autocomplete="off" /></div>' +
       '<p class="form-err" id="formErr">' + esc(state.formErr) + "</p>" +
-      '<button class="btn btn-primary" id="submitBtn" style="width:100%;margin-top:8px" ' + (state.submitting ? "disabled" : "") + ">" +
+      '<button class="btn btn-primary" id="submitBtn" style="width:100%;margin-top:8px" ' + (state.submitting || (state.account && state.account.schoolAccount) ? "disabled" : "") + ">" +
       esc(state.submitting ? t().submitting : t().submitOrder) + "</button></div></div>" +
       '<div class="nav-row"><button class="btn btn-ghost" id="back5">' + esc(t().back) + "</button><span></span></div></section>"
     );
@@ -2444,6 +2445,8 @@
           state.formErr = t().errNotify;
         } else if (r.body && (r.body.error === "no_snapshot" || r.status === 503)) {
           state.formErr = t().errSnapshot;
+        } else if (r.status === 403 && r.body && r.body.error === "school_account") {
+          state.formErr = fill(t().schoolAccount, { who: state.account ? state.account.upn : "" });
         } else if (r.body && r.body.error === "unknown_course") {
           state.formErr = t().errCourseGone;
         } else if (r.body && r.body.error === "course_full") {

@@ -491,8 +491,11 @@
     try { localStorage.setItem(PL_WIZARD_KEY, JSON.stringify(w)); } catch (e) { flash(esc(t("浏览器不允许保存选课，请在网站上选课。", "The browser does not allow saving the selection; please select on the website.")), 4000); return false; }
     plCartBtn(); return !!w.cart[id];
   }
-  function plCartBtn() { var b = $("plCart"); if (!b) return; var n = plCartIds().length; b.hidden = !n; b.textContent = t("去下单（" + n + " 门）", "Place the order (" + n + ")"); }
-  function plSelBtn(id, cls) { var on = plCartHas(id); return '<button type="button" class="btn sm plsel-btn' + (on ? " on" : " secondary") + (cls ? " " + cls : "") + '" data-sel="' + esc(id) + '">' + (on ? t("已选 ✓", "Selected ✓") : t("选择", "Select")) + "</button>"; }
+  // a school's administrator or leader looks and browses but never orders for a family (Rick, 2026-10-20: 「管理员不能代下单」)
+  function plSchoolAccount() { return !!(me && (me.roles || []).some(function (r) { return /^domain_(it|admin|leader):/.test(r); })); }
+  function plCartBtn() { var b = $("plCart"); if (!b) return; var n = plCartIds().length; b.hidden = !n || plSchoolAccount(); b.textContent = t("去下单（" + n + " 门）", "Place the order (" + n + ")"); }
+  function plSelBtn(id, cls) {
+    if (plSchoolAccount()) return ""; var on = plCartHas(id); return '<button type="button" class="btn sm plsel-btn' + (on ? " on" : " secondary") + (cls ? " " + cls : "") + '" data-sel="' + esc(id) + '">' + (on ? t("已选 ✓", "Selected ✓") : t("选择", "Select")) + "</button>"; }
   function plRefreshSel() { document.querySelectorAll("button[data-sel]").forEach(function (b) { var on = plCartHas(b.getAttribute("data-sel")); b.classList.toggle("on", on); b.classList.toggle("secondary", !on); b.textContent = on ? t("已选 ✓", "Selected ✓") : t("选择", "Select"); }); }
   // ---- the cell panel and the course detail ----
   function plCourseName(c) { return pickName(c.nameZh, c.nameEn) || c.code || ""; }
@@ -516,7 +519,7 @@
     panelOpen('<div class="ph"><h3>' + esc(title) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
       "<h4>" + t("蜂巢可选课程", "Hive courses") + " · " + courses.length + "</h4>" + (courses.length ? '<div class="olist">' + courses.map(plCourseRow).join("") + "</div>" : '<p class="sub">' + t("这一格还没有可选的课程。", "No course fits this cell yet.") + "</p>") +
       (row ? "<h4>" + t("学校计划", "Planned") + " · " + items.length + "</h4>" + (items.length ? "<ol class=\"plplanned\">" + items.map(function (x) { return "<li>" + esc(plChipLabel(x)) + "</li>"; }).join("") + "</ol>" : '<p class="sub">—</p>') : '<p class="sub">' + t("学科不在课程地图里的课程。", "Courses whose subject is not on the map.") + "</p>") +
-      '<p class="sub">' + t("「选择」加入网站购物车；下单在网站完成，订单记入你的账号。", "Select adds to the website cart; the order is placed on the website and filed under your account.") + "</p></div>");
+      '<p class="sub">' + (plSchoolAccount() ? t("学校管理账号只能查看；家长用自己的账号下单。学校批量购买（团购）另行安排。", "A school administration account only looks; parents order with their own account. School bulk purchases are arranged separately.") : t("「选择」加入网站购物车；下单在网站完成，订单记入你的账号。", "Select adds to the website cart; the order is placed on the website and filed under your account.")) + "</p></div>");
   }
   function plCourseDetail(id) {
     var c = (plCat ? plCat.courses : []).filter(function (x) { return x.id === id; })[0]; if (!c) return;

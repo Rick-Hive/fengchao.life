@@ -15,6 +15,7 @@ const { buildMessages, escapeHtml } = require("../shared/messages");
 const { groupByHive } = require("../shared/hive");
 const seats = require("../shared/seats");
 const { getPrincipal } = require("../shared/auth");
+const { userRoles, isSchoolAccount } = require("../shared/roles");
 const fee = require("../shared/fee");
 
 // The signed-in account, when the family ordered from the management centre or while signed in on the website: Static
@@ -209,6 +210,12 @@ module.exports = async function (context, req) {
   if (courseIds.length === 0) {
     context.res = { status: 400, body: { error: "empty_order" } };
     return;
+  }
+
+  // A school's administrator or leader never orders for a family (Rick, 2026-10-20); schools will buy in bulk instead.
+  if (accountOf(req)) {
+    const { roles } = await userRoles(req).catch(() => ({ roles: [] }));
+    if (isSchoolAccount(roles)) { context.res = { status: 403, body: { error: "school_account" } }; return; }
   }
 
   const flowUrl = process.env.POWER_AUTOMATE_URL;

@@ -1154,6 +1154,13 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/合唱/.test(await p.$eval("#panel", e => e.innerText)), "其它课程 lists the course whose subject is not on the map");
     await p.keyboard.press("Escape");
   });
+  // a school's leader looks but never orders for a family (Rick, 2026-10-20: 「管理员不能代下单」)
+  await shot("map-school-account", 1280, 900, "#/plan", "zh", ["domain_leader:bes.qiaoliang.online"], async p => {
+    await p.waitForSelector('#plbody .plsub[data-stage="rhetoric"]'); await p.click('#plbody .plsub[data-stage="rhetoric"]'); await p.waitForSelector('#plbody .plavail[data-avail-g="G9"]');
+    await p.click('#plbody .plavail[data-avail-g="G9"]'); await p.waitForSelector("#panel.open .plcourse");
+    assert.ok(!(await p.$("#panel button[data-sel]")) && /学校管理账号只能查看/.test(await p.$eval("#panel", e => e.innerText)) && await p.$eval("#plCart", e => e.hidden), "no 选择, no 去下单, the note says why");
+    await p.keyboard.press("Escape");
+  });
   // 我的订单 (2026-10-20): the account's orders, the family's own cancellation while still submitted
   MY_ORDERS = MY_ORDERS0();
   await shot("orders-mine", 1280, 900, "#/myorders", "zh", [], async p => {
