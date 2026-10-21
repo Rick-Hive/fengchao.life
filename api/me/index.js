@@ -55,7 +55,7 @@ function myOrderView(o0) {
   // what a family needs: the status, the courses, waitlist and prerequisite flags, the fee; not the fulfilment notes.
   // An order whose time ran out reads as expired (lazy expiry); 我已付款 is offered until the provider confirms.
   const o = crm.withExpiry(o0), st = crm.statusOf(o);
-  return { orderId: o.orderId, submission: o.submission || o.orderId, submittedAt: o.submittedAt, status: st, expiresAt: ["submitted", "contacted"].includes(st) ? new Date(crm.expiresAt(o)).toISOString() : null, email: o.email || "", account: o.account || "", items: o.items || [], hives: o.hives || [], itemCount: o.itemCount, totalPrice: o.totalPrice, currency: o.currency || "CNY", fee: o.fee || null, track: o.track || null, notify: o.notify ? { ok: !!o.notify.ok, pending: !!o.notify.pending } : null, history: (o.history || []).map((h) => ({ at: h.at, to: h.to, from: h.from })), canCancel: st === "submitted", canConfirmPay: st === "submitted" || st === "contacted" };
+  return { orderId: o.orderId, submission: o.submission || o.orderId, submittedAt: o.submittedAt, status: st, expiresAt: ["submitted", "contacted"].includes(st) ? new Date(crm.expiresAt(o)).toISOString() : null, email: o.email || "", account: o.account || "", items: o.items || [], hives: o.hives || [], itemCount: o.itemCount, totalPrice: o.totalPrice, currency: o.currency || "CNY", fee: o.fee || null, track: o.track || null, notify: o.notify ? { ok: !!o.notify.ok, pending: !!o.notify.pending } : null, history: (o.history || []).map((h) => ({ at: h.at, to: h.to, from: h.from })), contact: o.contact || null, proof: (o.proof || []).map((p) => ({ i: p.i, name: p.name, at: p.at })), commission: undefined, canCancel: st === "submitted", canConfirmPay: st === "submitted" || st === "contacted", canNameChild: crm.isLive(o), needsChild: crm.isLive(o) && (o.items || []).some((it) => it && !(it.child && it.child.name)) };
 }
 
 const DAYS = 7;
@@ -313,6 +313,18 @@ async function handler(context, req) {
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { upn, displayName: user.displayName || "", mail: user.mail || "", safeEmail: (user.otherMails || [])[0] || "", schoolAccount: isSchoolAccount(ur.roles), children: kids } };
       return;
     }
+    // the family's own payment proof, back to the family
+    if (method === "GET" && action === "proof") {
+      const orderId = String((req.query && req.query.orderId) || ""), i = Number((req.query && req.query.i) || 0);
+      if (!crm.ID_RE.test(orderId) || !(i > 0)) return fail(context, 400, "bad request");
+      const cur = await crm.readOrder(orderId);
+      if (!cur || !isMine(cur.order, upn, orderAddresses(upn, user))) return fail(context, 404, "no such order");
+      const p = (cur.order.proof || []).find((x) => x.i === i);
+      const buf = p ? await crm.readProof(orderId, i, p.type) : null;
+      if (!buf) return fail(context, 404, "no such proof");
+      context.res = { status: 200, headers: { "Content-Type": p.type, "Cache-Control": "private, no-store", "Content-Disposition": `inline; filename="${orderId}-${i}.${crm.PROOF_TYPES[p.type]}"` }, body: buf, isRaw: true };
+      return;
+    }
     if (method === "GET" && action === "orders") {
       const addrs = orderAddresses(upn, user);
       const all = await crm.listOrders();
@@ -330,10 +342,36 @@ async function handler(context, req) {
       const cur = await crm.readOrder(orderId);
       if (!cur || !isMine(cur.order, upn, orderAddresses(upn, user))) return fail(context, 404, "no such order");
       const live = crm.withExpiry(cur.order), st = crm.statusOf(live);
+      // v3: the child a course is for, named after checkout (any live order; 个人资料 › 我的孩子 or typed here);
+      // {orderId, code, child: {name, grade, account}} — child null clears it
+      if (b.code !== undefined) {
+        const code = String(b.code || ""), c = b.child && typeof b.child === "object" ? b.child : null;
+        const child = c && String(c.name || "").trim() ? { name: String(c.name).trim().slice(0, 40), grade: String(c.grade || "").trim().slice(0, 20), account: EMAIL_RE.test(String(c.account || "").trim().toLowerCase()) ? String(c.account).trim().toLowerCase().slice(0, 200) : "" } : null;
+        if (!crm.isLive(live)) return fail(context, 409, "the order is closed", { status: st });
+        if (!(live.items || []).some((it) => it && it.code === code)) return fail(context, 404, "no such course on the order");
+        const at = new Date().toISOString();
+        const items = live.items.map((it) => (it.code === code ? Object.assign({}, it, { child }) : it));
+        const nextC = Object.assign({}, live, { items, history: (live.history || []).concat([{ at, by: upn, from: live.status, to: live.status, note: (child ? "学生：" + child.name + " / student named: " : "学生清除 / student cleared: ") + code }]) });
+        try { await crm.writeOrder(nextC, cur.etag); } catch (err) { if (err && err.statusCode === 412) return fail(context, 409, "changed meanwhile"); throw err; }
+        await audit(context, { actor: upn, action: "order.child", target: orderId, code, result: "ok" });
+        context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, order: myOrderView(nextC) } };
+        return;
+      }
       if (want !== "cancelled" && want !== "parent_paid") return fail(context, 400, "bad status");
       if (want === "cancelled" && st !== "submitted") return fail(context, 409, "the order has moved on; ask the order manager to cancel it", { status: st });
       if (want === "parent_paid" && st !== "submitted" && st !== "contacted") return fail(context, 409, "the order is past that step", { status: st });
-      const next = crm.transition(live, want, upn, String(b.note || "").slice(0, 500) || (want === "cancelled" ? "cancelled by the family" : "家长确认已向机构付款 / the family confirms it paid the provider"), [], null, [want]);
+      let next = crm.transition(live, want, upn, String(b.note || "").slice(0, 500) || (want === "cancelled" ? "cancelled by the family" : "家长确认已向机构付款 / the family confirms it paid the provider"), [], null, [want]);
+      // v3: 我已付款 may carry a screenshot of the transfer (≤ 2 MB, jpeg / png / webp / pdf) — the provider and the order
+      // manager see it beside the order; it is what lets Hive confirm receipt when the provider stays silent
+      if (want === "parent_paid" && b.proof && typeof b.proof === "object" && b.proof.data) {
+        const type = String(b.proof.type || "").toLowerCase();
+        if (!crm.PROOF_TYPES[type]) return fail(context, 400, "proof must be a jpeg, png, webp or pdf");
+        let buf; try { buf = Buffer.from(String(b.proof.data).replace(/^data:[^,]*,/, ""), "base64"); } catch (e) { return fail(context, 400, "bad proof"); }
+        if (!buf.length || buf.length > crm.PROOF_MAX) return fail(context, 413, "proof too large (2 MB)");
+        const i = (live.proof || []).length + 1;
+        await crm.writeProof(orderId, i, buf, type);
+        next = Object.assign({}, next, { proof: (live.proof || []).concat([{ i, name: String(b.proof.name || "").slice(0, 120), type, size: buf.length, at: new Date().toISOString(), by: upn }]) });
+      }
       try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && err.statusCode === 412) return fail(context, 409, "changed meanwhile"); throw err; }
       seats.forget();
       await audit(context, { actor: upn, action: want === "cancelled" ? "order.cancel.self" : "order.parent_paid", target: orderId, result: "ok" });

@@ -445,7 +445,7 @@
   function seatInfo(c) {
     var st = state.seats && c && state.seats[c.code]; if (!st) return null;
     if (st.state === "full") return { cls: "full", text: t().seatsFull, full: true };
-    if (st.belowMin) return { cls: "need", text: fill(t().seatsNeed, { n: st.need, taken: st.taken, min: st.min }) };
+    if (st.belowMin) return { cls: "need", text: fill(t().seatsNeed, { n: st.need, taken: st.confirmed != null ? st.confirmed : st.taken, min: st.min, reservedNote: st.reserved ? fill(t().seatsReserved, { reserved: st.reserved }) : "" }) };
     if (st.max != null) return { cls: st.state === "few" ? "few" : "", text: fill(t().seatsLeft, { n: st.open, max: st.max }) };
     if (st.min != null) return { cls: "", text: fill(t().seatsMin, { min: st.min }) };
     return null;
@@ -1676,6 +1676,9 @@
       '<div class="summary-total"><span>' + esc(t().total) + "</span><span>" + esc(fmtPrice(cartTotal()) || "—") + "</span></div></div>" +
       '<div class="form-card"><h3>' + esc(t().submitOrder) + "</h3>" +
       (state.account ? '<p class="signed-in' + (state.account.schoolAccount ? " warn" : "") + '">' + esc(state.account.schoolAccount ? fill(t().schoolAccount, { who: state.account.upn }) : fill(t().signedInAs, { who: state.account.name ? state.account.name + " · " + state.account.upn : state.account.upn })) + "</p>" : "") +
+      (state.account ? "" : '<div class="name-row"><label for="familyName">' + esc(t().nameFamily) + '</label><input id="familyName" type="text" maxlength="40" value="' + esc(state.familyName || "") + '" autocomplete="family-name" />' +
+        '<label for="givenName">' + esc(t().nameGiven) + '</label><input id="givenName" type="text" maxlength="40" value="' + esc(state.givenName || "") + '" autocomplete="given-name" /></div>' +
+        '<label for="englishName">' + esc(t().nameEnglish) + '</label><input id="englishName" type="text" maxlength="40" value="' + esc(state.englishName || "") + '" autocomplete="off" />') +
       '<label for="email">' + esc(t().emailLabel) + '</label>' +
       '<input id="email" type="email" placeholder="' + esc(t().emailPh) + '" value="' + esc(state.email) + '" autocomplete="email" />' +
       '<p class="field-note">' + esc(t().emailNote) + "</p>" +
@@ -1702,6 +1705,7 @@
       '<svg class="mark" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
       "<h2>" + esc(t().doneTitle) + "</h2><p>" + esc(state.done.notified === false ? t().doneNoEmail : t().doneDesc) + "</p>" +
       (state.done.orderIds && state.done.orderIds.length > 1 ? '<p class="done-split">' + esc(t().doneSplit) + "</p>" + state.done.orderIds.map(function (id) { return '<div class="order-id">' + esc(id) + "</div>"; }).join("") : '<div class="order-id">' + esc(state.done.orderId) + "</div>") + "<br/>" +
+      '<p class="done-split">' + esc(t().childLater) + "</p>" +
       '<button class="btn btn-primary" id="againBtn">' + esc(t().doneAgain) + "</button></div>"
     );
   }
@@ -2356,6 +2360,9 @@
     });
 
     on("email", "input", function (e) { state.email = e.target.value; persistWizard(); });
+    on("familyName", "input", function (e) { state.familyName = e.target.value; });
+    on("givenName", "input", function (e) { state.givenName = e.target.value; });
+    on("englishName", "input", function (e) { state.englishName = e.target.value; });
     on("teams", "input", function (e) { state.teams = e.target.value; persistWizard(); });
     on("submitBtn", "click", submitOrder);
     on("againBtn", "click", function () {
@@ -2417,13 +2424,16 @@
   }
   function childRowHtml(c) {
     var ch = childOf(c.id), kids = state.account && state.account.children || [];
+    // v3 (Rick 2026-10-21: 订单阶段要简单): the child is named after payment, in the profile; only a signed-in parent
+    // whose profile already lists children gets an optional pick here
+    if (!kids.length) return "";
     var inputs = '<input type="text" class="chname" data-id="' + esc(c.id) + '" maxlength="40" placeholder="' + esc(t().childPh) + '" value="' + esc(ch.name) + '" autocomplete="off" />' +
       '<select class="chgrade" data-id="' + esc(c.id) + '"><option value="">' + esc(t().gradePh) + "</option>" + CHILD_GRADES.map(function (g) { return '<option value="' + esc(g) + '"' + (ch.grade === g ? " selected" : "") + ">" + esc(gradeLabel(g)) + "</option>"; }).join("") + "</select>";
     if (kids.length) {
       var sel = '<select class="chpick" data-id="' + esc(c.id) + '"><option value="">' + esc(t().childChoose) + "</option>" + kids.map(function (k, i) { return '<option value="' + i + '"' + (ch.pick === String(i) ? " selected" : "") + ">" + esc(k.name + (k.grade ? " · " + gradeLabel(k.grade) : "")) + "</option>"; }).join("") + '<option value="other"' + (ch.pick === "other" ? " selected" : "") + ">" + esc(t().childOther) + "</option></select>";
-      return '<div class="child-row"><span class="child-lab">' + esc(t().childLabel) + "</span>" + sel + (ch.pick === "other" ? inputs : "") + "</div>";
+      return '<div class="child-row"><span class="child-lab" title="' + esc(t().childOptional) + '">' + esc(t().childLabel) + "</span>" + sel + (ch.pick === "other" ? inputs : "") + "</div>";
     }
-    return '<div class="child-row"><span class="child-lab">' + esc(t().childLabel) + "</span>" + inputs + "</div>";
+    return "";
   }
   function submitOrder() {
     var email = (state.email || "").trim();
@@ -2436,9 +2446,10 @@
     if (cartIds().length === 0) { state.formErr = t().errEmpty; render(); return; }
     var unconfirmed = cartCourses().filter(function (c) { var pq = prereqStatus(c); return pq && pq.rest.length && !pq.confirmed; });
     if (unconfirmed.length) { state.formErr = t().errPrereq; render(); return; }
-    if (cartIds().some(function (id) { return !(childOf(id).name || "").trim(); })) { state.formErr = t().errChild; render(); return; }
+    if (!state.account && !((state.familyName || "").trim() && (state.givenName || "").trim())) { state.formErr = t().errName; render(); return; }
     var children = {};
-    cartIds().forEach(function (id) { var ch = childOf(id); children[id] = { name: ch.name.trim(), grade: ch.grade || "", account: ch.account || "" }; });
+    cartIds().forEach(function (id) { var ch = childOf(id); if ((ch.name || "").trim()) children[id] = { name: ch.name.trim(), grade: ch.grade || "", account: ch.account || "" }; });
+    var contact = state.account ? { displayName: state.account.name || "" } : { familyName: (state.familyName || "").trim(), givenName: (state.givenName || "").trim(), englishName: (state.englishName || "").trim() };
     state.submitting = true; state.formErr = ""; render();
 
     var hp = document.getElementById("fcHpField");
@@ -2448,6 +2459,7 @@
       body: JSON.stringify({
         email: email,
         teamsAccount: (state.teams || "").trim(),
+        contact: contact,
         trackId: trackId(),
         courseIds: cartIds(),
         waitlist: cartIds().filter(function (id) { return state.waitlistOk[id]; }),
@@ -2486,8 +2498,8 @@
           state.formErr = fill(t().schoolAccount, { who: state.account ? state.account.upn : "" });
         } else if (r.body && r.body.error === "unknown_course") {
           state.formErr = t().errCourseGone;
-        } else if (r.body && r.body.error === "missing_child") {
-          state.formErr = t().errChild;
+        } else if (r.body && r.body.error === "missing_name") {
+          state.formErr = t().errName;
         } else if (r.body && r.body.error === "course_full") {
           // the seats moved while the family was deciding: show the waitlist tick for those courses
           state.formErr = t().errFull;

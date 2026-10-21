@@ -117,7 +117,53 @@ async function handler(context, req) {
   const pkeys = crm.atLeast(roles, "orders", "masked") ? [] : await providerKeys(roles);
   const provider = pkeys.length > 0;
   if (!provider && !crm.atLeast(roles, "orders", "masked")) { fail(context, 403, "no_access"); return; }
-  if (provider && !["orders", "order", "extend", "classes", "seat"].includes(action)) { fail(context, 403, "no_access"); return; }
+  if (provider && !["orders", "order", "extend", "classes", "seat", "proof", "cancel-term"].includes(action)) { fail(context, 403, "no_access"); return; }
+
+  // v3: the family's payment proof, to the provider's leader and to order readers at `read` or better
+  if (method === "GET" && action === "proof") {
+    const id = String((req.query && req.query.orderId) || ""), i = Number((req.query && req.query.i) || 0);
+    if (!crm.ID_RE.test(id) || !(i > 0)) { fail(context, 400, "bad_id"); return; }
+    if (!provider && !crm.atLeast(roles, "orders", "read")) { fail(context, 403, "no_access"); return; }
+    const cur = await crm.readOrder(id);
+    if (!cur || (provider && !ofProvider(cur.order, pkeys))) { fail(context, 404, "not_found"); return; }
+    const p = (cur.order.proof || []).find((x) => x.i === i);
+    const buf = p ? await crm.readProof(id, i, p.type) : null;
+    if (!buf) { fail(context, 404, "not_found"); return; }
+    context.res = { status: 200, headers: { "Content-Type": p.type, "Cache-Control": "private, no-store", "Content-Disposition": `inline; filename="${id}-${i}.${crm.PROOF_TYPES[p.type]}"` }, body: buf, isRaw: true };
+    return;
+  }
+
+  // 整期停开 (v3): a course that will not run — every live order holding it loses that line (the whole order when it
+  // was the only line), one reason, one email per family. The provider's own courses, or the order manager's.
+  if (method === "POST" && action === "cancel-term") {
+    if (!provider && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const code = String(body.code || "").trim(), reason = String(body.reason || "").trim().slice(0, 200);
+    if (!code) { fail(context, 400, "bad_code"); return; }
+    if (!reason) { fail(context, 400, "reason_required"); return; }
+    const snap = await readSnapshot().catch(() => null);
+    const course = ((snap && snap.courses) || []).find((c) => c.code === code);
+    if (provider && !(course && pkeys.includes(require("../shared/hive").hiveKey((course.school && (course.school.abbr || course.school.name)) || "")))) { fail(context, 404, "not_found"); return; }
+    const by = normUser(user), at = new Date().toISOString(), done = [], failed = [];
+    for (const o0 of await liveOrders(context)) {
+      if (!crm.isLive(o0) || !(o0.items || []).some((it) => it && it.code === code && !it.cancelled)) continue;
+      try {
+        const cur = await crm.readOrder(o0.orderId); if (!cur) continue;
+        const o = cur.order;
+        const items = (o.items || []).map((it) => (it.code === code && !it.cancelled ? Object.assign({}, it, { cancelled: { at, by, reason } }) : it));
+        const allGone = items.every((it) => it.cancelled);
+        let next = Object.assign({}, o, { items, history: (o.history || []).concat([{ at, by, from: o.status, to: allGone ? "cancelled" : o.status, note: `整期停开 / course term cancelled: ${code} — ${reason}` }]) });
+        if (allGone) { next.status = "cancelled"; delete next.expiresAt; delete next.expiryReminded; }
+        await crm.writeOrder(next, cur.etag);
+        done.push(o.orderId);
+        await notify.notify(next, "cancelled", { by, note: (allGone ? "" : (next.lang === "en" ? `only ${code}; ` : `仅 ${code}；`)) + reason, log: (m) => context.log.warn(m) });
+      } catch (err) { failed.push({ orderId: o0.orderId, error: String((err && err.message) || err).slice(0, 200) }); }
+    }
+    seats.forget();
+    await audit(context, { action: "crm.order.cancel-term", by, code, reason, orders: done.length, failed: failed.length, provider });
+    ok(context, { ok: true, code, cancelled: done, failed });
+    return;
+  }
 
   if (method === "GET" && action === "orders") {
     const now = Date.now();
@@ -582,7 +628,7 @@ async function handler(context, req) {
     for (const c of (snap && snap.courses) || []) if (live[c.code] && (!provider || pkeys.includes(hiveKey((c.school && (c.school.abbr || c.school.name)) || "")))) byCode[c.code] = Object.assign({ code: c.code, nameZh: c.nameZh || "", nameEn: c.nameEn || "", school: (c.school && (c.school.abbr || c.school.name)) || "", orders: [] }, live[c.code]);
     for (const o of all) {
       if (!seats.ALIVE.has(o.status)) continue;
-      for (const it of o.items || []) if (it && byCode[it.code]) byCode[it.code].orders.push({ orderId: o.orderId, status: crm.statusOf(o), submittedAt: o.submittedAt, email: provider ? o.email : crm.mask(o, acc).email, waitlist: !!it.waitlist, child: it.child || null });
+      for (const it of o.items || []) if (it && !it.cancelled && byCode[it.code]) byCode[it.code].orders.push({ orderId: o.orderId, status: crm.statusOf(o), submittedAt: o.submittedAt, email: provider ? o.email : crm.mask(o, acc).email, waitlist: !!it.waitlist, child: it.child || null, contact: o.contact || null });
     }
     const classes = Object.values(byCode).sort((a, b) => (b.waitlist - a.waitlist) || (b.taken - a.taken) || a.code.localeCompare(b.code));
     classes.forEach((c) => c.orders.sort((a, b) => String(a.submittedAt || "").localeCompare(String(b.submittedAt || ""))));
@@ -628,11 +674,30 @@ async function handler(context, req) {
     // PATCH: a status change — the order manager's, or the provider's on its own hive's order.
     if (!provider && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
     const body = req.body && typeof req.body === "object" ? req.body : {};
+    // v3: the child a course is for, filled on the family's behalf ({orderId, code, child}) — the provider asks the
+    // family anyway; a family without an account yet has no other way
+    if (body.code !== undefined) {
+      const code = String(body.code || ""), c = body.child && typeof body.child === "object" ? body.child : null;
+      const child = c && String(c.name || "").trim() ? { name: String(c.name).trim().slice(0, 40), grade: String(c.grade || "").trim().slice(0, 20), account: String(c.account || "").trim().toLowerCase().slice(0, 200) } : null;
+      if (!(live.items || []).some((it) => it && it.code === code)) { fail(context, 404, "no_item"); return; }
+      const at = new Date().toISOString();
+      const nextC = Object.assign({}, live, { items: live.items.map((it) => (it.code === code ? Object.assign({}, it, { child }) : it)), history: (live.history || []).concat([{ at, by: normUser(user), from: live.status, to: live.status, note: (child ? "学生：" + child.name + " / student named: " : "学生清除 / student cleared: ") + code }]) });
+      try { await crm.writeOrder(nextC, cur.etag); } catch (err) { if (err && (err.statusCode === 412 || err.statusCode === 409)) { fail(context, 409, "changed_meanwhile"); return; } throw err; }
+      await audit(context, { action: "crm.order.child", by: normUser(user), orderId: id, code, provider });
+      ok(context, { ok: true, order: view(nextC), next: nextFor(nextC), provider });
+      return;
+    }
     const to = String(body.status || "").toLowerCase();
     if (!crm.STATUSES.includes(to)) { fail(context, 400, "bad_status", { statuses: crm.STATUSES }); return; }
     let next;
     try {
       next = crm.transition(live, to, user, body.note, roles, null, provider ? crm.providerNext(live.status) : null);
+      // 已收款 writes the commission down (v3: 10% of the list price of the seated, uncancelled lines) and says who
+      // confirmed it — the provider, or Hive on the provider's behalf after the family's word went unanswered
+      if (to === "paid") {
+        next = crm.withCommission(next);
+        if (!provider) next.history[next.history.length - 1].via = "hive";
+      }
     } catch (err) {
       if (err.code === "bad_transition") { fail(context, 400, "bad_transition", { from: cur.order.status, to, allowed: err.allowed }); return; }
       throw err;

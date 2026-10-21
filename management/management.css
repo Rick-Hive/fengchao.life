@@ -916,6 +916,9 @@ tr.plother .plcell { min-height: 0; }
 .mocard .ch .actions { margin-top: 0; }
 .mocard .kv { margin-bottom: var(--s2); }
 .mocard .mostep { margin: 8px 0 0; }
+.mocard .mopaid, .mocard .mochild { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px dashed var(--line); }
+.mocard .mopaid h4, .mocard .mochild h4 { margin: 0 0 4px; font-size: 13px; }
+.mocard .omain .sub .btn { margin-top: 4px; }
 .plpop { position: fixed; z-index: 70; background: var(--card); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 12px 32px -8px rgba(15, 32, 60, 0.35); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .plpop[hidden] { display: none; }
 .plpop label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }

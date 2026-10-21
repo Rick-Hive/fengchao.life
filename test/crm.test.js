@@ -102,6 +102,14 @@ const tp = C.transition(t1, "parent_paid", "parent@gmail.com", "", [], null, ["p
 assert.strictEqual(tp.status, "parent_paid", "the family's own step, through the explicit allowance");
 const t2 = C.transition(tp, "paid", "om@bes", "", sales);
 const t3 = C.transition(t2, "started", "om@bes", "", sales);
+// v3: 已收款 writes Hive's commission on the list price of the seated, uncancelled, priced lines (10% by default)
+{
+  const cm = C.withCommission(Object.assign({}, t2, { items: [{ code: "A", price: 1200 }, { code: "B", price: 900, waitlist: true }, { code: "C", price: 500, cancelled: { at: "x", reason: "停开" } }, { code: "D", price: 0, priceTbd: true }, { code: "E", price: 100, seats: 3 }] }));
+  assert.deepStrictEqual([cm.commission.rate, cm.commission.base, cm.commission.amount, cm.commission.currency, typeof cm.commission.at], [0.1, 1500, 150, "CNY", "string"], "1200 + 3 × 100; the waitlisted, cancelled and unpriced lines contribute nothing");
+  assert.strictEqual(C.commissionOf(cm, 0.15).amount, 225, "a rate can be passed");
+  const noMoney = C.mask(cm, C.accessMap(["staff:curriculum"]));
+  assert.deepStrictEqual([noMoney.commission.base, noMoney.commission.amount, noMoney.commission.rate], [null, null, 0.1], "amounts masked with the rest of the money");
+}
 assert.deepStrictEqual(C.nextStatuses(t3.status, sales), [], "started is terminal");
 const tc = C.transition(t2, "cancelled", "om@bes", "家长取消", sales);
 assert.deepStrictEqual(C.nextStatuses(tc.status, sales), [], "cancelled is terminal for the order manager");

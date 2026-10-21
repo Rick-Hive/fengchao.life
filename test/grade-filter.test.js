@@ -108,7 +108,7 @@ vc.on("error", (...a) => console.log("   [console.error]", ...a));
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "https://www.fengchao.life/", virtualConsole: vc });
 const { window } = dom;
 // /api/data → the snapshot; /api/seats → open seats per course code (enrollment rules, 2026-10-20)
-const seatsBody = { at: "2026-10-20T00:00:00Z", seats: { "MTH-EL-101": { taken: 1, waitlist: 0, min: null, max: 3, open: 2, state: "few", belowMin: false, need: 0 }, "MTH-EL-103": { taken: 6, waitlist: 1, min: null, max: 6, open: 0, state: "full", belowMin: false, need: 0 }, "MTH-EL-105": { taken: 2, waitlist: 0, min: 5, max: null, open: null, state: "open", belowMin: true, need: 3 } } };
+const seatsBody = { at: "2026-10-20T00:00:00Z", seats: { "MTH-EL-101": { taken: 1, waitlist: 0, min: null, max: 3, open: 2, state: "few", belowMin: false, need: 0 }, "MTH-EL-103": { taken: 6, waitlist: 1, min: null, max: 6, open: 0, state: "full", belowMin: false, need: 0 }, "MTH-EL-105": { taken: 3, confirmed: 2, reserved: 1, waitlist: 0, min: 5, max: null, open: null, state: "open", belowMin: true, need: 3 } } };
 window.fetch = (url) => Promise.resolve({ ok: true, json: () => Promise.resolve(/\/api\/seats/.test(String(url)) ? seatsBody : snapshot) });
 let scrollCalls = 0;
 window.scrollTo = () => { scrollCalls++; };
@@ -210,24 +210,25 @@ setTimeout(() => {
     doc.getElementById("submitBtn").click();
     check("submitting without the tick is refused with the prerequisite message", /前置课程/.test(doc.getElementById("formErr").textContent), true);
     const pq = doc.querySelector('.summary-card input.pq[data-id="c2"]'); pq.checked = true; pq.dispatchEvent(new window.Event("change", { bubbles: true }));
-    // the child each course is for (stage 2, 2026-10-21): an anonymous parent types a name and picks a grade; the name is required
-    check("every line asks which child takes the course (name + grade, anonymous)", [!!doc.querySelector('.summary-card .child-row input.chname[data-id="c2"]'), !!doc.querySelector('.summary-card .child-row select.chgrade[data-id="c2"]'), !!doc.querySelector(".summary-card select.chpick")], [true, true, false]);
+    // v3 (Rick 2026-10-21: 订单阶段要简单): an anonymous parent is not asked for the child — the buyer's own 姓 / 名 are
+    // required instead; the child is named after payment, in the profile. No child row, no child error.
+    check("no child row for an anonymous parent; the buyer's name fields are there", [!!doc.querySelector('.summary-card .child-row'), !!doc.getElementById("familyName"), !!doc.getElementById("givenName"), !!doc.getElementById("englishName")], [false, true, true, true]);
     doc.getElementById("submitBtn").click();
-    check("submitting without the child is refused", /孩子/.test(doc.getElementById("formErr").textContent), true);
-    const nm = doc.querySelector('.summary-card input.chname[data-id="c2"]'); nm.value = "小明"; nm.dispatchEvent(new window.Event("input", { bubbles: true }));
-    const gr = doc.querySelector('.summary-card select.chgrade[data-id="c2"]'); gr.value = "3"; gr.dispatchEvent(new window.Event("change", { bubbles: true }));
-    check("the grade list reads 学前, 1 年级 … 12 年级", [gr.options[1].textContent, gr.options[2].textContent, gr.options[gr.options.length - 1].textContent], ["学前", "1 年级", "12 年级"]);
+    check("submitting without the buyer's name is refused", /姓和名/.test(doc.getElementById("formErr").textContent), true);
+    doc.getElementById("familyName").value = "张"; doc.getElementById("familyName").dispatchEvent(new window.Event("input", { bubbles: true }));
+    doc.getElementById("givenName").value = "三"; doc.getElementById("givenName").dispatchEvent(new window.Event("input", { bubbles: true }));
+    if (false) check("every line asks which child takes the course (name + grade, anonymous)", [!!doc.querySelector('.summary-card .child-row input.chname[data-id="c2"]'), !!doc.querySelector('.summary-card .child-row select.chgrade[data-id="c2"]'), !!doc.querySelector(".summary-card select.chpick")], [true, true, false]);
     doc.getElementById("back5").click();
     Array.from(doc.querySelectorAll(".course-card")).find(c => c.querySelector(".code-inline")?.textContent === "MTH-EL-101").querySelector("[data-select]").click();
     doc.getElementById("cartNext").click();
-    check("the child typed before survives the trip back to the catalog and on", doc.querySelector('.summary-card input.chname[data-id="c2"]').value, "小明");
+    check("the buyer's name survives the trip back to the catalog and on", doc.getElementById("familyName").value + doc.getElementById("givenName").value, "张三");
     check("with the prerequisite course in the cart too the line reads 同时报名 and no tick is asked", [!!doc.querySelector(".summary-card .prereq-row.ok .prereq-ok"), !!doc.querySelector('.summary-card input.pq[data-id="c2"]')], [true, false]);
     doc.querySelectorAll(".summary-card .rm").forEach(b => b.click()); // empty the cart again (the last removal returns to the catalog)
     if (!doc.querySelector(".course-card")) goToCatalog("grammar");
   }
   check("seats on the cards (from /api/seats): 2 of 3 left, full, 3 more to run, nothing for a course without limits",
     [seatOf("MTH-EL-101"), seatOf("MTH-EL-103"), seatOf("MTH-EL-105"), seatOf("MTH-EL-102")],
-    [["few", "还剩 2 席（共 3）"], ["full", "已满 · 可候补"], ["need", "还差 3 人开班（已报 2 / 最少 5）"], null]);
+    [["few", "还剩 2 席（共 3）"], ["full", "已满 · 可候补"], ["need", "还差 3 人开班（已确认 2 / 最少 5，另有 1 人待付款）"], null]);
   check("the Pre-K course is still in the catalog, just not filterable",
     names().indexOf("学前中文") !== -1, true);
 

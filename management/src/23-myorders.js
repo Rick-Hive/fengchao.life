@@ -35,17 +35,22 @@
     $("mobody").innerHTML = list.map(function (o) {
       var items = (o.items || []).map(function (it) {
         return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, (it.grades || []).join("/")].filter(Boolean).join(" · ")) + "</span>" + childLine(it) +
+          (it.cancelled ? '<span class="tag muted">' + t("已停开", "Cancelled") + (it.cancelled.reason ? " · " + esc(it.cancelled.reason) : "") + "</span>" : "") +
           (it.waitlist ? '<span class="tag warn">' + t("候补", "Waitlist") + "</span>" : "") +
           (it.prereq && it.prereq.met === "none" ? '<span class="tag warn">' + t("前置课程未确认", "Prerequisite not confirmed") + "</span>" : "") +
+          // v3: the child is named after checkout — here, from the profile's children or typed
+          (o.canNameChild && !it.cancelled ? '<span class="sub"><button type="button" class="btn secondary sm" data-child="' + esc(o.orderId) + '" data-code="' + esc(it.code) + '">' + (it.child && it.child.name ? t("更换学生", "Change student") : t("指定学生…", "Name the student…")) + "</button></span>" : "") +
           '</div><div class="oprice">' + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : esc(moMoney(it.price, o.currency))) + "</div></div>";
       }).join("");
       return '<div class="card mocard" data-order="' + esc(o.orderId) + '"><div class="ch"><h2>' + esc(o.orderId) + " " + moTag(o.status) + "</h2><div class=\"actions\">" +
         (o.canConfirmPay ? '<button type="button" class="btn sm" data-paid="' + esc(o.orderId) + '">' + t("我已付款", "I have paid") + "</button>" : "") +
+        (o.needsChild ? '<span class="tag warn" title="' + esc(t("请为每门课指定上课的孩子：成绩单和老师的名单都挂在孩子名下", "Name the child for each course: transcripts and the class list hang on the child")) + '">' + t("待指定学生", "Student to name") + "</span>" : "") +
         (o.canCancel ? '<button type="button" class="btn secondary sm danger" data-cancel="' + esc(o.orderId) + '">' + t("取消订单", "Cancel") + "</button>" : "") + "</div></div>" +
         '<div class="kv"><span class="k">' + t("提交时间", "Submitted") + "</span><span>" + esc(when(o.submittedAt)) + "</span>" +
           (o.expiresAt ? '<span class="k">' + t("付款期限", "Pay by") + "</span><span>" + esc(day(o.expiresAt)) + ' <span class="faint">' + t("（到期未付款的订单自动关闭，到期前 3 天会邮件提醒；需要更多时间请联系课程提供方）", "(an unpaid order closes after this date, with an email reminder 3 days before; ask the provider for more time)") + "</span></span>" : "") +
           '<span class="k">' + t("课程提供方", "Provider") + "</span><span>" + esc((o.hives || []).map(function (h) { return h.name || h.abbr || h.key; }).filter(Boolean).join("; ") || "—") + "</span>" +
           '<span class="k">' + t("联系邮箱", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" + moFee(o) +
+          ((o.proof || []).length ? '<span class="k">' + t("付款凭证", "Payment proof") + "</span><span>" + o.proof.map(function (pf) { return '<a href="/api/me/proof?orderId=' + encodeURIComponent(o.orderId) + "&i=" + pf.i + '" target="_blank" rel="noopener">' + esc(pf.name || t("凭证 ", "proof ") + pf.i) + "</a>"; }).join(" · ") + "</span>" : "") +
           (o.notify && !o.notify.ok && !o.notify.pending ? '<span class="k">' + t("通知", "Notification") + '</span><span><span class="tag bad">' + t("确认邮件未送达", "Confirmation not delivered") + "</span></span>" : "") + "</div>" +
         '<div class="olist">' + items + '</div><div class="ototal">' + t("合计", "Total") + " " + esc(moMoney(o.totalPrice, o.currency)) + "</div>" +
         '<p class="sub mostep">' + esc(moNextStep(o)) + "</p></div>";
@@ -64,15 +69,63 @@
     });
     // 我已付款 (stage 2): the family's half of the two-sided payment confirmation; the provider's 已收款 closes it
     $("mobody").querySelectorAll("button[data-paid]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var id = b.getAttribute("data-paid");
-        if (!window.confirm(t("确认已向课程提供方付清订单 " + id + " 的课程费？机构确认收款后状态会更新为「已收款」。", "Confirm you have paid the provider for order " + id + "? The status becomes “Payment received” once the provider confirms."))) return;
-        savingButton(b, t("提交中…", "Sending…"));
-        post("me/orders", "PATCH", { orderId: id, status: "parent_paid" }).then(function (r) {
-          if (!r.ok) { restoreButton(b); flash(esc(r.status === 409 ? t("订单已进入下一步。", "The order has already moved on.") : errText(r)), 5000); return; }
+      b.addEventListener("click", function () { moPaidForm(b.getAttribute("data-paid")); });
+    });
+    $("mobody").querySelectorAll("button[data-child]").forEach(function (b) {
+      b.addEventListener("click", function () { moChildForm(b.getAttribute("data-child"), b.getAttribute("data-code")); });
+    });
+  }
+  // 我已付款 with an optional screenshot of the transfer (≤ 2 MB): the provider sees it beside the order, and it is what
+  // lets Hive confirm receipt if the provider stays silent (v3)
+  function moPaidForm(id) {
+    var card = $("mobody").querySelector('.mocard[data-order="' + id + '"]'); if (!card || card.querySelector(".mopaid")) return;
+    var box = document.createElement("div"); box.className = "mopaid";
+    box.innerHTML = '<h4>' + t("我已付款", "I have paid") + '</h4><p class="sub">' + t("确认已向课程提供方付清本单课程费。可附上转账截图（可选，≤ 2 MB），机构确认收款后状态会更新为「已收款」。", "Confirm you have paid the provider the course fee for this order. You may attach a screenshot of the transfer (optional, ≤ 2 MB); the status becomes “Payment received” once the provider confirms.") + "</p>" +
+      '<label class="f">' + t("备注（可选）", "Note (optional)") + '<input type="text" class="mopNote" maxlength="200" placeholder="' + esc(t("例如：微信转账 10 月 21 日", "e.g. WeChat transfer on 21 Oct")) + '" /></label>' +
+      '<label class="f">' + t("付款截图（可选）", "Screenshot (optional)") + '<input type="file" class="mopFile" accept="image/jpeg,image/png,image/webp,application/pdf" /></label>' +
+      '<div class="actions"><button type="button" class="btn mopGo">' + t("确认已付款", "Confirm payment") + '</button><button type="button" class="btn secondary mopNo">' + t("取消", "Cancel") + '</button></div><div class="mopMsg"></div>';
+    card.appendChild(box);
+    box.querySelector(".mopNo").addEventListener("click", function () { box.remove(); });
+    box.querySelector(".mopGo").addEventListener("click", function () {
+      var go = this, f = box.querySelector(".mopFile").files[0], note = box.querySelector(".mopNote").value.trim();
+      if (f && f.size > 2 * 1024 * 1024) { box.querySelector(".mopMsg").innerHTML = '<div class="msg err">' + t("截图超过 2 MB，请压缩后再传。", "The screenshot is over 2 MB; please shrink it.") + "</div>"; return; }
+      var send = function (proof) {
+        savingButton(go, t("提交中…", "Sending…"));
+        post("me/orders", "PATCH", { orderId: id, status: "parent_paid", note: note, proof: proof }).then(function (r) {
+          if (!r.ok) { restoreButton(go); box.querySelector(".mopMsg").innerHTML = '<div class="msg err">' + esc(r.status === 409 ? t("订单已进入下一步。", "The order has already moved on.") : r.status === 413 ? t("截图太大。", "The screenshot is too large.") : errText(r)) + "</div>"; return; }
           moState.list = moState.list.map(function (x) { return x.orderId === id ? r.body.order : x; });
           renderMyOrders(); flashOk(t("已记录，等待机构确认收款。", "Recorded; waiting for the provider to confirm."));
         });
+      };
+      if (!f) return send(null);
+      var rd = new FileReader(); rd.onload = function () { send({ name: f.name, type: f.type, data: String(rd.result).replace(/^data:[^,]*,/, "") }); }; rd.readAsDataURL(f);
+    });
+  }
+  // the child a course is for: one of the profile's children, or a new name + grade (v3: named after checkout)
+  function moChildForm(id, code) {
+    var card = $("mobody").querySelector('.mocard[data-order="' + id + '"]'); if (!card) return;
+    var old = card.querySelector(".mochild"); if (old) old.remove();
+    var kids = ((me && me.hive && me.hive.extra && me.hive.extra.children) || []).filter(function (k) { return k && String(k.name || "").trim(); });
+    var grades = ["学前", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+    var box = document.createElement("div"); box.className = "mochild";
+    box.innerHTML = '<h4>' + t("上课的学生", "The student") + ' · ' + esc(code) + "</h4>" +
+      (kids.length ? '<label class="f">' + t("我的孩子", "My children") + '<select class="mocPick"><option value="">' + t("选择…", "Choose…") + "</option>" + kids.map(function (k, i) { return '<option value="' + i + '">' + esc(k.name + (k.grade ? " · " + (k.grade === "学前" ? t("学前", "Pre-K") : t(k.grade + " 年级", "Grade " + k.grade)) : "")) + "</option>"; }).join("") + '<option value="other">' + t("其他孩子…", "Another child…") + "</option></select></label>" : "") +
+      '<div class="mocNew"' + (kids.length ? " hidden" : "") + '><label class="f">' + t("姓名", "Name") + '<input type="text" class="mocName" maxlength="40" /></label><label class="f">' + t("年级", "Grade") + '<select class="mocGrade"><option value="">' + t("年级…", "Grade…") + "</option>" + grades.map(function (g) { return '<option value="' + g + '">' + esc(g === "学前" ? t("学前", "Pre-K") : t(g + " 年级", "Grade " + g)) + "</option>"; }).join("") + "</select></label></div>" +
+      '<div class="actions"><button type="button" class="btn mocGo">' + t("保存", "Save") + '</button><button type="button" class="btn secondary mocNo">' + t("取消", "Cancel") + '</button></div><div class="mocMsg"></div>';
+    card.appendChild(box);
+    var pick = box.querySelector(".mocPick");
+    if (pick) pick.addEventListener("change", function () { box.querySelector(".mocNew").hidden = this.value !== "other"; });
+    box.querySelector(".mocNo").addEventListener("click", function () { box.remove(); });
+    box.querySelector(".mocGo").addEventListener("click", function () {
+      var go = this, child;
+      if (pick && pick.value !== "" && pick.value !== "other") { var k = kids[Number(pick.value)]; child = { name: k.name, grade: k.grade || "", account: k.account || "" }; }
+      else child = { name: box.querySelector(".mocName").value.trim(), grade: box.querySelector(".mocGrade").value, account: "" };
+      if (!child.name) { box.querySelector(".mocMsg").innerHTML = '<div class="msg err">' + t("请填写学生姓名。", "Please enter the student's name.") + "</div>"; return; }
+      savingButton(go);
+      post("me/orders", "PATCH", { orderId: id, code: code, child: child }).then(function (r) {
+        if (!r.ok) { restoreButton(go); box.querySelector(".mocMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        moState.list = moState.list.map(function (x) { return x.orderId === id ? r.body.order : x; });
+        renderMyOrders(); flashOk(t("已保存。", "Saved."));
       });
     });
   }
@@ -83,7 +136,7 @@
       case "submitted": return t("课程提供方会与您联系，介绍课程并确认报名；课程费直接付给课程提供方，付款后请点「我已付款」。", "The provider will contact you about the course and enrolment; the course fee is paid to the provider directly — click “I have paid” once it is done.");
       case "confirmed": case "contacted": return t("请与课程提供方完成咨询和缴费，付款后点「我已付款」。", "Please complete the consultation and payment with the provider, then click “I have paid”.");
       case "parent_paid": return t("等待课程提供方确认收款。", "Waiting for the provider to confirm the payment.");
-      case "paid": return t("已缴费，等待开课。", "Paid; waiting for the course to start.");
+      case "paid": return o.needsChild ? t("已缴费。请为每门课指定上课的孩子（「指定学生…」），老师的名单和成绩单都挂在孩子名下。", "Paid. Please name the child for each course (“Name the student…”); the class list and transcript hang on the child.") : t("已缴费，等待开课。", "Paid; waiting for the course to start.");
       case "started": return t("课程已开始。", "The course has started.");
       case "expired": return t("付款期限已过，订单已自动取消。如仍想报名，请重新选课或联系课程提供方。", "The payment deadline passed and the order was cancelled. To enrol after all, select the course again or contact the provider.");
       default: return "";

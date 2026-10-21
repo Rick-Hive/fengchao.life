@@ -36,13 +36,14 @@ const principal = (upn) => Buffer.from(JSON.stringify({ identityProvider: "aad",
 const post = async (body, upn) => { const c = ctx(); await handler(c, { method: "POST", headers: Object.assign({ "x-forwarded-for": "203.0.113.9" }, upn ? { "x-ms-client-principal": principal(upn) } : {}), body }); return c.res; };
 
 (async () => {
-  // a course without a child is refused before anything is stored
+  // v3: an anonymous family must give its own name; the child is optional (named after payment)
   let r = await post({ email: "parent@gmail.com", trackId: 1, courseIds: ["recA"], lang: "zh", children: {} });
-  assert.deepStrictEqual([r.status, r.body.error, r.body.courseIds], [400, "missing_child", ["recA"]]);
+  assert.deepStrictEqual([r.status, r.body.error], [400, "missing_name"]);
   assert.strictEqual(Object.keys(store).length, 0);
+  const contact = { familyName: "张", givenName: "三", englishName: "" };
 
   // three courses from two hives → two orders, one submission, one flow call
-  r = await post({ email: "parent@gmail.com", teamsAccount: "", trackId: 1, courseIds: ["recA", "recB", "recC"], lang: "zh", children: { recA: { name: "张小明", grade: "9" }, recB: { name: "张小红", grade: "7", account: "xiaohong@bes.edu" }, recC: { name: "张小明", grade: "9" } } });
+  r = await post({ email: "parent@gmail.com", teamsAccount: "", trackId: 1, courseIds: ["recA", "recB", "recC"], lang: "zh", contact, children: { recA: { name: "张小明", grade: "9" }, recB: { name: "张小红", grade: "7", account: "xiaohong@bes.edu" } } });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   assert.strictEqual(r.body.orderIds.length, 2, "one order per hive");
   assert.ok(/^FC-\d{8}-KXC-001$/.test(r.body.orderIds[0]) && /^FC-\d{8}-BES-002$/.test(r.body.orderIds[1]), "each hive's own id: " + r.body.orderIds);
@@ -53,6 +54,8 @@ const post = async (body, upn) => { const c = ctx(); await handler(c, { method: 
   assert.deepStrictEqual(kxc.items.map((i) => i.code), ["KXC-MATH-HS-101", "KXC-ENG-HS-102"]);
   assert.deepStrictEqual([kxc.totalPrice, bes.totalPrice, kxc.itemCount, bes.itemCount], [2400, 1800, 2, 1], "each order totals its own courses");
   assert.deepStrictEqual(kxc.items[0].child, { name: "张小明", grade: "9", account: "" });
+  assert.strictEqual(kxc.items[1].child, null, "a course without a child is taken: the family names it later");
+  assert.deepStrictEqual(kxc.contact, { familyName: "张", givenName: "三", englishName: "", displayName: "" }, "the buyer's name rides on the record");
   assert.deepStrictEqual(bes.items[0].child, { name: "张小红", grade: "7", account: "xiaohong@bes.edu" }, "the child rides on the record");
   assert.deepStrictEqual([kxc.hives[0].abbr, bes.hives[0].abbr, kxc.status, bes.status], ["KXC", "BES", "submitted", "submitted"]);
   assert.strictEqual(flowCalls.length, 1, "one flow call per submission");
@@ -68,7 +71,7 @@ const post = async (body, upn) => { const c = ctx(); await handler(c, { method: 
 
   // a single hive: one order, as before, the id untouched by the split
   flowCalls.length = 0;
-  r = await post({ email: "parent@gmail.com", trackId: 1, courseIds: ["recA"], lang: "en", children: { recA: { name: "Ming" } } }, "Parent@BES.qiaoliang.online");
+  r = await post({ email: "parent@gmail.com", trackId: 1, courseIds: ["recA"], lang: "en", contact: { displayName: "Parent Bes" }, children: { recA: { name: "Ming" } } }, "Parent@BES.qiaoliang.online");
   assert.deepStrictEqual([r.status, r.body.orderIds.length, store[r.body.orderId].account, store[r.body.orderId].items[0].child.name], [200, 1, "parent@bes.qiaoliang.online", "Ming"]);
   assert.ok(!/Order FC-.*\n.*Order FC-/.test(flowCalls[0].body.emailBodyText), "one hive: no per-order sections");
   assert.ok(/student: Ming/.test(flowCalls[0].body.emailBodyText), "the child in the family's English email");

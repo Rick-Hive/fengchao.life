@@ -217,6 +217,9 @@ function orderRecord(order, notify) {
     teamsAccount: order.teamsAccount || "",
     // the signed-in account the order belongs to ("" when ordered anonymously on the website); design 2026-10-20
     account: String(order.account || "").toLowerCase(),
+    // the buyer's own name (v3): 姓 / 名 required of an anonymous family, English name optional — the account created
+    // when the selection fee is paid takes its names from here
+    contact: order.contact && typeof order.contact === "object" ? { familyName: String(order.contact.familyName || "").slice(0, 40), givenName: String(order.contact.givenName || "").slice(0, 40), englishName: String(order.contact.englishName || "").slice(0, 40), displayName: String(order.contact.displayName || "").slice(0, 80) } : null,
     // the submission this order came from (several orders share one when a submission is split per hive)
     submission: order.submission || order.orderId,
     // the selection fee: null when none was configured (api/shared/fee.js)
@@ -253,6 +256,18 @@ function transition(order, to, by, note, roles, now, allowedOverride) {
   return next;
 }
 
+// ---- commission (v3) ------------------------------------------------------------------------------------------------
+// Written on the order when it reaches 已收款: Hive's share of the course fee, on the LIST price (Rick 2026-10-21:
+// 佣金按目录价), of the lines that are seated and not cancelled; a line whose price is TBD contributes nothing until
+// it is priced. Settled per provider on the monthly statement (batch C).
+const COMMISSION_RATE = Number(process.env.COMMISSION_RATE || 0.10);
+function commissionOf(order, rate) {
+  const r = typeof rate === "number" ? rate : COMMISSION_RATE;
+  const base = (order.items || []).filter((it) => it && !it.waitlist && !it.cancelled && !it.priceTbd).reduce((s, it) => s + (typeof it.price === "number" ? it.price * (it.seats || 1) : 0), 0);
+  return { rate: r, base, amount: Math.round(base * r * 100) / 100, currency: order.currency || "CNY" };
+}
+const withCommission = (order, rate) => Object.assign({}, order, { commission: Object.assign(commissionOf(order, rate), { at: new Date().toISOString() }) });
+
 // What a reader receives, by the levels they hold (accessMap()): contact
 // details need `identity` at read or better, amounts need `money` at read or
 // better, and a reader with `orders` only masked loses the notes too. A
@@ -271,6 +286,7 @@ function mask(order, acc) {
   }
   if (!seeMoney) {
     o.totalPrice = null;
+    if (o.commission) o.commission = Object.assign({}, o.commission, { base: null, amount: null });
     o.items = (o.items || []).map((it) => Object.assign({}, it, { price: null }));
     o.hives = (o.hives || []).map((h) => Object.assign({}, h, { subtotal: null }));
   }
@@ -315,6 +331,23 @@ async function writeOrder(order, etag) {
   });
 }
 
+// ---- payment proof (v3): the family's screenshot of its transfer, beside the order ------------------------------
+const PROOF_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+const PROOF_MAX = 2 * 1024 * 1024;
+function proofName(orderId, i, type) { return `crm/proof/${blobName(orderId).slice(PREFIX.length, -5)}/${i}.${PROOF_TYPES[type] || "bin"}`; }
+async function writeProof(orderId, i, buf, type) {
+  const c = container();
+  await c.createIfNotExists();
+  const name = proofName(orderId, i, type);
+  await c.getBlockBlobClient(name).upload(buf, buf.length, { blobHTTPHeaders: { blobContentType: type } });
+  return name;
+}
+async function readProof(orderId, i, type) {
+  const b = container().getBlockBlobClient(proofName(orderId, i, type));
+  if (!(await b.exists())) return null;
+  return b.downloadToBuffer();
+}
+
 // Every stored order. One blob per order keeps writes independent; listing
 // a few thousand small blobs and reading them eight at a time is well within
 // a request. When that stops being true, an index blob is the next step.
@@ -341,6 +374,6 @@ async function listOrders() {
 module.exports = {
   DOMAINS, LEVELS, DOMAIN_LABELS, MATRIX, access, atLeast, accessMap,
   STATUSES, STATUS_ALIAS, statusOf, STATUS_LABELS, NEXT, LIVE, isLive, providerNext, EXPIRE_DAYS, EXTEND_DAYS, expiresAt, isExpired, withExpiry, extend,
-  OVERDUE_DAYS, nextStatuses, overdue, lastChange, orderRecord, transition, mask,
-  PREFIX, ID_RE, blobName, readOrder, writeOrder, listOrders,
+  OVERDUE_DAYS, nextStatuses, overdue, lastChange, orderRecord, transition, mask, COMMISSION_RATE, commissionOf, withCommission,
+  PREFIX, ID_RE, blobName, readOrder, writeOrder, listOrders, PROOF_TYPES, PROOF_MAX, writeProof, readProof,
 };

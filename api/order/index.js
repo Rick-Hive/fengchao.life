@@ -281,17 +281,18 @@ module.exports = async function (context, req) {
         waitlist: false,
       });
     }
-    // Each item carries its child; a course without one is refused (the website asks for it on every line).
-    {
-      const missing = [];
-      for (const it of items) {
-        const k = childrenIn[it.courseId] && typeof childrenIn[it.courseId] === "object" ? childrenIn[it.courseId] : null;
-        const name = String((k && k.name) || "").trim().slice(0, 40), grade = String((k && k.grade) || "").trim().slice(0, 20), account = String((k && k.account) || "").trim().toLowerCase().slice(0, 200);
-        if (!name) { missing.push(it.courseId); continue; }
-        it.child = { name, grade, account: EMAIL_RE.test(account) ? account : "" };
-      }
-      if (missing.length) { context.res = { status: 400, body: { error: "missing_child", courseIds: missing } }; return; }
+    // The child a course is for is optional at checkout (v3, Rick 2026-10-21: 「订单阶段最好简单」): a signed-in parent
+    // may pick one from the profile; everyone else names the child after the course fee is paid, in 个人资料 › 我的孩子
+    // (PATCH me/orders {orderId, code, child}). The order carries the buyer's own name instead (contact), for the
+    // account that will be created when the selection fee is paid.
+    for (const it of items) {
+      const k = childrenIn[it.courseId] && typeof childrenIn[it.courseId] === "object" ? childrenIn[it.courseId] : null;
+      const name = String((k && k.name) || "").trim().slice(0, 40), grade = String((k && k.grade) || "").trim().slice(0, 20), account = String((k && k.account) || "").trim().toLowerCase().slice(0, 200);
+      it.child = name ? { name, grade, account: EMAIL_RE.test(account) ? account : "" } : null;
     }
+    const contactIn = body.contact && typeof body.contact === "object" ? body.contact : {};
+    const contact = { familyName: String(contactIn.familyName || "").trim().slice(0, 40), givenName: String(contactIn.givenName || "").trim().slice(0, 40), englishName: String(contactIn.englishName || "").trim().slice(0, 40), displayName: String(contactIn.displayName || "").trim().slice(0, 80) };
+    if (!accountOf(req) && !(contact.familyName && contact.givenName)) { context.res = { status: 400, body: { error: "missing_name" } }; return; }
     // Prerequisites (enrollment rules, 2026-10-20): "CODE English / 中文; …" — a leading course code is a course. The
     // order records, per item, how each prerequisite is met: cart (ordered together), ordered (this family's earlier
     // order, confirmed / paid / started), confirmed (the family ticked it), none (nothing known) — never refused here;
@@ -353,6 +354,7 @@ module.exports = async function (context, req) {
         submittedAt,
         email,
         account,
+        contact,
         fee: feeRec,
         // The trigger schema types these as strings; sending null or omitting `name`
         // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
