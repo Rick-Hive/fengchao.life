@@ -44,8 +44,10 @@
   function post(path, method, body) {
     return api(path, { method: method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   }
-  var fmtDT = new Intl.DateTimeFormat(EN ? "en-GB" : "zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
-  var fmtD = new Intl.DateTimeFormat(EN ? "en-GB" : "zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" });
+  // English dates spell the month (9 Oct 2026): "09/10/2026" reads as 9 October to a British reader and 10 September to
+  // an American one (Rick, 2026-10-21: the panel's "since 09/10/2026" against the board's "12 d in stage"). Chinese keeps 2026/10/09.
+  var fmtDT = new Intl.DateTimeFormat(EN ? "en-GB" : "zh-CN", EN ? { timeZone: "Asia/Shanghai", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  var fmtD = new Intl.DateTimeFormat(EN ? "en-GB" : "zh-CN", EN ? { timeZone: "Asia/Shanghai", year: "numeric", month: "short", day: "numeric" } : { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" });
   function when(iso) { if (!iso) return ""; var d = new Date(iso); return isNaN(d) ? "" : fmtDT.format(d); }
   function day(iso) { if (!iso) return ""; var d = new Date(iso); return isNaN(d) ? "" : fmtD.format(d); }
   function errText(r) { var b = (r && r.body) || {}; var m = b.error || ("HTTP " + (r && r.status)); if (b.problems) m += "\n• " + b.problems.join("\n• "); return m; }

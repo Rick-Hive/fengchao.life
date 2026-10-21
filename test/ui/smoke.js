@@ -1964,6 +1964,8 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const row = rows.find(x => /Kids X Center/.test(x) && /Signed/.test(x)); assert.ok(row, "the signed KXC row: " + rows.join(" | "));
     await p.click("#pttable tbody tr[data-rel]"); await p.waitForTimeout(500);
     assert.ok(await p.$eval("#panel", e => e.classList.contains("open")), "panel opens from the table");
+    // English dates spell the month (Rick, 2026-10-21: "since 09/10/2026" read as September against "12 d in stage")
+    assert.ok(/since \d{1,2} [A-Z][a-z]{2} \d{4}/.test(await p.$eval("#panel", e => e.innerText)), "the stage date names its month: " + (await p.$eval("#panel", e => e.innerText)).slice(0, 300));
     // English stage labels wrap instead of colliding (Rick, 2026-10-09: English version mess)
     const boxes = await p.$$eval("#panel svg.track g.node text:not(.days)", ts => ts.map(t => { const b = t.getBoundingClientRect(); return [b.left, b.right]; }));
     for (let i = 1; i < boxes.length; i++) assert.ok(boxes[i][0] >= boxes[i - 1][1] - 1, "stage labels " + (i - 1) + "/" + i + " overlap: " + JSON.stringify(boxes));
