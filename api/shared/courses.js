@@ -70,7 +70,9 @@ const FIELDS = {
   classical: { kind: "check", spec: cf.re.classical, teacher: true },
   syllabus: { kind: "files", spec: cf.re.syllabus, teacher: true },
   textbooks: { kind: "links", spec: cf.textbooks, table: "textbooks", teacher: false },
-  teachers: { kind: "links", spec: cf.teachers, table: "teachers", teacher: false },
+  // 授课老师: the approvers' field, and the provider's leader's for its own courses, limited to its own teachers
+  // (who.ownTeacherIds; Rick 2026-10-21) — never the teacher's own
+  teachers: { kind: "links", spec: cf.teachers, table: "teachers", teacher: false, provider: true },
   school: { kind: "links", spec: cf.school, table: "schools", teacher: false, single: true },
   tracks: { kind: "links", spec: cf.tracks, table: "tracks", teacher: false },
   price: { kind: "number", spec: cf.price, teacher: false },
@@ -211,8 +213,14 @@ async function open(id, who) {
 async function saveField(id, key, value, who) {
   const f = FIELDS[key];
   if (!f) throw bad(`unknown field ${JSON.stringify(key)}`);
-  if (!who.approver && !f.teacher) throw Object.assign(new Error("only the curriculum director, the CEO or the system administrator may change this field"), { status: 403 });
+  const byProvider = !who.approver && !!f.provider && (who.provider || []).length > 0;
+  if (!who.approver && !f.teacher && !byProvider) throw Object.assign(new Error("only the curriculum director, the CEO or the system administrator may change this field"), { status: 403 });
   const v = clean(key, value);
+  if (byProvider && key === "teachers") {
+    const own = new Set(who.ownTeacherIds || []);
+    const strange = (v || []).filter((x) => !own.has(x));
+    if (strange.length) throw Object.assign(new Error("a provider names its own teachers only"), { status: 403, code: "not_own_teacher" });
+  }
   const { doc } = await store.update(workBlob(id), () => null, (d) => {
     if (!d) throw bad("open the course first");
     const before = d.draft.fields[key];
@@ -523,6 +531,24 @@ async function unassign(courseId, person, who) {
   });
   return (doc.items[courseId] || { people: [] });
 }
+// 授课老师 with a Teams account edit their course in Hive without a separate assignment (Rick 2026-10-21): the
+// assignments made here are marked `auto` and follow the field — a teacher taken off the course loses the auto one.
+// `teachers` = [{ id, name, upn }] (the lookups' list).
+async function syncTeacherAssignments(courseId, code, ids, teachers, who) {
+  const want = (ids || []).map((id) => teachers.find((t) => t.id === id)).filter((t) => t && t.upn);
+  const { doc } = await store.update(ASSIGN_BLOB, EMPTY_ASSIGN, (d) => {
+    const it = d.items[courseId] = d.items[courseId] || { code: code || "", people: [] };
+    if (code) it.code = code;
+    const before = JSON.stringify(it.people);
+    it.people = it.people.filter((p) => !p.auto || want.some((t) => t.upn === p.upn));
+    for (const t of want) if (!it.people.some((p) => p.upn === t.upn)) it.people.push({ crmId: "", upn: t.upn, name: t.name, at: now(), by: who.user, auto: true });
+    if (!it.people.length) delete d.items[courseId];
+    if (JSON.stringify((d.items[courseId] || { people: [] }).people) === before) return false;
+    d.updatedAt = now();
+  });
+  return (doc.items[courseId] || { people: [] }).people;
+}
+
 // The courses an account may edit (by assignment).
 async function assignedTo(upn) {
   const a = await readAssignments(), u = String(upn || "").toLowerCase(), out = [];
@@ -554,5 +580,5 @@ async function list(who) {
 }
 
 module.exports = { writeBase, baseWrite: () => baseFor.write(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
-  translateCourse, translationState, translationNeeds, publish, syncWebsite, syncStatus, versions, versionContent, restore, readAssignments, assign, unassign, assignedTo, list, readWork,
+  translateCourse, translationState, translationNeeds, publish, syncWebsite, syncStatus, versions, versionContent, restore, readAssignments, assign, unassign, syncTeacherAssignments, assignedTo, list, readWork,
   _test: { baseFor: (b) => { baseFor = Object.assign({}, baseFor, b); }, resetLookups: () => { lookupCache = { at: 0, data: null }; }, hash } };

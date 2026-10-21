@@ -528,9 +528,9 @@ async function handler(context, req) {
     // 批量设置身份 (Rick 2026-10-21: 「set users role to 老师 for 华西人文学院, write back to office 365 tenant」): one
     // identity for every account of the school (or only those without one), written to people.json like a single
     // PATCH person; with writeBack, also to each Microsoft account's jobTitle — never department (policy 2026-10-10:
-    // the school's name, or anything Hive-set, stays out of department). Accounts on the A1-for-students plan are
-    // skipped unless the identity is 学生 or includeStudentPlan is set (the licence rule: that plan is a student's).
-    // {domain, identity, scope: "all"|"noid", users?: [upn…], writeBack?, includeStudentPlan?, dryRun?}
+    // the school's name, or anything Hive-set, stays out of department). The licence plan does not matter (the
+    // licence ↔ 身份 rule was withdrawn 2026-10-21: parents hold the students plan too).
+    // {domain, identity, scope: "all"|"noid", users?: [upn…], writeBack?, dryRun?}
     if (method === "POST" && action === "identity-bulk") {
       if (!can(roles, "people", domain)) return fail(context, 403, "身份 is edited by the IT 管理员 or Hive staff", { code: "forbidden" });
       const b = req.body || {};
@@ -548,7 +548,6 @@ async function handler(context, req) {
         const rec = (pdoc.people || {})[upn] || null;
         const cur = identityOf(rec, { department: r.department, jobTitle: r.jobTitle, plan: r.plan || "" });
         if (scope === "noid" && rec && IDENTITIES.includes(rec.identity)) { skipped.push({ upn, why: "has_identity", identity: rec.identity }); continue; }
-        if (r.plan === "student" && identity !== "学生" && !b.includeStudentPlan) { skipped.push({ upn, why: "student_plan" }); continue; }
         picked.push({ upn, id: r.id, from: cur, jobTitle: r.jobTitle || "" });
       }
       if (dry) { context.res = { status: 200, body: { ok: true, dryRun: true, identity, scope, writeBack, count: picked.length, picked: picked.map((p) => p.upn), skipped } }; return; }
@@ -673,8 +672,7 @@ async function handler(context, req) {
       if (!postalCode) problems.push("postal code is required"); else if (!/^[A-Za-z0-9 -]{3,12}$/.test(postalCode)) problems.push("postal code: 3–12 letters or digits");
       if (jobTitle.length > 60) problems.push("job title longer than 60");
       if (plan !== "faculty" && plan !== "student") problems.push("licence must be faculty or student");
-      if (plan === "student" && identity !== "学生") problems.push("Office 365 A1 for students is for 学生 only");
-      if (plan === "faculty" && identity === "学生") problems.push("a 学生 gets Office 365 A1 for students");
+      // (the licence ↔ 身份 rule was withdrawn 2026-10-21: faculty seats are short, parents take the students plan)
       if (!/^[A-Z]{2}$/.test(usageLocation)) problems.push("usage location must be a two-letter country code");
       if (problems.length) return fail(context, 400, "please check the form", { problems });
       const lic = await licencePlans();
@@ -773,20 +771,16 @@ async function handler(context, req) {
 
     // 换许可证 (Rick, 2026-10-12): Office 365 A1 for students ↔ A1 for faculty, in one
     // assignLicense call (the new plan added and the old A1 removed together, so the
-    // account is never without one; mailbox and files stay). The 身份 rule of 新建账号
-    // holds: A1 for students is for 学生 only and a 学生 takes it. Needs a free seat
-    // and a usage location. An account with no A1 yet simply gets the chosen one.
-    if (method === "POST" && action === "licence") {
+    // account is never without one; mailbox and files stay). Any 身份 may hold either
+    // plan (the rule tying the students plan to 学生 was withdrawn 2026-10-21). Needs a
+    // free seat and a usage location. An account with no A1 yet simply gets the chosen one.
+    if (method === "POST" && (action === "licence" || action === "license")) { // both spellings (the page posted "license" until 2026-10-21)
       if (!can(roles, "methods", domain)) return fail(context, 403, "licences are changed by the IT 管理员", { code: "forbidden" });
       const b = req.body || {};
       const upn = String(b.user || "").trim().toLowerCase();
       const plan = String(b.plan || "").trim().toLowerCase();
       if (domainOf(upn) !== domain) return fail(context, 400, "user must be an account of this domain");
       if (plan !== "faculty" && plan !== "student") return fail(context, 400, "plan must be faculty or student");
-      const row = (await usersView(domain)).users.find((u) => u.upn === upn);
-      const identity = row ? row.identity : "";
-      if (plan === "student" && identity !== "学生") return fail(context, 400, "Office 365 A1 for students is for 学生 only: set the identity to 学生 first", { code: "identity" });
-      if (plan === "faculty" && identity === "学生") return fail(context, 400, "a 学生 keeps Office 365 A1 for students: change the identity first", { code: "identity" });
       let user;
       try { user = await graph("GET", `/users/${encodeURIComponent(upn)}?$select=id,userType,usageLocation,assignedLicenses`); } catch (err) { if (err.status === 404) return fail(context, 404, `${upn} does not exist`, { code: "not_found" }); throw err; }
       if (user.userType === "Guest") return fail(context, 400, "guest accounts are not licensed here");

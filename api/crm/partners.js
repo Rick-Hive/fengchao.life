@@ -62,6 +62,21 @@ async function ownerCandidates() {
   }
   return Array.from(out).filter(Boolean).sort();
 }
+// Display names for the people the pages show as 项目经理 / by / next-step owner (Rick 2026-10-21: 「项目经理 alex.swem
+// 应该放显示名」): from the directory cache of the domains those accounts are in; an account the cache lacks keeps its
+// account name. Cheap: one cached read per domain among the candidates.
+async function staffNames(upns) {
+  const dir = require("../shared/directory");
+  const byDomain = {};
+  for (const u of upns || []) { const d = String(u).split("@")[1]; if (d) (byDomain[d] = byDomain[d] || []).push(u); }
+  const names = {};
+  for (const [d, us] of Object.entries(byDomain)) {
+    let doc = null; try { doc = await dir.readDomain(d); } catch { doc = null; }
+    const rows = new Map(((doc && doc.users) || []).map((r) => [String(r.upn).toLowerCase(), r]));
+    for (const u of us) { const r = rows.get(u); if (r && r.displayName) names[u] = r.displayName; }
+  }
+  return names;
+}
 // A person field may arrive as a CRM id (the people-hub picker, for a viewer who may
 // not see accounts): it is stored as the person's account — Teams UPN, else email,
 // else the name — so owner fields stay plain strings a digest can address.
@@ -162,11 +177,12 @@ async function handle(context, req, ctx) {
       doc = r.doc;
     }
     const [idx, prj, owners] = await Promise.all([orgIndex(), P.readProjects(), ownerCandidates()]);
+    const names = await staffNames(owners.concat(Object.values(doc.items || {}).flatMap((r) => [r.owner, r.stageBy, r.sponsor, (r.next || {}).owner].filter(Boolean))));
     const projects = Object.values(prj.items || {});
     const rels = P.listByType(doc, type, cfg, now, String(q.all || "") === "1").map((r) => rowOf(r, idx, projects));
     const counts = {};
     for (const t of P.visibleTypes()) counts[t] = Object.values(doc.items || {}).filter((r) => r.type === t && !r.closed).length;
-    ok(context, { type, rows: rels, summary: P.summary(rels, now), stages: P.STAGES[type].map((s) => Object.assign({}, s, { days: (cfg.thresholds && cfg.thresholds[type + "." + s.k]) || s.days })), kinds: P.PROJECT_KINDS[type] || {}, contactRoles: P.CONTACT_ROLES[type] || [], regions: P.REGION_LABELS, types: P.TYPES, counts, owners, canEdit: canEditType(roles, type), access: acc });
+    ok(context, { type, rows: rels, summary: P.summary(rels, now), stages: P.STAGES[type].map((s) => Object.assign({}, s, { days: (cfg.thresholds && cfg.thresholds[type + "." + s.k]) || s.days })), kinds: P.PROJECT_KINDS[type] || {}, contactRoles: P.CONTACT_ROLES[type] || [], regions: P.REGION_LABELS, types: P.TYPES, counts, owners, names, canEdit: canEditType(roles, type), access: acc });
     return true;
   }
 
@@ -176,9 +192,10 @@ async function handle(context, req, ctx) {
     const rel = doc.items[id];
     if (!rel || !canSeeType(roles, rel.type)) { fail(context, 404, "not_found"); return true; }
     const [idx, prj, cfg, owners] = await Promise.all([orgIndex(), P.readProjects(), P.readConfig(), ownerCandidates()]);
+    const names = await staffNames(owners.concat([rel.owner, rel.stageBy, rel.sponsor, (rel.next || {}).owner], (rel.log || []).map((l) => l.by), (rel.log || []).flatMap((l) => [l.from, l.to]).filter((x) => /@/.test(String(x || "")))).filter(Boolean));
     const projects = Object.values(prj.items || {}).filter((p) => p.relationship === id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     const row = rowOf(Object.assign({}, rel, { health: P.health(rel, Date.now(), cfg) }), idx, projects);
-    ok(context, { relationship: row, projects, stages: P.STAGES[rel.type], kinds: P.PROJECT_KINDS[rel.type] || {}, contactRoles: P.CONTACT_ROLES[rel.type] || [], owners, canEdit: canEditType(roles, rel.type), access: acc });
+    ok(context, { relationship: row, projects, stages: P.STAGES[rel.type], kinds: P.PROJECT_KINDS[rel.type] || {}, contactRoles: P.CONTACT_ROLES[rel.type] || [], owners, names, canEdit: canEditType(roles, rel.type), access: acc });
     return true;
   }
 

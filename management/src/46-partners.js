@@ -20,7 +20,11 @@
   function ptStageTag(rel) { var s = ptStage(rel.type, rel.stage); var cls = !s ? "" : s.closed || rel.closed ? "muted" : rel.health && rel.health.stalled ? "warn" : s.renewal ? "accent" : "ok"; return '<span class="tag ' + cls + '">' + esc(s ? t(s.zh, s.en) : rel.stage) + "</span>" + (rel.closed && !(s && s.closed) ? ' <span class="tag muted">' + esc(t("已关闭", "closed")) + "</span>" : ""); }
   function ptHealthTag(rel) { var h = rel.health || {}; if (rel.closed) return '<span class="tag muted">' + t("已关闭", "closed") + "</span>"; if (h.stalled) return '<span class="tag warn" title="' + esc(ptHealthText(rel)) + '">' + t("停滞", "stalled") + (h.severe ? " !" : "") + "</span>"; if (rel.confirmed === false) return '<span class="tag">' + t("待确认", "to confirm") + "</span>"; return ""; }
   function ptHealthText(rel) { var h = rel.health || {}, bits = []; if ((h.reasons || []).indexOf("stage") >= 0) bits.push(t("在本阶段已 ", "in stage for ") + h.days + t(" 天，阈值 ", " days, threshold ") + h.limit); if (h.nextOverdue) bits.push(t("下一步逾期 ", "next step overdue by ") + h.nextOverdue + t(" 天", " days")); if ((h.reasons || []).indexOf("noNext") >= 0) bits.push(t("没有下一步", "no next step")); return bits.join(" · "); }
-  function ptOwner(o) { return o ? esc(String(o).split("@")[0]) : '<span class="muted">' + t("待分配", "unassigned") + "</span>"; }
+  // a Hive colleague as the page names them: the display name from the directory (GET partners / partner → names),
+  // else the account name (Rick 2026-10-21: 「项目经理 alex.swem 应该放显示名」)
+  var ptNames = {};
+  function ptWho(u) { u = String(u || "").toLowerCase(); return ptNames[u] || (u.split("@")[0] || u); }
+  function ptOwner(o) { return o ? esc(ptWho(o)) : '<span class="muted">' + t("待分配", "unassigned") + "</span>"; }
   // 项目经理 / project manager (never "owner", Rick 2026-10-09: 「the first impression is to own something」; nor "lead") is one of us (roles.json: admins, staff functions, partners rw); the
   // partner's own people are contacts. The list is a datalist, so a UPN not yet in
   // roles.json can still be typed.
@@ -65,7 +69,7 @@
   }
   function loadPartners(force) {
     if (ptState.data && !force) return Promise.resolve(ptState.data);
-    return api("crm/partners?type=" + encodeURIComponent(ptState.type) + "&all=1").then(function (r) { if (!r.ok) throw r; ptState.data = r.body; renderPtTabs(); return r.body; });
+    return api("crm/partners?type=" + encodeURIComponent(ptState.type) + "&all=1").then(function (r) { if (!r.ok) throw r; ptState.data = r.body; Object.assign(ptNames, r.body.names || {}); renderPtTabs(); return r.body; });
   }
   function renderPartnersPage() {
     var d = ptState.data; if (!d || !$("ptBody")) return;
@@ -76,7 +80,7 @@
       '<div class="toolbar"><div class="search">' + ICON.search + '<input type="search" id="ptq" value="' + esc(ptState.q) + '" placeholder="' + t("搜索机构、人、项目经理…", "Search organization, person, project manager…") + '" /></div>' +
         '<select id="ptRegion"><option value="">' + t("所有地区", "All regions") + "</option>" + Object.keys(d.regions || {}).map(function (k) { return '<option value="' + k + '"' + (ptState.region === k ? " selected" : "") + ">" + esc(ptRegion(k)) + "</option>"; }).join("") + "</select>" +
         '<select id="ptStage"><option value="">' + t("所有阶段", "All stages") + "</option>" + d.stages.map(function (s) { return '<option value="' + s.k + '"' + (ptState.stage === s.k ? " selected" : "") + ">" + esc(t(s.zh, s.en)) + "</option>"; }).join("") + "</select>" +
-        '<select id="ptOwner"><option value="">' + t("所有项目经理", "All project managers") + '</option><option value="-"' + (ptState.owner === "-" ? " selected" : "") + ">" + t("待分配", "Unassigned") + "</option>" + Object.keys(owners).sort().map(function (o) { return '<option value="' + esc(o) + '"' + (ptState.owner === o ? " selected" : "") + ">" + esc(o.split("@")[0]) + "</option>"; }).join("") + "</select>" +
+        '<select id="ptOwner"><option value="">' + t("所有项目经理", "All project managers") + '</option><option value="-"' + (ptState.owner === "-" ? " selected" : "") + ">" + t("待分配", "Unassigned") + "</option>" + Object.keys(owners).sort().map(function (o) { return '<option value="' + esc(o) + '"' + (ptState.owner === o ? " selected" : "") + ">" + esc(ptWho(o)) + "</option>"; }).join("") + "</select>" +
         '<button type="button" class="chip" id="ptStalled" aria-pressed="' + ptState.stalled + '">' + t("只看停滞", "Stalled only") + '</button><button type="button" class="chip" id="ptClosed" aria-pressed="' + ptState.closed + '" title="' + esc(t("已关闭的关系默认不显示；打开后显示，可在面板里重新打开", "Closed relationships are hidden by default; switch on to show them and reopen from the panel")) + '">' + t("含已关闭", "Include closed") + ((d.summary && d.summary.closed) ? ' <span class="cnt">' + d.summary.closed + "</span>" : "") + "</button></div>" +
       '<div class="kpis strip" id="ptKpi"></div><div id="ptList"></div>';
     $("ptq").addEventListener("input", debounce(function () { ptState.q = $("ptq").value.trim(); renderPartnerRows(); }, 120));
@@ -123,7 +127,7 @@
   }
   function ptCard(r) {
     var h = r.health || {}, due = r.next && r.next.due, overdue = due && due < today();
-    return '<div class="bcard' + (h.stalled ? " stalled" : "") + '" data-rel="' + r.id + '" draggable="true" tabindex="0"><div class="bt">' + ptPartyLink(r) + '<span class="tav sm" style="background:' + hue(r.owner || "?") + '" title="' + esc(r.owner || t("待分配", "unassigned")) + '">' + esc(r.owner ? initials(r.owner.split("@")[0]) : "?") + "</span></div>" +
+    return '<div class="bcard' + (h.stalled ? " stalled" : "") + '" data-rel="' + r.id + '" draggable="true" tabindex="0"><div class="bt">' + ptPartyLink(r) + '<span class="tav sm" style="background:' + hue(r.owner || "?") + '" title="' + esc(r.owner ? ptWho(r.owner) + " · " + r.owner : t("待分配", "unassigned")) + '">' + esc(r.owner ? initials(ptWho(r.owner)) : "?") + "</span></div>" +
       '<div class="bm">' + (r.region ? '<span class="tag">' + esc(ptRegion(r.region)) + "</span> " : "") + ptHealthTag(r) + (h.days != null && !r.closed ? ' <span class="muted" title="' + esc(t("在本阶段的天数", "Days in this stage")) + '">' + t("本阶段 " + h.days + " 天", h.days + " d in stage") + "</span>" : "") + (r.projects ? ' <span class="tag accent">' + r.projects + t(" 项目", " proj.") + (r.overdueMilestones ? ' · <b class="bad">' + r.overdueMilestones + t(" 逾期", " late") + "</b>" : "") + "</span>" : "") + "</div>" +
       '<div class="bn' + (overdue ? " bad" : "") + '">' + (r.next && r.next.action ? esc(r.next.action) + (due ? ' <span class="muted">' + esc(due) + "</span>" : "") : '<span class="muted">' + t("没有下一步", "no next step") + "</span>") + "</div>" +
       (r.metrics ? '<div class="bx muted">' + ptMetricsLine(r) + "</div>" : "") + "</div>";
@@ -158,7 +162,7 @@
     opts = opts || {};
     api("crm/partner?id=" + encodeURIComponent(id)).then(function (r) {
       if (!r.ok) { flash(esc(errText(r)), 6000); return; }
-      ptState.rel = r.body; ptState.tab = opts.tab || ptState.tab || "overview";
+      ptState.rel = r.body; Object.assign(ptNames, r.body.names || {}); ptState.tab = opts.tab || ptState.tab || "overview";
       renderRelationshipPanel();
       if (opts.move) ptMoveForm(opts.move);
     });
@@ -242,8 +246,8 @@
       ptKv(t("地区 · 币种 · 语言", "Region · currency · language"), esc(ptRegion(rel.region)) + " · " + esc(rel.currency) + " · " + (rel.lang === "en" ? "English" : "中文")) +
       ptKv(t("项目经理", "Project manager"), ptOwner(rel.owner) + (rel.sponsor ? ' · <span class="muted">' + t("发起人 ", "sponsor ") + esc(rel.sponsor) + "</span>" : "") + (canEdit && !rel.closed ? ' <button type="button" class="btn xs secondary" data-act="owner">' + (rel.owner ? t("更换…", "Change…") : t("指定…", "Assign…")) + "</button>" : "")) +
       ptKv(t("伙伴联系人", "Partner contact"), rel.contactName ? esc(rel.contactName) + ((rel.contacts || []).length > 1 ? ' <span class="muted">+' + ((rel.contacts || []).length - 1) + "</span>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
-      ptKv(t("阶段", "Stage"), ptStageTag(rel) + ' <span class="muted">' + esc(t("自 ", "since ") + day(rel.stageAt) + (rel.stageBy ? " · " + rel.stageBy.split("@")[0] : "")) + "</span>" + (rel.health && rel.health.stalled ? '<br><span class="bad">' + esc(ptHealthText(rel)) + "</span>" : "")) +
-      ptKv(t("下一步", "Next step"), nx.action ? esc(nx.action) + (nx.due ? ' <span class="' + (nx.due < today() ? "bad" : "muted") + '">' + esc(nx.due) + "</span>" : "") + (nx.owner ? ' <span class="muted">' + esc(nx.owner.split("@")[0]) + "</span>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
+      ptKv(t("阶段", "Stage"), ptStageTag(rel) + ' <span class="muted">' + esc(t("自 ", "since ") + day(rel.stageAt) + (rel.stageBy ? " · " + ptWho(rel.stageBy) : "")) + "</span>" + (rel.health && rel.health.stalled ? '<br><span class="bad">' + esc(ptHealthText(rel)) + "</span>" : "")) +
+      ptKv(t("下一步", "Next step"), nx.action ? esc(nx.action) + (nx.due ? ' <span class="' + (nx.due < today() ? "bad" : "muted") + '">' + esc(nx.due) + "</span>" : "") + (nx.owner ? ' <span class="muted">' + esc(ptWho(nx.owner)) + "</span>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
       ptKv(t("协议", "Agreement"), ag.signedAt || ag.endAt ? esc([ag.kind, ag.signedAt ? t("签于 ", "signed ") + ag.signedAt : "", ag.startAt || ag.endAt ? (ag.startAt || "?") + " → " + (ag.endAt || "?") : "", ag.renewal === "auto" ? t("自动续约", "auto-renews") : ""].filter(Boolean).join(" · ")) + (ag.fileRef ? ' · <a href="' + esc(ag.fileRef) + '" target="_blank" rel="noopener">' + t("文件 ↗", "file ↗") + "</a>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
       (terms ? ptKv(t("条款", "Terms"), terms) : "") +
       ptKv(t("来源", "Source"), esc(rel.source) + (rel.confirmed === false ? ' <span class="tag">' + t("待确认", "to confirm") + "</span>" : "") + ' · <span class="muted">' + esc(day(rel.createdAt)) + "</span>") +
@@ -264,8 +268,8 @@
   function ptLogHtml(log, canEdit, scope) {
     var KIND = { created: ["创建", "created"], stage: ["阶段", "stage"], next: ["下一步", "next step"], owner: ["项目经理", "project manager"], agreement: ["协议", "agreement"], terms: ["条款", "terms"], contacts: ["联系人", "contacts"], note: ["跟进", "note"], closed: ["关闭", "closed"], reopened: ["重开", "reopened"], project: ["项目", "project"], status: ["状态", "status"], milestone: ["里程碑", "milestone"], updated: ["修改", "updated"] };
     var items = (log || []).slice().reverse().map(function (l) {
-      var k = KIND[l.kind] || [l.kind, l.kind], detail = l.kind === "stage" ? (l.from ? esc(l.from) + " → " : "") + "<b>" + esc(l.to) + "</b>" + (l.back ? ' <span class="tag warn">' + t("回退", "back") + "</span>" : "") : l.kind === "owner" ? esc((l.from || "—").split("@")[0]) + " → <b>" + esc((l.to || "—").split("@")[0]) + "</b>" : l.kind === "status" ? esc(l.from) + " → <b>" + esc(l.to) + "</b>" : "";
-      return '<div class="lrow"><div class="lmeta"><span class="tag' + (l.kind === "note" ? " accent" : "") + '">' + esc(t(k[0], k[1])) + "</span> " + esc(when(l.at)) + (l.by ? " · " + esc(String(l.by).split("@")[0]) : "") + "</div>" + (detail ? '<div class="ldet">' + detail + "</div>" : "") + (l.text ? '<div class="ltxt">' + esc(l.text) + "</div>" : "") + "</div>";
+      var k = KIND[l.kind] || [l.kind, l.kind], detail = l.kind === "stage" ? (l.from ? esc(l.from) + " → " : "") + "<b>" + esc(l.to) + "</b>" + (l.back ? ' <span class="tag warn">' + t("回退", "back") + "</span>" : "") : l.kind === "owner" ? esc(l.from ? ptWho(l.from) : "—") + " → <b>" + esc(l.to ? ptWho(l.to) : "—") + "</b>" : l.kind === "status" ? esc(l.from) + " → <b>" + esc(l.to) + "</b>" : "";
+      return '<div class="lrow"><div class="lmeta"><span class="tag' + (l.kind === "note" ? " accent" : "") + '">' + esc(t(k[0], k[1])) + "</span> " + esc(when(l.at)) + (l.by ? " · " + esc(ptWho(l.by)) : "") + "</div>" + (detail ? '<div class="ldet">' + detail + "</div>" : "") + (l.text ? '<div class="ltxt">' + esc(l.text) + "</div>" : "") + "</div>";
     }).join("");
     return (canEdit ? '<form class="lnew" data-scope="' + scope + '"><input type="text" id="lnText" maxlength="1000" placeholder="' + t("记一条跟进…", "Add a follow-up…") + '" /><select id="lnVia"><option value="call">' + t("电话", "Call") + '</option><option value="meeting">' + t("会面", "Meeting") + '</option><option value="email">' + t("邮件", "Email") + '</option><option value="other" selected>' + t("其它", "Other") + '</option></select><button class="btn sm" type="submit">' + t("记录", "Log") + "</button></form>" : "") + '<div class="llist">' + (items || '<div class="muted">' + t("还没有记录。", "Nothing logged yet.") + "</div>") + "</div>";
   }
@@ -362,7 +366,7 @@
     var kinds = d.kinds || {}, canEdit = d.canEdit, rel = d.relationship;
     var ms = (p.milestones || []).map(function (m) {
       var late = !m.doneAt && m.due && m.due < today();
-      return '<div class="mrow2' + (m.doneAt ? " done" : late ? " late" : "") + '">' + (canEdit ? '<input type="checkbox" data-ms="' + m.id + '"' + (m.doneAt ? " checked" : "") + ' title="' + t("完成", "done") + '" />' : '<span class="mk">' + (m.doneAt ? "✓" : "○") + "</span>") + '<div class="mmain"><b>' + esc(ptName(m)) + "</b>" + (m.kind === "gate" ? ' <span class="tag">' + t("门", "gate") + "</span>" : "") + '<span class="sub">' + esc(m.doneAt ? t("完成 ", "done ") + m.doneAt : m.due ? t("到期 ", "due ") + m.due : t("未定日期", "no date")) + (m.owner ? " · " + esc(m.owner.split("@")[0]) : "") + "</span></div>" + (canEdit ? '<input type="date" data-msdue="' + m.id + '" value="' + esc(m.due || "") + '" /><button type="button" class="btn sm secondary" data-msrm="' + m.id + '" title="' + t("删除", "remove") + '">×</button>' : "") + "</div>";
+      return '<div class="mrow2' + (m.doneAt ? " done" : late ? " late" : "") + '">' + (canEdit ? '<input type="checkbox" data-ms="' + m.id + '"' + (m.doneAt ? " checked" : "") + ' title="' + t("完成", "done") + '" />' : '<span class="mk">' + (m.doneAt ? "✓" : "○") + "</span>") + '<div class="mmain"><b>' + esc(ptName(m)) + "</b>" + (m.kind === "gate" ? ' <span class="tag">' + t("门", "gate") + "</span>" : "") + '<span class="sub">' + esc(m.doneAt ? t("完成 ", "done ") + m.doneAt : m.due ? t("到期 ", "due ") + m.due : t("未定日期", "no date")) + (m.owner ? " · " + esc(ptWho(m.owner)) : "") + "</span></div>" + (canEdit ? '<input type="date" data-msdue="' + m.id + '" value="' + esc(m.due || "") + '" /><button type="button" class="btn sm secondary" data-msrm="' + m.id + '" title="' + t("删除", "remove") + '">×</button>' : "") + "</div>";
     }).join("");
     var parts = (p.participants || []).map(function (c, i) { return '<div class="orow"><div class="omain"><button type="button" class="lnk" data-pperson="' + esc(c.person) + '"><b>' + esc(c.name || c.person) + '</b></button><span class="sub">' + esc(c.role || "") + "</span></div>" + (canEdit ? '<button type="button" class="btn sm secondary" data-rmpart="' + i + '">' + t("移除", "Remove") + "</button>" : "") + "</div>"; }).join("");
     panelOpen('<div class="ph"><h3 title="' + esc(ptName(p)) + '">' + esc(ptName(p)) + "</h3>" + ptStatusTag(p.status) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
@@ -393,7 +397,7 @@
     var lf = p2.querySelector("form.lnew[data-scope=project]"); if (lf) lf.addEventListener("submit", function (e) { e.preventDefault(); var txt = lf.querySelector("#lnText").value.trim(); if (!txt) return; ptPost("project", { op: "note", id: p.id, text: txt }, function () { ptReloadProject(p.id); }); });
     var pk = $("pjPick"); if (pk) ptBindPicker(pk, function (person, role) { var ps = (p.participants || []).filter(function (c) { return c.person !== person.crmId; }).concat([{ person: person.crmId, name: person.name, role: role }]); ptPost("project", { op: "update", id: p.id, fields: { participants: ps } }, function () { ptReloadProject(p.id); }); });
   }
-  function ptReloadProject(id) { var rel = ptState.rel.relationship; api("crm/partner?id=" + encodeURIComponent(rel.id)).then(function (r) { if (!r.ok) return; ptState.rel = r.body; renderRelationshipPanel(); openProjectPanel(id); }); }
+  function ptReloadProject(id) { var rel = ptState.rel.relationship; api("crm/partner?id=" + encodeURIComponent(rel.id)).then(function (r) { if (!r.ok) return; ptState.rel = r.body; Object.assign(ptNames, r.body.names || {}); renderRelationshipPanel(); openProjectPanel(id); }); }
   function ptProjectEditForm(p) {
     var host = $("pjForm");
     host.innerHTML = '<form id="pjEf" class="pform"><label class="f">' + t("名称", "Name") + '<input type="text" id="pjName" value="' + esc(p.name) + '" maxlength="200" /></label><div class="grid2"><label class="f">' + t("开始", "Start") + '<input type="date" id="pjStart" value="' + esc(p.startAt || "") + '" /></label><label class="f">' + t("结束", "End") + '<input type="date" id="pjEnd" value="' + esc(p.endAt || "") + '" /></label></div><label class="f">' + t("项目经理", "Project manager") + '<input type="text" id="pjOwner" value="' + esc(p.owner || "") + '" /></label><div class="actions"><button class="btn sm" type="submit">' + t("保存", "Save") + "</button></div></form>";
@@ -418,11 +422,11 @@
     function show(html) { res.innerHTML = html; res.hidden = !html; }
     var search = debounce(function () {
       var q = input.value.trim();
-      if (q.length < 2) { show(staff.length && !q ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + staff.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(o.split("@")[0]) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : ""); return; }
+      if (q.length < 2) { show(staff.length && !q ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + staff.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(ptWho(o)) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : ""); return; }
       api("crm/people-search?q=" + encodeURIComponent(q)).then(function (r) {
         if (!r.ok || input.value.trim() !== q) return;
         var ps = r.body.people || [], mine = staff.filter(function (o) { return o.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
-        show((mine.length ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + mine.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(o.split("@")[0]) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : "") +
+        show((mine.length ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + mine.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(ptWho(o)) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : "") +
           (ps.length ? '<div class="phead">' + t("人员库", "People hub") + "</div>" + ps.map(row).join("") : "") +
           '<button type="button" class="pr new" data-new="1">+ ' + t("新建人员", "New person") + " “" + esc(q) + "”</button>");
       });

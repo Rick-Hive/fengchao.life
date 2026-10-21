@@ -24,7 +24,7 @@ const blobMod = require(R("api", "shared", "blob.js"));
 blobMod.readSnapshot = async () => ({ generatedAt: "2026-10-18T00:00:00Z", courses: [
   { id: "recCOURSE00000001", code: "SCI-HS-101", nameEn: "Biology", nameZh: "生物", teachers: ["Zhang"], subjects: [{ nameEn: "Science", nameZh: "科学" }], school: { abbr: "KXC" }, available: true },
   { id: "recCOURSE00000002", code: "MTH-MS-101", nameEn: "Algebra", nameZh: "", teachers: [], subjects: [], school: { abbr: "OTH" }, available: true },
-], private: { schoolRouting: { KXC: { name: "Kids X Center", abbr: "KXC", domain: "kxc.edu" }, OTH: { name: "Other", abbr: "OTH", domain: "other.edu" } }, teachers: [{ id: "recT9", name: "Tutor", teamsAccount: "tutor@gmail.com", organization: "KXC" }] } });
+], private: { schoolRouting: { KXC: { name: "Kids X Center", abbr: "KXC", domain: "kxc.edu" }, OTH: { name: "Other", abbr: "OTH", domain: "other.edu" } }, teachers: [{ id: "recT9", name: "Tutor", teamsAccount: "tutor@gmail.com", organization: "KXC" }, { id: "recTEACH000000002", name: "Tutor 2", teamsAccount: "tutor@gmc.edu", organization: "Kids X Center" }] } });
 
 // ---- a fake Airtable base: schema + records + what was written ----------------------------------
 const cfg = require(R("api", "shared", "config.js"));
@@ -45,7 +45,7 @@ const courseTable = { id: T.courses.id, name: "Course/课程", fields: [
 const lists = {
   [T.grades.id]: [{ id: "recGRADE000000009", fields: { "Title/年级名称": "G9" } }, { id: "recGRADE000000001", fields: { "Title/年级名称": "G1" } }],
   [T.subjects.id]: [{ id: "recSUBJ0000000001", fields: { "Subject Name": "Science", "学科": "科学" } }],
-  [T.textbooks.id]: [], [T.teachers.id]: [{ id: "recTEACH000000001", fields: { "Name / 姓名": "Zhang", "Teams Account/Teams账号": "zhang@a.edu" } }],
+  [T.textbooks.id]: [], [T.teachers.id]: [{ id: "recTEACH000000001", fields: { "Name / 姓名": "Zhang", "Teams Account/Teams账号": "zhang@a.edu" } }, { id: "recTEACH000000002", fields: { "Name / 姓名": "Zz Tutor", "Teams Account/Teams账号": "tutor@gmc.edu" } }],
   [T.schools.id]: [{ id: "recSCHOOL00000001", fields: { "Name/名称": "Kexuechong", "简称/Abbreviation": "KXC" } }], [T.tracks.id]: [],
 };
 class FakeBase {
@@ -209,8 +209,19 @@ const CD = "cd@fengchao.life", TEACHER = "zhang@a.edu", CM = "cm@fengchao.life",
     r = await call(LEAD, "POST", "op", { body: { id: ID, op: "assign", code: "SCI-HS-101", person: { upn: "tutor@gmail.com", name: "Tutor" } } }); assert.strictEqual(r.status, 200, "a Teachers-table row of the organization, whatever its account's domain");
     r = await call(LEAD, "POST", "op", { body: { id: "recCOURSE00000002", op: "assign", code: "MTH-MS-101", person: { upn: "li@kxc.edu" } } }); assert.strictEqual(r.status, 403, "not on another provider's course");
     r = await call(LEAD, "GET", "people", { q: { q: "zh" } }); assert.deepStrictEqual(r.body.people.map((p) => p.upn), ["zhang@kxc.edu"], "the picker: the person's account in the hive's domain, others left out");
-    r = await call(LEAD, "GET", "people", { q: { q: "tutor" } }); assert.deepStrictEqual(r.body.people.map((p) => [p.upn, p.identity]), [["tutor@gmail.com", "老师"]], "the Teachers row the hub does not know");
+    r = await call(LEAD, "GET", "people", { q: { q: "tutor" } }); assert.deepStrictEqual(r.body.people.map((p) => [p.upn, p.identity]), [["tutor@gmail.com", "老师"], ["tutor@gmc.edu", "老师"]], "the Teachers rows the hub does not know");
     for (const upn of ["li@kxc.edu", "tutor@gmail.com"]) await call(CD, "POST", "op", { body: { id: ID, op: "unassign", person: { upn } } });
+    // 授课老师 (2026-10-21): the leader's field on its own course, its own teachers only; a named teacher with a Teams
+    // account is assigned automatically (auto), and loses that when taken off; the pick list is its own teachers
+    r = await call(LEAD, "GET", "lookups"); assert.deepStrictEqual(r.body.teachers.map((t) => t.id), ["recTEACH000000002"], "the pick list: KXC's teacher only (by organization)");
+    r = await call(LEAD, "GET", "course", { q: { id: ID } }); assert.strictEqual(r.body.editable.teachers, true, "the leader edits 授课老师");
+    r = await call(LEAD, "PATCH", "field", { body: { id: ID, key: "teachers", value: ["recTEACH000000001"] } }); assert.strictEqual(r.status, 403, "not its teacher"); assert.strictEqual(r.body.code, "not_own_teacher");
+    r = await call(LEAD, "PATCH", "field", { body: { id: ID, key: "teachers", value: ["recTEACH000000002"] } }); assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    assert.deepStrictEqual(r.body.assigned.filter((p) => p.auto).map((p) => p.upn), ["tutor@gmc.edu"], "the teacher with an account is assigned (auto); the manual one stays");
+    assert.deepStrictEqual(await C.assignedTo("tutor@gmc.edu"), [ID], "…and may edit the course");
+    r = await call(LEAD, "PATCH", "field", { body: { id: ID, key: "teachers", value: [] } }); assert.deepStrictEqual(r.body.assigned.map((p) => p.upn), ["zhang@a.edu"], "taken off: the auto assignment goes, the manual one stays");
+    r = await call(CD, "PATCH", "field", { body: { id: ID, key: "teachers", value: ["recTEACH000000001"] } }); assert.strictEqual(r.status, 200, "an approver names anyone");
+    await call(CD, "PATCH", "field", { body: { id: ID, key: "teachers", value: ["recTEACH000000001"] } });
   }
 
   // unassign: the teacher loses the course

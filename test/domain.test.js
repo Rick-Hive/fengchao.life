@@ -401,9 +401,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   assert.deepStrictEqual([r.body.count, r.body.skipped.map((x) => x.why)], [0, ["has_identity", "has_identity"]], "noid: everyone has one now");
   { const d = JSON.parse(blobs[`${DOMAIN}.json`]); d.users.find((x) => x.id === "u-lei").plan = "student"; blobs[`${DOMAIN}.json`] = JSON.stringify(d); }
   r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "家长", dryRun: true }, user: DOMADMIN, roles: IT });
-  assert.deepStrictEqual([r.body.count, r.body.skipped.map((x) => x.why)], [1, ["student_plan"]], "a student-plan account is not made a parent");
-  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "家长", includeStudentPlan: true, dryRun: true }, user: DOMADMIN, roles: IT });
-  assert.strictEqual(r.body.count, 2, "…unless asked");
+  assert.strictEqual(r.body.count, 2, "the licence plan does not matter (rule withdrawn 2026-10-21): a parent on the students plan is normal");
   { const d = JSON.parse(blobs[`${DOMAIN}.json`]); d.users.find((x) => x.id === "u-lei").plan = ""; blobs[`${DOMAIN}.json`] = JSON.stringify(d); }
   r = await call({ action: "person", method: "PATCH", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, identity: "学生" }, user: DOMADMIN, roles: IT }); // as step 7 left it
 
@@ -635,10 +633,7 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   assert.strictEqual(r.status, 400, "postal code required");
   r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { identity: "" }), user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 400, "identity required");
-  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { plan: "student" }), user: DOMADMIN, roles: IT });
-  assert.strictEqual(r.status, 400, "students plan refused for a teacher"); assert.ok(r.body.problems.join().includes("学生 only"));
-  r = await call({ action: "user", method: "POST", body: Object.assign({}, base, { identity: "学生", plan: "faculty" }), user: DOMADMIN, roles: IT });
-  assert.strictEqual(r.status, 400, "faculty plan refused for a student");
+  // (the licence ↔ 身份 rule was withdrawn 2026-10-21: a teacher may take the students plan, a student the faculty one)
   institutions = { institutions: { [DOMAIN]: { name: "示例学校", by: ADMIN, at: "x" } } };
   r = await call({ action: "user", method: "POST", body: base, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
@@ -759,10 +754,8 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   r = await call({ action: "user", query: { domain: DOMAIN, upn: `elaine@${DOMAIN}`, full: "1" }, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200);
   assert.deepStrictEqual(r.body.profile && [r.body.profile.displayName, r.body.profile.postalCode, r.body.profile.safeEmail, r.body.profile.usageLocation], ["Elaine C.", "210000", "elaine@gmail.com", "CN"], "the edit form's live values");
-  // Licence: Elaine's 身份 is 家长 (job title / Hive), so not the student plan.
+  // Licence: Elaine's 身份 is 家长 — since 2026-10-21 that no longer bars the students plan (the rule was withdrawn)
   peopleStore.people[`elaine@${DOMAIN}`] = Object.assign({}, peopleStore.people[`elaine@${DOMAIN}`], { identity: "家长" });
-  r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "student" }, user: DOMADMIN, roles: IT });
-  assert.strictEqual(r.status, 400); assert.strictEqual(r.body.code, "identity");
   r = await call({ action: "licence", method: "POST", body: { domain: DOMAIN, user: `elaine@${DOMAIN}`, plan: "faculty" }, user: DOMADMIN, roles: IT });
   assert.strictEqual(r.status, 200); assert.strictEqual(r.body.unchanged, true, "already on faculty");
   peopleStore.people[`elaine@${DOMAIN}`].identity = "学生";

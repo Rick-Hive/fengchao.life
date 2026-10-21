@@ -191,7 +191,7 @@
     var all = state.allDomains;
     setTitle(domainGroupTitle(), t("用户管理", "User management"),
       (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + (canDo("people") ? '<button class="btn secondary sm" id="idBulk">' + t("批量设置身份…", "Set identity in bulk…") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>",
-      t("本校的每一个账号：验证器与设备、Teams 群组、身份、关联账号。数据来自每夜刷新的目录缓存；点一行打开人员面板。身份未填时按许可证推断：学生版 A1 为学生，其余为家长；身份与许可证对不上的账号标为异常。", "Every account of the school: authenticator and devices, Teams groups, identity, linked accounts. From the directory cache refreshed nightly; click a row for the person's panel. An unset identity is inferred from the license: A1 for students → student, otherwise parent; an identity that contradicts the license is flagged."));
+      t("本校的每一个账号：验证器与设备、Teams 群组、身份、关联账号。数据来自每夜刷新的目录缓存；点一行打开人员面板。身份未填时按许可证推断：学生版 A1 为学生，其余为家长。", "Every account of the school: authenticator and devices, Teams groups, identity, linked accounts. From the directory cache refreshed nightly; click a row for the person's panel. An unset identity is inferred from the license: A1 for students → student, otherwise parent."));
     // Role filter (Rick, 2026-10-08): identity (家长/学生/老师/行政/教育顾问), Hive roles
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
     // school, or across all schools with 所有学校 in the picker.
@@ -200,7 +200,7 @@
     $("content").innerHTML =
       '<div class="toolbar" id="ubar">' + domainPicker("dsel", canAll) +
         '<select id="urole" aria-label="' + t("按角色筛选", "Filter by role") + '">' + ROLE_OPTS.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (state.userRole === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>" +
-        // The status filters are the stat strip's tiles (账号 / 从未登录 / 未登记验证器 / 身份未填 / 异常): no second row of chips.
+        // The status filters are the stat strip's tiles (账号 / 从未登录 / 未登记验证器 / 身份未填): no second row of chips.
         '<div class="search">' + ICON.search + '<input type="search" id="uq" value="' + esc(state.userQ) + '" placeholder="' + t("搜索账号、姓名、群组…", "Search account, name, group…") + '" /></div>' +
       "</div>" +
       '<div class="kpis strip" id="ukpi"></div>' +
@@ -265,34 +265,33 @@
       '<div class="pb"><p class="hint">' + esc(t("把本校账号的身份一次设好。先「预览」看会改哪些账号，再「执行」。写入 Office 365 时写的是账号的职务（jobTitle）字段，不写部门（department）。", "Set the identity of the school's accounts in one go. 预览 shows which accounts would change; 执行 applies it. Writing to Office 365 sets each account's job title (jobTitle), never the department.")) + "</p>" +
         '<label class="f">' + t("身份", "Identity") + '<select id="ibId">' + IDENTITIES.map(function (i) { return '<option value="' + esc(i) + '">' + esc(vl(i)) + "</option>"; }).join("") + "</select></label>" +
         '<label class="f">' + t("范围", "Scope") + '<select id="ibScope"><option value="all">' + t("本校全部账号", "Every account of the school") + '</option><option value="noid">' + t("仅身份未填的账号", "Only accounts without an identity") + "</option></select></label>" +
-        '<label class="chk"><input type="checkbox" id="ibStu" /> ' + t("包含学生版许可（A1 for students）的账号", "Include accounts on the A1-for-students plan") + "</label>" +
         '<label class="chk"><input type="checkbox" id="ibWrite"' + (canWrite ? "" : " disabled") + ' /> ' + t("同时写入 Office 365 账号的职务（jobTitle）", "Also write it to the Office 365 account's job title (jobTitle)") + (canWrite ? "" : ' <span class="faint">' + t("（需要 IT 管理员）", "(IT administrator only)") + "</span>") + "</label>" +
-        '<div class="actions"><button type="button" class="btn secondary" id="ibPreview">' + t("预览", "Preview") + '</button><button type="button" class="btn" id="ibGo" disabled>' + t("执行", "Apply") + "</button></div>" +
+        '<div class="actions"><button type="button" class="btn secondary" id="ibPreview">' + t("预览", "Preview") + '</button><button type="button" class="btn" id="ibGo">' + t("执行", "Apply") + "</button></div>" +
         '<div id="ibMsg"></div></div>');
-    var body = function (dry) { return { domain: domain, identity: $("ibId").value, scope: $("ibScope").value, includeStudentPlan: $("ibStu").checked, writeBack: $("ibWrite").checked, dryRun: !!dry }; };
-    var why = { disabled: t("已停用", "disabled"), has_identity: t("已有身份", "has an identity"), student_plan: t("学生版许可", "student plan") };
+    var body = function (dry) { return { domain: domain, identity: $("ibId").value, scope: $("ibScope").value, writeBack: $("ibWrite").checked, dryRun: !!dry }; };
+    var why = { disabled: t("已停用", "disabled"), has_identity: t("已有身份", "has an identity") };
     var skippedText = function (sk) { var c = {}; (sk || []).forEach(function (x) { c[x.why] = (c[x.why] || 0) + 1; }); return Object.keys(c).map(function (k) { return c[k] + " " + (why[k] || k); }).join("，"); };
-    $("ibPreview").addEventListener("click", function () {
-      var b = this; savingButton(b, t("预览中…", "Previewing…"));
-      post("domain/identity-bulk", "POST", body(true)).then(function (r) {
-        restoreButton(b);
-        if (!r.ok) { $("ibMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
-        var d = r.body;
-        $("ibMsg").innerHTML = '<div class="msg">' + esc(t("将把 " + d.count + " 个账号的身份设为「" + vl(d.identity) + "」" + (d.writeBack ? "，并写入 Office 365" : "") + "。", d.count + " account(s) → “" + vl(d.identity) + "”" + (d.writeBack ? ", written to Office 365 too" : "") + ".")) + (d.skipped.length ? "<br>" + esc(t("跳过 " + d.skipped.length + " 个：", "Skipped " + d.skipped.length + ": ") + skippedText(d.skipped)) : "") + "</div>";
-        $("ibGo").disabled = !d.count;
-      });
-    });
-    ["ibId", "ibScope", "ibStu", "ibWrite"].forEach(function (id) { $(id).addEventListener("change", function () { $("ibGo").disabled = true; $("ibMsg").innerHTML = ""; }); });
+    // 预览 = the dry run, shown in the panel; 执行 runs the same dry run first and asks with the counts (Rick 2026-10-21:
+    // a greyed-out 执行 read as "cannot run"), then applies
+    var previewText = function (d) { return t("将把 " + d.count + " 个账号的身份设为「" + vl(d.identity) + "」" + (d.writeBack ? "，并写入 Office 365" : "") + "。", d.count + " account(s) → “" + vl(d.identity) + "”" + (d.writeBack ? ", written to Office 365 too" : "") + ".") + (d.skipped.length ? " " + t("跳过 " + d.skipped.length + " 个：", "Skipped " + d.skipped.length + ": ") + skippedText(d.skipped) : ""); };
+    var preview = function () { return post("domain/identity-bulk", "POST", body(true)).then(function (r) { if (!r.ok) { $("ibMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return null; } $("ibMsg").innerHTML = '<div class="msg">' + esc(previewText(r.body)) + "</div>"; return r.body; }); };
+    $("ibPreview").addEventListener("click", function () { var b = this; savingButton(b, t("预览中…", "Previewing…")); preview().then(function () { restoreButton(b); }); });
+    ["ibId", "ibScope", "ibWrite"].forEach(function (id) { $(id).addEventListener("change", function () { $("ibMsg").innerHTML = ""; }); });
     $("ibGo").addEventListener("click", function () {
       var b = this, bd = body(false);
-      if (!window.confirm(t("确定把 " + dname(domain) + " 的账号身份设为「" + vl(bd.identity) + "」" + (bd.writeBack ? "并写入 Office 365" : "") + "？", "Set the identity of " + dname(domain) + "'s accounts to “" + vl(bd.identity) + "”" + (bd.writeBack ? " and write it to Office 365" : "") + "?"))) return;
-      savingButton(b, t("执行中…", "Applying…"));
-      post("domain/identity-bulk", "POST", bd).then(function (r) {
+      savingButton(b, t("检查中…", "Checking…"));
+      preview().then(function (d) {
+        if (!d) { restoreButton(b); return; }
+        if (!d.count) { restoreButton(b); $("ibMsg").innerHTML = '<div class="msg warn">' + esc(t("没有要改的账号。", "No account to change.") + (d.skipped.length ? " " + t("跳过 " + d.skipped.length + " 个：", "Skipped " + d.skipped.length + ": ") + skippedText(d.skipped) : "")) + "</div>"; return; }
+        if (!window.confirm(t("确定把 " + dname(domain) + " 的 " + d.count + " 个账号身份设为「" + vl(bd.identity) + "」" + (bd.writeBack ? "并写入 Office 365" : "") + "？", "Set the identity of " + d.count + " account(s) of " + dname(domain) + " to “" + vl(bd.identity) + "”" + (bd.writeBack ? " and write it to Office 365" : "") + "?"))) { restoreButton(b); return; }
+        savingButton(b, t("执行中…", "Applying…"));
+        return post("domain/identity-bulk", "POST", bd).then(function (r) {
         if (!r.ok) { restoreButton(b); $("ibMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
         var d = r.body;
         delete state.domainUsers[domain];
         savedAndClose(b, esc(t("已设置 " + d.count + " 个账号的身份为「" + vl(d.identity) + "」", d.count + " account(s) set to “" + vl(d.identity) + "”")) + (d.writeBack ? esc(t("，写入 Office 365 " + d.written.length + " 个" + (d.failed.length ? "，失败 " + d.failed.length + " 个：" + d.failed.map(function (f) { return f.upn; }).join("、") : ""), "; " + d.written.length + " written to Office 365" + (d.failed.length ? ", " + d.failed.length + " failed: " + d.failed.map(function (f) { return f.upn; }).join(", ") : ""))) : "") + (d.skipped.length ? esc(t("；跳过 " + d.skipped.length + " 个（" + skippedText(d.skipped) + "）", "; skipped " + d.skipped.length + " (" + skippedText(d.skipped) + ")")) : ""));
         loadDomainData("users", true).then(renderUsers).catch(showUsersError);
+        });
       });
     });
   }
@@ -321,7 +320,6 @@
       if (f === "noauth" && u.verified !== false) return false;
       if (f === "noid" && u.identity) return false;
       if (f === "never" && !neverSigned(u)) return false;
-      if (f === "anomaly" && !u.anomaly) return false;
       if (role.indexOf("id:") === 0 && u.identity !== role.slice(3)) return false;
       if (role.indexOf("role:") === 0 && !hasRole(u, role.slice(5))) return false;
       if (q) {
@@ -333,7 +331,6 @@
     // the tile numbers: over the whole set — the server's counts in the paged 所有学校 view, counted here for one school
     var cs = d.all && d.counts ? d.counts : null;
     var teachers = cs ? cs.teacher : d.users.filter(function (u) { return u.hiveTeacher || u.identity === "老师"; }).length;
-    var anomalies = cs ? cs.anomaly : d.users.filter(function (u) { return u.anomaly; }).length;
     var n = cs ? cs.total : d.users.length, noauth = cs ? cs.noauth : d.users.filter(function (u) { return u.verified === false; }).length, noid = cs ? cs.noid : d.users.filter(function (u) { return !u.identity; }).length;
     // Never signed in to Microsoft 365 (no successful sign-in on record — Rick, 2026-10-04:
     // 「Display how many users haven't login office 365 successfully」). The date comes from
@@ -347,7 +344,6 @@
       kpi("never", t("从未登录", "Never signed in"), anySignIn || !n ? never : "—", never && anySignIn ? " warn" : "", anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") +
       kpi("noauth", t("未登记验证器", "No authenticator"), noauth, noauth ? " bad" : "") +
       kpi("noid", t("身份未填", "No identity"), noid) +
-      (anomalies ? kpi("anomaly", t("异常 Teams 数据", "Anomalies"), anomalies, " bad", '<div class="s">' + t("身份与许可证不符", "identity contradicts the license") + "</div>") : "") +
       (teachers ? '<button type="button" class="kpi' + (state.userRole === "role:teacher" ? " on" : "") + '" data-kf="teacher"><div class="l">' + t("蜂巢课程教师", "Course teachers") + '</div><div class="v">' + teachers + "</div></button>" : "") +
       (d.all ? kpi("", t("学校", "Schools"), allDomainList().length) : kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)));
     $("ubar").querySelectorAll(".chip[data-f]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-f") === state.userFilter ? "true" : "false"); });
@@ -374,7 +370,7 @@
       return '<tr class="pick" data-upn="' + esc(u.upn) + '"' + (u.domain ? ' data-dom="' + esc(u.domain) + '"' : "") + '><td class="acct">' + hl(u.upn, state.userQ) + (u.enabled ? "" : ' <span class="tag bad">' + t("已停用", "Disabled") + "</span>") + "</td>" +
         '<td class="nowrap"><span class="dn">' + hl(u.displayName, state.userQ) + '</span> <span class="info' + (neverSigned(u) ? " never" : "") + '" tabindex="0" data-tip="' + esc(signTip) + '">i</span></td>' +
         '<td class="nowrap">' + auth + '</td><td class="nowrap devcell">' + dev + '</td><td><div class="tags nowrap">' + (gl || '<span class="muted">—</span>') + "</div></td>" +
-        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + (u.anomaly ? ' <span class="tag bad" title="' + esc(anomalyText(u)) + '">' + t("异常", "Anomaly") + "</span>" : "") + (u.hiveTeacher ? ' <span class="tag ok" title="' + esc(t("蜂巢课程教师", "Hive course teacher") + (u.hiveTeacher.teacherId ? " · " + u.hiveTeacher.teacherId : "")) + '">' + t("课程教师", "Course teacher") + "</span>" : "") + ((u.roles || []).length ? ' <span class="tag">' + t("角色", "Role") + "</span>" + roleTags : "") + "</td>" +
+        '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + (u.hiveTeacher ? ' <span class="tag ok" title="' + esc(t("蜂巢课程教师", "Hive course teacher") + (u.hiveTeacher.teacherId ? " · " + u.hiveTeacher.teacherId : "")) + '">' + t("课程教师", "Course teacher") + "</span>" : "") + ((u.roles || []).length ? ' <span class="tag">' + t("角色", "Role") + "</span>" + roleTags : "") + "</td>" +
         '<td class="nowrap">' + (u.linked.length ? '<span class="cell-ell" title="' + esc(u.linked.join(", ")) + '">' + u.linked.map(function (l) { return hl(l, state.userQ); }).join(", ") + "</span>" : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="empty">' + t("没有匹配的账号。", "No matching accounts.") + "</div></td></tr>";
     $("utable").tBodies[0].classList.remove("dim");
@@ -410,12 +406,7 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
   var IDENTITIES = ["家长", "学生", "老师", "行政", "教育顾问"]; // = IDENTITIES in api/shared/people.js
-  // 异常 Teams 数据 (Rick, 2026-10-08): the identity contradicts the license — most likely a license assigned wrongly.
-  function anomalyText(u) {
-    if (u.anomaly === "student_without_student_plan") return t("异常：身份是学生，但账号没有学生版 A1 许可证——许可证可能分配错了", "Anomaly: identity is Student but the account has no A1 for students license — the license may be assigned wrongly");
-    if (u.anomaly === "student_plan_not_student") return t("异常：账号持学生版 A1 许可证，身份却是 " + (u.identity || "") + "——许可证可能分配错了", "Anomaly: the account holds A1 for students but its identity is " + (u.identity || "") + " — the license may be assigned wrongly");
-    return "";
-  }
+  // (异常 Teams 数据 — the identity contradicting the licence — was withdrawn 2026-10-21: parents hold the students plan too)
   function openUserPanel(upn, domain, opts) {
     opts = opts || {};
     var where = opts.beside ? "second" : undefined;
@@ -489,7 +480,7 @@
             return '<span class="k">' + t("孩子 ", "Child ") + (i + 1) + (c.name ? " · " + esc(c.name) : "") + "</span><span>" + esc(bits.join(" · ") || "—") + "</span>";
           }).join("") + "</div>" : "") +
         "<h4>" + t("身份和关联账号", "Identity and linked accounts") + "</h4>" +
-        (canDo("people") ? '<form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : u.identitySource === "license" ? "<small>" + t("按许可证推断（学生版 A1 → 学生，其余 → 家长）；填写后以填写为准", "Inferred from the license (A1 for students → student, otherwise parent); what you set here wins") + "</small>" : "") + (u.anomaly ? '<small class="bad">' + esc(anomalyText(u)) + "</small>" : "") + "</label>" +
+        (canDo("people") ? '<form id="pform"><label class="f">' + t("身份", "Identity") + '<select id="pid">' + idOpts + "</select>" + (u.identitySource === "entra" ? "<small>" + t("来自 Entra 的部门字段", "From Entra's department field") + "</small>" : u.identitySource === "license" ? "<small>" + t("按许可证推断（学生版 A1 → 学生，其余 → 家长）；填写后以填写为准", "Inferred from the license (A1 for students → student, otherwise parent); what you set here wins") + "</small>" : "") + "</label>" +
           '<label class="f" style="margin-top:8px">' + t("关联账号（孩子 / 家长的 Teams 账号，多个用逗号分开）", "Linked accounts (child / parent Teams accounts, comma-separated)") + '<input type="text" id="plink" value="' + esc(u.linked.join(", ")) + '" placeholder="student@' + esc(currentDomain) + '" /></label>' +
           '<label class="f" style="margin-top:8px">' + t("备注", "Note") + '<input type="text" id="pnote" maxlength="200" value="' + esc(u.note) + '" /></label>' +
           '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>'
@@ -618,8 +609,7 @@
     api("domain/licenses?domain=" + encodeURIComponent(domain)).then(function (r) {
       if (!r.ok) { box.innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
       var pl = r.body[want];
-      var rule = want === "student" && u.identity !== "学生" ? t("A1 for students 仅限学生：请先在下面把身份改为「学生」。", "A1 for students is for students only: set the identity to Student below first.")
-        : want === "faculty" && u.identity === "学生" ? t("学生用 A1 for students：要换成教职工版，请先把身份改掉。", "Students take A1 for students: to switch to the faculty plan, change the identity first.") : "";
+      var rule = ""; // the licence ↔ 身份 rule was withdrawn 2026-10-21 (Rick: faculty seats are short, parents take the students plan)
       box.innerHTML = '<div class="devrow"><div class="m"><b>' + esc(planLabel(u.plan)) + " → " + esc(planLabel(want)) + "</b><small>" +
           (pl ? (pl.free ? t("剩余 ", "") + pl.free + t(" 个", " free") : t("没有空余名额", "No free seats")) : t("租户里没有这个方案", "Not in this tenant")) + " · " + t("邮箱和文件都保留；Power Automate Free 保留", "Mailbox and files stay; Power Automate Free stays") + "</small></div></div>" +
         (rule ? '<div class="msg err">' + esc(rule) + "</div>" : "") +
@@ -627,7 +617,7 @@
       $("licCancel").addEventListener("click", function () { openUserPanel(u.upn, domain, Object.assign({}, opts, { fresh: true })); });
       $("licGo").addEventListener("click", function () {
         var btn = $("licGo"); savingButton(btn, t("更换中…", "Changing…"));
-        post("domain/license", "POST", { domain: domain, user: u.upn, plan: want }).then(function (res) {
+        post("domain/licence", "POST", { domain: domain, user: u.upn, plan: want }).then(function (res) {
           if (!res.ok) { restoreButton(btn); $("licMsg").innerHTML = '<div class="msg err">' + esc(errText(res)) + "</div>"; return; }
           applyFreshRow(res.body.user, domain, opts);
           var m = $("acctMsg"); if (m) m.innerHTML = '<div class="msg ok">' + t("许可证已更换为 ", "License changed to ") + esc(res.body.plan || planLabel(want)) + "</div>";
@@ -687,7 +677,8 @@
       box.innerHTML = planCard("faculty", lic.faculty, t("老师、家长、行政", "teachers, parents, staff")) + planCard("student", lic.student, t("仅限学生", "students only"));
       pickPlan();
     });
-    // The role decides the plan: 学生 → A1 for students (students only), everyone else → A1 for faculty.
+    // The role suggests the plan (学生 → A1 for students, everyone else → A1 for faculty); either may be chosen —
+    // the rule forbidding the students plan to a non-student was withdrawn 2026-10-21 (faculty seats are short).
     function pickPlan() {
       var id = $("nuId").value; if (!id) return;
       var want = id === "学生" ? "student" : "faculty";
@@ -695,12 +686,7 @@
       var other = $("nuPlans").querySelector('input[value="' + (want === "student" ? "faculty" : "student") + '"]'); if (other) other.checked = false;
     }
     $("nuId").addEventListener("change", function () { $("nuMsg").innerHTML = ""; pickPlan(); });
-    $("nuPlans").addEventListener("change", function (e) {
-      var id = $("nuId").value, v = e.target.value;
-      if (v === "student" && id && id !== "学生") { $("nuMsg").innerHTML = '<div class="msg err">' + t("Office 365 A1 for students 仅限学生；", "Office 365 A1 for students is for students only; ") + esc(vl(id)) + t(" 请选 faculty。", " takes the faculty plan.") + "</div>"; pickPlan(); }
-      else if (v === "faculty" && id === "学生") { $("nuMsg").innerHTML = '<div class="msg err">' + t("学生请选 Office 365 A1 for students。", "A student takes Office 365 A1 for students.") + "</div>"; pickPlan(); }
-      else $("nuMsg").innerHTML = "";
-    });
+    $("nuPlans").addEventListener("change", function () { $("nuMsg").innerHTML = ""; });
     $("nuf").addEventListener("submit", function (ev) {
       ev.preventDefault();
       var planInp = $("nuPlans").querySelector("input[name=nuPlan]:checked");

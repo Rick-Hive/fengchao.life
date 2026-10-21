@@ -19,8 +19,9 @@ blobMod.writeAsset = async (key, buf, type) => { assets[key] = { size: buf.lengt
 const cfg = require(R("api", "shared", "config.js"));
 const writes = [];
 const fieldDef = (name, type) => ({ id: "fld" + name.replace(/\W/g, "").slice(0, 10), name, type });
-const teacherTable = { id: cfg.tables.teachers.id, name: "Teachers", fields: [fieldDef("Name", "singleLineText"), fieldDef("Biography", "multilineText"), fieldDef("Expertise", "multilineText"), fieldDef("Photo", "multipleAttachments")] };
-class FakeBase { constructor(id, pat) { this.pat = pat; } async table() { return teacherTable; } async update(tableId, id, fields, opts) { assert.strictEqual(this.pat, "pat-write"); writes.push({ tableId, id, fields }); return { id, fields }; } }
+const teacherTable = { id: cfg.tables.teachers.id, name: "Teachers", fields: [fieldDef("Name", "singleLineText"), fieldDef("Biography", "multilineText"), fieldDef("Expertise", "multilineText"), fieldDef("Photo", "multipleAttachments"), fieldDef("Email", "email"), fieldDef("Teams Account", "singleLineText"), fieldDef("Subject(s)", "multipleSelects"), fieldDef("Language(s)", "multipleSelects"), fieldDef("Organization", "multipleRecordLinks")] };
+const creates = [];
+class FakeBase { constructor(id, pat) { this.pat = pat; } async table() { return teacherTable; } async update(tableId, id, fields, opts) { assert.strictEqual(this.pat, "pat-write"); writes.push({ tableId, id, fields }); return { id, fields }; } async create(tableId, fields, opts) { assert.strictEqual(this.pat, "pat-write"); creates.push({ tableId, fields, opts }); return { id: "recNEW0000000001", fields }; } }
 const C = require(R("api", "shared", "courses.js"));
 C._test.baseFor({ read: () => new FakeBase(cfg.baseId, "pat-read"), write: () => new FakeBase(cfg.baseId, "pat-write") });
 const T = require(R("api", "shared", "teachers.js"));
@@ -44,7 +45,7 @@ const snap = {
   assert.deepStrictEqual(T.visible(kxcLead).map((t) => t.id), ["recT2"], "KXC's leader: the kxc.edu teacher");
   assert.deepStrictEqual(T.visible(iewLead).map((t) => t.id), ["recT4"], "IEW has no domain: its teachers by organization");
   assert.ok(T.mayEdit(iewLead, teacher.all.find((t) => t.id === "recT4")) && !T.mayEdit(iewLead, t1) && !iewLead.approver, "edits its own, approves nothing");
-  assert.deepStrictEqual((await T.list(leader))[0], { id: "recT1", name: "Zhang Lao", teamsAccount: "zhang@bes.edu", domain: "bes.edu", organization: "BES", photoUrl: null, hasBio: true, hasExpertise: false, status: "", updatedAt: null, submittedAt: null, mine: false });
+  assert.deepStrictEqual((await T.list(leader))[0], { id: "recT1", name: "Zhang Lao", teamsAccount: "zhang@bes.edu", email: "", domain: "bes.edu", organization: "BES", photoUrl: null, hasBio: true, hasExpertise: false, status: "", updatedAt: null, submittedAt: null, mine: false, created: null });
 
   // the draft
   let d = await T.saveField(t1, "bio", "New bio", "zhang@bes.edu");
@@ -75,5 +76,27 @@ const snap = {
   assert.deepStrictEqual(r2.written, [], "nothing changed since → nothing written");
   assert.strictEqual(writes.length, 1, "and no Airtable call");
   assert.strictEqual(r.doc.baseline.photoUrl.indexOf("/api/asset?key=teachers%2Fwork%2FrecT1.jpg"), 0, "the baseline keeps the photo URL");
+  // the facts (2026-10-21): written to Airtable at once — selects as arrays, the private columns included; the index
+  // carries them until the next sync; a created row is a teacher of its institution before the sync sees it
+  writes.length = 0;
+  let fr = await T.saveFacts(t2, { email: "Lee@KXC.edu", subjects: "Science, Biology", gradeLevels: "G9-12", name: "Mr Lee" }, "lead@kxc.edu");
+  assert.deepStrictEqual(fr.written.sort(), ["email", "name", "subjects"], "columns the table has: " + JSON.stringify(fr)); assert.deepStrictEqual(fr.skipped, ["gradeLevels"], "no such column → skipped, not an error");
+  assert.deepStrictEqual(writes[0].fields, { Email: "lee@kxc.edu", "Subject(s)": ["Science", "Biology"], Name: "Mr Lee" }, "email lower-cased, the select as an array");
+  await assert.rejects(T.saveFacts(t2, { teamsAccount: "not-an-address" }, "x"), /name@domain/);
+  await assert.rejects(T.saveFacts(t2, { name: "" }, "x"), /name is required/);
+  const idx1 = await T.readIndex();
+  assert.strictEqual(idx1.items.recT2.facts.email, "lee@kxc.edu", "the index remembers the fact");
+  const fresh = T.teachersOf(Object.assign({}, snap, { generatedAt: "2026-10-01T00:00:00Z" }), idx1).find((t) => t.id === "recT2");
+  assert.strictEqual(fresh.email, "lee@kxc.edu", "a snapshot older than the fact reads the index"); assert.strictEqual(fresh.subjects, "Science, Biology");
+  const cr = await T.create({ name: "New Teacher", email: "new@gmail.com", teamsAccount: "", subjects: "Art" }, { key: "KXC", name: "Kids X Center", abbr: "KXC", recId: "recSCHOOL00000001" }, "lead@kxc.edu");
+  assert.strictEqual(cr.id, "recNEW0000000001");
+  assert.deepStrictEqual(creates[0].fields, { Name: "New Teacher", Email: "new@gmail.com", "Subject(s)": ["Art"], Organization: ["recSCHOOL00000001"] }, "the row: facts given, the Organization link to the school");
+  const lead2 = T.whoIs("lead@kxc.edu", ["provider:KXC"], snap, await T.readIndex());
+  assert.deepStrictEqual(T.visible(lead2).map((t) => t.id), ["recT2", "recNEW0000000001"], "the new row is the institution's at once (orgKey), the sync not yet run");
+  const nt = lead2.all.find((t) => t.id === "recNEW0000000001");
+  assert.ok(nt.created && nt.email === "new@gmail.com" && T.mayEdit(lead2, nt), "created, with its facts, editable by the leader");
+  assert.strictEqual((await T.list(lead2)).find((t) => t.id === "recNEW0000000001").created, nt.created, "listed with the created mark");
+  assert.ok(!T.mayEditAccount(teacher, t1) && T.mayEdit(teacher, t1), "a teacher edits its own facts but not its Teams account");
+  assert.ok(T.mayEditAccount(leader, t1) && T.mayEditAccount(director, t2) && T.mayEditAccount(lead2, nt), "the leader and the approver set it");
   console.log("teachers: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

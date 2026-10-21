@@ -57,8 +57,17 @@ module.exports = async function (context, req) {
       const upn = String((p && p.upn) || "").toLowerCase(), dom = upn.split("@")[1] || "";
       if (dom && hives.some((h) => h.domain && h.domain === dom)) return true;
       const teachers = (((snap || {}).private || {}).teachers) || [];
-      return teachers.some((t) => String(t.teamsAccount || "").toLowerCase() === upn && upn && who.provider.includes(hiveKey(t.organization || "")));
+      return teachers.some((t) => String(t.teamsAccount || "").toLowerCase() === upn && upn && orgKeys.includes(hiveKey(t.organization || "")));
     };
+    // a Teachers row names its Organization by the school's name, the routing key is the abbreviation: match either
+    const orgKeys = Array.from(new Set(hives.flatMap((h) => [h.key, hiveKey(h.name), hiveKey(h.abbr)]).filter(Boolean)));
+    // the provider's own teachers (the Teachers table, incl. rows created here since the last sync): what it may name
+    // as 授课老师 and see in the editor's pick list
+    if (who.provider.length) {
+      const T = require("../shared/teachers");
+      const all = T.teachersOf(snap, await T.readIndex());
+      who.ownTeacherIds = all.filter((t) => (t.orgKey && orgKeys.includes(t.orgKey)) || (t.organization && orgKeys.includes(hiveKey(t.organization))) || (t.domain && hives.some((h) => h.domain && h.domain === t.domain))).map((t) => t.id);
+    }
     const id = String(body.id || q.id || "");
 
     if (method === "GET" && action === "list") {
@@ -70,7 +79,8 @@ module.exports = async function (context, req) {
     if (method === "GET" && action === "lookups") {
       if (!(who.approver || who.viewer || who.provider.length || (await C.assignedTo(user)).length)) return done(403, { error: "no course is assigned to you" });
       const l = await C.lookups(q.fresh === "1");
-      const out = Object.assign({}, l, { teachers: l.teachers.map((t) => who.approver ? t : { id: t.id, name: t.name }) });
+      const own = who.ownTeacherIds ? new Set(who.ownTeacherIds) : null;
+      const out = Object.assign({}, l, { teachers: l.teachers.filter((t) => !own || own.has(t.id)).map((t) => who.approver ? t : { id: t.id, name: t.name }) });
       return done(200, out);
     }
     if (method === "GET" && action === "course") {
@@ -86,7 +96,10 @@ module.exports = async function (context, req) {
       if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
       const r = await C.saveField(id, String(body.key || ""), body.value, who);
       const doc = await C.readWork(id);
-      return done(200, Object.assign(r, { translation: C.translationState(doc), needs: C.translationNeeds(doc) }));
+      // 授课老师 changed: the teachers with a Teams account may now edit the course (auto assignments)
+      let assigned;
+      if (String(body.key) === "teachers") { const l = await C.lookups().catch(() => null); if (l) assigned = await C.syncTeacherAssignments(id, doc.code, doc.draft.fields.teachers || [], l.teachers, who); }
+      return done(200, Object.assign(r, { translation: C.translationState(doc), needs: C.translationNeeds(doc) }, assigned ? { assigned } : {}));
     }
     if (method === "POST" && action === "op") {
       const op = String(body.op || "");
@@ -224,4 +237,4 @@ function view(doc, who) {
     fieldHistory: doc.fieldHistory, history: doc.history.slice(-50).reverse() };
 }
 // Which fields the caller may change.
-function editable(who) { const out = {}; for (const [k, f] of Object.entries(C.FIELDS)) out[k] = !!(who.approver || (f.teacher && !who.viewer)); return out; }
+function editable(who) { const out = {}; for (const [k, f] of Object.entries(C.FIELDS)) out[k] = !!(who.approver || (f.teacher && !who.viewer) || (f.provider && (who.provider || []).length > 0)); return out; }

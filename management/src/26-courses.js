@@ -135,7 +135,7 @@
         var waiting = c.status === "submitted" || c.status === "reviewing" ? (Date.now() - new Date(c.submittedAt).getTime()) / 86400000 : 0;
         return '<tr class="pick" data-id="' + esc(c.id) + '"><td><span class="dn">' + esc(coName(c)) + '</span><span class="sub">' + esc(c.code || "") + "</span></td>" +
           "<td>" + (c.subjects || []).map(function (s) { return esc(t(s.nameZh || s.nameEn, s.nameEn || s.nameZh)); }).join(", ") + "</td><td>" + esc(c.school || "") + "</td>" +
-          '<td class="coassigned">' + ((c.assigned || []).length ? (c.assigned || []).map(function (p) { return '<span class="tag">' + esc(p.name || p.upn) + "</span>"; }).join(" ") : '<span class="faint">' + ((c.teachers || []).join(", ") || "—") + "</span>") + (coIsApprover() || c.owned ? ' <button type="button" class="linkbtn" data-assign="' + esc(c.id) + '">' + t("分配", "Assign") + "</button>" : "") + "</td>" +
+          '<td class="coassigned">' + ((c.assigned || []).length ? (c.assigned || []).map(function (p) { return '<span class="tag">' + esc(p.name || p.upn) + "</span>"; }).join(" ") : '<span class="faint">' + ((c.teachers || []).join(", ") || "—") + "</span>") + (coIsApprover() ? ' <button type="button" class="linkbtn" data-assign="' + esc(c.id) + '">' + t("分配", "Assign") + "</button>" : c.owned ? ' <button type="button" class="linkbtn" data-teachers="' + esc(c.id) + '">' + t("授课老师…", "Teachers…") + "</button>" : "") + "</td>" +
           "<td>" + coMiniSteps(c.status) + coStatusTag(c.status) + (waiting >= 1 ? ' <span class="' + (waiting > 7 ? "tag warn" : "faint") + '">' + t("等待 ", "waiting ") + Math.floor(waiting) + t(" 天", " d") + "</span>" : "") + "</td>" +
           '<td class="faint">' + esc(c.updatedAt ? when(c.updatedAt) : "") + "</td></tr>";
       }).join("") : '<tr><td colspan="6" class="faint">' + (co.tab === "pending" ? t("没有待审批的课程。", "Nothing to review.") : co.tab !== "all" && !q ? t("这个状态下没有课程。", "No course in this state.") : t("没有匹配的课程。", "No matching course.")) + "</td></tr>") + "</tbody></table></div>";
@@ -144,12 +144,38 @@
     $("coq").addEventListener("input", debounce(function () { co.q = $("coq").value; pageReset("courses"); var pos = $("coq").selectionStart; coRenderManage(); $("coq").focus(); try { $("coq").setSelectionRange(pos, pos); } catch (e) {} }, 150));
     $("cotable").addEventListener("click", function (e) {
       var b = e.target.closest("[data-assign]"); if (b) { e.stopPropagation(); coAssignPanel(b.getAttribute("data-assign")); return; }
+      var tb = e.target.closest("[data-teachers]"); if (tb) { e.stopPropagation(); coTeachersPanel(tb.getAttribute("data-teachers")); return; }
       var tr = e.target.closest("tr[data-id]"); if (tr) location.hash = "#/courses/" + tr.getAttribute("data-id");
     });
     if ($("coSyncNow")) $("coSyncNow").addEventListener("click", function () { coSyncWebsite($("coSyncNow")); });
   }
 
   // ---- assigning teachers (approvers): the people picker in a side panel --------------------
+  // 授课老师 (2026-10-21): the provider's leader names the teachers of its own course from its own teacher library —
+  // the course's Teachers field, saved at once; a teacher with a Teams account can then edit the course in Hive
+  function coTeachersPanel(id) {
+    var c = (co.list || []).filter(function (x) { return x.id === id; })[0] || { id: id };
+    panelOpen('<div class="ph"><span class="avatar">👩‍🏫</span><h3>' + esc(coName(c)) + ' <small class="faint">' + esc(c.code || "") + '</small></h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+      '<div class="pb"><h4>' + t("授课老师", "Teachers") + '</h4><div id="coTch" class="loading">' + t("载入中…", "Loading…") + '</div><p class="hint">' + esc(t("本机构教师库里的老师。勾选即写入课程（网站显示的授课老师）；有 Teams 账号的老师登录后可以编辑这门课。添加老师请到「老师」页。", "Your institution's teachers. Ticking one writes the course's Teachers (what the website shows); a teacher with a Teams account can then edit the course in Hive. Add teachers on the Teachers page.")) + '</p><div id="coTchMsg"></div></div>');
+    var need = co.lookups ? Promise.resolve() : api("courses/lookups").then(function (r) { if (r.ok) co.lookups = r.body; });
+    Promise.all([api("courses/course?id=" + encodeURIComponent(id)), need]).then(function (rs) {
+      var r = rs[0]; if (!r.ok) { $("coTch").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+      var cur = (r.body.course.fields.teachers || []).slice(), rows = (co.lookups && co.lookups.teachers) || [];
+      if (!rows.length) { $("coTch").innerHTML = '<p class="muted">' + t("教师库里还没有本机构的老师。", "No teacher of your institution in the library yet.") + "</p>"; return; }
+      $("coTch").innerHTML = '<div class="chks">' + rows.map(function (x) { return '<label class="chk"><input type="checkbox" data-tid="' + esc(x.id) + '"' + (cur.indexOf(x.id) >= 0 ? " checked" : "") + " /> " + esc(x.name) + (x.upn ? ' <span class="faint">' + esc(x.upn) + "</span>" : "") + "</label>"; }).join("") + "</div>";
+      $("coTch").addEventListener("change", function (e) {
+        var cb = e.target.closest("input[data-tid]"); if (!cb) return;
+        var ids = Array.prototype.map.call($("coTch").querySelectorAll("input[data-tid]:checked"), function (x) { return x.getAttribute("data-tid"); });
+        post("courses/field", "PATCH", { id: id, key: "teachers", value: ids }).then(function (rr) {
+          if (!rr.ok) { cb.checked = !cb.checked; $("coTchMsg").innerHTML = '<div class="msg err">' + esc(errText(rr)) + "</div>"; return; }
+          $("coTchMsg").innerHTML = '<div class="faint">' + t("已保存", "Saved") + (rr.body.status ? " · " + t("课程状态：", "course: ") + (CO_STATUS[rr.body.status] ? t(CO_STATUS[rr.body.status][0], CO_STATUS[rr.body.status][1]) : rr.body.status) : "") + "</div>";
+          var row = (co.list || []).filter(function (x) { return x.id === id; })[0];
+          if (row) { row.teachers = ids.map(function (tid) { var x = rows.filter(function (y) { return y.id === tid; })[0]; return x ? x.name : tid; }); if (rr.body.assigned) row.assigned = rr.body.assigned; row.status = rr.body.status || row.status; }
+          var td = document.querySelector('#cotable tr[data-id="' + id + '"] .coassigned'); if (td && row) td.innerHTML = ((row.assigned || []).length ? (row.assigned || []).map(function (p) { return '<span class="tag">' + esc(p.name || p.upn) + "</span>"; }).join(" ") : '<span class="faint">' + ((row.teachers || []).join(", ") || "—") + "</span>") + ' <button type="button" class="linkbtn" data-teachers="' + esc(id) + '">' + t("授课老师…", "Teachers…") + "</button>";
+        });
+      });
+    });
+  }
   function coAssignPanel(id) {
     var c = (co.list || []).filter(function (x) { return x.id === id; })[0] || { id: id, assigned: [] };
     var people = (c.assigned || []).slice();

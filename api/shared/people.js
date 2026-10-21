@@ -223,17 +223,10 @@ function identityOf(record, entraUser) {
   if (entraUser && entraUser.plan) return "家长";
   return "";
 }
-// 异常 Teams 数据 (Rick, 2026-10-08): an identity that contradicts the licence — a
-// self-declared or department-set student without the student plan, or a
-// teacher / parent / staff on the student plan — most likely a licence assigned
-// wrongly. Returns "" or a code the UI explains.
-function licenceAnomaly(identity, entraUser) {
-  const plan = entraUser && entraUser.plan;
-  if (!plan || !identity) return "";
-  if (identity === "学生" && plan !== "student") return "student_without_student_plan";
-  if (identity !== "学生" && plan === "student") return "student_plan_not_student";
-  return "";
-}
+// 异常 Teams 数据 (Rick, 2026-10-08) was the identity contradicting the licence. Withdrawn 2026-10-21 (Rick: 「系统中不再
+// 检测许可证和 Role 之间是否存在冲突……teacher license 有点不够，家长太多了」): a parent on the A1-for-students plan is normal,
+// so the licence says nothing about the identity. Kept as a function that never flags, for the callers.
+function licenceAnomaly() { return ""; }
 
 // Check and normalise a 补充资料 body from the form. Returns { extra, problems }.
 function validateExtra(b, selfUpn) {
