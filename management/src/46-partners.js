@@ -114,14 +114,17 @@
     $("ptList").innerHTML = '<div class="board">' + stages.map(function (st) {
       var mine = rows.filter(function (r) { return r.stage === st.k; });
       if (st.closed && !ptState.closed && !ptState.q) return '<div class="bcol closed" data-stage="' + st.k + '"><div class="bhead"><b>' + esc(t(st.zh, st.en)) + '</b><span class="cnt">' + mine.length + "</span></div></div>";
-      return '<div class="bcol" data-stage="' + st.k + '"><div class="bhead"><b>' + esc(t(st.zh, st.en)) + '</b><span class="cnt">' + mine.length + "</span>" + (st.days ? '<small>' + st.days + t(" 天", " d") + "</small>" : "") + "</div>" + mine.map(ptCard).join("") + "</div>";
+      // The header's number is the stage's stall threshold, not an age (Rick, 2026-10-21 read "14 d" as the card's age):
+      // say so. Empty columns fold to a slim strip so the columns that hold cards fit the width — seeded IT
+      // relationships all sit in 运营中, which was off-screen to the right behind five empty columns.
+      return '<div class="bcol' + (mine.length ? "" : " empty") + '" data-stage="' + st.k + '"><div class="bhead"><b>' + esc(t(st.zh, st.en)) + '</b><span class="cnt">' + mine.length + "</span>" + (st.days ? '<small title="' + esc(t("在本阶段超过 " + st.days + " 天未推进即记为停滞", "A relationship still here after " + st.days + " days counts as stalled")) + '">' + t("限 " + st.days + " 天", st.days + " d limit") + "</small>" : "") + "</div>" + mine.map(ptCard).join("") + "</div>";
     }).join("") + "</div>";
     if (d.canEdit) ptEnableDrag();
   }
   function ptCard(r) {
     var h = r.health || {}, due = r.next && r.next.due, overdue = due && due < today();
     return '<div class="bcard' + (h.stalled ? " stalled" : "") + '" data-rel="' + r.id + '" draggable="true" tabindex="0"><div class="bt">' + ptPartyLink(r) + '<span class="tav sm" style="background:' + hue(r.owner || "?") + '" title="' + esc(r.owner || t("待分配", "unassigned")) + '">' + esc(r.owner ? initials(r.owner.split("@")[0]) : "?") + "</span></div>" +
-      '<div class="bm">' + (r.region ? '<span class="tag">' + esc(ptRegion(r.region)) + "</span> " : "") + ptHealthTag(r) + (r.projects ? ' <span class="tag accent">' + r.projects + t(" 项目", " proj.") + (r.overdueMilestones ? ' · <b class="bad">' + r.overdueMilestones + t(" 逾期", " late") + "</b>" : "") + "</span>" : "") + "</div>" +
+      '<div class="bm">' + (r.region ? '<span class="tag">' + esc(ptRegion(r.region)) + "</span> " : "") + ptHealthTag(r) + (h.days != null && !r.closed ? ' <span class="muted" title="' + esc(t("在本阶段的天数", "Days in this stage")) + '">' + t("本阶段 " + h.days + " 天", h.days + " d in stage") + "</span>" : "") + (r.projects ? ' <span class="tag accent">' + r.projects + t(" 项目", " proj.") + (r.overdueMilestones ? ' · <b class="bad">' + r.overdueMilestones + t(" 逾期", " late") + "</b>" : "") + "</span>" : "") + "</div>" +
       '<div class="bn' + (overdue ? " bad" : "") + '">' + (r.next && r.next.action ? esc(r.next.action) + (due ? ' <span class="muted">' + esc(due) + "</span>" : "") : '<span class="muted">' + t("没有下一步", "no next step") + "</span>") + "</div>" +
       (r.metrics ? '<div class="bx muted">' + ptMetricsLine(r) + "</div>" : "") + "</div>";
   }

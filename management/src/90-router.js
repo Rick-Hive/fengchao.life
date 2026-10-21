@@ -75,24 +75,30 @@
     try { saved = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) { saved = {}; }
     var ths = Array.prototype.slice.call(table.querySelectorAll("thead th"));
     if (!ths.length) return;
+    // A table laid out by a <colgroup> (机构, 人员库, 许可: percentage <col> widths, table-layout: fixed) takes its
+    // column widths from the <col> elements, not the header cells — so a dragged width has to land on the <col> too,
+    // or the drag does nothing (Rick, 2026-10-21: 「Resizing in institution doesn't work well」). The <col>s' own
+    // widths are kept to put back on reset.
+    var cols = Array.prototype.slice.call(table.querySelectorAll("colgroup col")), colW0 = cols.map(function (c) { return c.style.width; });
+    function setW(i, px) { ths[i].style.width = px + "px"; if (cols[i]) cols[i].style.width = px + "px"; }
     // With automatic layout the browser shares the width out itself, so a dragged width
     // would be ignored: the first drag freezes every column at its current width
     // (table-layout: fixed), after which each one moves on its own.
     function freeze() {
       if (table.style.tableLayout === "fixed") return;
-      ths.forEach(function (th, i) { if (!saved[i]) saved[i] = Math.round(th.getBoundingClientRect().width); th.style.width = saved[i] + "px"; });
+      ths.forEach(function (th, i) { if (!saved[i]) saved[i] = Math.round(th.getBoundingClientRect().width); setW(i, saved[i]); });
       table.style.tableLayout = "fixed"; table.style.minWidth = "0"; fit();
     }
     function fit() { var sum = 0; ths.forEach(function (th, i) { sum += saved[i] || th.getBoundingClientRect().width; }); table.style.width = Math.max(sum, table.parentElement ? table.parentElement.clientWidth : 0) + "px"; }
-    function reset() { saved = {}; ths.forEach(function (th) { th.style.width = ""; }); table.style.tableLayout = ""; table.style.width = ""; table.style.minWidth = ""; try { localStorage.removeItem(key); } catch (err) {} }
-    if (Object.keys(saved).length === ths.length) { ths.forEach(function (th, i) { th.style.width = saved[i] + "px"; }); table.style.tableLayout = "fixed"; table.style.minWidth = "0"; fit(); }
+    function reset() { saved = {}; ths.forEach(function (th) { th.style.width = ""; }); cols.forEach(function (c, i) { c.style.width = colW0[i]; }); table.style.tableLayout = ""; table.style.width = ""; table.style.minWidth = ""; try { localStorage.removeItem(key); } catch (err) {} }
+    if (Object.keys(saved).length === ths.length) { ths.forEach(function (th, i) { setW(i, saved[i]); }); table.style.tableLayout = "fixed"; table.style.minWidth = "0"; fit(); }
     ths.forEach(function (th, i) {
       var h = document.createElement("span"); h.className = "rz"; h.setAttribute("aria-hidden", "true"); h.title = t("拖动调整列宽；双击恢复默认", "Drag to resize; double-click to reset"); th.appendChild(h);
       h.addEventListener("pointerdown", function (e) {
         e.preventDefault(); e.stopPropagation(); freeze();
         var startX = e.clientX, startW = saved[i];
         table.classList.add("resizing");
-        function move(ev) { var w = Math.max(60, Math.round(startW + ev.clientX - startX)); th.style.width = w + "px"; saved[i] = w; fit(); }
+        function move(ev) { var w = Math.max(60, Math.round(startW + ev.clientX - startX)); setW(i, w); saved[i] = w; fit(); }
         function up() { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); table.classList.remove("resizing"); try { localStorage.setItem(key, JSON.stringify(saved)); } catch (err) {} }
         document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
       });

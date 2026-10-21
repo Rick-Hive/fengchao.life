@@ -776,7 +776,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     // The 群组 page is visited first, so its cache exists when the account is deleted.
     await p.waitForTimeout(700);
     if (!(await p.$('#gtree .mrow[data-upn="tom.li@bes.qiaoliang.online"]'))) throw new Error("fixture: Tom should be a member before");
-    await p.click('#nav a[href="#/domain/users"]'); await p.waitForTimeout(600);
+    await p.click('#nav a[href="#/domain/users"]'); await p.waitForSelector("#dsel"); await p.selectOption("#dsel", "bes.qiaoliang.online"); await p.waitForSelector("#utable tr[data-upn]:not([data-dom])"); await p.waitForTimeout(300);
     const before = await p.$eval("#ukpi", e => e.innerText); if (!/账号\s*12/.test(before)) throw new Error("tiles before: " + before);
     await p.click('#utable tbody tr[data-upn="tom.li@bes.qiaoliang.online"]'); await p.waitForTimeout(400);
     if (!(await p.$("#uDel"))) throw new Error("no delete button for an ordinary account");
@@ -885,6 +885,17 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     // The Hive workspace's rows are there too (Rick, 2026-10-08): the university without a tenant domain has its own row; the hive that is also a tenant domain is one row.
     if (!/Grace Christian University/.test(it) || !/大学/.test(it)) throw new Error("university from the Hive workspace missing: " + it.slice(0, 400));
     const kxcRows = await p.$$eval("#itable tbody tr", rs => rs.filter(r => /Kids X Center/.test(r.innerText)).length); if (kxcRows !== 1) throw new Error("KXC should be one joined row, got " + kxcRows);
+    // column resize on a <colgroup> table (Rick, 2026-10-21: 「Resizing in institution doesn't work well」): the drag must move the column
+    {
+      const w0 = await p.$eval("#itable thead th:nth-child(2)", e => e.getBoundingClientRect().width);
+      const hb = await p.$eval("#itable thead th:nth-child(2) .rz", e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+      await p.mouse.move(hb.x, hb.y); await p.mouse.down(); await p.mouse.move(hb.x + 80, hb.y, { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(100);
+      const w1 = await p.$eval("#itable thead th:nth-child(2)", e => e.getBoundingClientRect().width);
+      assert.ok(w1 >= w0 + 70, "the dragged column grew: " + w0 + " → " + w1);
+      assert.ok(/px$/.test(await p.$eval("#itable colgroup col:nth-child(2)", e => e.style.width)), "the <col> carries the width");
+      await p.$eval("#itable thead th:nth-child(2) .rz", e => e.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+      assert.strictEqual(await p.$eval("#itable colgroup col:nth-child(2)", e => e.style.width), "10%", "double-click puts the percentage back");
+    }
     await p.click('#itable tbody tr[data-key="hive:GCU"]'); await p.waitForTimeout(400);
     if (!/蜂巢工作区/.test(await p.$eval("#panel", e => e.innerText))) throw new Error("university panel lacks the workspace line");
     // 合作伙伴 v2: 自动填入 creates the starting relationships from what the hub knows; the
@@ -1695,6 +1706,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   // 新建账号: the result shows the licence that was assigned (the page read 'license' while the API said 'licence' and
   // always printed 分配失败 — Rick, 2026-10-20); a real failure shows Microsoft's reason.
   await shot("users-create", 1280, 900, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#dsel"); await p.selectOption("#dsel", "bes.qiaoliang.online"); await p.waitForSelector("#utable tr[data-upn]:not([data-dom])"); await p.waitForTimeout(300);
     await p.waitForSelector("#newUser"); await p.click("#newUser"); await p.waitForSelector("#panel.open #nuAcct");
     await p.fill("#nuAcct", "eason.huang"); await p.fill("#nuGiv", "Eason"); await p.fill("#nuSur", "Huang"); await p.selectOption("#nuId", "家长");
     // city ⇄ postcode (Rick, 2026-10-20): typing 深圳市 fills 518000; typing a postcode fills the city
@@ -1761,7 +1773,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   });
   // Users: role filter (identity, Hive roles, 蜂巢课程教师) and 所有学校 across domains (Rick, 2026-10-08).
   await shot("users-roles-all", 1280, 820, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
-    await p.waitForSelector("#utable tr[data-upn]");
+    await p.waitForSelector("#dsel"); await p.selectOption("#dsel", "bes.qiaoliang.online"); await p.waitForSelector("#utable tr[data-upn]:not([data-dom])"); await p.waitForTimeout(300);
     assert.ok(await p.$("#urole"), "role filter present");
     await p.selectOption("#urole", "role:teacher"); await p.waitForTimeout(200);
     let rows = await p.$$eval("#utable tr[data-upn]", r => r.length);
@@ -1796,9 +1808,10 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   });
   // the pager itself: a page of 4 over 15 rows
   await shot("users-paged", 1280, 820, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
-    await p.waitForSelector("#utable tr[data-upn]");
+    // 所有学校 is the default for whoever manages several (Rick, 2026-10-21: 「用户管理默认 all schools」)
+    await p.waitForSelector("#utable tr[data-dom]");
+    assert.strictEqual(await p.$eval("#dsel", e => e.value), "*", "the page opens on 所有学校");
     await p.evaluate(() => { window.__fcTest = true; });
-    await p.selectOption("#dsel", "*"); await p.waitForSelector("#utable tr[data-dom]");
     const N = Number((/匹配 (\d+)/.exec(await p.$eval("#ufoot", e => e.textContent)) || [])[1]); assert.ok(N >= 15, "all rows first: " + N);
     // a smaller page, through the same query the page builds (U_PAGE is a constant; the mock honours any limit)
     await p.evaluate(() => { const a = document.querySelector("#ukpi"); a.insertAdjacentHTML("beforeend", '<button type="button" id="tinyPage" data-offset="0" hidden></button>'); });
@@ -1863,6 +1876,14 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(await p.$("#title .info"), "description behind ⓘ");
     const cols = await p.$$(".board .bcol"); assert.strictEqual(cols.length, 8, "eight IT stages on the board");
     const before = (await p.$$(".board .bcard")).length; // the seeded ones (family-institutions ran first)
+    // the board fits the pane: empty columns fold, so the column that holds the cards is in view (Rick, 2026-10-21)
+    {
+      const bw = await p.$eval(".board", e => ({ sw: e.scrollWidth, cw: e.clientWidth })); assert.ok(bw.sw <= bw.cw, "no horizontal scroll on the board: " + JSON.stringify(bw));
+      const heads = await p.$$eval(".board .bcol", es => es.map(e => ({ empty: e.classList.contains("empty"), head: e.querySelector(".bhead").innerText, cards: e.querySelectorAll(".bcard").length })));
+      assert.ok(heads.some(h => h.cards > 0 && !h.empty) && heads.some(h => h.cards === 0 && h.empty), "columns with cards open, the empty ones folded: " + JSON.stringify(heads));
+      assert.ok(/限 14 天/.test(heads[0].head), "the header's number is labelled as the stall threshold: " + heads[0].head);
+      if (before) assert.ok(/本阶段 \d+ 天/.test(await p.$eval(".board .bcard", e => e.innerText)), "a card shows its own days in the stage");
+    }
     await p.click("#ptNew"); await p.waitForTimeout(300);
     await p.fill("#nrOq", "kxc"); await p.waitForTimeout(500);
     await p.click('#nrOres .pr[data-key]'); await p.waitForTimeout(200);

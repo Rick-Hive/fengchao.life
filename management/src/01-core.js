@@ -87,7 +87,7 @@
   var me = null;            // /api/me/summary body
   var domainsInfo = null;   // /api/domain/domains body or null
   var currentDomain = "";
-  var state = { teams: null, teamFilter: "all", teamSort: "az", teamQ: "", domainUsers: {}, domainGroups: {}, userQ: "", userFilter: "all", userRole: "", allDomains: false };
+  var state = { teams: null, teamFilter: "all", teamSort: "az", teamQ: "", domainUsers: {}, domainGroups: {}, userQ: "", userFilter: "all", userRole: "", allDomains: null }; // allDomains null = not chosen yet: 用户管理 opens on 所有学校 for whoever manages several (Rick, 2026-10-20/21)
 
   // Where a sign-in lands when the address has no hash: staff on the dashboard, everyone else on
   // 毕业要求与课程地图 (Rick, 2026-10-19). The router and the sidebar highlight both use this.
