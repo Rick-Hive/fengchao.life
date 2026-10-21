@@ -54,13 +54,14 @@ const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
 const tg = require("../shared/teamGroups");
 const { readSnapshot } = require("../shared/blob");
+const userList = require("../shared/userList");
 
 // Hive course teachers (Rick, 2026-10-08: "a separate Hive Course Teachers"): the
 // Teachers table's private contacts (snapshot.private.teachers) matched to tenant
 // accounts by Teams account, else by the account's recovery email. Name is never a
 // key. Returns Map(upn → { name, teacherId, organization }).
-async function hiveTeachersByUpn(users) {
-  const snap = await readSnapshot().catch(() => null);
+async function hiveTeachersByUpn(users, snap) {
+  if (snap === undefined) snap = await readSnapshot().catch(() => null);
   const list = (snap && snap.private && snap.private.teachers) || [];
   if (!list.length) return new Map();
   const byUpn = new Map(), byEmail = new Map();
@@ -124,10 +125,18 @@ function temporaryPassword() {
   return chars.join("");
 }
 
-async function usersView(domain) {
-  const [doc, peopleDoc, rolesDoc, gnames] = await Promise.all([dir.readDomain(domain), readPeople(), readRoles().catch(() => ({ entries: [] })), peopleMod.readGroupNames()]);
+// What every school's view needs besides its own directory cache: read once per request, not once per school
+// (the 所有学校 view used to read people / roles / group names / the snapshot twenty times over; Rick, 2026-10-21).
+async function sharedReads() {
+  const [peopleDoc, rolesDoc, gnames, snap] = await Promise.all([readPeople(), readRoles().catch(() => ({ entries: [] })), peopleMod.readGroupNames(), readSnapshot().catch(() => null)]);
+  return { peopleDoc, rolesDoc, gnames, snap };
+}
+async function usersView(domain, shared) {
+  const sh = shared || (await sharedReads());
+  const doc = await dir.readDomain(domain);
+  const { peopleDoc, rolesDoc, gnames } = sh;
   const people = peopleDoc.people;
-  const teachers = await hiveTeachersByUpn(doc.users);
+  const teachers = await hiveTeachersByUpn(doc.users, sh.snap);
   // Every distinct group these accounts belong to, translated once (cached in groupnames.json).
   const distinct = new Map();
   for (const r of doc.users) for (const g of r.groups || []) if (g && g.id && !distinct.has(g.id)) distinct.set(g.id, { id: g.id, name: g.name });
@@ -196,15 +205,25 @@ async function handler(context, req) {
     // domain=* — the users of every school the caller manages, merged server side,
     // each row carrying its domain (the 所有学校 view; self-review 2026-10-08: the page
     // used to fetch every school separately and merge in the browser).
+    // Paged since 2026-10-21 (Rick: the page took long to open): ?offset&limit&q&filter&role&sort → one page of the rows
+    // that match, the number that match, and the tile counts of the whole set; limit=all for the CSV. The shared reads
+    // happen once, the schools' caches in parallel. `timing` says where the time went (shown to the sysadmin).
     if (method === "GET" && action === "users" && domain === "*") {
+      const t0 = Date.now();
       let list = all ? [] : allowed.filter((d) => d !== "*");
       if (all) { try { list = (await dir.verifiedDomains()).map((d) => d.domain); } catch { list = []; } if (!list.length) { try { list = (await dir.cachedDomains()).map((d) => d.domain); } catch { list = []; } } }
       if (list.length < 2) return fail(context, 403, "all schools needs more than one managed school", { allowed: list });
-      const views = await Promise.all(list.map((d) => usersView(d).then((v) => ({ d, v })).catch(() => null)));
+      const [shared, inst] = await Promise.all([sharedReads(), readInstitutions().catch(() => ({ institutions: {} }))]);
+      const t1 = Date.now();
+      const views = await Promise.all(list.map((d) => usersView(d, shared).then((v) => ({ d, v })).catch(() => null)));
+      const t2 = Date.now();
       const users = [], syncs = [];
       for (const x of views) { if (!x) continue; for (const u of x.v.users) users.push(Object.assign({}, u, { domain: x.d })); syncs.push(dir.status(x.v.doc)); }
       const latest = syncs.filter((s) => s && s.syncedAt).sort((a, b) => String(b.syncedAt).localeCompare(String(a.syncedAt)))[0] || null;
-      context.res = { status: 200, body: { domain: "*", domains: list, users, partial: users.some((u) => u.partial), sync: latest } };
+      const opts = userList.parseQuery(req.query);
+      const pg = userList.page(users, opts, inst.institutions || {});
+      const t3 = Date.now();
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain: "*", domains: list, users: pg.users, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: { q: opts.q, filter: opts.filter, role: opts.role, sort: opts.sort }, partial: users.some((u) => u.partial), sync: latest, timing: { shared: t1 - t0, schools: t2 - t1, page: t3 - t2, total: t3 - t0, schoolsRead: views.filter(Boolean).length } } };
       return;
     }
 

@@ -120,16 +120,24 @@
   // The users of every managed school, each row tagged with its domain, merged into one
   // table-shaped object { users, sync, partial }.
   function allDomainList() { return ((domainsInfo && domainsInfo.domains) || []).map(function (d) { return d.domain; }); }
-  // One request: the server merges the managed schools (domain=*), rows carry their domain.
-  function loadAllUsers(force) {
-    if (!force && state.domainUsers["*"]) return Promise.resolve(state.domainUsers["*"]);
-    return api("domain/users?domain=*").then(function (r) {
+  // 所有学校 (domain=*) is paged since 2026-10-21 (Rick: the page took long to open with 2,000+ accounts): the server
+  // keeps every school's rows, filters and searches them, and answers one page of U_PAGE rows with the tile counts.
+  // A row's panel loads that school's own cache on demand (openUserPanel), so no per-school cache is filled from here.
+  var U_PAGE = 100;
+  function uQuery(offset, limit) { return "domain=*&offset=" + (offset || 0) + "&limit=" + (limit || U_PAGE) + "&q=" + encodeURIComponent(state.userQ || "") + "&filter=" + encodeURIComponent(state.userFilter || "all") + "&role=" + encodeURIComponent(state.userRole || ""); }
+  function loadAllUsers(force, offset) {
+    var cur = state.domainUsers["*"];
+    if (!force && cur && cur.key === uQuery(offset)) return Promise.resolve(cur);
+    return api("domain/users?" + uQuery(offset)).then(function (r) {
       if (!r.ok) throw new Error(errText(r));
-      state.domainUsers["*"] = Object.assign({ all: true }, r.body);
-      // The per-school caches are filled from the same answer, so opening a row's panel needs no second fetch.
-      allDomainList().forEach(function (dom) { if (!state.domainUsers[dom]) state.domainUsers[dom] = { domain: dom, users: r.body.users.filter(function (u) { return u.domain === dom; }), sync: r.body.sync, partial: false }; });
+      state.domainUsers["*"] = Object.assign({ all: true, key: uQuery(offset) }, r.body);
       return state.domainUsers["*"];
     });
+  }
+  // the filters changed in the 所有学校 view: back to the first page
+  function reloadAllUsers(offset) {
+    var tb = $("utable") && $("utable").tBodies[0]; if (tb && !tb.querySelector(".loading")) tb.classList.add("dim");
+    return loadAllUsers(true, offset || 0).then(renderUsers).catch(showUsersError);
   }
   function usersTable() { return state.allDomains ? state.domainUsers["*"] : state.domainUsers[currentDomain]; }
   function loadDomainData(kind, force) {
@@ -199,17 +207,18 @@
       '<div class="tbl-wrap"><table class="data" id="utable"><thead><tr>' +
         "<th>" + t("账号", "Account name") + "</th><th>" + t("显示名", "Display name") + "</th><th>" + t("验证", "Authentication") + "</th><th>" + t("验证设备", "Authentication device") + "</th><th>" + t("Teams 群组", "Teams groups") + "</th><th>" + t("身份", "Identity") + "</th><th>" + t("关联账号", "Linked account") + "</th>" +
         '</tr></thead><tbody><tr><td colspan="7" class="loading">' + t("载入中…", "Loading…") + "</td></tr></tbody></table></div>" +
-      '<p class="muted" id="ufoot" style="font-size:.8rem"></p>';
+      '<div class="muted ufoot" id="ufoot" style="font-size:.8rem"></div>';
     var sel = $("dsel");
     if (sel) sel.addEventListener("change", function () { if (this.value === "*") state.allDomains = true; else { state.allDomains = false; currentDomain = this.value; } viewUsers(); });
-    $("urole").addEventListener("change", function () { state.userRole = this.value; renderUsers(); });
+    var refilter = function () { if (state.allDomains) reloadAllUsers(0); else renderUsers(); };
+    $("urole").addEventListener("change", function () { state.userRole = this.value; refilter(); });
     $("ubar").addEventListener("click", function (e) {
       var c = e.target.closest(".chip[data-f]"); if (!c) return;
       state.userFilter = c.getAttribute("data-f");
       $("ubar").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x === c ? "true" : "false"); });
-      renderUsers();
+      refilter();
     });
-    $("uq").addEventListener("input", debounce(function () { state.userQ = $("uq").value.trim(); renderUsers(); }, 120));
+    $("uq").addEventListener("input", debounce(function () { state.userQ = $("uq").value.trim(); refilter(); }, state.allDomains ? 350 : 120));
     function bindSync(btnId, mode) {
       var b = $(btnId); if (!b) return;
       b.addEventListener("click", function () {
@@ -228,8 +237,13 @@
       var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
       var f = k.getAttribute("data-kf");
       if (f === "groups") { if (!state.allDomains) location.hash = "#/domain/groups"; return; }
-      if (f === "teacher") { state.userRole = state.userRole === "role:teacher" ? "" : "role:teacher"; $("urole").value = state.userRole; renderUsers(); return; }
-      state.userFilter = f; renderUsers();
+      if (f === "teacher") { state.userRole = state.userRole === "role:teacher" ? "" : "role:teacher"; $("urole").value = state.userRole; refilter(); return; }
+      state.userFilter = f; refilter();
+    });
+    $("ufoot").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-offset]"); if (!b) return;
+      reloadAllUsers(Number(b.getAttribute("data-offset")));
+      var c = $("content"); if (c) c.scrollTop = 0;
     });
     var nu = $("newUser"); if (nu) nu.addEventListener("click", function () { openNewUserPanel(currentDomain); });
     $("utable").addEventListener("click", function (e) {
@@ -264,7 +278,7 @@
       if (kind === "teacher") return !!u.hiveTeacher || u.identity === "老师";
       return true;
     }
-    var rows = d.users.filter(function (u) {
+    var rows = d.all ? d.users : d.users.filter(function (u) {
       if (f === "noauth" && u.verified !== false) return false;
       if (f === "noid" && u.identity) return false;
       if (f === "never" && !neverSigned(u)) return false;
@@ -277,14 +291,16 @@
       }
       return true;
     });
-    var teachers = d.users.filter(function (u) { return u.hiveTeacher || u.identity === "老师"; }).length;
-    var anomalies = d.users.filter(function (u) { return u.anomaly; }).length;
-    var n = d.users.length, noauth = d.users.filter(function (u) { return u.verified === false; }).length, noid = d.users.filter(function (u) { return !u.identity; }).length;
+    // the tile numbers: over the whole set — the server's counts in the paged 所有学校 view, counted here for one school
+    var cs = d.all && d.counts ? d.counts : null;
+    var teachers = cs ? cs.teacher : d.users.filter(function (u) { return u.hiveTeacher || u.identity === "老师"; }).length;
+    var anomalies = cs ? cs.anomaly : d.users.filter(function (u) { return u.anomaly; }).length;
+    var n = cs ? cs.total : d.users.length, noauth = cs ? cs.noauth : d.users.filter(function (u) { return u.verified === false; }).length, noid = cs ? cs.noid : d.users.filter(function (u) { return !u.identity; }).length;
     // Never signed in to Microsoft 365 (no successful sign-in on record — Rick, 2026-10-04:
     // 「Display how many users haven't login office 365 successfully」). The date comes from
     // Entra's signInActivity; when the tenant does not expose it, nobody has one and the
     // tile says so instead of a number.
-    var never = d.users.filter(neverSigned).length, anySignIn = d.users.some(function (u) { return u.lastSignIn; });
+    var never = cs ? cs.never : d.users.filter(neverSigned).length, anySignIn = cs ? cs.anySignIn : d.users.some(function (u) { return u.lastSignIn; });
     // The tiles are buttons (Rick, 2026-10-05: 「这些数字是否可以点击？显示相应的账户列表」):
     // each applies its filter to the table below; 群组 goes to the Teams 群组 page.
     function kpi(f, label, value, cls, sub) { return '<button type="button" class="kpi' + (f && state.userFilter === f ? " on" : "") + '" data-kf="' + f + '"><div class="l">' + label + '</div><div class="v' + (cls || "") + '">' + value + "</div>" + (sub || "") + "</button>"; }
@@ -319,11 +335,28 @@
         '<td class="nowrap">' + (u.identity ? '<span class="tag accent">' + esc(vl(u.identity)) + "</span>" : '<span class="muted">—</span>') + (u.anomaly ? ' <span class="tag bad" title="' + esc(anomalyText(u)) + '">' + t("异常", "Anomaly") + "</span>" : "") + (u.hiveTeacher ? ' <span class="tag ok" title="' + esc(t("蜂巢课程教师", "Hive course teacher") + (u.hiveTeacher.teacherId ? " · " + u.hiveTeacher.teacherId : "")) + '">' + t("课程教师", "Course teacher") + "</span>" : "") + ((u.roles || []).length ? ' <span class="tag">' + t("角色", "Role") + "</span>" + roleTags : "") + "</td>" +
         '<td class="nowrap">' + (u.linked.length ? '<span class="cell-ell" title="' + esc(u.linked.join(", ")) + '">' + u.linked.map(function (l) { return hl(l, state.userQ); }).join(", ") + "</span>" : '<span class="muted">—</span>') + "</td></tr>";
     }).join("") : '<tr><td colspan="7"><div class="empty">' + t("没有匹配的账号。", "No matching accounts.") + "</div></td></tr>";
-    $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号" + (d.all ? "（" + allDomainList().length + " 所学校）" : "") + " · ", rows.length + " of " + n + " accounts" + (d.all ? " (" + allDomainList().length + " schools)" : "") + " · ") + (d.sync ? syncLine(d.sync) : "") + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
+    $("utable").tBodies[0].classList.remove("dim");
+    if (d.all) {
+      // the pager: "1–100 / 2,143 matching · 2,143 accounts · 21 schools", 上一页 / 下一页; the sysadmin also sees the server's timing
+      var from = d.matched ? d.offset + 1 : 0, to = Math.min(d.offset + rows.length, d.matched), per = typeof d.limit === "number" ? d.limit : U_PAGE;
+      var pager = d.matched > per ? ' <span class="upager"><button type="button" class="btn secondary sm" data-offset="' + Math.max(0, d.offset - per) + '"' + (d.offset <= 0 ? " disabled" : "") + ">" + t("上一页", "Previous") + '</button> <button type="button" class="btn secondary sm" data-offset="' + (d.offset + per) + '"' + (to >= d.matched ? " disabled" : "") + ">" + t("下一页", "Next") + "</button></span>" : "";
+      var timing = d.timing && isAdmin() ? ' <span class="faint" title="' + esc(t("服务端耗时：共用数据 / 各校缓存 / 筛选分页", "Server time: shared reads / school caches / filter and page")) + '">' + esc(d.timing.total + " ms (" + d.timing.shared + "/" + d.timing.schools + "/" + d.timing.page + ")") + "</span>" : "";
+      $("ufoot").innerHTML = esc(t("第 " + from + "–" + to + " / 匹配 " + d.matched.toLocaleString("zh-CN") + " · 共 " + n.toLocaleString("zh-CN") + " 个账号 · " + allDomainList().length + " 所学校", from + "–" + to + " of " + d.matched.toLocaleString("en-US") + " matching · " + n.toLocaleString("en-US") + " accounts · " + allDomainList().length + " schools")) + pager + (d.sync ? " · " + esc(syncLine(d.sync)) : "") + (d.partial ? esc(t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read")) : "") + timing;
+      return;
+    }
+    $("ufoot").textContent = t("共 " + rows.length + " / " + n + " 个账号 · ", rows.length + " of " + n + " accounts · ") + (d.sync ? syncLine(d.sync) : "") + (d.partial ? t(" · 部分账号的方法或群组没有读到", " · some accounts' methods or groups could not be read") : "");
   }
   function uniqueGroups(users) { var s = {}; users.forEach(function (u) { u.groups.forEach(function (g) { s[g.id] = 1; }); }); return Object.keys(s).length; }
   function exportUsersCsv() {
     var d = usersTable(); if (!d) return;
+    if (d.all && !d.csvAll) { // the paged view: fetch every row that matches the current filters, then write the file
+      var b = $("csv"); savingButton(b, t("准备中…", "Preparing…"));
+      api("domain/users?" + uQuery(0, "all")).then(function (r) { restoreButton(b); if (!r.ok) { flash(esc(errText(r)), 4000); return; } exportUsersCsvRows(Object.assign({}, d, { users: r.body.users, csvAll: true })); });
+      return;
+    }
+    exportUsersCsvRows(d);
+  }
+  function exportUsersCsvRows(d) {
     var cols = [t("账号", "Account"), t("学校", "School"), t("显示名", "Display name"), t("验证", "Authentication"), t("验证设备", "Devices"), t("Teams 群组", "Groups"), t("身份", "Identity"), t("蜂巢角色", "Hive roles"), t("蜂巢课程教师", "Hive course teacher"), t("关联账号", "Linked"), t("最近登录", "Last sign-in"), t("已启用", "Enabled")];
     var cell = function (v) { var s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     var lines = [cols.join(",")].concat(d.users.map(function (u) {

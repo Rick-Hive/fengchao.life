@@ -58,6 +58,9 @@ const MY_ORDERS0 = () => [
   { orderId: "FC-20261018-BES-001", submission: "FC-20261018-BES-001", submittedAt: "2026-10-18T03:00:00Z", status: "confirmed", email: "h.safe@gmail.com", account: "", items: [{ code: "BES-SCI-MS-201", nameZh: "生命科学", nameEn: "Life Science", price: 1800, schoolAbbr: "BES", grades: ["G7"], waitlist: true, prereq: { text: "BES-SCI-MS-101 Earth Science / 地球科学", codes: ["BES-SCI-MS-101"], met: "none" } }], hives: [{ key: "bes", name: "BES", abbr: "BES" }], itemCount: 1, totalPrice: 1800, currency: "CNY", fee: { amount: 100, currency: "usd", status: "paid", receiptUrl: "https://pay.stripe.com/receipts/x" }, notify: { ok: true }, history: [], canCancel: false },
 ];
 const planPuts = [];
+// 所有学校 is paged (2026-10-21): the mock pages with the real module; every query the page sent is recorded
+const userList = require("../../api/shared/userList.js");
+const usersPages = [];
 // 校历 (2026-10-16): the school's own events and the Hive layer, kept in memory; every POST is recorded.
 const TEAM_G5 = "11111111-1111-1111-1111-111111111111";
 const CAL_AUD = { people: [
@@ -268,7 +271,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/school-plan" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); planPuts.push(b); const at = new Date().toISOString(); if (b.unpublish) PLAN_DOC = Object.assign({}, PLAN_DOC, { published: null, updatedAt: at }); else { const map = {}; Object.keys(b.map || {}).forEach(st => { map[st] = { grades: PLAN_DEFAULTS.map[st].grades, rows: (b.map[st].rows || []).map((row, i) => ({ id: row.id || "s" + i, order: i + 1, subjects: row.subjects, trackIds: row.trackIds || [], pedagogy: row.pedagogy || null, spanAll: !!row.spanAll, cells: Object.fromEntries(Object.entries(row.cells || {}).filter(([, v]) => String(v).trim()).map(([g, v]) => [g, String(v).split(/[;；\n]+/).map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf("/"); return i < 0 ? { en: x, zh: null } : { en: x.slice(0, i).trim(), zh: x.slice(i + 1).trim() }; })])) })) }; }); PLAN_DOC = Object.assign({}, PLAN_DOC, { draft: { tracks: b.tracks || {}, map }, updatedAt: at, updatedBy: me.profile.upn }); if (b.publish) PLAN_DOC.published = Object.assign({}, PLAN_DOC.draft, { at, by: me.profile.upn }); } body = { ok: true, domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS }; }
       else if (p === "/api/domain/user" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); createdUsers.push(b); const upn = b.account + "@" + b.domain; body = { ok: true, user: upn, id: "u-new", displayName: b.displayName || (b.givenName + " " + b.surname), password: "Hive-2026-xyz", mustChange: true, licence: CREATE_LICENCE, license: CREATE_LICENCE }; }
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
-      else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))) } : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
+      else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? (() => { const all = users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))); const opts = userList.parseQuery(Object.fromEntries(u.searchParams)); const pg = userList.page(all, opts, {}); usersPages.push(opts); return { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: pg.users, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: opts, timing: { shared: 12, schools: 30, page: 2, total: 44, schoolsRead: 2 } }; })() : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
       else if (p === "/api/domain/user" && r.request().method() === "GET") { const up = u.searchParams.get("upn"); const hit = users.users.find(x => x.upn === up); body = { domain: u.searchParams.get("domain"), user: hit || null, gone: !hit, profile: u.searchParams.get("full") && hit ? { givenName: "", surname: "", displayName: hit.displayName, jobTitle: hit.jobTitle || "", city: hit.city || "南京", postalCode: "210000", usageLocation: "CN", safeEmail: hit.safeEmail || "" } : null }; }
       else if (p === "/api/domain/user" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); acctEdits.push(b); const hit = users.users.find(x => x.upn === b.user); if (b.jobTitle !== undefined) hit.jobTitle = b.jobTitle; if (b.displayName) hit.displayName = b.displayName; body = { ok: true, user: hit, changed: Object.keys(b).filter(k => k !== "domain" && k !== "user") }; }
       else if (p === "/api/domain/licenses") body = { usageLocation: "CN", faculty: { skuId: "f", name: "Office 365 A1 for faculty", total: 500, used: 12, free: 488 }, student: { skuId: "s", name: "Office 365 A1 for students", total: 1000, used: 990, free: 10 }, extras: [], a1: [] };
@@ -1711,13 +1714,41 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForSelector("#utable tr[data-dom]");
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 15, "12 + 3 across two schools: " + rows);
     assert.ok(!(await p.$("#newUser")) && !(await p.$("#usNew")), "no new-account or sync buttons across all schools");
-    const foot = await p.$eval("#ufoot", e => e.textContent); assert.ok(/15 \/ 15/.test(foot) && /2 所学校/.test(foot), foot);
-    await p.selectOption("#urole", "role:teacher"); await p.waitForTimeout(200);
+    let foot = await p.$eval("#ufoot", e => e.textContent); assert.ok(/第 1–15 \/ 匹配 15/.test(foot) && /共 15 个账号/.test(foot) && /2 所学校/.test(foot) && /44 ms/.test(foot) && !(await p.$("#ufoot .upager")), "paged footer, the server's timing for the sysadmin, no pager under one page: " + foot);
+    assert.ok(/从未登录/.test(await p.$eval("#ukpi", e => e.innerText)), "tiles come from the server's counts");
+    // the filters are the server's now: the role filter sends a query and the page shows what came back
+    usersPages.length = 0;
+    await p.selectOption("#urole", "role:teacher"); await p.waitForTimeout(400);
+    assert.deepStrictEqual([usersPages.length, usersPages[0] && usersPages[0].role, usersPages[0] && usersPages[0].offset], [1, "role:teacher", 0], "one paged query for the role: " + JSON.stringify(usersPages));
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 3, "teachers across schools: two from the Teachers table + the demo school's one whose identity is 老师: " + rows);
-    await p.selectOption("#urole", "");
-    await p.click("#utable tr[data-dom]"); await p.waitForTimeout(400);
-    assert.ok(await p.$("#panel .ph h3"), "person panel opens from the all-schools table");
+    await p.fill("#uq", "demo"); await p.waitForTimeout(700);
+    assert.ok(usersPages[usersPages.length - 1].q === "demo" && usersPages[usersPages.length - 1].role === "role:teacher", "search and role travel together: " + JSON.stringify(usersPages[usersPages.length - 1]));
+    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 1, "the demo school's teacher: " + rows);
+    await p.fill("#uq", ""); await p.selectOption("#urole", ""); await p.waitForTimeout(700);
+    await p.click("#utable tr[data-dom]"); await p.waitForTimeout(500);
+    assert.ok(await p.$("#panel .ph h3"), "person panel opens from the all-schools table (that school's cache is loaded on demand)");
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 15, "table still shows all schools after opening a panel: " + rows);
+  });
+  // the pager itself: a page of 4 over 15 rows
+  await shot("users-paged", 1280, 820, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#utable tr[data-upn]");
+    await p.evaluate(() => { window.__fcTest = true; });
+    await p.selectOption("#dsel", "*"); await p.waitForSelector("#utable tr[data-dom]");
+    const N = Number((/匹配 (\d+)/.exec(await p.$eval("#ufoot", e => e.textContent)) || [])[1]); assert.ok(N >= 15, "all rows first: " + N);
+    // a smaller page, through the same query the page builds (U_PAGE is a constant; the mock honours any limit)
+    await p.evaluate(() => { const a = document.querySelector("#ufoot"); a.insertAdjacentHTML("beforeend", '<button type="button" id="tinyPage" data-offset="0" hidden></button>'); });
+    usersPages.length = 0;
+    await p.route(/\/api\/domain\/users\?domain=\*&offset=\d+&limit=100/, r => r.fallback({ url: r.request().url().replace("limit=100", "limit=4") }));
+    await p.$eval("#tinyPage", b => b.click()); await p.waitForTimeout(500);
+    let foot = await p.$eval("#ufoot", e => e.textContent);
+    assert.ok(new RegExp("第 1–4 / 匹配 " + N).test(foot) && (await p.$$("#utable tr[data-upn]")).length === 4 && (await p.$("#ufoot .upager")), "first page of four with a pager: " + foot);
+    assert.ok(await p.$eval('#ufoot button[data-offset="0"]:not(#tinyPage)', b => b.disabled) === true, "上一页 disabled on the first page");
+    await p.click('#ufoot button[data-offset="4"]'); await p.waitForTimeout(500);
+    foot = await p.$eval("#ufoot", e => e.textContent);
+    assert.ok(new RegExp("第 5–8 / 匹配 " + N).test(foot), "second page: " + foot);
+    const upns = await p.$$eval("#utable tr[data-upn]", rs => rs.map(r => r.getAttribute("data-upn")));
+    assert.strictEqual(upns.length, 4);
+    await p.screenshot({ path: OUT + "/users-paged.png" });
   });
   // Narrow panes wrap instead of clipping (Rick, 2026-10-08: "use two rows"); no sideways scroll.
   await shot("users-narrow", 1000, 700, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
