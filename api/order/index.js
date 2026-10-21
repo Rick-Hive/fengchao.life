@@ -194,6 +194,9 @@ module.exports = async function (context, req) {
   // confirmation email — and the hive's Teams notification are rendered in it,
   // so the hive replies in the language the family already chose.
   const lang = body.lang === "en" ? "en" : "zh";
+  // the child each course is for (stage 2, 2026-10-21): { [courseId]: { name, grade, account } } — the roster and the
+  // transcript hang on it; a signed-in parent picks from the profile's children, an anonymous one types name + grade
+  const childrenIn = body.children && typeof body.children === "object" && !Array.isArray(body.children) ? body.children : {};
 
   if (!EMAIL_RE.test(email) || email.length > 254) {
     context.res = { status: 400, body: { error: "invalid_email" } };
@@ -278,6 +281,17 @@ module.exports = async function (context, req) {
         waitlist: false,
       });
     }
+    // Each item carries its child; a course without one is refused (the website asks for it on every line).
+    {
+      const missing = [];
+      for (const it of items) {
+        const k = childrenIn[it.courseId] && typeof childrenIn[it.courseId] === "object" ? childrenIn[it.courseId] : null;
+        const name = String((k && k.name) || "").trim().slice(0, 40), grade = String((k && k.grade) || "").trim().slice(0, 20), account = String((k && k.account) || "").trim().toLowerCase().slice(0, 200);
+        if (!name) { missing.push(it.courseId); continue; }
+        it.child = { name, grade, account: EMAIL_RE.test(account) ? account : "" };
+      }
+      if (missing.length) { context.res = { status: 400, body: { error: "missing_child", courseIds: missing } }; return; }
+    }
     // Prerequisites (enrollment rules, 2026-10-20): "CODE English / 中文; …" — a leading course code is a course. The
     // order records, per item, how each prerequisite is met: cart (ordered together), ordered (this family's earlier
     // order, confirmed / paid / started), confirmed (the family ticked it), none (nothing known) — never refused here;
@@ -311,7 +325,6 @@ module.exports = async function (context, req) {
       for (const it of items) if (it.waitlist) { it.baseNameZh = it.nameZh; it.baseNameEn = it.nameEn; it.name = it.name + " [候补 / waitlist]"; it.nameZh = it.nameZh + "（候补）"; it.nameEn = it.nameEn + " (waitlist)"; }
       seats.forget();
     }
-    const total = items.reduce((s, i) => s + (typeof i.price === "number" ? i.price : 0), 0);
     // trackId 7 is the K–G8 catalog (not a graduation track) — give it a readable
     // name. Written as the same language pair the real tracks now carry, so
     // trackLabel() renders it in the same "中文 / English" shape rather than this
@@ -320,94 +333,57 @@ module.exports = async function (context, req) {
       trackId === 7
         ? { trackId: 7, nameZh: "小学·初中课程", nameEn: "K-G8 Courses" }
         : snapshot.tracks.find((t) => t.trackId === trackId) || null;
+    const trackWire = track
+      ? { trackId: track.trackId, name: trackLabel(track), nameZh: track.nameZh || "", nameEn: track.nameEn || "" }
+      : { trackId, name: "", nameZh: "", nameEn: "" };
 
-    const order = {
-      orderId: await makeOrderId(items, (m) => context.log.warn(m)),
-      submission: makeSubmissionId(),
-      submittedAt: new Date().toISOString(),
-      email,
-      // the signed-in account the order belongs to ("" for an anonymous order); the people hub joins it to the customer
-      account: accountOf(req),
-      // the selection fee (null until one is configured; see api/shared/fee.js)
-      fee: fee.feeRecord(fee.selectionFee()),
-      // The trigger schema types these as strings; sending null or omitting `name`
-      // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
-      teamsAccount: teamsAccount || "",
-      // `name` stays the combined "中文 / English" string the flow's trigger
-      // schema has always seen. nameZh/nameEn are sent alongside it so
-      // api/shared/messages.js can render ONE language for the parent's
-      // confirmation email and BOTH for the hive's notification — a bilingual
-      // track line in a Chinese email breaks the single-language rule.
-      // Additive only: extra properties do not fail the trigger's schema
-      // (routes[].usedDefaultChannel is already sent without being in it).
-      track: track
-        ? {
-            trackId: track.trackId,
-            name: trackLabel(track),
-            nameZh: track.nameZh || "",
-            nameEn: track.nameEn || "",
-          }
-        : { trackId, name: "", nameZh: "", nameEn: "" },
-      itemCount: items.length,
-      totalPrice: total,
-      currency: "CNY",
-      items,
-      snapshotGeneratedAt: snapshot.generatedAt,
-      lang,
-    };
-
-    // Power Automate receives finished text, not fields to assemble. See the
-    // header comment in api/shared/messages.js for why.
-    const templates = snapshot.messageTemplates;
-    const msg = buildMessages(order, templates, lang);
-    order.notifyText = msg.notifyText;
-    order.emailTo = email;
-    order.emailSubject = msg.emailSubject;
-    order.emailHtml = msg.emailHtml;
-    order.emailBodyText = msg.emailBodyText;
-
-    // Per-hive delivery. An order can span hives, and each settles payment and
-    // enrolment with the family separately, so each gets its own message listing
-    // only its own courses and its own subtotal — not the whole order.
-    //
-    // Routing comes from snapshot.private (never served to browsers): each hive's
-    // Teams channel id and notification address, filled in on the Schools table.
-    // A hive with neither still produces a route, with empty destinations — the
-    // flow posts those to the default channel so an order can never silently
-    // vanish because an Airtable cell was left blank.
+    // One submission, one order per hive (design 2026-10-20: 「一张跨机构的订单在提交时按机构拆单」): each hive settles
+    // payment and enrolment with the family on its own, so each gets its own order id, record and status; the orders
+    // share the submission id, and the family receives one confirmation listing them all.
+    const submission = makeSubmissionId(), submittedAt = new Date().toISOString(), account = accountOf(req);
+    const feeRec = fee.feeRecord(fee.selectionFee());
     const routing = (snapshot.private && snapshot.private.schoolRouting) || {};
-    order.routes = groupByHive(items).map((g) => {
-      const dest = routing[g.key] || {};
-      const scoped = {
-        ...order,
-        items: g.items,
+    const templates = snapshot.messageTemplates;
+    const groups = groupByHive(items);
+    const orders = [];
+    for (const g of groups) {
+      const order = {
+        orderId: await makeOrderId(g.items, (m) => context.log.warn(m)),
+        submission,
+        submittedAt,
+        email,
+        account,
+        fee: feeRec,
+        // The trigger schema types these as strings; sending null or omitting `name`
+        // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
+        teamsAccount: teamsAccount || "",
+        track: trackWire,
         itemCount: g.itemCount,
         totalPrice: g.subtotal,
+        currency: "CNY",
+        items: g.items,
+        snapshotGeneratedAt: snapshot.generatedAt,
+        lang,
       };
-      const m = buildMessages(scoped, templates, lang);
-
-      // A hive with no channel of its own falls back to the default channel, so
-      // the order is still announced somewhere rather than failing the flow's
-      // post. Flagged and logged, because a silent fallback would hide a blank
-      // Airtable cell indefinitely — and prefixed onto the message so whoever
-      // reads the default channel knows it was misrouted, not addressed to them.
+      // Per-hive delivery: the hive's Teams channel id and notification address come from snapshot.private (never
+      // served to browsers), filled in on the Schools table. A hive with neither still produces a route, with empty
+      // destinations — the flow posts those to the default channel so an order can never silently vanish.
+      const dest = routing[g.key] || {};
+      const m = buildMessages(order, templates, lang);
       const ownChannel = dest.teamsChannelId || "";
       const channelId = ownChannel || cfg.defaultTeamsChannelId || "";
       const usedDefaultChannel = !ownChannel && !!channelId;
       if (!ownChannel) {
         context.log.warn(
           `Hive "${dest.name || g.schoolName || g.key}" has no Teams Channel ID; ` +
-            (channelId
-              ? "posting to the default channel instead."
-              : "no DEFAULT_TEAMS_CHANNEL_ID is configured either, so this post will fail.")
+            (channelId ? "posting to the default channel instead." : "no DEFAULT_TEAMS_CHANNEL_ID is configured either, so this post will fail.")
         );
       }
       const notice =
         lang === "en"
           ? `<div><b>⚠️ Misrouted:</b> "${escapeHtml(dest.name || g.schoolName || g.key)}" has no Teams channel configured, so this landed here.</div><br>`
           : `<div><b>⚠️ 投递错位：</b>「${escapeHtml(dest.name || g.schoolName || g.key)}」未配置 Teams 频道，因此这条通知落在了这里。</div><br>`;
-
-      return {
+      order.routes = [{
         hiveKey: g.key,
         schoolName: dest.name || g.schoolName,
         schoolAbbr: dest.abbr || g.schoolAbbr,
@@ -420,17 +396,39 @@ module.exports = async function (context, req) {
         notifyText: m.notifyText,
         notifySubject: m.notifySubject,
         notifyHtml: usedDefaultChannel ? notice + m.notifyHtml : m.notifyHtml,
-      };
-    });
-    order.routeCount = order.routes.length;
+      }];
+      order.routeCount = 1;
+      orders.push(order);
+    }
 
-    // The order is final: stored, then announced. With a selection fee (stage 3) the record is stored as
+    // What the flow receives: one call per submission, shaped like an order (the trigger's schema), carrying every
+    // hive's route and ONE family email that lists every order. `name` etc. stay as they always were.
+    const first = orders[0];
+    const wire = Object.assign({}, first, {
+      orderId: orders.map((o) => o.orderId).join(" / "),
+      orderIds: orders.map((o) => o.orderId),
+      orders: orders.map((o) => ({ orderId: o.orderId, schoolName: o.routes[0].schoolName, schoolAbbr: o.routes[0].schoolAbbr, items: o.items, itemCount: o.itemCount, totalPrice: o.totalPrice })),
+      itemCount: items.length,
+      totalPrice: items.reduce((sum, i) => sum + (typeof i.price === "number" ? i.price : 0), 0),
+      items,
+      routes: orders.map((o) => o.routes[0]),
+      routeCount: orders.length,
+    });
+    // Power Automate receives finished text, not fields to assemble. See the header comment in api/shared/messages.js.
+    const msg = buildMessages(wire, templates, lang);
+    wire.notifyText = msg.notifyText;
+    wire.emailTo = email;
+    wire.emailSubject = msg.emailSubject;
+    wire.emailHtml = msg.emailHtml;
+    wire.emailBodyText = msg.emailBodyText;
+
+    // The orders are final: stored, then announced. With a selection fee (stage 3) the records are stored as
     // pending_fee here instead, and finalize() runs from the Stripe webhook once the fee is paid.
-    const result = await finalize(context, order, flowUrl);
+    const result = await finalize(context, orders, wire, flowUrl);
     if (!result.ok) { context.res = { status: 503, body: { error: "store_failed", message: "Order could not be recorded; please try again." } }; return; }
     context.res = {
       status: 200,
-      body: { ok: true, orderId: order.orderId, submission: order.submission, itemCount: order.itemCount, totalPrice: order.totalPrice, notified: result.notify.ok },
+      body: { ok: true, orderId: first.orderId, orderIds: orders.map((o) => o.orderId), submission, itemCount: wire.itemCount, totalPrice: wire.totalPrice, notified: result.notify.ok },
     };
   } catch (err) {
     context.log.error("order failed", err);
@@ -440,16 +438,19 @@ module.exports = async function (context, req) {
 
 // Store the record and send the notifications (Teams per hive + the family's email, via the flow). The step after
 // the family's part is done — today straight from the submission, later from the paid-fee webhook.
-async function finalize(context, order, flowUrl) {
-  // 1. The record. If even this fails the order is refused — nothing would
+async function finalize(context, orders, wire, flowUrl) {
+  // 1. The records, one per hive order. If even this fails the submission is refused — nothing would
   //    remember it — and the family is asked to try again.
-  const record = crm.orderRecord(order, { ok: false, at: order.submittedAt, pending: true });
-  try {
-    await crm.writeOrder(record);
-  } catch (err) {
-    context.log.error(`order ${order.orderId} could not be stored: ${String(err && err.message || err)}`);
-    return { ok: false };
+  for (const order of orders) {
+    const record = crm.orderRecord(order, { ok: false, at: order.submittedAt, pending: true });
+    try {
+      await crm.writeOrder(record);
+    } catch (err) {
+      context.log.error(`order ${order.orderId} could not be stored: ${String(err && err.message || err)}`);
+      return { ok: false };
+    }
   }
+  const order = wire;
 
   // 2. The notifications.
   const headers = { "Content-Type": "application/json" };
@@ -468,13 +469,15 @@ async function finalize(context, order, flowUrl) {
     context.log.error(`Power Automate unreachable: ${String(err && err.message || err)}`);
     notify = { ok: false, at: new Date().toISOString(), error: String(err && err.message || err).slice(0, 200) };
   }
-  // Best effort: the outcome of the notification is written back onto the
-  // record. A failure here is logged; the order itself is already safe.
-  try {
-    const cur = await crm.readOrder(order.orderId);
-    if (cur) await crm.writeOrder(Object.assign({}, cur.order, { notify }), cur.etag);
-  } catch (err) {
-    context.log.warn(`order ${order.orderId}: notify status not recorded: ${String(err && err.message || err)}`);
+  // Best effort: the outcome of the notification is written back onto each
+  // record. A failure here is logged; the orders themselves are already safe.
+  for (const o of orders) {
+    try {
+      const cur = await crm.readOrder(o.orderId);
+      if (cur) await crm.writeOrder(Object.assign({}, cur.order, { notify }), cur.etag);
+    } catch (err) {
+      context.log.warn(`order ${o.orderId}: notify status not recorded: ${String(err && err.message || err)}`);
+    }
   }
   return { ok: true, notify };
 }

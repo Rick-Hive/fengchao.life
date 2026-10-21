@@ -233,7 +233,7 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
     assert.strictEqual(r.status, 200);
     assert.deepStrictEqual([r.body.order.status, writes[0].etag, writes[0].o.history[1].by, forgot], ["cancelled", "e1", "teacher.h@example.edu", 1], "cancelled by the family, conditionally written, seats recounted");
     r = await call(meFn, { action: "contact" });
-    assert.deepStrictEqual(r.body, { upn: "teacher.h@example.edu", displayName: "H Teacher", mail: "", safeEmail: "h.safe@gmail.com", schoolAccount: false });
+    assert.deepStrictEqual(r.body, { upn: "teacher.h@example.edu", displayName: "H Teacher", mail: "", safeEmail: "h.safe@gmail.com", schoolAccount: false, children: [] });
     const { isSchoolAccount } = require(path.join(__dirname, "..", "api", "shared", "roles.js"));
     assert.ok(isSchoolAccount(["domain_leader:bes.edu"]) && isSchoolAccount(["domain_it:bes.edu"]) && !isSchoolAccount(["staff:sales"]) && !isSchoolAccount([]), "school accounts: IT administrators and education leaders, not staff or families");
   }

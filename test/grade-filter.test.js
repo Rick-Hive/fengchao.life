@@ -210,9 +210,17 @@ setTimeout(() => {
     doc.getElementById("submitBtn").click();
     check("submitting without the tick is refused with the prerequisite message", /前置课程/.test(doc.getElementById("formErr").textContent), true);
     const pq = doc.querySelector('.summary-card input.pq[data-id="c2"]'); pq.checked = true; pq.dispatchEvent(new window.Event("change", { bubbles: true }));
+    // the child each course is for (stage 2, 2026-10-21): an anonymous parent types a name and picks a grade; the name is required
+    check("every line asks which child takes the course (name + grade, anonymous)", [!!doc.querySelector('.summary-card .child-row input.chname[data-id="c2"]'), !!doc.querySelector('.summary-card .child-row select.chgrade[data-id="c2"]'), !!doc.querySelector(".summary-card select.chpick")], [true, true, false]);
+    doc.getElementById("submitBtn").click();
+    check("submitting without the child is refused", /孩子/.test(doc.getElementById("formErr").textContent), true);
+    const nm = doc.querySelector('.summary-card input.chname[data-id="c2"]'); nm.value = "小明"; nm.dispatchEvent(new window.Event("input", { bubbles: true }));
+    const gr = doc.querySelector('.summary-card select.chgrade[data-id="c2"]'); gr.value = "3"; gr.dispatchEvent(new window.Event("change", { bubbles: true }));
+    check("the grade list reads 学前, 1 年级 … 12 年级", [gr.options[1].textContent, gr.options[2].textContent, gr.options[gr.options.length - 1].textContent], ["学前", "1 年级", "12 年级"]);
     doc.getElementById("back5").click();
     Array.from(doc.querySelectorAll(".course-card")).find(c => c.querySelector(".code-inline")?.textContent === "MTH-EL-101").querySelector("[data-select]").click();
     doc.getElementById("cartNext").click();
+    check("the child typed before survives the trip back to the catalog and on", doc.querySelector('.summary-card input.chname[data-id="c2"]').value, "小明");
     check("with the prerequisite course in the cart too the line reads 同时报名 and no tick is asked", [!!doc.querySelector(".summary-card .prereq-row.ok .prereq-ok"), !!doc.querySelector('.summary-card input.pq[data-id="c2"]')], [true, false]);
     doc.querySelectorAll(".summary-card .rm").forEach(b => b.click()); // empty the cart again (the last removal returns to the catalog)
     if (!doc.querySelector(".course-card")) goToCatalog("grammar");

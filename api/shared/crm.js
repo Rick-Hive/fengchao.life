@@ -147,6 +147,8 @@ function orderRecord(order, notify) {
     schoolName: it.schoolName || "",
     schoolAbbr: it.schoolAbbr || "",
     waitlist: !!it.waitlist, // on the waitlist until the order manager seats it (enrollment rules, 2026-10-20)
+    // the child this course is for (stage 2, 2026-10-21): the roster and the transcript hang on it
+    child: it.child && typeof it.child === "object" ? { name: String(it.child.name || "").slice(0, 40), grade: String(it.child.grade || "").slice(0, 20), account: String(it.child.account || "").toLowerCase().slice(0, 200) } : null,
     prereq: it.prereq && typeof it.prereq === "object" ? { text: String(it.prereq.text || ""), codes: Array.isArray(it.prereq.codes) ? it.prereq.codes.slice(0, 10) : [], met: String(it.prereq.met || "none") } : null,
   }));
   const hives = (order.routes || []).map((r) => ({

@@ -299,8 +299,10 @@ async function handler(context, req) {
 
     // The order page on the website, for a signed-in family: the account and its addresses to fill the form with.
     if (method === "GET" && action === "contact") {
-      const ur = await userRoles(req);
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { upn, displayName: user.displayName || "", mail: user.mail || "", safeEmail: (user.otherMails || [])[0] || "", schoolAccount: isSchoolAccount(ur.roles) } };
+      const [ur, pdoc] = await Promise.all([userRoles(req), people.readPeople().catch(() => ({ people: {} }))]);
+      // the profile's children (个人资料 › 我的孩子), for the order page to pick the child each course is for
+      const kids = ((((pdoc.people || {})[upn] || {}).extra || {}).children || []).map((c) => ({ name: c.name || "", grade: c.grade || "", account: c.account || "" })).filter((c) => c.name);
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { upn, displayName: user.displayName || "", mail: user.mail || "", safeEmail: (user.otherMails || [])[0] || "", schoolAccount: isSchoolAccount(ur.roles), children: kids } };
       return;
     }
     if (method === "GET" && action === "orders") {

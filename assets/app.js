@@ -40,6 +40,9 @@
     seats: {},        // course code -> { taken, waitlist, min, max, open, state, belowMin, need } from /api/seats
     waitlistOk: {},   // courseId -> true: the family agreed to the waitlist for a full course
     prereqOk: {},     // courseId -> true: the family confirmed the prerequisites not in the cart
+    // courseId -> { name, grade, account }: the child each course is for (stage 2, 2026-10-21). Personal, so like
+    // the contact fields never persisted; a signed-in parent picks from the profile's children, others type.
+    children: {},
     done: null,       // {orderId}
     submitting: false,
     formErr: "",
@@ -431,6 +434,7 @@
         if (!c || !state.account) return;
         state.account.name = c.displayName || "";
         state.account.schoolAccount = !!c.schoolAccount; // a school's administrator or leader: may look, never orders for a family
+        state.account.children = Array.isArray(c.children) ? c.children : [];
         var mail = [c.safeEmail, c.mail].filter(function (v) { return v && !isBlockedEmail(v); })[0] || "";
         if (!state.email && mail) state.email = mail;
         if (!state.teams) state.teams = state.account.upn;
@@ -1655,13 +1659,14 @@
     var items = cartCourses();
     var rows = items.map(function (c) {
       var si = seatInfo(c), full = si && si.full, pq = prereqStatus(c);
+      var childRow = childRowHtml(c);
       var prereqRows = !pq ? "" : (pq.inCart.length ? '<div class="prereq-row ok">' + esc(t().prereqLine) + "：" + pq.inCart.map(function (it) { return esc(prereqLabel(it)); }).join(" · ") + ' <span class="prereq-ok">' + esc(t().prereqInCart) + "</span></div>" : "") +
         (pq.rest.length ? '<label class="prereq-row"><input type="checkbox" class="pq" data-id="' + esc(c.id) + '"' + (pq.confirmed ? " checked" : "") + " /> " + esc(fill(pq.rest.some(function (it) { return it.course; }) ? t().prereqConfirm : t().prereqConfirmGeneric, { x: pq.rest.map(prereqLabel).join(" · ") })) + "</label>" : "");
       return (
         '<div class="summary-item"><span>' + esc(courseName(c)) + ' <span class="code">' + esc(c.code) + "</span>" + (full ? ' <span class="seat-tag">' + esc(t().seatsFull) + "</span>" : "") + "</span>" +
         "<span>" + (typeof c.price === "number" ? esc(fmtPrice(c.price)) : esc(t().priceTBD)) +
         ' <button class="rm" data-id="' + esc(c.id) + '" type="button">' + esc(t().remove) + "</button></span></div>" +
-        (full ? '<label class="waitlist-row"><input type="checkbox" class="wl" data-id="' + esc(c.id) + '"' + (state.waitlistOk[c.id] ? " checked" : "") + " /> " + esc(t().waitlistJoin) + "</label>" : "") + prereqRows
+        childRow + (full ? '<label class="waitlist-row"><input type="checkbox" class="wl" data-id="' + esc(c.id) + '"' + (state.waitlistOk[c.id] ? " checked" : "") + " /> " + esc(t().waitlistJoin) + "</label>" : "") + prereqRows
       );
     }).join("");
     return (
@@ -1696,7 +1701,7 @@
       '<div class="done-card">' +
       '<svg class="mark" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
       "<h2>" + esc(t().doneTitle) + "</h2><p>" + esc(state.done.notified === false ? t().doneNoEmail : t().doneDesc) + "</p>" +
-      '<div class="order-id">' + esc(state.done.orderId) + "</div><br/>" +
+      (state.done.orderIds && state.done.orderIds.length > 1 ? '<p class="done-split">' + esc(t().doneSplit) + "</p>" + state.done.orderIds.map(function (id) { return '<div class="order-id">' + esc(id) + "</div>"; }).join("") : '<div class="order-id">' + esc(state.done.orderId) + "</div>") + "<br/>" +
       '<button class="btn btn-primary" id="againBtn">' + esc(t().doneAgain) + "</button></div>"
     );
   }
@@ -2333,7 +2338,14 @@
 
 
     var summary = app.querySelector(".summary-card");
-    if (summary) summary.addEventListener("change", function (e) { var wl = e.target.closest("input.wl"); if (wl) { state.waitlistOk[wl.getAttribute("data-id")] = wl.checked; } var pq = e.target.closest("input.pq"); if (pq) { state.prereqOk[pq.getAttribute("data-id")] = pq.checked; } });
+    if (summary) summary.addEventListener("change", function (e) {
+      var wl = e.target.closest("input.wl"); if (wl) { state.waitlistOk[wl.getAttribute("data-id")] = wl.checked; }
+      var pq = e.target.closest("input.pq"); if (pq) { state.prereqOk[pq.getAttribute("data-id")] = pq.checked; }
+      var pk = e.target.closest("select.chpick");
+      if (pk) { var ch = childOf(pk.getAttribute("data-id")), kids = state.account && state.account.children || []; ch.pick = pk.value; if (pk.value === "other") { ch.name = ""; ch.grade = ""; ch.account = ""; } else if (pk.value !== "") { var k = kids[Number(pk.value)] || {}; ch.name = k.name || ""; ch.grade = k.grade || ""; ch.account = k.account || ""; } else { ch.name = ""; ch.grade = ""; ch.account = ""; } render(); return; }
+      var gr = e.target.closest("select.chgrade"); if (gr) { childOf(gr.getAttribute("data-id")).grade = gr.value; }
+    });
+    if (summary) summary.addEventListener("input", function (e) { var nm = e.target.closest("input.chname"); if (nm) { childOf(nm.getAttribute("data-id")).name = nm.value; } });
     if (summary) summary.addEventListener("click", function (e) {
       var rm = e.target.closest(".rm");
       if (!rm) return;
@@ -2392,6 +2404,27 @@
     });
   }
 
+  // The child a course is for: a select over the profile's children when signed in (plus 其他孩子… that opens the
+  // inputs), else a name and a grade typed in. The first child is the default when there is exactly one.
+  var CHILD_GRADES = ["学前", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+  function gradeLabel(g) { if (!g) return ""; if (g === "学前") return state.lang === "zh" ? "学前" : "Pre-K"; return state.lang === "zh" ? g + " 年级" : "Grade " + g; }
+  function childOf(id) {
+    if (!state.children[id]) {
+      var kids = state.account && state.account.children || [];
+      state.children[id] = kids.length === 1 ? { name: kids[0].name, grade: kids[0].grade || "", account: kids[0].account || "", pick: "0" } : { name: "", grade: "", account: "", pick: "" };
+    }
+    return state.children[id];
+  }
+  function childRowHtml(c) {
+    var ch = childOf(c.id), kids = state.account && state.account.children || [];
+    var inputs = '<input type="text" class="chname" data-id="' + esc(c.id) + '" maxlength="40" placeholder="' + esc(t().childPh) + '" value="' + esc(ch.name) + '" autocomplete="off" />' +
+      '<select class="chgrade" data-id="' + esc(c.id) + '"><option value="">' + esc(t().gradePh) + "</option>" + CHILD_GRADES.map(function (g) { return '<option value="' + esc(g) + '"' + (ch.grade === g ? " selected" : "") + ">" + esc(gradeLabel(g)) + "</option>"; }).join("") + "</select>";
+    if (kids.length) {
+      var sel = '<select class="chpick" data-id="' + esc(c.id) + '"><option value="">' + esc(t().childChoose) + "</option>" + kids.map(function (k, i) { return '<option value="' + i + '"' + (ch.pick === String(i) ? " selected" : "") + ">" + esc(k.name + (k.grade ? " · " + gradeLabel(k.grade) : "")) + "</option>"; }).join("") + '<option value="other"' + (ch.pick === "other" ? " selected" : "") + ">" + esc(t().childOther) + "</option></select>";
+      return '<div class="child-row"><span class="child-lab">' + esc(t().childLabel) + "</span>" + sel + (ch.pick === "other" ? inputs : "") + "</div>";
+    }
+    return '<div class="child-row"><span class="child-lab">' + esc(t().childLabel) + "</span>" + inputs + "</div>";
+  }
   function submitOrder() {
     var email = (state.email || "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -2403,6 +2436,9 @@
     if (cartIds().length === 0) { state.formErr = t().errEmpty; render(); return; }
     var unconfirmed = cartCourses().filter(function (c) { var pq = prereqStatus(c); return pq && pq.rest.length && !pq.confirmed; });
     if (unconfirmed.length) { state.formErr = t().errPrereq; render(); return; }
+    if (cartIds().some(function (id) { return !(childOf(id).name || "").trim(); })) { state.formErr = t().errChild; render(); return; }
+    var children = {};
+    cartIds().forEach(function (id) { var ch = childOf(id); children[id] = { name: ch.name.trim(), grade: ch.grade || "", account: ch.account || "" }; });
     state.submitting = true; state.formErr = ""; render();
 
     var hp = document.getElementById("fcHpField");
@@ -2416,6 +2452,7 @@
         courseIds: cartIds(),
         waitlist: cartIds().filter(function (id) { return state.waitlistOk[id]; }),
         prereqOk: cartIds().filter(function (id) { return state.prereqOk[id]; }),
+        children: children,
         // Drives the language of the confirmation email and the hive's Teams
         // notification — the family should be answered in the language they chose.
         lang: state.lang,
@@ -2435,7 +2472,7 @@
         if (r.ok && r.body && r.body.ok) {
           // The order is stored before it is announced (api/order): `notified` is
           // false when the confirmation email could not be sent, and the card says so.
-          state.done = { orderId: r.body.orderId, notified: r.body.notified !== false };
+          state.done = { orderId: r.body.orderId, orderIds: r.body.orderIds || [r.body.orderId], notified: r.body.notified !== false };
           state.cart = {};
         } else if (r.status === 429) {
           state.formErr = t().errRate;
@@ -2449,6 +2486,8 @@
           state.formErr = fill(t().schoolAccount, { who: state.account ? state.account.upn : "" });
         } else if (r.body && r.body.error === "unknown_course") {
           state.formErr = t().errCourseGone;
+        } else if (r.body && r.body.error === "missing_child") {
+          state.formErr = t().errChild;
         } else if (r.body && r.body.error === "course_full") {
           // the seats moved while the family was deciding: show the waitlist tick for those courses
           state.formErr = t().errFull;

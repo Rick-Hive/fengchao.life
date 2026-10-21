@@ -261,13 +261,19 @@ function priceLabel(it, currency, lang) {
   return formatMoney(it.price, currency, lang);
 }
 
-function formatCourseList(items, currency, lang) {
-  return (items || [])
-    .map((it) => {
-      const bits = [oneLine(it.code), oneLine(courseName(it, lang))].filter(Boolean).join(" ");
-      return `• ${bits} — ${priceLabel(it, currency, lang)}`;
-    })
-    .join("\n");
+// A line per course; the child's name and grade after the price (stage 2, 2026-10-21). A submission split across
+// several hives lists each hive's courses under its own order number, so the family knows which number to quote to whom.
+function formatCourseList(items, currency, lang, orders) {
+  const zh = pick(lang) === "zh";
+  const line = (it) => {
+    const bits = [oneLine(it.code), oneLine(courseName(it, lang))].filter(Boolean).join(" ");
+    const kid = it.child && it.child.name ? (zh ? `（学生：${oneLine(it.child.name)}${it.child.grade ? " · " + oneLine(it.child.grade) : ""}）` : ` (student: ${oneLine(it.child.name)}${it.child.grade ? " · " + oneLine(it.child.grade) : ""})`) : "";
+    return `• ${bits} — ${priceLabel(it, currency, lang)}${kid}`;
+  };
+  if (Array.isArray(orders) && orders.length > 1) {
+    return orders.map((o) => [`${zh ? "订单 " : "Order "}${o.orderId}${o.schoolName ? ` · ${o.schoolName}` : ""}`].concat((o.items || []).map(line)).join("\n")).join("\n\n");
+  }
+  return (items || []).map(line).join("\n");
 }
 
 // The order total sums only the prices that exist, so a cart containing an
@@ -343,7 +349,7 @@ function buildMessages(order, templates, lang) {
     teamsAccount: order.teamsAccount || (l === "zh" ? "（未填写）" : "(not provided)"),
     trackName: trackNameOne(order, l),
     itemCount: order.itemCount,
-    courseList: formatCourseList(order.items, order.currency, l),
+    courseList: formatCourseList(order.items, order.currency, l, order.orders),
     totalPrice: totalLabel(order, l),
     currency: order.currency,
     schoolNames: schoolNamesOf(order.items),

@@ -34,7 +34,7 @@
     if (!list.length) { $("mobody").innerHTML = '<div class="card"><p class="sub">' + t("还没有订单。到课程地图或网站选课后，订单会出现在这里。", "No orders yet. Orders placed from the curriculum map or the website appear here.") + "</p></div>"; return; }
     $("mobody").innerHTML = list.map(function (o) {
       var items = (o.items || []).map(function (it) {
-        return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, (it.grades || []).join("/")].filter(Boolean).join(" · ")) + "</span>" +
+        return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, (it.grades || []).join("/")].filter(Boolean).join(" · ")) + "</span>" + childLine(it) +
           (it.waitlist ? '<span class="tag warn">' + t("候补", "Waitlist") + "</span>" : "") +
           (it.prereq && it.prereq.met === "none" ? '<span class="tag warn">' + t("前置课程未确认", "Prerequisite not confirmed") + "</span>" : "") +
           '</div><div class="oprice">' + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : esc(moMoney(it.price, o.currency))) + "</div></div>";

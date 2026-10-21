@@ -487,6 +487,12 @@ span.t-chip.plain { background: #eef1f6; border-color: var(--line); color: var(-
 .field-note { margin: 6px 0 0; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
 .signed-in { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: #eef6ff; color: #1d4a83; font-size: 0.82rem; line-height: 1.5; }
 .signed-in.warn { background: #fff7e6; color: #8a5a00; }
+/* the child a course is for, under each line of the order summary (stage 2, 2026-10-21) */
+.child-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; font-size: 0.82rem; }
+.child-row .child-lab { color: var(--muted); min-width: 2.6em; }
+.child-row input, .child-row select { font: inherit; font-size: 0.82rem; padding: 4px 8px; border: 1px solid #d5dbe3; border-radius: 6px; background: #fff; }
+.child-row input.chname { width: 9em; }
+.done-split { margin: 10px 0 6px; font-size: 0.9rem; color: var(--muted); }
 .hp { position: absolute; left: -9999px; top: -9999px; height: 0; width: 0; overflow: hidden; }
 .form-err { color: var(--err); font-size: 0.85rem; margin: 10px 0 0; min-height: 1.2em; }
 

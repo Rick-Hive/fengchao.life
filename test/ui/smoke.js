@@ -54,7 +54,7 @@ const CATALOG = [
 ];
 let MY_ORDERS = [];
 const MY_ORDERS0 = () => [
-  { orderId: "FC-20261020-KXC-003", submission: "FS-20261020-ABCDE", submittedAt: "2026-10-20T03:00:00Z", status: "submitted", email: "h.safe@gmail.com", account: "", items: [{ code: "KXC-MATH-HS-101", nameZh: "几何", nameEn: "Geometry", price: 2400, schoolAbbr: "KXC", grades: ["G9", "G10"], waitlist: false, prereq: null }], hives: [{ key: "kxc", name: "KXC", abbr: "KXC" }], itemCount: 1, totalPrice: 2400, currency: "CNY", fee: null, notify: { ok: true }, history: [{ at: "2026-10-20T03:00:00Z", to: "submitted", from: null }], canCancel: true },
+  { orderId: "FC-20261020-KXC-003", submission: "FS-20261020-ABCDE", submittedAt: "2026-10-20T03:00:00Z", status: "submitted", email: "h.safe@gmail.com", account: "", items: [{ code: "KXC-MATH-HS-101", nameZh: "几何", nameEn: "Geometry", price: 2400, schoolAbbr: "KXC", grades: ["G9", "G10"], waitlist: false, prereq: null, child: { name: "张小明", grade: "9", account: "" } }], hives: [{ key: "kxc", name: "KXC", abbr: "KXC" }], itemCount: 1, totalPrice: 2400, currency: "CNY", fee: null, notify: { ok: true }, history: [{ at: "2026-10-20T03:00:00Z", to: "submitted", from: null }], canCancel: true },
   { orderId: "FC-20261018-BES-001", submission: "FC-20261018-BES-001", submittedAt: "2026-10-18T03:00:00Z", status: "confirmed", email: "h.safe@gmail.com", account: "", items: [{ code: "BES-SCI-MS-201", nameZh: "生命科学", nameEn: "Life Science", price: 1800, schoolAbbr: "BES", grades: ["G7"], waitlist: true, prereq: { text: "BES-SCI-MS-101 Earth Science / 地球科学", codes: ["BES-SCI-MS-101"], met: "none" } }], hives: [{ key: "bes", name: "BES", abbr: "BES" }], itemCount: 1, totalPrice: 1800, currency: "CNY", fee: { amount: 100, currency: "usd", status: "paid", receiptUrl: "https://pay.stripe.com/receipts/x" }, notify: { ok: true }, history: [], canCancel: false },
 ];
 const planPuts = [];
@@ -1176,6 +1176,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   await shot("orders-mine", 1280, 900, "#/myorders", "zh", [], async p => {
     await p.waitForSelector(".mocard");
     const txt = await p.$eval("#mobody", e => e.innerText);
+    assert.ok(/学生：张小明 · 9 年级/.test(txt), "the child under the course: " + txt);
     assert.ok(/FC-20261020-KXC-003/.test(txt) && /已提交/.test(txt) && /几何/.test(txt) && /FC-20261018-BES-001/.test(txt) && /机构已确认/.test(txt) && /候补/.test(txt) && /前置课程未确认/.test(txt) && /USD 1\.00 · 已付/.test(txt) && /收据/.test(txt), "both orders, their tags and the fee: " + txt);
     assert.strictEqual((await p.$$("#mobody button[data-cancel]")).length, 1, "only the submitted order can be cancelled by the family");
     await p.screenshot({ path: OUT + "/orders-mine.png" });
