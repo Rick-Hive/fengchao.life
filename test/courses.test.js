@@ -233,5 +233,28 @@ const CD = "cd@fengchao.life", TEACHER = "zhang@a.edu", CM = "cm@fengchao.life",
   assert.deepStrictEqual(C.clean("school", ["recSCHOOL00000001", "recSCHOOL00000002"]), ["recSCHOOL00000001"], "the deliverer is a single link");
   assert.deepStrictEqual(C.clean("language", { zh: "中文" }), { en: "Chinese", zh: "中文" });
   assert.throws(() => C.clean("nameEn", "x".repeat(200)), /120/);
+  // 编辑课程加载慢 (2026-10-21): the pick lists come from a blob every instance shares; a cold instance reads it instead
+  // of eight Airtable tables, a stale one is served at once and rebuilt behind the reply; Airtable is asked only for
+  // the columns the editor uses
+  {
+    const listCalls = [];
+    const origList = FakeBase.prototype.list;
+    FakeBase.prototype.list = async function (tableId, opts) { listCalls.push({ tableId, fields: opts && opts.fields }); return origList.call(this, tableId); };
+    await C._test.resetLookups();
+    let l = await C.lookups(); assert.ok(l.grades.length && listCalls.length === 7, "built from Airtable once: " + listCalls.length);
+    const cc = listCalls.find((x) => x.tableId === T.courses.id);
+    assert.ok(Array.isArray(cc.fields) && cc.fields.length >= 1 && cc.fields.every((f) => /Course\s*ID|Course\s*Name|课程名称/i.test(f)), "the course table read by its id / name columns only: " + JSON.stringify(cc.fields));
+    assert.ok(blobs["crm/course-lookups.json"] && blobs["crm/course-lookups.json"].grades, "stored for the other instances");
+    listCalls.length = 0;
+    C._test.coldInstance();
+    l = await C.lookups(); assert.strictEqual(listCalls.length, 0, "a cold instance reads the blob, not Airtable"); assert.ok(l.grades.length);
+    blobs["crm/course-lookups.json"].at = new Date(Date.now() - 60 * 60 * 1000).toISOString(); C._test.coldInstance();
+    l = await C.lookups(); assert.ok(l.grades.length, "an hour-old copy is served at once");
+    await C._test.building(); assert.strictEqual(listCalls.length, 7, "…and rebuilt behind the reply");
+    assert.ok(Date.now() - Date.parse(blobs["crm/course-lookups.json"].at) < 5000, "the blob is fresh again");
+    blobs["crm/course-lookups.json"].at = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(); C._test.coldInstance(); listCalls.length = 0;
+    await C.lookups(); assert.strictEqual(listCalls.length, 7, "older than a day: built before the reply");
+    FakeBase.prototype.list = origList;
+  }
   console.log("courses: all checks passed");
 })().catch((e) => { console.error(e); process.exit(1); });

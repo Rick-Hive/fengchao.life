@@ -37,6 +37,17 @@
       teRenderList();
     });
   }
+  // The facts of a teacher — one field set for adding and editing (Rick 2026-10-21: 「添加老师的UI应该和编辑老师的字段一致」).
+  // `p` = the values, `lockAccount` = the Teams account is not the reader's to change.
+  var TE_FACTS = [["name", "姓名", "Name", 80, "text"], ["email", "邮箱", "Email", 200, "email"], ["teamsAccount", "Teams 账号", "Teams account", 200, "text"], ["subjects", "教授学科", "Subjects", 200, "text"], ["languages", "授课语言", "Languages", 200, "text"], ["gradeLevels", "授课年级", "Grade levels", 200, "text"], ["courseTypes", "课程类型", "Course types", 200, "text"]];
+  function teFactFields(p, lockAccount) {
+    p = p || {};
+    var ph = { teamsAccount: "name@domain", subjects: t("多个用逗号分隔", "comma-separated"), languages: t("多个用逗号分隔", "comma-separated") };
+    return '<div class="grid2">' + TE_FACTS.map(function (f) {
+      var lock = f[0] === "teamsAccount" && lockAccount;
+      return '<label class="f">' + t(f[1], f[2]) + (f[0] === "name" ? ' <span class="req">*</span>' : "") + '<input type="' + f[4] + '" data-fact="' + f[0] + '" maxlength="' + f[3] + '"' + (ph[f[0]] ? ' placeholder="' + esc(ph[f[0]]) + '"' : "") + ' value="' + esc(p[f[0]] || "") + '"' + (lock ? ' readonly title="' + esc(t("由机构负责人或课程总监设置", "Set by the institution's leader or the curriculum director")) + '"' : "") + " /></label>";
+    }).join("") + "</div>";
+  }
   // ＋ 添加老师 (2026-10-21): the facts of a new Teachers row, for the leader's own institution (an approver picks one)
   function teAddPanel() {
     var me0 = teState.me || {}, hives = me0.hives || [];
@@ -44,25 +55,23 @@
       panelOpen('<div class="ph"><span class="avatar">👩‍🏫</span><h3>' + t("添加老师", "Add a teacher") + '</h3><button class="x" type="button" aria-label="close">✕</button></div>' +
         '<div class="pb"><form id="teNew" autocomplete="off">' +
           (list.length > 1 || me0.approver ? '<label class="f">' + t("所属机构", "Institution") + '<select id="tnHive">' + list.map(function (h) { return '<option value="' + esc(h.key) + '">' + esc(EN ? (h.abbr || h.name || h.key) : (h.name || h.abbr || h.key)) + "</option>"; }).join("") + "</select></label>" : '<div class="kv"><span class="k">' + t("所属机构", "Institution") + "</span><span>" + esc(list.length ? (EN ? (list[0].abbr || list[0].name) : (list[0].name || list[0].abbr)) : "") + "</span></div>") +
-          '<label class="f">' + t("姓名", "Name") + '<input type="text" id="tnName" maxlength="80" required /></label>' +
-          '<div class="grid2"><label class="f">' + t("邮箱", "Email") + '<input type="email" id="tnEmail" maxlength="200" /></label>' +
-          '<label class="f">' + t("Teams 账号（如有）", "Teams account (if any)") + '<input type="text" id="tnUpn" maxlength="200" placeholder="name@domain" /></label></div>' +
-          '<div class="grid2"><label class="f">' + t("教授学科", "Subjects") + '<input type="text" id="tnSubj" maxlength="200" placeholder="' + esc(t("多个用逗号分隔", "comma-separated")) + '" /></label>' +
-          '<label class="f">' + t("授课语言", "Languages") + '<input type="text" id="tnLang" maxlength="200" /></label>' +
-          '<label class="f">' + t("授课年级", "Grade levels") + '<input type="text" id="tnGrade" maxlength="200" /></label>' +
-          '<label class="f">' + t("课程类型", "Course types") + '<input type="text" id="tnType" maxlength="200" /></label></div>' +
-          '<p class="hint">' + esc(t("保存即在 Airtable 教师表建一行。邮箱和 Teams 账号只在管理中心可见；有 Teams 账号的老师登录后能编辑分配给他的课。照片、简介、专长在老师的资料页里填。", "Saving creates the row in the Airtable Teachers table. Email and Teams account stay in the management centre; a teacher with a Teams account can edit the courses named to them. Photo, biography and expertise go on the teacher's profile page.")) + "</p>" +
+          '<div class="tehead"><div class="tephoto"><div class="teph-empty">' + t("保存后可上传照片", "Photo after saving") + '</div></div><div class="tefacts"><h4 style="margin:0">' + t("基本信息", "Details") + '</h4><p class="sub">' + esc(t("保存即在 Airtable 教师表建一行；接着在同一个面板里上传照片、填写简介和专长。邮箱和 Teams 账号只在管理中心可见。", "Saving creates the row in the Airtable Teachers table; the photo, biography and expertise follow in the same panel. Email and Teams account stay in the management centre.")) + "</p></div></div>" +
+          teFactFields({}, false) +
           '<div class="actions"><button type="submit" class="btn" id="tnSave">' + t("保存", "Save") + '</button></div><div id="tnMsg"></div></form></div>');
       $("teNew").addEventListener("submit", function (ev) {
         ev.preventDefault();
-        var b = $("tnSave"), body = { hive: $("tnHive") ? $("tnHive").value : (list[0] && list[0].key), name: $("tnName").value.trim(), email: $("tnEmail").value.trim(), teamsAccount: $("tnUpn").value.trim(), subjects: $("tnSubj").value.trim(), languages: $("tnLang").value.trim(), gradeLevels: $("tnGrade").value.trim(), courseTypes: $("tnType").value.trim() };
+        var b = $("tnSave"), body = { hive: $("tnHive") ? $("tnHive").value : (list[0] && list[0].key) };
+        Array.prototype.forEach.call($("teNew").querySelectorAll("input[data-fact]"), function (i) { body[i.getAttribute("data-fact")] = i.value.trim(); });
         if (!body.name) { $("tnMsg").innerHTML = '<div class="msg err">' + t("请填写姓名。", "Please enter the name.") + "</div>"; return; }
         savingButton(b);
         post("teachers/create", "POST", body).then(function (r) {
           if (!r.ok) { restoreButton(b); $("tnMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + (r.body && r.body.problems ? " — " + esc(r.body.problems.join("; ")) : "") + "</div>"; return; }
           post("teachers/sync", "POST", {}).catch(function () {}); // the snapshot follows (coalesced); the list shows the row at once
-          savedAndClose(b, esc(t("已添加 ", "Added ") + body.name) + (r.body.skipped && r.body.skipped.length ? " · " + esc(t("未写入（表里没有这一列）：", "not written (column missing): ") + r.body.skipped.join(", ")) : ""));
-          teLoadList().then(function () { if ($("tetable")) teRenderList(); });
+          flashOk(esc(t("已添加 ", "Added ") + body.name) + (r.body.skipped && r.body.skipped.length ? " · " + esc(t("未写入（表里没有这一列）：", "not written (column missing): ") + r.body.skipped.join(", ")) : ""), 4000);
+          // the same panel goes on as the teacher's editor: photo, biography, expertise
+          var host = $("panel").querySelector(".pb"), h3 = $("panel").querySelector(".ph h3"); if (h3) h3.textContent = body.name;
+          host.innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
+          teLoadList().then(function () { if ($("tetable")) teRenderList(); teOpen(r.body.id, host); });
         });
       });
     };
@@ -111,13 +120,7 @@
           "</div>" + (can ? "" : '<p class="sub">' + t("学科、语言、年级段由机构负责人或课程总监维护。", "Subjects, languages and grade levels are kept by the institution's leader or the curriculum director.") + "</p>") + "</div></div>" +
       // the facts (2026-10-21): written to the Teachers table on blur; email and Teams account never reach the website
       (can ? '<details class="tefactsEdit" open><summary>' + t("基本信息", "Details") + ' <small class="faint">' + t("改动直接写入教师表", "written to the Teachers table at once") + "</small></summary>" +
-        '<div class="grid2"><label class="f">' + t("姓名", "Name") + '<input type="text" data-fact="name" maxlength="80" value="' + esc(p.name || "") + '" /></label>' +
-        '<label class="f">' + t("邮箱", "Email") + '<input type="email" data-fact="email" maxlength="200" value="' + esc(p.email || "") + '" /></label>' +
-        '<label class="f">' + t("Teams 账号", "Teams account") + '<input type="text" data-fact="teamsAccount" maxlength="200" placeholder="name@domain" value="' + esc(p.teamsAccount || "") + '"' + (d.canEditAccount === false ? ' readonly title="' + esc(t("由机构负责人或课程总监设置", "Set by the institution's leader or the curriculum director")) + '"' : "") + " /></label>" +
-        '<label class="f">' + t("教授学科", "Subjects") + '<input type="text" data-fact="subjects" maxlength="200" placeholder="' + esc(t("多个用逗号分隔", "comma-separated")) + '" value="' + esc(p.subjects || "") + '" /></label>' +
-        '<label class="f">' + t("授课语言", "Languages") + '<input type="text" data-fact="languages" maxlength="200" value="' + esc(p.languages || "") + '" /></label>' +
-        '<label class="f">' + t("授课年级", "Grade levels") + '<input type="text" data-fact="gradeLevels" maxlength="200" value="' + esc(p.gradeLevels || "") + '" /></label>' +
-        '<label class="f">' + t("课程类型", "Course types") + '<input type="text" data-fact="courseTypes" maxlength="200" value="' + esc(p.courseTypes || "") + '" /></label></div><div class="faint" id="teFactMsg"></div></details>' : "") +
+        teFactFields(p, d.canEditAccount === false) + '<div class="faint" id="teFactMsg"></div></details>' : "") +
       '<div class="msg ' + (d.returned && d.status !== "submitted" ? "err" : "ok") + '" id="teStatus">' + status + "</div>" +
       '<label class="f">' + t("简介", "Biography") + ' <small class="faint">' + t("网站老师页上的自我介绍，建议 100–300 字", "Shown on the website; 100–300 words works well") + '</small><textarea id="teBio" rows="6" data-k="bio"' + (can ? "" : " readonly") + ">" + esc(d.draft.bio || "") + "</textarea></label>" +
       '<label class="f">' + t("专长", "Expertise") + ' <small class="faint">' + t("教学专长与特长，一两句", "Teaching strengths, a sentence or two") + '</small><textarea id="teExp" rows="3" data-k="expertise"' + (can ? "" : " readonly") + ">" + esc(d.draft.expertise || "") + "</textarea></label>" +

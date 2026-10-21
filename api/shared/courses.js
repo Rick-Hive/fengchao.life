@@ -96,20 +96,59 @@ function readBase() { const pat = process.env.AIRTABLE_PAT; if (!pat) throw Obje
 function writeBase() { const pat = process.env.AIRTABLE_HIVE_WRITE_PAT || process.env.AIRTABLE_PAT; if (!pat) throw Object.assign(new Error("AIRTABLE_HIVE_WRITE_PAT app setting is not configured"), { status: 500, code: "no_pat" }); return new AirtableBase(cfg.baseId, pat); }
 let baseFor = { read: readBase, write: writeBase }; // tests swap these
 
-const LOOKUP_TTL = 10 * 60 * 1000;
-let lookupCache = { at: 0, data: null };
+// The pick lists are slow to build — eight Airtable tables, every record, every column (Rick 2026-10-21: 「编辑课程时
+// loading 的时间这么长」). Three layers now: this instance's memory (10 min), then a blob every instance shares
+// (crm/course-lookups.json: fresh 10 min, served stale up to a day while one rebuild runs in the background), then
+// Airtable — with only the columns the editor uses (fields[]), so the course and textbook pages stay small.
+const LOOKUP_TTL = 10 * 60 * 1000, LOOKUP_STALE = 24 * 60 * 60 * 1000, LOOKUP_BLOB = "crm/course-lookups.json";
+let lookupCache = { at: 0, data: null }, lookupBuilding = null;
 const first = (fields, re) => { for (const k of Object.keys(fields || {})) if (re.test(k)) return fields[k]; return undefined; };
 const text = (v) => (Array.isArray(v) ? v.map(text).filter(Boolean).join(", ") : v == null ? "" : String(v));
 
-// The pick lists the editor offers (cached 10 minutes): the linked tables and the select options.
+// The pick lists the editor offers: the linked tables and the select options.
 async function lookups(force) {
-  if (!force && lookupCache.data && Date.now() - lookupCache.at < LOOKUP_TTL) return lookupCache.data;
+  const t0 = Date.now();
+  if (!force && lookupCache.data && t0 - lookupCache.at < LOOKUP_TTL) return lookupCache.data;
+  if (!force) {
+    const stored = await store.read(LOOKUP_BLOB, () => null).catch(() => null);
+    const at = stored && Date.parse(stored.at || "");
+    if (stored && stored.grades && Number.isFinite(at) && t0 - at < LOOKUP_STALE) {
+      lookupCache = { at: t0 - Math.max(0, t0 - at), data: stored };
+      if (t0 - at >= LOOKUP_TTL && !lookupBuilding) lookupBuilding = buildLookups().catch(() => null).then((d) => { lookupBuilding = null; return d; }); // refresh behind the reply
+      return stored;
+    }
+  }
+  if (lookupBuilding && !force) return lookupBuilding.then((d) => d || buildLookups());
+  return buildLookups();
+}
+// Only the columns the editor reads: the field names matching these specs on each table (a table whose names do
+// not resolve is read whole, as before).
+async function columnsOf(base, tableId, specs, withPrimary) {
+  const tbl = await base.table([tableId]).catch(() => null);
+  if (!tbl || !Array.isArray(tbl.fields) || tbl.id !== tableId) return undefined;
+  const names = new Set();
+  for (const sp of specs) { const f = AirtableBase.field(tbl, sp); if (f) names.add(f.name); }
+  if (withPrimary) { const pf = tbl.fields.find((f) => f.id === tbl.primaryFieldId); if (pf) names.add(pf.name); }
+  return names.size ? Array.from(names) : undefined;
+}
+async function buildLookups() {
   const base = baseFor.read();
   const t = cfg.tables;
-  const [grades, subjects, textbooks, teachers, schools, tracks, courseTable, courseRows] = await Promise.all([
-    base.list(t.grades.id), base.list(t.subjects.id), base.list(t.textbooks.id), base.list(t.teachers.id),
-    base.list(t.schools.id), base.list(t.tracks.id), base.table([t.courses.id]).catch(() => null),
-    base.list(t.courses.id).catch(() => []), // every course, for the 前置课程 picker (code + names)
+  const courseTable = await base.table([t.courses.id]).catch(() => null);
+  const [cGrades, cSubjects, cTextbooks, cTeachers, cSchools, cTracks, cCourses] = await Promise.all([
+    columnsOf(base, t.grades.id, [/^(Title|年级名称)/i], true),
+    columnsOf(base, t.subjects.id, [/^Subject\s*Name/i, /^学科/]),
+    columnsOf(base, t.textbooks.id, [cfg.textbookFields.sku, cfg.textbookFields.nameEn, cfg.textbookFields.nameZh]),
+    columnsOf(base, t.teachers.id, [cfg.teacherFields.name, cfg.teacherPrivateFields.teamsAccount]),
+    columnsOf(base, t.schools.id, [cfg.schoolFields.name, cfg.schoolFields.abbr]),
+    columnsOf(base, t.tracks.id, [cfg.trackFields.trackId, cfg.trackFields.name, cfg.trackFields.nameZh]),
+    columnsOf(base, t.courses.id, [/^Course\s*ID/i, /^Course\s*Name/i, /^课程名称/]),
+  ]);
+  const opt = (fields) => (fields ? { fields } : undefined);
+  const [grades, subjects, textbooks, teachers, schools, tracks, courseRows] = await Promise.all([
+    base.list(t.grades.id, opt(cGrades)), base.list(t.subjects.id, opt(cSubjects)), base.list(t.textbooks.id, opt(cTextbooks)), base.list(t.teachers.id, opt(cTeachers)),
+    base.list(t.schools.id, opt(cSchools)), base.list(t.tracks.id, opt(cTracks)),
+    base.list(t.courses.id, opt(cCourses)).catch(() => []), // every course, for the 前置课程 picker (code + names)
   ]);
   const gradeOrder = new Map(GRADE_ORDER.map((g, i) => [g, i]));
   const data = {
@@ -141,6 +180,7 @@ async function lookups(force) {
     if (fd && fd.options && fd.options.choices && fd.options.choices.length) data.options.days = fd.options.choices.map((c) => c.name);
   }
   lookupCache = { at: Date.now(), data };
+  await store.write(LOOKUP_BLOB, data).catch(() => {}); // the next cold instance reads this instead of Airtable
   return data;
 }
 
@@ -581,4 +621,4 @@ async function list(who) {
 
 module.exports = { writeBase, baseWrite: () => baseFor.write(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
   translateCourse, translationState, translationNeeds, publish, syncWebsite, syncStatus, versions, versionContent, restore, readAssignments, assign, unassign, syncTeacherAssignments, assignedTo, list, readWork,
-  _test: { baseFor: (b) => { baseFor = Object.assign({}, baseFor, b); }, resetLookups: () => { lookupCache = { at: 0, data: null }; }, hash } };
+  _test: { baseFor: (b) => { baseFor = Object.assign({}, baseFor, b); }, resetLookups: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; return store.write(LOOKUP_BLOB, null).catch(() => {}); }, coldInstance: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; }, building: () => lookupBuilding || Promise.resolve(null), hash } };

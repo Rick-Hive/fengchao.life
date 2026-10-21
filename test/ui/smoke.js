@@ -1268,8 +1268,12 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     // 教师库 (2026-10-21): the leader adds a teacher of its institution — no Teams account needed — and edits the facts
     await p.click("#teAdd"); await p.waitForSelector("#teNew");
     assert.ok(/Kids X Center/.test(await p.$eval("#teNew", e => e.innerText)) && !(await p.$("#tnHive")), "one institution: shown, not asked");
-    await p.fill("#tnName", "Wang Laoshi"); await p.fill("#tnEmail", "wang@qq.com"); await p.fill("#tnSubj", "Math, Science");
-    await p.click("#tnSave"); await p.waitForTimeout(900);
+    // the same fields, in the same order, as the editor (2026-10-21)
+    assert.deepStrictEqual(await p.$$eval("#teNew input[data-fact]", es => es.map(e => e.getAttribute("data-fact"))), ["name", "email", "teamsAccount", "subjects", "languages", "gradeLevels", "courseTypes"], "the editor's field set");
+    await p.fill('#teNew input[data-fact="name"]', "Wang Laoshi"); await p.fill('#teNew input[data-fact="email"]', "wang@qq.com"); await p.fill('#teNew input[data-fact="subjects"]', "Math, Science");
+    await p.click("#tnSave"); await p.waitForSelector("#panel.open #teBio"); await p.waitForTimeout(300);
+    assert.ok(await p.$('#panel input[data-fact="email"]') && /Wang Laoshi/.test(await p.$eval("#panel .ph h3", e => e.textContent)), "the panel goes on as the new teacher's editor (photo, biography, expertise)");
+    await p.keyboard.press("Escape");
     assert.deepStrictEqual(teCreates[0], { hive: "KXC", name: "Wang Laoshi", email: "wang@qq.com", teamsAccount: "", subjects: "Math, Science", languages: "", gradeLevels: "", courseTypes: "" }, "the row as posted");
     const tt2 = await p.$eval("#tetable", e => e.innerText);
     assert.ok(/Wang Laoshi/.test(tt2) && /wang@qq\.com/.test(tt2) && /新/.test(tt2), "listed at once, marked new: " + tt2.slice(0, 300));
@@ -2232,6 +2236,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(await p.$("#cotable tr[data-id]"), "the table"); assert.ok(/待审批/.test(await p.$eval("#cotabs", e => e.innerText)));
     // 按课程提供方筛选 (2026-10-21): a select of the deliverers with counts; the rows and the chips' counts follow
     assert.deepStrictEqual(await p.$$eval("#coSchool option", es => es.map(e => e.value)), ["", "IEW", "KXC"], "the providers");
+    { const ys = await p.$$eval("#cotabs .chip, #coSchool, #coq", es => es.map(e => { const r = e.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }));
+      assert.ok(Math.max(...ys) - Math.min(...ys) <= 4, "chips, provider and search on one line (2026-10-21): " + ys); }
+    await p.screenshot({ path: OUT + "/courses-toolbar.png", clip: { x: 240, y: 40, width: 1040, height: 120 } });
     assert.strictEqual((await p.$$("#cotable tr[data-id]")).length, 2);
     await p.selectOption("#coSchool", "IEW"); await p.waitForTimeout(200);
     assert.deepStrictEqual(await p.$$eval("#cotable tr[data-id]", es => es.map(e => e.getAttribute("data-id"))), ["recCOURSE00000002"], "IEW's course only");
