@@ -14,14 +14,16 @@
 // accepts an order, and refuses a full course unless the family asked for the waitlist (course_full).
 const crm = require("./crm");
 
-const ALIVE = new Set(["submitted", "confirmed", "paid", "started"]);
+const ALIVE = new Set(["submitted", "confirmed", "contacted", "parent_paid", "paid", "started"]);
+// an order whose time ran out (crm.isExpired) holds no seat — evaluated here, since nothing else runs on a timer
+let crmMod = null; const crmLazy = () => crmMod || (crmMod = require("./crm"));
 const FEW = 3;
 
 // orders → { CODE: { taken, waitlist } }
 function countOrders(orders) {
   const by = {};
   for (const o of orders || []) {
-    if (!o || !ALIVE.has(o.status)) continue;
+    if (!o || !ALIVE.has(o.status) || crmLazy().isExpired(o)) continue;
     for (const it of o.items || []) {
       const code = it && it.code; if (!code) continue;
       const s = by[code] || (by[code] = { taken: 0, waitlist: 0 });

@@ -15,7 +15,7 @@
 // to Microsoft's own change-password and self-service reset pages.
 const { graph, graphRaw, list, batch, q } = require("../shared/graph");
 const { getPrincipal } = require("../shared/auth");
-const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, isSchoolAccount } = require("../shared/roles");
+const { rolesFor, userRoles, normUser, can, readRoles, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, isSchoolAccount } = require("../shared/roles");
 const dir = require("../shared/directory");
 const crm = require("../shared/crm");
 
@@ -50,9 +50,11 @@ function isMine(o, upn, addrs) {
   if (o.account && String(o.account).toLowerCase() === upn) return true;
   return addrs.includes(String(o.email || "").toLowerCase()) || addrs.includes(String(o.teamsAccount || "").toLowerCase());
 }
-function myOrderView(o) {
-  // what a family needs: the status, the courses, waitlist and prerequisite flags, the fee; not the fulfilment notes
-  return { orderId: o.orderId, submission: o.submission || o.orderId, submittedAt: o.submittedAt, status: o.status, email: o.email || "", account: o.account || "", items: o.items || [], hives: o.hives || [], itemCount: o.itemCount, totalPrice: o.totalPrice, currency: o.currency || "CNY", fee: o.fee || null, track: o.track || null, notify: o.notify ? { ok: !!o.notify.ok, pending: !!o.notify.pending } : null, history: (o.history || []).map((h) => ({ at: h.at, to: h.to, from: h.from })), canCancel: o.status === "submitted" };
+function myOrderView(o0) {
+  // what a family needs: the status, the courses, waitlist and prerequisite flags, the fee; not the fulfilment notes.
+  // An order whose time ran out reads as expired (lazy expiry); 我已付款 is offered until the provider confirms.
+  const o = crm.withExpiry(o0), st = crm.statusOf(o);
+  return { orderId: o.orderId, submission: o.submission || o.orderId, submittedAt: o.submittedAt, status: st, expiresAt: ["submitted", "contacted"].includes(st) ? new Date(crm.expiresAt(o)).toISOString() : null, email: o.email || "", account: o.account || "", items: o.items || [], hives: o.hives || [], itemCount: o.itemCount, totalPrice: o.totalPrice, currency: o.currency || "CNY", fee: o.fee || null, track: o.track || null, notify: o.notify ? { ok: !!o.notify.ok, pending: !!o.notify.pending } : null, history: (o.history || []).map((h) => ({ at: h.at, to: h.to, from: h.from })), canCancel: st === "submitted", canConfirmPay: st === "submitted" || st === "contacted" };
 }
 
 const DAYS = 7;
@@ -245,6 +247,10 @@ async function handler(context, req) {
       // 教师资料 (2026-10-20): the Teachers table names this account as a Hive course teacher → the page shows under 我的账号
       const teacherRec = ((((snap || {}).private || {}).teachers) || []).find((t) => t.teamsAccount === upn) || null;
       const roles = rolesAll.roles;
+      // 机构负责人 (stage 2): the hives whose Schools row names a domain this account leads → the 订单 page for that hive
+      const leaderDomains = roles.map((r) => (DOMAIN_LEADER_RE.exec(r) || [])[1]).filter(Boolean);
+      const routing = (((snap || {}).private || {}).schoolRouting) || {};
+      const providerHives = Object.keys(routing).filter((k) => routing[k] && routing[k].domain && leaderDomains.includes(String(routing[k].domain).toLowerCase())).map((k) => ({ key: k, name: routing[k].name || "", abbr: routing[k].abbr || "" }));
       const rec = doc.people[upn] || {};
       context.res = {
         status: 200,
@@ -252,6 +258,7 @@ async function handler(context, req) {
           // Hive's own facts: 身份 (set by the school), 关联账号 and the person's 补充资料.
           hive: {
             teacherId: teacherRec ? teacherRec.id : null,
+            providerHives,
             identity: people.identityOf(rec, user),
             linked: Array.isArray(rec.linked) ? rec.linked : [],
             extra: rec.extra || null,
@@ -313,18 +320,22 @@ async function handler(context, req) {
       return;
     }
     // A family takes back an order it just placed (still 已提交): the seat goes free again. Later than that, the hive
-    // has been in touch and the cancellation is a request to the order manager (手动).
+    // has been in touch and the cancellation is a request to the order manager (手动). 我已付款 (status parent_paid,
+    // stage 2): the family's side of the two-sided confirmation, offered while the order is submitted or contacted.
     if (method === "PATCH" && action === "orders") {
       const b = req.body && typeof req.body === "object" ? req.body : {};
-      const orderId = String(b.orderId || "");
+      const orderId = String(b.orderId || ""), want = String(b.status || "cancelled");
       if (!crm.ID_RE.test(orderId)) return fail(context, 400, "bad order id");
       const cur = await crm.readOrder(orderId);
       if (!cur || !isMine(cur.order, upn, orderAddresses(upn, user))) return fail(context, 404, "no such order");
-      if (cur.order.status !== "submitted") return fail(context, 409, "the order has moved on; ask the order manager to cancel it", { status: cur.order.status });
-      const next = crm.transition(cur.order, "cancelled", upn, String(b.note || "").slice(0, 500) || "cancelled by the family", []);
+      const live = crm.withExpiry(cur.order), st = crm.statusOf(live);
+      if (want !== "cancelled" && want !== "parent_paid") return fail(context, 400, "bad status");
+      if (want === "cancelled" && st !== "submitted") return fail(context, 409, "the order has moved on; ask the order manager to cancel it", { status: st });
+      if (want === "parent_paid" && st !== "submitted" && st !== "contacted") return fail(context, 409, "the order is past that step", { status: st });
+      const next = crm.transition(live, want, upn, String(b.note || "").slice(0, 500) || (want === "cancelled" ? "cancelled by the family" : "家长确认已向机构付款 / the family confirms it paid the provider"), [], null, [want]);
       try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && err.statusCode === 412) return fail(context, 409, "changed meanwhile"); throw err; }
       seats.forget();
-      await audit(context, { actor: upn, action: "order.cancel.self", target: orderId, result: "ok" });
+      await audit(context, { actor: upn, action: want === "cancelled" ? "order.cancel.self" : "order.parent_paid", target: orderId, result: "ok" });
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, order: myOrderView(next) } };
       return;
     }

@@ -88,33 +88,52 @@ assert.deepStrictEqual([rec.account, rec.submission, rec.fee], ["", "FC-20261006
   delete process.env.SELECTION_FEE_CENTS;
 }
 
-// Transitions: submitted → confirmed → paid → started; cancelled from any live state; terminal states stay.
+// Transitions (stage 2, 2026-10-21): submitted → contacted → parent_paid → paid → started; cancelled from any live
+// state; terminal states stay. `confirmed` from the first flow reads as contacted.
 const sales = ["staff:sales"];
-const t1 = C.transition(rec, "confirmed", "om@bes", "提供方接单", sales, "2026-10-07T00:00:00Z");
-assert.strictEqual(t1.status, "confirmed");
+const t1 = C.transition(rec, "contacted", "om@bes", "提供方已联系", sales, "2026-10-07T00:00:00Z");
+assert.strictEqual(t1.status, "contacted");
 assert.strictEqual(t1.history.length, 2);
-assert.deepStrictEqual(t1.history[1], { at: "2026-10-07T00:00:00.000Z", by: "om@bes", from: "submitted", to: "confirmed", note: "提供方接单" });
+assert.deepStrictEqual(t1.history[1], { at: "2026-10-07T00:00:00.000Z", by: "om@bes", from: "submitted", to: "contacted", note: "提供方已联系" });
 assert.strictEqual(rec.status, "submitted", "the original is not mutated");
-assert.throws(() => C.transition(rec, "paid", "om@bes", "", sales), /cannot go from submitted to paid/);
+assert.throws(() => C.transition(rec, "started", "om@bes", "", sales), /cannot go from submitted to started/);
 assert.throws(() => C.transition(rec, "submitted", "om@bes", "", sales), /cannot go/);
-const t2 = C.transition(t1, "paid", "om@bes", "", sales);
+const tp = C.transition(t1, "parent_paid", "parent@gmail.com", "", [], null, ["parent_paid"]);
+assert.strictEqual(tp.status, "parent_paid", "the family's own step, through the explicit allowance");
+const t2 = C.transition(tp, "paid", "om@bes", "", sales);
 const t3 = C.transition(t2, "started", "om@bes", "", sales);
 assert.deepStrictEqual(C.nextStatuses(t3.status, sales), [], "started is terminal");
 const tc = C.transition(t2, "cancelled", "om@bes", "家长取消", sales);
 assert.deepStrictEqual(C.nextStatuses(tc.status, sales), [], "cancelled is terminal for the order manager");
 assert.deepStrictEqual(C.nextStatuses(tc.status, ["admin"]), ["submitted"], "…but the system administrator may reopen one");
-assert.deepStrictEqual(C.nextStatuses("submitted", sales), ["confirmed", "cancelled"]);
-try { C.transition(rec, "started", "x", "", sales); assert.fail("should throw"); } catch (e) { assert.strictEqual(e.code, "bad_transition"); assert.deepStrictEqual(e.allowed, ["confirmed", "cancelled"]); }
+assert.deepStrictEqual(C.nextStatuses("submitted", sales), ["contacted", "parent_paid", "paid", "cancelled"], "the order manager may skip steps the provider reports by phone");
+assert.deepStrictEqual(C.nextStatuses("confirmed", sales), ["parent_paid", "paid", "cancelled"], "an old `confirmed` record continues as contacted");
+assert.deepStrictEqual(C.providerNext("submitted"), ["contacted", "paid", "cancelled"], "the provider never records the family's step for it");
+assert.deepStrictEqual(C.providerNext("expired"), []);
+assert.strictEqual(C.statusOf({ status: "confirmed" }), "contacted");
+try { C.transition(rec, "started", "x", "", sales); assert.fail("should throw"); } catch (e) { assert.strictEqual(e.code, "bad_transition"); assert.deepStrictEqual(e.allowed, ["contacted", "parent_paid", "paid", "cancelled"]); }
 
-// Overdue (decision 18): submitted > 7 days, confirmed > 14, paid > 30; measured from the last change.
+// Expiry (lazy, 21 days from submission while submitted / contacted; +14 days per extension) and overdue reminders
+// (submitted 3, contacted 14, parent_paid 7, paid 30 days since the last change).
 const day = 24 * 3600 * 1000;
 const t0 = Date.parse("2026-10-06T02:00:00.000Z");
-assert.strictEqual(C.overdue(rec, t0 + 7 * day), null, "7 days is not yet overdue");
-assert.deepStrictEqual(C.overdue(rec, t0 + 8 * day), { rule: "submitted", days: 8, limit: 7 });
-assert.strictEqual(C.overdue(t1, t0 + 8 * day), null, "confirmed on day 1: 7 days since the change");
-assert.deepStrictEqual(C.overdue(t1, Date.parse("2026-10-07T00:00:00Z") + 15 * day), { rule: "confirmed", days: 15, limit: 14 });
+assert.strictEqual(C.overdue(rec, t0 + 3 * day), null, "3 days is not yet overdue");
+assert.deepStrictEqual(C.overdue(rec, t0 + 4 * day), { rule: "submitted", days: 4, limit: 3 });
+assert.strictEqual(C.overdue(t1, t0 + 8 * day), null, "contacted on day 1: 7 days since the change");
+assert.deepStrictEqual(C.overdue(t1, Date.parse("2026-10-07T00:00:00Z") + 15 * day), { rule: "contacted", days: 15, limit: 14 });
+assert.deepStrictEqual(C.overdue(Object.assign({}, t1, { status: "confirmed" }), Date.parse("2026-10-07T00:00:00Z") + 15 * day), { rule: "contacted", days: 15, limit: 14 }, "an old confirmed record uses the contacted rule");
 assert.strictEqual(C.overdue(t3, t0 + 400 * day), null, "started never goes overdue");
 assert.strictEqual(C.overdue(tc, t0 + 400 * day), null, "nor cancelled");
+assert.ok(!C.isExpired(rec, t0 + 20 * day) && C.isExpired(rec, t0 + 22 * day), "21 days from submission");
+assert.ok(C.isExpired(t1, t0 + 22 * day) && !C.isExpired(tp, t0 + 60 * day) && !C.isExpired(t2, t0 + 60 * day), "only while submitted or contacted");
+const ex = C.withExpiry(t1, t0 + 22 * day);
+assert.deepStrictEqual([ex.status, ex.history[ex.history.length - 1].by, ex.history[ex.history.length - 1].to, C.isLive(ex), C.nextStatuses(ex.status, sales), C.nextStatuses(ex.status, ["admin"])], ["expired", "system", "expired", false, [], ["submitted"]]);
+assert.strictEqual(C.withExpiry(t1, t0 + 5 * day), t1, "not expired: the same object");
+const xt = C.extend(t1, "head@kxc.edu", t0 + 20 * day);
+assert.strictEqual(xt.expiresAt, new Date(t0 + 35 * day).toISOString(), "+14 days on the original deadline");
+assert.ok(!C.isExpired(xt, t0 + 30 * day) && C.isExpired(xt, t0 + 36 * day) && /延长 14 天/.test(xt.history[xt.history.length - 1].note));
+const xt2 = C.extend(xt, "head@kxc.edu", t0 + 40 * day);
+assert.strictEqual(xt2.expiresAt, new Date(t0 + 54 * day).toISOString(), "extended after it lapsed: 14 days from now");
 
 // Masking: contact details need identity ≥ read, amounts need money ≥ read.
 const full = C.mask(t1, C.accessMap(["staff:sales"]));
@@ -122,7 +141,7 @@ assert.strictEqual(full, t1, "the order manager gets the record untouched");
 const fin = C.mask(t1, C.accessMap(["staff:finance"]));
 assert.strictEqual(fin.email, "…@gmail.com", "finance: contact details masked");
 assert.strictEqual(fin.totalPrice, 1200, "finance: amounts shown");
-assert.strictEqual(fin.history[1].note, "提供方接单", "finance reads orders, so the notes stay");
+assert.strictEqual(fin.history[1].note, "提供方已联系", "finance reads orders, so the notes stay");
 const cur = C.mask(t1, C.accessMap(["staff:curriculum"]));
 assert.strictEqual(cur.email, "…@gmail.com");
 assert.strictEqual(cur.totalPrice, null, "the curriculum director sees no amounts");

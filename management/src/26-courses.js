@@ -73,8 +73,29 @@
     $("cobody").innerHTML = '<div class="cocards">' + list.map(function (c) {
       return '<a class="cocard" href="#/courses/' + esc(c.id) + '"><div class="cocode">' + esc(c.code || "") + '</div><div class="coname">' + esc(coName(c)) + "</div>" +
         '<div class="cometa">' + (c.subjects || []).map(function (s) { return esc(t(s.nameZh || s.nameEn, s.nameEn || s.nameZh)); }).join(" · ") + (c.school ? ' · ' + esc(c.school) : "") + "</div>" +
-        '<div class="cofoot">' + coMiniSteps(c.status) + coStatusTag(c.status) + (c.returnedAt ? ' <span class="tag warn">' + t("有退回意见", "Comment") + "</span>" : "") + (c.updatedAt ? '<span class="faint">' + esc(when(c.updatedAt)) + "</span>" : "") + "</div></a>";
+        '<div class="cofoot">' + coMiniSteps(c.status) + coStatusTag(c.status) + (c.returnedAt ? ' <span class="tag warn">' + t("有退回意见", "Comment") + "</span>" : "") + (c.updatedAt ? '<span class="faint">' + esc(when(c.updatedAt)) + "</span>" : "") +
+        '<span class="btn secondary sm coroster" role="button" tabindex="0" data-roster="' + esc(c.id) + '">' + t("班级名单", "Class list") + "</span></div></a>";
     }).join("") + "</div>";
+    // 班级名单 sits inside the card link: open the panel, not the editor
+    $("cobody").addEventListener("click", function (e) { var b = e.target.closest("[data-roster]"); if (!b) return; e.preventDefault(); e.stopPropagation(); coRosterPanel(b.getAttribute("data-roster")); });
+  }
+  // 班级名单 (stage 2, 2026-10-21): who is enrolled, from the live orders — name, grade, standing; no contact details.
+  function coRosterPanel(id) {
+    var c = (co.list || []).filter(function (x) { return x.id === id; })[0] || co.course || {};
+    panelOpen('<div class="ph"><span class="avatar">👥</span><h3>' + t("班级名单", "Class list") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb" id="coRb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>");
+    api("courses/roster?id=" + encodeURIComponent(id)).then(function (r) {
+      var pb = $("coRb"); if (!pb) return;
+      if (!r.ok) { pb.innerHTML = '<div class="msg err">' + esc(r.status === 404 ? t("这门课还没有在网站上发布，没有报名。", "This course is not on the website yet, so nobody has enrolled.") : errText(r)) + "</div>"; return; }
+      var b = r.body, cc = b.course || {}, k = b.counts || {};
+      var STAND = { submitted: ["已报名", "Enrolled"], contacted: ["已报名", "Enrolled"], parent_paid: ["已报名 · 已付款", "Enrolled · paid"], paid: ["已缴费", "Paid"], started: ["已开课", "Started"] };
+      var row = function (s, i) { var st = STAND[s.status] || [s.status, s.status]; return '<tr><td class="num">' + (i + 1) + "</td><td>" + esc(s.name || t("（未填姓名）", "(no name)")) + "</td><td>" + esc(s.grade ? (s.grade === "学前" ? t("学前", "Pre-K") : t(s.grade + " 年级", "Grade " + s.grade)) : "—") + '</td><td><span class="tag' + (s.status === "paid" || s.status === "started" ? " ok" : "") + '">' + esc(t(st[0], st[1])) + "</span></td><td class=\"nowrap\">" + esc(day(s.since)) + "</td></tr>"; };
+      var tbl = function (rows) { return '<div class="tbl-wrap roster"><table class="data"><thead><tr><th class="num">#</th><th>' + t("学生", "Student") + "</th><th>" + t("年级", "Grade") + "</th><th>" + t("状态", "Standing") + "</th><th>" + t("报名日期", "Enrolled on") + "</th></tr></thead><tbody>" + rows.map(row).join("") + "</tbody></table></div>"; };
+      pb.innerHTML = '<div class="kv"><span class="k">' + t("课程", "Course") + "</span><span><b>" + esc(EN ? cc.nameEn || cc.nameZh : cc.nameZh || cc.nameEn) + '</b> <span class="faint">' + esc(cc.code || c.code || "") + "</span></span>" +
+          '<span class="k">' + t("人数", "Size") + "</span><span>" + esc(t("已报名 " + (k.enrolled || 0) + " 人，其中已缴费 " + (k.paid || 0) + " 人", (k.enrolled || 0) + " enrolled, " + (k.paid || 0) + " paid")) + (k.waitlist ? " · " + esc(t("候补 " + k.waitlist + " 人", k.waitlist + " waitlisted")) : "") + (cc.minSize != null || cc.maxSize != null ? ' <span class="faint">(' + esc(t("最少 ", "min ")) + (cc.minSize != null ? cc.minSize : "—") + " · " + esc(t("最多 ", "max ")) + (cc.maxSize != null ? cc.maxSize : "∞") + ")</span>" : "") + "</span></div>" +
+        ((b.enrolled || []).length ? tbl(b.enrolled) : '<p class="faint">' + t("还没有人报名。", "Nobody has enrolled yet.") + "</p>") +
+        ((b.waitlist || []).length ? "<h4>" + t("候补", "Waitlist") + "</h4>" + tbl(b.waitlist) : "") +
+        '<p class="hint">' + t("名单按网站订单实时统计；家长的联系方式由课程提供方和订单经理掌握。", "Counted from the live website orders; the families' contact details stay with the provider and the order manager.") + "</p>";
+    });
   }
   // The four dots of the progress line, for a list row.
   function coMiniSteps(status) {
@@ -203,6 +224,7 @@
         '<span class="colang" role="group" aria-label="' + esc(t("编辑语言", "Editing language")) + '"><button type="button" data-lang="zh"' + (co.lang === "zh" ? ' class="on"' : "") + '>中文</button><button type="button" data-lang="en"' + (co.lang === "en" ? ' class="on"' : "") + '>EN</button></span>' +
         (ro ? "" : '<button class="btn secondary sm" id="coTranslate"' + (co.needs ? ' data-needs="1"' : "") + ' title="' + esc(t("把这门课的文字翻成另一种语言；只处理空的和原文已改的字段，人工改过的不动", "Translate this course's text into the other language; only empty or outdated fields are touched, never human-edited ones")) + '">' + t("生成双语", "Translate") + (co.needs ? ' <small>' + co.needs + "</small>" : "") + "</button>") +
         '<button class="btn secondary sm" id="coVersions">' + t("版本", "Versions") + ' <small>' + (c.history || []).length + "</small></button>" +
+        '<button class="btn secondary sm" id="coRoster" data-roster="' + esc(co.id) + '">' + t("班级名单", "Class list") + "</button>" +
         primary +
         '<button class="btn secondary sm comore" id="coMore" aria-label="more">⋯</button>' +
         '<div class="comenu" id="coMenu" hidden>' +
@@ -465,6 +487,7 @@
       if (!e.target.closest("#coMenu")) $("coMenu").hidden = true;
       if (e.target.closest("#coTranslate")) return coTranslate();
       if (e.target.closest("#coVersions")) return coVersionsPanel();
+      if (e.target.closest("#coRoster")) return coRosterPanel(co.id);
       if (e.target.closest("#coSubmit")) return coSubmit();
       if (e.target.closest("#coWithdraw")) return coOp("withdraw");
       if (e.target.closest("#coPublish")) return coPublishPanel();

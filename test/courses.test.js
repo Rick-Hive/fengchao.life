@@ -175,6 +175,27 @@ const CD = "cd@fengchao.life", TEACHER = "zhang@a.edu", CM = "cm@fengchao.life",
   r = await call(TEACHER, "POST", "op", { body: { id: ID, op: "restore", ref: firstSubmit.ref } }); assert.strictEqual(r.body.course.status, "draft"); assert.strictEqual(r.body.course.fields.classTime, "P3 10:00-10:45");
   r = await call(TEACHER, "GET", "versions", { q: { id: ID } }); assert.strictEqual(r.body.items[0].action, "restore");
 
+  // 班级名单 (stage 2, 2026-10-21): the assigned teacher's roster from the live orders — names and grades, no family details;
+  // an expired order and a cancelled one are not on it, a waitlisted item is listed apart
+  const crm = require(R("api", "shared", "crm.js"));
+  const dayAgo = (d) => new Date(Date.now() - d * 86400000).toISOString();
+  const ord = (id, status, days, items) => ({ orderId: id, status, submittedAt: dayAgo(days), email: "family@gmail.com", items, hives: [{ key: "kxc" }], history: [] });
+  crm.listOrders = async () => [
+    ord("FC-20261010-KXC-001", "paid", 10, [{ code: "SCI-HS-101", child: { name: "张小明", grade: "9", account: "" } }]),
+    ord("FC-20261015-KXC-002", "submitted", 5, [{ code: "SCI-HS-101", child: { name: "李小红", grade: "10" }, waitlist: true }, { code: "MTH-MS-101", child: { name: "李小红", grade: "10" } }]),
+    ord("FC-20260920-KXC-003", "submitted", 30, [{ code: "SCI-HS-101", child: { name: "过期生", grade: "9" } }]),
+    ord("FC-20261001-KXC-004", "cancelled", 19, [{ code: "SCI-HS-101", child: { name: "退订生", grade: "9" } }]),
+  ];
+  r = await call(TEACHER, "GET", "roster", { q: { id: ID } });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual(r.body.enrolled.map((x) => [x.name, x.grade, x.status]), [["张小明", "9", "paid"]], "the paid family is enrolled; the expired and cancelled ones are not");
+  assert.deepStrictEqual(r.body.waitlist.map((x) => [x.name, x.status]), [["李小红", "submitted"]], "the waitlisted item is listed apart");
+  assert.deepStrictEqual(r.body.counts, { enrolled: 1, paid: 1, waitlist: 1 });
+  assert.ok(!JSON.stringify(r.body).includes("family@gmail.com"), "no contact details on the roster");
+  assert.deepStrictEqual([r.body.course.code, r.body.course.nameZh], ["SCI-HS-101", "生物"]);
+  r = await call(TEACHER, "GET", "roster", { q: { id: "recCOURSE00000002" } }); assert.strictEqual(r.status, 403, "not the teacher's course");
+  r = await call(CM, "GET", "roster", { q: { id: "recCOURSE00000002" } }); assert.strictEqual(r.status, 200, "a viewer may read any roster");
+
   // unassign: the teacher loses the course
   r = await call(CD, "POST", "op", { body: { id: ID, op: "unassign", person: { upn: "zhang@a.edu" } } }); assert.deepStrictEqual(r.body.assigned, []);
   r = await call(TEACHER, "GET", "course", { q: { id: ID } }); assert.strictEqual(r.status, 403);

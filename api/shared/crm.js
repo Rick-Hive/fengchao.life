@@ -82,35 +82,81 @@ function accessMap(roles) {
 // Order store
 // ---------------------------------------------------------------------------
 const PREFIX = "crm/orders/";
-const STATUSES = ["submitted", "confirmed", "paid", "started", "cancelled"];
+// The status flow since stage 2 (design 2026-10-20, Rick 2026-10-21): the course fee is paid by the family to the
+// provider directly, so the order records both sides' word for it — the family's 我已付款 (parent_paid), then the
+// provider's 已收款 (paid). `confirmed` from the first flow is kept as an alias of `contacted` (机构沟通中).
+//   submitted → contacted → parent_paid → paid → started; cancelled from any live state; expired when the family has
+//   not paid EXPIRE_DAYS after submission (extendable by the provider, +EXTEND_DAYS at a time).
+const STATUSES = ["submitted", "contacted", "parent_paid", "paid", "started", "cancelled", "expired"];
+const STATUS_ALIAS = { confirmed: "contacted" };
+const statusOf = (o) => STATUS_ALIAS[o && o.status] || (o && o.status) || "";
 const STATUS_LABELS = {
-  submitted: { zh: "已提交", en: "Submitted" },
-  confirmed: { zh: "已确认", en: "Confirmed" },
-  paid:      { zh: "已付款", en: "Paid" },
-  started:   { zh: "已开课", en: "Started" },
-  cancelled: { zh: "已取消", en: "Cancelled" },
+  submitted:   { zh: "已提交", en: "Submitted" },
+  contacted:   { zh: "机构沟通中", en: "Provider in touch" },
+  confirmed:   { zh: "机构沟通中", en: "Provider in touch" },
+  parent_paid: { zh: "家长已付款", en: "Parent paid" },
+  paid:        { zh: "已收款", en: "Payment received" },
+  started:     { zh: "已开课", en: "Started" },
+  cancelled:   { zh: "已取消", en: "Cancelled" },
+  expired:     { zh: "已过期", en: "Expired" },
 };
-// Which status may follow which. `cancelled` and `started` are terminal; the
-// system administrator may reopen a cancelled order (back to submitted) when
-// one was cancelled by mistake.
+// Which status may follow which. `started`, `cancelled` and `expired` are terminal; the system administrator may
+// reopen a cancelled or expired order (back to submitted) when it was closed by mistake.
 const NEXT = {
-  submitted: ["confirmed", "cancelled"],
-  confirmed: ["paid", "cancelled"],
+  submitted: ["contacted", "parent_paid", "paid", "cancelled"],
+  contacted: ["parent_paid", "paid", "cancelled"],
+  parent_paid: ["paid", "cancelled"],
   paid: ["started", "cancelled"],
   started: [],
   cancelled: [],
+  expired: [],
 };
+const LIVE = new Set(["submitted", "contacted", "parent_paid", "paid", "started"]);
+const isLive = (o) => LIVE.has(statusOf(o));
 function nextStatuses(status, roles) {
-  const out = (NEXT[status] || []).slice();
-  if (status === "cancelled" && isAdmin(roles)) out.push("submitted");
+  const st = STATUS_ALIAS[status] || status;
+  const out = (NEXT[st] || []).slice();
+  if ((st === "cancelled" || st === "expired") && isAdmin(roles)) out.push("submitted");
   return out;
+}
+// What a provider (the hive's own 教育领袖) may do with its orders: everything but reopening; the family's
+// 我已付款 is the family's, through me/orders.
+const PROVIDER_NEXT = { submitted: ["contacted", "paid", "cancelled"], contacted: ["paid", "cancelled"], parent_paid: ["paid", "cancelled"], paid: ["started", "cancelled"], started: [], cancelled: [], expired: [] };
+function providerNext(status) { return (PROVIDER_NEXT[STATUS_ALIAS[status] || status] || []).slice(); }
+
+// ---- expiry (lazy: the Static Web Apps functions have no timer) ------------------------------------------------
+// An order the family has not paid EXPIRE_DAYS after submission expires; the provider may extend it (+EXTEND_DAYS,
+// written as expiresAt). Evaluated when orders are read or seats are counted; the readers write it back best-effort.
+const EXPIRE_DAYS = 21, EXTEND_DAYS = 14;
+function expiresAt(order) {
+  if (order.expiresAt) return Date.parse(order.expiresAt);
+  const t = Date.parse(order.submittedAt || "");
+  return Number.isFinite(t) ? t + EXPIRE_DAYS * 24 * 60 * 60 * 1000 : NaN;
+}
+function isExpired(order, now) {
+  const st = statusOf(order);
+  if (st !== "submitted" && st !== "contacted") return false;
+  const at = expiresAt(order);
+  return Number.isFinite(at) && (now ? +now : Date.now()) > at;
+}
+// The order as it stands now: expired when its time ran out (a new object, history appended), else itself.
+function withExpiry(order, now) {
+  if (!isExpired(order, now)) return order;
+  const at = new Date(expiresAt(order)).toISOString();
+  return Object.assign({}, order, { status: "expired", history: (order.history || []).concat([{ at, by: "system", from: order.status, to: "expired", note: "" }]) });
+}
+function extend(order, by, now, days) {
+  const base = Math.max(expiresAt(order) || 0, now ? +now : Date.now());
+  const until = new Date(base + (days || EXTEND_DAYS) * 24 * 60 * 60 * 1000).toISOString();
+  const at = (now ? new Date(now) : new Date()).toISOString();
+  return Object.assign({}, order, { expiresAt: until, history: (order.history || []).concat([{ at, by, from: order.status, to: order.status, note: `延长 ${days || EXTEND_DAYS} 天 / extended ${days || EXTEND_DAYS} days → ${until.slice(0, 10)}` }]) });
 }
 
 // Overdue rules (decision 18): an order that has not moved on in time goes to
 // the pending-and-exceptions panel and the owner is told. Days are counted
 // from the last status change. The course data carries no start date (class
 // times are free text), so "paid but not started" uses a fixed window.
-const OVERDUE_DAYS = { submitted: 7, confirmed: 14, paid: 30 };
+const OVERDUE_DAYS = { submitted: 3, contacted: 14, confirmed: 14, parent_paid: 7, paid: 30 };
 const DAY = 24 * 60 * 60 * 1000;
 
 function lastChange(order) {
@@ -121,12 +167,12 @@ function lastChange(order) {
 // null when not overdue; otherwise { rule, days, limit } — the rule it broke,
 // how many days it has sat in that status, and the limit for that status.
 function overdue(order, now) {
-  const limit = OVERDUE_DAYS[order.status];
+  const limit = OVERDUE_DAYS[statusOf(order)];
   if (!limit) return null;
   const since = Date.parse(lastChange(order) || "");
   if (!Number.isFinite(since)) return null;
   const days = Math.floor(((now ? +now : Date.now()) - since) / DAY);
-  return days > limit ? { rule: order.status, days, limit } : null;
+  return days > limit ? { rule: statusOf(order), days, limit } : null;
 }
 
 // The record api/order stores at checkout. Deliberately a subset of the wire
@@ -188,8 +234,8 @@ function orderRecord(order, notify) {
 
 // Apply a status change. Throws on an illegal transition; the caller maps
 // that to 400. `by` is the staff account; `note` free text (not required).
-function transition(order, to, by, note, roles, now) {
-  const allowed = nextStatuses(order.status, roles);
+function transition(order, to, by, note, roles, now, allowedOverride) {
+  const allowed = allowedOverride || nextStatuses(order.status, roles);
   if (!allowed.includes(to)) {
     const err = new Error(`cannot go from ${order.status} to ${to}`);
     err.code = "bad_transition";
@@ -288,6 +334,7 @@ async function listOrders() {
 
 module.exports = {
   DOMAINS, LEVELS, DOMAIN_LABELS, MATRIX, access, atLeast, accessMap,
-  STATUSES, STATUS_LABELS, NEXT, OVERDUE_DAYS, nextStatuses, overdue, lastChange, orderRecord, transition, mask,
+  STATUSES, STATUS_ALIAS, statusOf, STATUS_LABELS, NEXT, LIVE, isLive, providerNext, EXPIRE_DAYS, EXTEND_DAYS, expiresAt, isExpired, withExpiry, extend,
+  OVERDUE_DAYS, nextStatuses, overdue, lastChange, orderRecord, transition, mask,
   PREFIX, ID_RE, blobName, readOrder, writeOrder, listOrders,
 };

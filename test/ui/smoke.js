@@ -52,10 +52,10 @@ const CATALOG = [
   { id: "recC4", code: "BES-ART-HS-101", nameEn: "Choir", nameZh: "合唱", subjects: [{ id: "recArt", nameEn: "Fine Arts", nameZh: "艺术" }], grades: ["G9", "G10", "G11", "G12"], trackIds: [1, 3], pedagogy: false, available: true, price: null, teachers: [], school: { name: "BES", abbr: "BES" } },
   { id: "recC5", code: "KXC-MATH-HS-999", nameEn: "Hidden", nameZh: "下架课", subjects: [PLAN_SUBJ[0]], grades: ["G9"], trackIds: [1], pedagogy: false, available: false, price: 1, teachers: [], school: { name: "KXC", abbr: "KXC" } },
 ];
-let MY_ORDERS = [];
+let MY_ORDERS = []; const myPatches = [];
 const MY_ORDERS0 = () => [
-  { orderId: "FC-20261020-KXC-003", submission: "FS-20261020-ABCDE", submittedAt: "2026-10-20T03:00:00Z", status: "submitted", email: "h.safe@gmail.com", account: "", items: [{ code: "KXC-MATH-HS-101", nameZh: "几何", nameEn: "Geometry", price: 2400, schoolAbbr: "KXC", grades: ["G9", "G10"], waitlist: false, prereq: null, child: { name: "张小明", grade: "9", account: "" } }], hives: [{ key: "kxc", name: "KXC", abbr: "KXC" }], itemCount: 1, totalPrice: 2400, currency: "CNY", fee: null, notify: { ok: true }, history: [{ at: "2026-10-20T03:00:00Z", to: "submitted", from: null }], canCancel: true },
-  { orderId: "FC-20261018-BES-001", submission: "FC-20261018-BES-001", submittedAt: "2026-10-18T03:00:00Z", status: "confirmed", email: "h.safe@gmail.com", account: "", items: [{ code: "BES-SCI-MS-201", nameZh: "生命科学", nameEn: "Life Science", price: 1800, schoolAbbr: "BES", grades: ["G7"], waitlist: true, prereq: { text: "BES-SCI-MS-101 Earth Science / 地球科学", codes: ["BES-SCI-MS-101"], met: "none" } }], hives: [{ key: "bes", name: "BES", abbr: "BES" }], itemCount: 1, totalPrice: 1800, currency: "CNY", fee: { amount: 100, currency: "usd", status: "paid", receiptUrl: "https://pay.stripe.com/receipts/x" }, notify: { ok: true }, history: [], canCancel: false },
+  { orderId: "FC-20261020-KXC-003", submission: "FS-20261020-ABCDE", submittedAt: "2026-10-20T03:00:00Z", status: "submitted", email: "h.safe@gmail.com", account: "", items: [{ code: "KXC-MATH-HS-101", nameZh: "几何", nameEn: "Geometry", price: 2400, schoolAbbr: "KXC", grades: ["G9", "G10"], waitlist: false, prereq: null, child: { name: "张小明", grade: "9", account: "" } }], hives: [{ key: "kxc", name: "KXC", abbr: "KXC" }], itemCount: 1, totalPrice: 2400, currency: "CNY", fee: null, notify: { ok: true }, history: [{ at: "2026-10-20T03:00:00Z", to: "submitted", from: null }], canCancel: true, canConfirmPay: true, expiresAt: "2026-11-10T03:00:00Z" },
+  { orderId: "FC-20261018-BES-001", submission: "FC-20261018-BES-001", submittedAt: "2026-10-18T03:00:00Z", status: "contacted", email: "h.safe@gmail.com", account: "", items: [{ code: "BES-SCI-MS-201", nameZh: "生命科学", nameEn: "Life Science", price: 1800, schoolAbbr: "BES", grades: ["G7"], waitlist: true, prereq: { text: "BES-SCI-MS-101 Earth Science / 地球科学", codes: ["BES-SCI-MS-101"], met: "none" } }], hives: [{ key: "bes", name: "BES", abbr: "BES" }], itemCount: 1, totalPrice: 1800, currency: "CNY", fee: { amount: 100, currency: "usd", status: "paid", receiptUrl: "https://pay.stripe.com/receipts/x" }, notify: { ok: true }, history: [], canCancel: false, canConfirmPay: true, expiresAt: "2026-11-08T03:00:00Z" },
 ];
 const planPuts = [];
 // 所有学校 is paged (2026-10-21): the mock pages with the real module; every query the page sent is recorded
@@ -133,27 +133,35 @@ function mkOrder(i, status, agoDays, notifyOk) {
   const at = new Date(Date.now() - agoDays * dayMs).toISOString();
   const o = { orderId: "FC-2026100" + (i % 9 + 1) + "-KXC-00" + (i + 1), source: "hive", submittedAt: at, email: ["parent" + i + "@gmail.com", "mama" + i + "@qq.com"][i % 2], teamsAccount: i % 3 ? "" : "p" + i + "@equipme.cloud", lang: i % 2 ? "en" : "zh",
     track: { trackId: 2, nameZh: "国内路径", nameEn: "Domestic track" },
-    items: [{ code: "KXC-MATH-7", nameZh: "七年级数学", nameEn: "Grade 7 Mathematics", classType: "直播课 / Live Course", language: "中文 / Chinese", grades: ["G7"], teachers: ["张老师"], price: 1200, priceTbd: false, schoolName: "Kids X Center", schoolAbbr: "KXC" },
+    items: [{ code: "KXC-MATH-7", nameZh: "七年级数学", nameEn: "Grade 7 Mathematics", classType: "直播课 / Live Course", language: "中文 / Chinese", grades: ["G7"], teachers: ["张老师"], price: 1200, priceTbd: false, schoolName: "Kids X Center", schoolAbbr: "KXC", child: { name: ["张小明", "李小红", "王小军", "赵小兰", "Ming", "Hong", "Jun", "Lan", "周小安"][i], grade: "7", account: "" } },
             { code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grade 7 Science", classType: "录播课 / Prerecorded", language: "英语 / English", grades: ["G7", "G8"], teachers: ["Mr Lee"], price: i % 4 ? 900 : 0, priceTbd: i % 4 === 0, schoolName: "Kids X Center", schoolAbbr: "KXC" }],
     hives: [{ key: "kxc", name: "Kids X Center", abbr: "KXC", itemCount: 2, subtotal: 2100, notified: true }], itemCount: 2, totalPrice: 2100, currency: "CNY",
     status: "submitted", history: [{ at, by: "system", from: null, to: "submitted", note: "" }], notify: { ok: notifyOk, at, error: notifyOk ? undefined : "HTTP 502" }, crmId: null };
   if (i === 1) o.items[1].prereq = { text: "KXC-SCI-6 Grade 6 Science / 六年级科学", codes: ["KXC-SCI-6"], met: "none" };
-  let cur = o; const chain = { confirmed: ["confirmed"], paid: ["confirmed", "paid"], started: ["confirmed", "paid", "started"], cancelled: ["cancelled"] }[status] || [];
+  // stage-2 chain (2026-10-21): contacted → parent_paid → paid → started; a legacy `confirmed` record is kept as-is
+  let cur = o; const chain = { confirmed: ["confirmed"], contacted: ["contacted"], parent_paid: ["contacted", "parent_paid"], paid: ["contacted", "parent_paid", "paid"], started: ["contacted", "paid", "started"], cancelled: ["cancelled"] }[status] || [];
   let step = agoDays - 1;
-  for (const s of chain) { cur = crm.transition(cur, s, "om@fengchao.life", s === "paid" ? "家长已转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
+  for (const s of chain) { cur = s === "confirmed" ? Object.assign({}, cur, { status: "confirmed", history: cur.history.concat([{ at: new Date(Date.now() - Math.max(step--, 0) * dayMs).toISOString(), by: "om@fengchao.life", from: "submitted", to: "confirmed", note: "" }]) }) : crm.transition(cur, s, s === "parent_paid" ? "parent@gmail.com" : "om@fengchao.life", s === "paid" ? "已收到转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
-const seated = [], createdUsers = [], merges = [], tPatches = [], tPhotos = [], tApproved = [];
+const seated = [], extended = [], createdUsers = [], merges = [], tPatches = [], tPhotos = [], tApproved = [];
 // 教师资料: two teachers, one of them the signed-in account under x:teacher
 const TEACHERS = [{ id: "recTEACH000000001", name: "Zhang Lao", teamsAccount: "rick.zhang@bes.qiaoliang.online", domain: "bes.qiaoliang.online", organization: "北京某某学校", subjects: "Math", languages: "Chinese", gradeLevels: "G7-G9", bio: "", expertise: "", photoUrl: null },
   { id: "recTEACH000000002", name: "Mr Lee", teamsAccount: "lee@kxc.edu", domain: "kxc.edu", organization: "Kids X Center", subjects: "Science", languages: "English", gradeLevels: "G9-G12", bio: "Twenty years of lab-based science teaching.", expertise: "Biology, chemistry", photoUrl: "/assets/apple-touch-icon.png" }];
 const TWORK = {};
 let CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
-let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 20, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "confirmed", 4, true), mkOrder(7, "submitted", 1, false)];
-function ordersBody(acc) {
-  const counts = { all: ORDERS.length, submitted: 0, confirmed: 0, paid: 0, started: 0, cancelled: 0, overdue: 0, notifyFailed: 0 };
-  const list = ORDERS.map((o) => { const od = crm.overdue(o); counts[o.status]++; if (od) counts.overdue++; if (o.notify.ok === false) counts.notifyFailed++; return Object.assign(crm.mask(o, acc), { overdue: od }); });
-  return { orders: list, counts, access: acc, statuses: crm.STATUS_LABELS, overdueDays: crm.OVERDUE_DAYS };
+let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 20, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "parent_paid", 4, true), mkOrder(7, "submitted", 1, false), mkOrder(8, "submitted", 25, true)];
+// the ninth is another hive's (BES): a provider's leader must not see it; its clock ran out 4 days ago → expired on read
+ORDERS[8].orderId = "FC-20260926-BES-009"; ORDERS[8].hives = [{ key: "bes", name: "BES School", abbr: "BES", itemCount: 2, subtotal: 2100, notified: true }]; ORDERS[8].items.forEach(it => { it.schoolAbbr = "BES"; it.schoolName = "BES School"; it.code = it.code.replace("KXC", "BES"); });
+const PROVIDER_KEYS = ["kxc"];
+const liveOrders = () => { ORDERS = ORDERS.map(o => crm.withExpiry(o)); return ORDERS; };
+const orderView = (o, acc, provider) => Object.assign(provider ? o : crm.mask(o, acc), { overdue: crm.overdue(o), status: crm.statusOf(o), expiresAt: crm.isLive(o) && ["submitted", "contacted"].includes(crm.statusOf(o)) ? new Date(crm.expiresAt(o)).toISOString() : null });
+const nextFor = (o, acc, provider, rolesList) => provider ? crm.providerNext(o.status) : acc.orders === "rw" ? crm.nextStatuses(o.status, rolesList) : [];
+function ordersBody(acc, provider) {
+  const all = liveOrders().filter(o => !provider || o.hives.some(h => PROVIDER_KEYS.includes(h.key)));
+  const counts = { all: all.length, submitted: 0, contacted: 0, parent_paid: 0, paid: 0, started: 0, cancelled: 0, expired: 0, overdue: 0, notifyFailed: 0 };
+  const list = all.map((o) => { const od = crm.overdue(o); counts[crm.statusOf(o)]++; if (od) counts.overdue++; if (o.notify.ok === false) counts.notifyFailed++; return orderView(o, acc, provider); });
+  return { orders: list, counts, access: acc, provider: provider ? { keys: PROVIDER_KEYS } : null, statuses: crm.STATUS_LABELS, overdueDays: crm.OVERDUE_DAYS, expireDays: crm.EXPIRE_DAYS };
 }
 let patched = [], imported = [], groupNamed = [], EQUIP_SYNCED = false, teamsCalls = [], fillCalls = [], TEAMS_OK = false;
 const EQUIP = [
@@ -231,6 +239,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const acc = crm.accessMap(rolesList);
     const me = Object.assign({}, summary, { roles: rolesList.filter(x => !/^x:/.test(x)), crm: acc });
     if (rolesList.indexOf("x:teacher") >= 0) me.hive = Object.assign({}, me.hive, { teacherId: "recTEACH000000001" });
+    // x:provider — the leader of a hive's domain (kxc.edu): me/summary names the hive, crm has no level for them
+    const provider = rolesList.indexOf("x:provider") >= 0 && acc.orders === "none";
+    if (provider) me.hive = Object.assign({}, me.hive, { providerHives: [{ key: "kxc", name: "Kids X Center", abbr: "KXC" }] });
     const isAdm = rolesList.indexOf("admin") >= 0;
     await page.route("**/api/**", r => {
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
@@ -291,7 +302,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/roles" && r.request().method() === "GET" && u.searchParams.get("q")) body = { people: peopleHits };
       else if (p === "/api/roles") body = r.request().method() === "GET" ? Object.assign({}, roles, { scope: isAdm ? "all" : "staff" }) : { ok: true, entries: roles.entries };
       else if (p === "/api/me/session") body = { signedIn: true, user: me.profile.upn, idleSeconds: 1800, maxSeconds: 43200, startedAt: new Date().toISOString() };
-      else if (p === "/api/crm/orders") body = ordersBody(acc);
+      else if (p === "/api/crm/orders") body = ordersBody(acc, provider);
+      else if (p === "/api/crm/extend") { const b = JSON.parse(r.request().postData()); extended.push(b); const i = ORDERS.findIndex(x => x.orderId === b.orderId); ORDERS[i] = crm.extend(ORDERS[i], me.profile.upn); body = { ok: true, order: orderView(ORDERS[i], acc, provider), next: nextFor(ORDERS[i], acc, provider, rolesList) }; }
+      else if (p === "/api/courses/roster") { const id = u.searchParams.get("id"); const code = id === CO_ID ? "KXC-MATH-7" : null; if (!code) { status = 404; body = { error: "not on the website" }; } else { const rows = liveOrders().filter(o => crm.isLive(o)).flatMap(o => o.items.filter(it => it.code === code).map(it => ({ name: (it.child && it.child.name) || "", grade: (it.child && it.child.grade) || "", account: "", status: crm.statusOf(o), waitlist: !!it.waitlist, since: o.submittedAt }))); const enrolled = rows.filter(x => !x.waitlist), waitlist = rows.filter(x => x.waitlist); body = { course: { id, code, nameZh: "七年级数学", nameEn: "Grade 7 Mathematics", minSize: 8, maxSize: 10 }, enrolled, waitlist, counts: { enrolled: enrolled.length, paid: enrolled.filter(x => x.status === "paid" || x.status === "started").length, waitlist: waitlist.length }, at: new Date().toISOString() }; } }
       else if (p === "/api/crm/equip-orders") body = EQUIP_SYNCED ? { orders: EQUIP.map(o => Object.assign({}, o, acc.money === "none" ? { amount: null, received: null } : {})), status: { syncedAt: "2026-10-06T17:05:00Z", counts: { orders: EQUIP.length }, warnings: ["Customers: field \"CRM ID\" not found (crmId)"] }, access: acc } : { orders: [], status: { syncedAt: null, counts: null, warnings: [], configured: false }, access: acc };
       else if (p === "/api/crm/sync") { EQUIP_SYNCED = true; body = { ok: true, status: { syncedAt: new Date().toISOString(), counts: { orders: 2, items: 2, customers: 3, curriculums: 2, seminar: 1 }, warnings: ["Customers: field \"CRM ID\" not found (crmId)"] }, people: HUB.stats }; }
       else if (p === "/api/crm/people") { const canMerge = isAdm || acc.orders === "rw"; const famById = new Map((HUB.families || []).map(f => [f.id, f])); const opts = peopleList.parseQuery(Object.fromEntries(u.searchParams)); peoplePages.push(opts); const pg = peopleList.page(hubMod.withMarks(HUB.people, MARKS), opts); body = { people: pg.people.map(x => hubMod.maskPerson(x.familyId ? Object.assign({}, x, { family: famById.get(x.familyId) }) : x, acc)), matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: opts, queue: canMerge ? HUB.queue : [], stats: Object.assign({}, HUB.stats, hubMod.markStats(HUB.people, MARKS)), generatedAt: HUB.generatedAt, sources: HUB.sources, access: acc, canMerge, canMark: isAdm || acc.identity === "rw", timing: { read: 5, page: 1, total: 6 } }; }
@@ -324,10 +337,10 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/crm/import-teams") { const b = JSON.parse(r.request().postData() || "{}"); teamsCalls.push(b); if (!TEAMS_OK) { status = 403; body = { error: "teams_forbidden", team: "Hive Orders", channel: "CEFF" }; } else body = { ok: true, dryRun: !!b.dryRun, team: "Hive Orders", channels: ["General", "CEFF"], messages: 12, parsed: 5, created: ["FC-20260929-CAP-001"], existing: [], skipped: [] }; }
       else if (p === "/api/domain/groupnames-fill") { fillCalls.push(JSON.parse(r.request().postData())); body = { ok: true, filled: [{ id: "g2", zh: "五年级数学", en: "Math Grade 5" }] }; }
       else if (p === "/api/domain/groupname") { groupNamed.push(JSON.parse(r.request().postData())); body = { ok: true }; }
-      else if (p === "/api/crm/classes") { ORDERS[1].items[1].waitlist = ORDERS[1].items[1].waitlist !== false; const seatsMod = require("../../api/shared/seats"); const live = seatsMod.seatsFor(seatsMod.countOrders(ORDERS), [{ code: "KXC-MATH-7", nameZh: "七年级数学", nameEn: "Grade 7 Mathematics", minSize: 8, maxSize: 10, school: { abbr: "KXC" } }, { code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grade 7 Science", minSize: null, maxSize: 5, school: { abbr: "KXC" } }]); const classes = Object.keys(live).map(code => Object.assign({ code, nameZh: code === "KXC-MATH-7" ? "七年级数学" : "七年级科学", nameEn: code === "KXC-MATH-7" ? "Grade 7 Mathematics" : "Grade 7 Science", school: "KXC", orders: ORDERS.filter(o => seatsMod.ALIVE.has(o.status)).flatMap(o => o.items.filter(it => it.code === code).map(it => ({ orderId: o.orderId, status: o.status, submittedAt: o.submittedAt, email: crm.mask(o, acc).email, waitlist: !!it.waitlist }))) }, live[code])); body = { classes, at: new Date().toISOString() }; }
+      else if (p === "/api/crm/classes") { ORDERS[1].items[1].waitlist = ORDERS[1].items[1].waitlist !== false; const seatsMod = require("../../api/shared/seats"); const live = seatsMod.seatsFor(seatsMod.countOrders(ORDERS), [{ code: "KXC-MATH-7", nameZh: "七年级数学", nameEn: "Grade 7 Mathematics", minSize: 8, maxSize: 10, school: { abbr: "KXC" } }, { code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grade 7 Science", minSize: null, maxSize: 5, school: { abbr: "KXC" } }]); const classes = Object.keys(live).map(code => Object.assign({ code, nameZh: code === "KXC-MATH-7" ? "七年级数学" : "七年级科学", nameEn: code === "KXC-MATH-7" ? "Grade 7 Mathematics" : "Grade 7 Science", school: "KXC", orders: liveOrders().filter(o => seatsMod.ALIVE.has(o.status) && (!provider || o.hives.some(h => PROVIDER_KEYS.includes(h.key)))).flatMap(o => o.items.filter(it => it.code === code).map(it => ({ orderId: o.orderId, status: crm.statusOf(o), submittedAt: o.submittedAt, email: provider ? o.email : crm.mask(o, acc).email, waitlist: !!it.waitlist, child: it.child || null }))) }, live[code])); body = { classes, at: new Date().toISOString() }; }
       else if (p === "/api/crm/seat") { const b = JSON.parse(r.request().postData()); seated.push(b); const o = ORDERS.find(x => x.orderId === b.orderId); o.items.forEach(it => { if (it.code === b.code) it.waitlist = b.waitlist; }); body = { ok: true, order: crm.mask(o, acc) }; }
-      else if (p === "/api/crm/order" && r.request().method() === "GET") { const o = ORDERS.find(x => x.orderId === u.searchParams.get("id")); body = { order: Object.assign(crm.mask(o, acc), { overdue: crm.overdue(o) }), next: acc.orders === "rw" ? crm.nextStatuses(o.status, rolesList) : [] }; }
-      else if (p === "/api/crm/order" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); patched.push(b); const i = ORDERS.findIndex(x => x.orderId === b.orderId); ORDERS[i] = crm.transition(ORDERS[i], b.status, me.profile.upn, b.note, rolesList); body = { ok: true, order: Object.assign(crm.mask(ORDERS[i], acc), { overdue: crm.overdue(ORDERS[i]) }), next: crm.nextStatuses(ORDERS[i].status, rolesList) }; }
+      else if (p === "/api/crm/order" && r.request().method() === "GET") { const o = liveOrders().find(x => x.orderId === u.searchParams.get("id")); if (provider && !o.hives.some(h => PROVIDER_KEYS.includes(h.key))) { status = 404; body = { error: "not_found" }; } else body = { order: orderView(o, acc, provider), next: nextFor(o, acc, provider, rolesList), provider }; }
+      else if (p === "/api/crm/order" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); patched.push(b); const i = ORDERS.findIndex(x => x.orderId === b.orderId); ORDERS[i] = crm.transition(ORDERS[i], b.status, me.profile.upn, b.note, rolesList, null, provider ? crm.providerNext(ORDERS[i].status) : null); body = { ok: true, order: orderView(ORDERS[i], acc, provider), next: nextFor(ORDERS[i], acc, provider, rolesList), provider }; }
       else if (p === "/api/crm/partners") { const type = u.searchParams.get("type") || "it"; const canEdit = isAdm || acc.partners === "rw"; if (!ptMod.TYPES[type]) { status = 400; body = { error: "bad_type" }; } else { const projects = Object.values(PRJ.items); const rows = ptMod.listByType(REL, type, {}, Date.now(), u.searchParams.get("all") === "1").map(x => ptRow(x, projects)); const counts = {}; for (const t of ptMod.visibleTypes()) counts[t] = Object.values(REL.items).filter(x => x.type === t && !x.closed).length; body = { type, rows, summary: ptMod.summary(rows, Date.now()), stages: ptMod.STAGES[type], kinds: ptMod.PROJECT_KINDS[type], contactRoles: ptMod.CONTACT_ROLES[type], regions: ptMod.REGION_LABELS, types: ptMod.TYPES, counts, canEdit, access: acc }; } }
       else if (p === "/api/crm/partner" && r.request().method() === "GET") { const rel = REL.items[u.searchParams.get("id")]; if (!rel) { status = 404; body = { error: "not_found" }; } else { const projects = Object.values(PRJ.items).filter(x => x.relationship === rel.id); body = { relationship: ptRow(Object.assign({}, rel, { health: ptMod.health(rel, Date.now(), {}) }), projects), projects, stages: ptMod.STAGES[rel.type], kinds: ptMod.PROJECT_KINDS[rel.type], contactRoles: ptMod.CONTACT_ROLES[rel.type], canEdit: isAdm || acc.partners === "rw", access: acc }; } }
       else if (p === "/api/crm/partner") { const b = JSON.parse(r.request().postData()); ptPosts.push(b); if (b.op === "create") { let party = null; if (b.party && b.party.key) { const i = ptOrgIdx().get(b.party.key); ptMod.orgIdFor(ORGS, b.party.key, { name: i ? i.name : b.party.name }); party = { id: ORGS.byKey[b.party.key], key: b.party.key, name: i ? i.name : b.party.name }; } else if (b.party && b.party.id) { const pe = HUB.people.find(x => x.crmId === b.party.id); party = pe ? { id: pe.crmId, name: pe.name } : null; } try { const id = ptMod.pad(REL.next++); REL.items[id] = ptMod.newRelationship(Object.assign({}, b, { party }), me.profile.upn, id); body = { ok: true, relationship: REL.items[id] }; } catch (e) { status = 400; body = { error: e.code || "bad" }; } }
@@ -371,7 +384,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/data") body = { generatedAt: new Date().toISOString(), counts: { products: 12, posts: 8 }, courses: CATALOG, teacherProfiles: [] };
       else if (p === "/api/seats") body = { seats: { "KXC-MATH-HS-101": { taken: 10, waitlist: 0, min: null, max: 12, open: 2, state: "few" }, "BES-SCI-MS-201": { taken: 8, waitlist: 1, min: null, max: 8, open: 0, state: "full" } } };
       else if (p === "/api/me/orders" && r.request().method() === "GET") body = { orders: MY_ORDERS, addresses: [me.profile.upn, "h.safe@gmail.com"] };
-      else if (p === "/api/me/orders" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); const o = MY_ORDERS.find(x => x.orderId === b.orderId); if (!o) status = 404; else if (o.status !== "submitted") status = 409; else { o.status = "cancelled"; o.canCancel = false; o.history.push({ at: new Date().toISOString(), from: "submitted", to: "cancelled" }); body = { ok: true, order: o }; } if (status !== 200) body = { error: "no" }; }
+      else if (p === "/api/me/orders" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); myPatches.push(b); const o = MY_ORDERS.find(x => x.orderId === b.orderId); const want = b.status || "cancelled"; const st = crm.statusOf(o || {}); if (!o) status = 404; else if (want === "cancelled" ? st !== "submitted" : !(st === "submitted" || st === "contacted")) status = 409; else { o.history.push({ at: new Date().toISOString(), from: o.status, to: want }); o.status = want; o.canCancel = false; o.canConfirmPay = false; o.expiresAt = null; body = { ok: true, order: o }; } if (status !== 200) body = { error: "no" }; }
       else if (p === "/api/me/contact") body = { upn: me.profile.upn, displayName: me.profile.displayName, mail: "", safeEmail: "h.safe@gmail.com" };
       else status = 404;
       r.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -403,23 +416,34 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
   await shot("orders-zh", 1280, 900, "#/ops/orders/hive", "zh", SALES, async p => {
     const nav = await p.$eval("#nav", e => e.innerText); if (!/经营[\s\S]*订单/.test(nav)) throw new Error("no 经营›订单 nav: " + nav);
     if (/系统/.test(nav)) throw new Error("order manager sees System group");
-    const rows = await p.$$("#otable tbody tr[data-id]"); if (rows.length !== 8) throw new Error("rows " + rows.length);
+    const rows = await p.$$("#otable tbody tr[data-id]"); if (rows.length !== 9) throw new Error("rows " + rows.length);
     const kpi = await p.$eval("#okpi", e => e.innerText); if (!/本月成交额/.test(kpi)) throw new Error("order manager should see money KPI");
+    assert.ok(/待联系/.test(kpi) && /待确认收款/.test(kpi), "the stage-2 tiles: " + kpi);
     const over = await p.$eval('#obar [data-cnt="overdue"]', e => e.textContent); if (over !== "(2)") throw new Error("overdue count " + over);
     const nf = await p.$eval('#obar [data-cnt="notifyFailed"]', e => e.textContent); if (nf !== "(2)") throw new Error("notifyFailed count " + nf);
+    // stage 2: the legacy 已确认 record reads as 机构沟通中, the 25-day-old unpaid order expired on read, the family's 我已付款 is a tab
+    assert.deepStrictEqual(await Promise.all(["contacted", "parent_paid", "expired"].map(k => p.$eval('#obar [data-cnt="' + k + '"]', e => e.textContent))), ["(1)", "(1)", "(1)"], "stage-2 counts");
+    assert.ok(/已过期/.test(await p.$eval('#otable tbody tr[data-id="FC-20260926-BES-009"]', e => e.innerText)), "the stale order shows as expired");
+    assert.ok(/机构沟通中/.test(await p.$eval('#otable tbody tr[data-id="FC-20261003-KXC-003"]', e => e.innerText)), "confirmed reads as contacted");
     await p.click('#obar .chip[data-f="overdue"]'); await p.waitForTimeout(200);
     const r2 = await p.$$("#otable tbody tr[data-id]"); if (r2.length !== 2) throw new Error("overdue rows " + r2.length);
     await p.click('#obar .chip[data-f="all"]'); await p.waitForTimeout(200);
     await p.click('#otable tbody tr[data-id="FC-20261002-KXC-002"]'); await p.waitForTimeout(500);
     const pb = await p.$eval("#panel .pb", e => e.innerText);
-    if (!/七年级数学/.test(pb) || !/执行记录/.test(pb) || !/确认接单/.test(pb) || !/取消订单/.test(pb)) throw new Error("panel: " + pb.slice(0, 200));
+    if (!/七年级数学/.test(pb) || !/执行记录/.test(pb) || !/已联系家长/.test(pb) || !/取消订单/.test(pb)) throw new Error("panel: " + pb.slice(0, 200));
+    assert.ok(/学生：李小红 · 7 年级/.test(pb), "the child on the order's line: " + pb.slice(0, 300));
+    // the clock: an unpaid order shows when it must be paid by, and 延长 14 天 moves it
+    assert.ok(/付款期限/.test(pb) && await p.$("#oExtend"), "pay-by line and the extend button: " + pb.slice(0, 300));
+    await p.click("#oExtend"); await p.waitForTimeout(500);
+    assert.deepStrictEqual(extended, [{ orderId: "FC-20261002-KXC-002" }], "extend posted");
+    assert.ok(/延长 14 天/.test(await p.$eval("#panel .pb", e => e.innerText)), "the extension is in the record");
     assert.ok(/前置课程：KXC-SCI-6 Grade 6 Science \/ 六年级科学/.test(pb) && /未确认/.test(pb), "the panel shows the item's prerequisite and that the family did not confirm it: " + pb.slice(0, 300));
     if (!/¥2,100/.test(pb)) throw new Error("no total in panel: " + pb);
-    await p.fill("#oNote", "提供方已接单"); await p.click('#panel button[data-to="confirmed"]'); await p.waitForTimeout(600);
-    if (!patched.length || patched[0].status !== "confirmed" || patched[0].note !== "提供方已接单") throw new Error("patch not sent: " + JSON.stringify(patched));
+    await p.fill("#oNote", "已电话沟通"); await p.click('#panel button[data-to="contacted"]'); await p.waitForTimeout(600);
+    if (!patched.length || patched[0].status !== "contacted" || patched[0].note !== "已电话沟通") throw new Error("patch not sent: " + JSON.stringify(patched));
     const pb2 = await p.$eval("#panel .pb", e => e.innerText);
-    if (!/标记已付款/.test(pb2) || !/提供方已接单/.test(pb2)) throw new Error("panel after confirm: " + pb2.slice(0, 300));
-    const row = await p.$eval('#otable tbody tr[data-id="FC-20261002-KXC-002"]', e => e.innerText); if (!/已确认/.test(row)) throw new Error("row not updated: " + row);
+    if (!/已收款/.test(pb2) || !/已电话沟通/.test(pb2) || /已联系家长/.test(pb2)) throw new Error("panel after contact: " + pb2.slice(0, 300));
+    const row = await p.$eval('#otable tbody tr[data-id="FC-20261002-KXC-002"]', e => e.innerText); if (!/机构沟通中/.test(row)) throw new Error("row not updated: " + row);
   });
   await shot("orders-en-finance", 1280, 900, "#/ops/orders/hive", "en", ["staff:finance"], async p => {
     const title = await p.$eval("#title", e => e.textContent); if (!/Orders/.test(title)) throw new Error("title " + title);
@@ -428,7 +452,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if (!/¥2,100/.test(cell)) throw new Error("finance should see amounts: " + cell);
     await p.click('#otable tbody tr[data-id="FC-20261001-KXC-001"]'); await p.waitForTimeout(500);
     const pb = await p.$eval("#panel .pb", e => e.innerText);
-    if (/Confirm|Cancel order/.test(pb)) throw new Error("finance must not get status buttons");
+    if (/Contacted the family|Payment received\n|Cancel order|Extend 14 days/.test(pb)) throw new Error("finance must not get status buttons: " + pb.slice(0, 200));
     if (!/Fulfilment record/i.test(pb) || !/Grade 7 Mathematics/.test(pb)) throw new Error("panel en: " + pb.slice(0, 200));
   });
   await shot("orders-curriculum", 1280, 900, "#/ops/orders/hive", "zh", ["staff:curriculum"], async p => {
@@ -1171,15 +1195,49 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(!(await p.$("#panel button[data-sel]")) && /学校管理账号只能查看/.test(await p.$eval("#panel", e => e.innerText)) && await p.$eval("#plCart", e => e.hidden), "no 选择, no 去下单, the note says why");
     await p.keyboard.press("Escape");
   });
+  // 机构负责人 (stage 2, 2026-10-21): the leader of a hive's domain sees and works its own hive's orders, nothing else of 经营
+  await shot("orders-provider", 1280, 900, "#/ops/orders", "zh", ["domain_leader:kxc.edu", "x:provider"], async p => {
+    await p.waitForSelector("#otable tbody tr[data-id]");
+    const nav = await p.$eval("#nav", e => e.innerText);
+    assert.ok(/经营[\s\S]*订单/.test(nav) && !/人员库|仪表盘|合作伙伴/.test(nav), "the provider's 经营 group is 订单 alone: " + nav);
+    assert.ok(!(await p.$('.ptab[href="#/ops/orders"]')) && /蜂巢课程订单/.test(await p.$eval(".pagetabs", e => e.innerText)), "no Equip tab; the course orders open directly");
+    assert.ok(/贵机构课程的订单/.test(await p.$eval("#title .info", e => e.getAttribute("data-tip"))), "the provider's intro");
+    const rows = await p.$$eval("#otable tbody tr[data-id]", es => es.map(e => e.getAttribute("data-id")));
+    assert.strictEqual(rows.length, 8, "its own hive's orders only: " + rows); assert.ok(!rows.includes("FC-20260926-BES-009"), "the other hive's order is not listed");
+    assert.ok(/parent0@gmail\.com/.test(await p.$eval('#otable tbody tr[data-id="FC-20261001-KXC-001"]', e => e.innerText)), "the provider sees the family's email in full (it settles payment with them)");
+    assert.ok(/本月订单金额/.test(await p.$eval("#okpi", e => e.innerText)), "and the amounts");
+    await p.screenshot({ path: OUT + "/orders-provider.png" });
+    await p.click('#otable tbody tr[data-id="FC-20261007-KXC-007"]'); await p.waitForTimeout(500); // parent_paid: the family says it paid
+    const pb = await p.$eval("#panel .pb", e => e.innerText);
+    assert.ok(/机构沟通中 → 家长已付款/.test(pb) && /已收款/.test(pb) && /取消订单/.test(pb) && !/记家长已付款|重新打开|延长 14 天/.test(pb), "the provider's verbs on a parent_paid order: " + pb.slice(0, 400));
+    await p.click('#panel button[data-to="paid"]'); await p.waitForTimeout(500);
+    assert.strictEqual(patched[patched.length - 1].status, "paid", "已收款 posted");
+    assert.ok(/开课/.test(await p.$eval("#panel .pb", e => e.innerText)) && /已收款/.test(await p.$eval('#otable tbody tr[data-id="FC-20261007-KXC-007"]', e => e.innerText)), "paid: next is 开课");
+    await p.screenshot({ path: OUT + "/orders-provider-panel.png" });
+    await p.keyboard.press("Escape");
+    // 班级人数 is theirs too, with the child on each order; the rest of 经营 bounces to orders
+    await p.evaluate(() => { location.hash = "#/ops/orders/classes"; }); await p.waitForSelector("#cltable tbody tr[data-code]");
+    await p.click('#cltable tbody tr[data-code="KXC-MATH-7"]'); await p.waitForTimeout(200);
+    assert.ok(/学生：张小明/.test(await p.$eval("#cltable", e => e.innerText)) && await p.$("#cltable button[data-seat]"), "class sizes with the children and 递补");
+    await p.evaluate(() => { location.hash = "#/ops/people"; }); await p.waitForTimeout(400);
+    assert.ok(await p.$("#otable, #cltable") && !(await p.$("#ptable")), "people hub is not the provider's");
+  });
   // 我的订单 (2026-10-20): the account's orders, the family's own cancellation while still submitted
   MY_ORDERS = MY_ORDERS0();
   await shot("orders-mine", 1280, 900, "#/myorders", "zh", [], async p => {
     await p.waitForSelector(".mocard");
     const txt = await p.$eval("#mobody", e => e.innerText);
     assert.ok(/学生：张小明 · 9 年级/.test(txt), "the child under the course: " + txt);
-    assert.ok(/FC-20261020-KXC-003/.test(txt) && /已提交/.test(txt) && /几何/.test(txt) && /FC-20261018-BES-001/.test(txt) && /机构已确认/.test(txt) && /候补/.test(txt) && /前置课程未确认/.test(txt) && /USD 1\.00 · 已付/.test(txt) && /收据/.test(txt), "both orders, their tags and the fee: " + txt);
+    assert.ok(/FC-20261020-KXC-003/.test(txt) && /已提交/.test(txt) && /几何/.test(txt) && /FC-20261018-BES-001/.test(txt) && /机构沟通中/.test(txt) && /候补/.test(txt) && /前置课程未确认/.test(txt) && /USD 1\.00 · 已付/.test(txt) && /收据/.test(txt), "both orders, their tags and the fee: " + txt);
     assert.strictEqual((await p.$$("#mobody button[data-cancel]")).length, 1, "only the submitted order can be cancelled by the family");
+    // stage 2: the pay-by date and 我已付款 on both unpaid orders; the family's word is recorded, the provider's confirmation follows
+    assert.ok(/付款期限/.test(txt) && /2026\/11\/10/.test(txt), "pay-by line: " + txt.slice(0, 300));
+    assert.strictEqual((await p.$$("#mobody button[data-paid]")).length, 2, "我已付款 on both unpaid orders");
     await p.screenshot({ path: OUT + "/orders-mine.png" });
+    p.once("dialog", d => d.accept());
+    await p.click('#mobody button[data-paid="FC-20261018-BES-001"]'); await p.waitForTimeout(500);
+    assert.deepStrictEqual(myPatches[myPatches.length - 1], { orderId: "FC-20261018-BES-001", status: "parent_paid" }, "parent_paid sent");
+    assert.ok(/已付款 · 待机构确认/.test(await p.$eval('.mocard[data-order="FC-20261018-BES-001"]', e => e.innerText)) && (await p.$$("#mobody button[data-paid]")).length === 1, "recorded; the button is gone");
     p.once("dialog", d => d.accept());
     await p.click("#mobody button[data-cancel]"); await p.waitForTimeout(500);
     assert.ok(/已取消/.test(await p.$eval('.mocard[data-order="FC-20261020-KXC-003"]', e => e.innerText)) && !(await p.$("#mobody button[data-cancel]")), "cancelled, no more cancel buttons");
@@ -1900,6 +1958,13 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/我的课程/.test(await p.$eval("#nav", e => e.innerText)) && !/课程管理/.test(await p.$eval("#nav", e => e.innerText)), "a teacher sees 我的课程, not 课程管理");
     assert.ok(await p.$(".cocard"), "a course card"); assert.ok(/SCI-HS-101/.test(await p.$eval(".cocard", e => e.innerText)));
     await p.screenshot({ path: OUT + "/courses-teacher-list.png" });
+    // 班级名单 (stage 2): the roster from the live orders — names and grades, no contact details; the card link stays put
+    await p.click(".cocard [data-roster]"); await p.waitForSelector("#panel.open .kv"); await p.waitForTimeout(300);
+    const ro = await p.$eval("#panel", e => e.innerText);
+    assert.ok(/班级名单/.test(ro) && /七年级数学/.test(ro) && /张小明/.test(ro) && /7 年级/.test(ro) && /已缴费/.test(ro) && /已报名 \d+ 人，其中已缴费 \d+ 人/.test(ro) && !/@gmail|@qq/.test(ro), "the roster: " + ro.slice(0, 400));
+    assert.strictEqual(await p.evaluate(() => location.hash), "#/courses", "the roster did not open the editor");
+    await p.screenshot({ path: OUT + "/courses-roster.png" });
+    await p.keyboard.press("Escape"); await p.waitForTimeout(200);
     await p.click(".cocard"); await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
     // the sidebar stays as it is site-wide: no focus layout, no toggle of the editor's own (Rick, 2026-10-20)
     assert.ok(!(await p.evaluate(() => document.body.classList.contains("cofocus"))) && await p.$eval("#side", e => e.offsetWidth > 0) && !(await p.$("#coSide")) && !(await p.$(".coback")), "sidebar shown, no editor toggle, no ←");

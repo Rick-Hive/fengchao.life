@@ -54,7 +54,8 @@
       return h.indexOf("#/domain/groups") === 0 ? viewGroups() : h.indexOf("#/domain/handbook") === 0 ? viewHandbook() : viewUsers();
     }
     if (h.indexOf("#/ops") === 0) {
-      if (!canSeeOrders()) { location.hash = "#/account"; return; }
+      if (!canSeeOrderPage()) { location.hash = "#/account"; return; }
+      if (isProviderOnly()) return viewOrders(); // a provider's leader: its orders and class sizes only
       if (h.indexOf("#/ops/partners") === 0) return crmLevel("partners") !== "none" ? viewPartners() : viewOrders();
       return h.indexOf("#/ops/people") === 0 ? viewPeople() : h.indexOf("#/ops/royalty") === 0 ? (canSeeRoyalty() ? viewRoyalty() : viewOrders()) : h.indexOf("#/ops/statements") === 0 ? (canSeeStatements() ? viewStatements() : viewOrders()) : h.indexOf("#/ops/institutions") === 0 ? (crmLevel("partners") !== "none" ? viewInstitutionsCrm() : viewOrders()) : h.indexOf("#/ops/licenses") === 0 ? (crmLevel("drm") !== "none" ? viewLicenses() : viewOrders()) : viewOrders();
     }

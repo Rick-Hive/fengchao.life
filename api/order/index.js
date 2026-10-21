@@ -299,7 +299,7 @@ module.exports = async function (context, req) {
     const codeOf = new Map((snapshot.courses || []).filter((c) => c.code).map((c) => [c.code, c]));
     const cartCodes = new Set(items.map((it) => it.code));
     const allOrders = await crm.listOrders();
-    const mine = allOrders.filter((o) => o && String(o.email || "").toLowerCase() === email.toLowerCase() && ["confirmed", "paid", "started"].includes(o.status));
+    const mine = allOrders.filter((o) => o && String(o.email || "").toLowerCase() === email.toLowerCase() && ["contacted", "confirmed", "parent_paid", "paid", "started"].includes(o.status));
     const ordered = new Set(mine.flatMap((o) => (o.items || []).filter((it) => it && !it.waitlist).map((it) => it.code)));
     for (const it of items) {
       const c = byId.get(it.courseId), txt = String((c && c.prerequisite) || "").trim();

@@ -12,6 +12,8 @@
 //   GET  courses/versions?id=              the timeline;  GET courses/version?id=&ref=v:…|p:…  one version's content
 //   POST courses/sync                      refresh the website after publishes (coalesced, every 2 minutes at most)
 //   GET  courses/people?q=                 the people picker for assignments (approvers)
+//   GET  courses/roster?id=rec…            班级名单: the students enrolled (and waitlisted) from the live orders —
+//                                          name, grade, standing; no contact details (teachers, approvers, viewers)
 //
 // Who: approvers = 课程总监, CEO, 系统管理员 (everything); viewers = 教育社区经理 (read); a teacher = assigned
 // courses, the teacher-editable fields only.
@@ -136,6 +138,32 @@ module.exports = async function (context, req) {
       const r = await C.syncWebsite(require("../sync").runSync, (m) => context.log(m));
       if (r.ran) await audit(context, { actor: user, action: "course.sync", status: r.status, counts: r.body && r.body.counts });
       return done(200, r);
+    }
+    // 班级名单 (stage 2, 2026-10-21): who is enrolled in a course the caller may open — the teacher's roster. Names and
+    // grades from the orders, the order's standing, nothing of the family's contact details (those stay with the
+    // provider's leader and the order manager on the 订单 page).
+    if (method === "GET" && action === "roster") {
+      if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+      if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
+      const { readSnapshot } = require("../shared/blob");
+      const crm = require("../shared/crm");
+      const seats = require("../shared/seats");
+      const snap = await readSnapshot().catch(() => null);
+      const course = ((snap && snap.courses) || []).find((c) => c.id === id);
+      if (!course) return done(404, { error: "the course is not on the website yet" });
+      const now = Date.now(), rows = [];
+      for (const o0 of await crm.listOrders()) {
+        const o = crm.withExpiry(o0, now), st = crm.statusOf(o);
+        if (!seats.ALIVE.has(st)) continue;
+        for (const it of o.items || []) {
+          if (!it || it.code !== course.code) continue;
+          rows.push({ name: (it.child && it.child.name) || "", grade: (it.child && it.child.grade) || "", account: (it.child && it.child.account) || "", status: st, waitlist: !!it.waitlist, since: o.submittedAt || "" });
+        }
+      }
+      rows.sort((a, b) => (a.waitlist - b.waitlist) || String(a.since).localeCompare(String(b.since)));
+      const enrolled = rows.filter((r) => !r.waitlist), waitlist = rows.filter((r) => r.waitlist);
+      return done(200, { course: { id: course.id, code: course.code, nameZh: course.nameZh || "", nameEn: course.nameEn || "", minSize: course.minSize == null ? null : course.minSize, maxSize: course.maxSize == null ? null : course.maxSize },
+        enrolled, waitlist, counts: { enrolled: enrolled.length, paid: enrolled.filter((r) => r.status === "paid" || r.status === "started").length, waitlist: waitlist.length }, at: new Date(now).toISOString() });
     }
     if (method === "GET" && action === "people") {
       if (!who.approver) return done(403, { error: "approvers only" });

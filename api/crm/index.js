@@ -26,7 +26,7 @@
 //
 // Access is the matrix in ../shared/crm.js: orders need at least `masked`
 // to read and `rw` to change. Masking happens here, before the reply.
-const { userRoles, normUser, isAdmin, staffFunctions } = require("../shared/roles");
+const { userRoles, normUser, isAdmin, staffFunctions, DOMAIN_LEADER_RE } = require("../shared/roles");
 const crm = require("../shared/crm");
 const equip = require("../shared/equip");
 const teamsOrders = require("../shared/teamsOrders");
@@ -70,10 +70,33 @@ function ok(context, body) {
 
 // Which tab an order belongs to on the 订单 page.
 function tabsOf(order, od) {
-  const t = [order.status];
+  const t = [crm.statusOf(order)];
   if (od) t.push("overdue");
   if (order.notify && order.notify.ok === false && !order.notify.pending) t.push("notifyFailed");
   return t;
+}
+
+// 机构负责人 (design 2026-10-20: the hive's own 教育领袖): the hive keys whose Schools row names a domain this
+// account leads. Such an account sees and moves its own hive's orders — contact details included, since it is the
+// one that settles payment and admission with the family — and nothing of other hives.
+async function providerKeys(roles) {
+  const domains = (roles || []).map((r) => (DOMAIN_LEADER_RE.exec(r) || [])[1]).filter(Boolean);
+  if (!domains.length) return [];
+  const snap = await readSnapshot().catch(() => null);
+  const routing = (snap && snap.private && snap.private.schoolRouting) || {};
+  return Object.keys(routing).filter((k) => routing[k] && routing[k].domain && domains.includes(String(routing[k].domain).toLowerCase()));
+}
+const ofProvider = (o, keys) => keys.length > 0 && (o.hives || []).some((h) => keys.includes(h.key));
+// Orders are read through this: an order whose time ran out reads as expired (lazy expiry; crm.withExpiry), and the
+// change is written back best-effort so the next reader and the seat count agree.
+async function liveOrders(context) {
+  const now = Date.now(), all = await crm.listOrders(), out = [];
+  for (const o of all) {
+    const w = crm.withExpiry(o, now);
+    if (w !== o) { try { const cur = await crm.readOrder(o.orderId); if (cur) await crm.writeOrder(w, cur.etag); } catch (err) { context.log.warn(`order ${o.orderId}: expiry not written: ${err && err.message}`); } }
+    out.push(w);
+  }
+  return out;
 }
 
 async function handler(context, req) {
@@ -89,18 +112,40 @@ async function handler(context, req) {
   // 对账单 (api/crm/statements.js): finance / sysadmin write, money or partners ≥ read see.
   if (await statementsApi.handle(context, req, { action, method, user, roles, acc, ok, fail })) return;
 
-  if (!crm.atLeast(roles, "orders", "masked")) { fail(context, 403, "no_access"); return; }
+  // A provider's leader holds no CRM level; the order actions below let them in for their own hive's orders.
+  const pkeys = crm.atLeast(roles, "orders", "masked") ? [] : await providerKeys(roles);
+  const provider = pkeys.length > 0;
+  if (!provider && !crm.atLeast(roles, "orders", "masked")) { fail(context, 403, "no_access"); return; }
+  if (provider && !["orders", "order", "extend", "classes", "seat"].includes(action)) { fail(context, 403, "no_access"); return; }
 
   if (method === "GET" && action === "orders") {
     const now = Date.now();
-    const all = await crm.listOrders();
-    const counts = { all: all.length, submitted: 0, confirmed: 0, paid: 0, started: 0, cancelled: 0, overdue: 0, notifyFailed: 0 };
+    const all = (await liveOrders(context)).filter((o) => !provider || ofProvider(o, pkeys));
+    const counts = { all: all.length, submitted: 0, contacted: 0, parent_paid: 0, paid: 0, started: 0, cancelled: 0, expired: 0, overdue: 0, notifyFailed: 0 };
     const orders = all.map((o) => {
       const od = crm.overdue(o, now);
       for (const tb of tabsOf(o, od)) if (tb in counts) counts[tb]++;
-      return Object.assign(crm.mask(o, acc), { overdue: od });
+      return Object.assign(provider ? o : crm.mask(o, acc), { overdue: od, status: crm.statusOf(o), expiresAt: crm.isLive(o) && ["submitted", "contacted"].includes(crm.statusOf(o)) ? new Date(crm.expiresAt(o)).toISOString() : null });
     });
-    ok(context, { orders, counts, access: acc, statuses: crm.STATUS_LABELS, overdueDays: crm.OVERDUE_DAYS });
+    ok(context, { orders, counts, access: acc, provider: provider ? { keys: pkeys } : null, statuses: crm.STATUS_LABELS, overdueDays: crm.OVERDUE_DAYS, expireDays: crm.EXPIRE_DAYS });
+    return;
+  }
+
+  // 延长 14 天 (the provider's or the order manager's): a family mid-interview keeps its seat
+  if (method === "POST" && action === "extend") {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const id = String(body.orderId || "").trim();
+    if (!crm.ID_RE.test(id)) { fail(context, 400, "bad_id"); return; }
+    const cur = await crm.readOrder(id);
+    if (!cur) { fail(context, 404, "not_found"); return; }
+    if (provider ? !ofProvider(cur.order, pkeys) : !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    const st = crm.statusOf(crm.withExpiry(cur.order));
+    if (st !== "submitted" && st !== "contacted") { fail(context, 409, "not_extendable", { status: st }); return; }
+    const next = crm.extend(cur.order, normUser(user));
+    try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && (err.statusCode === 412 || err.statusCode === 409)) { fail(context, 409, "changed_meanwhile"); return; } throw err; }
+    seats.forget();
+    await audit(context, { action: "crm.order.extend", by: normUser(user), orderId: id, until: next.expiresAt });
+    ok(context, { ok: true, order: Object.assign({}, next, { status: crm.statusOf(next), expiresAt: next.expiresAt }), next: provider ? crm.providerNext(next.status) : crm.nextStatuses(next.status, roles) });
     return;
   }
 
@@ -527,13 +572,15 @@ async function handler(context, req) {
   // min / max from the orders, plus the orders behind each number, so the order manager can seat a waitlisted item
   // (递补) or cancel a course that did not reach its minimum.
   if (method === "GET" && action === "classes") {
-    const all = await crm.listOrders(), snap = await readSnapshot();
+    const all = await liveOrders(context), snap = await readSnapshot();
     const live = seats.seatsFor(seats.countOrders(all), (snap && snap.courses) || []);
     const byCode = {};
-    for (const c of (snap && snap.courses) || []) if (live[c.code]) byCode[c.code] = Object.assign({ code: c.code, nameZh: c.nameZh || "", nameEn: c.nameEn || "", school: (c.school && (c.school.abbr || c.school.name)) || "", orders: [] }, live[c.code]);
+    // a provider sees its own courses only (the course's deliverer key)
+    const { hiveKey } = require("../shared/hive");
+    for (const c of (snap && snap.courses) || []) if (live[c.code] && (!provider || pkeys.includes(hiveKey((c.school && (c.school.abbr || c.school.name)) || "")))) byCode[c.code] = Object.assign({ code: c.code, nameZh: c.nameZh || "", nameEn: c.nameEn || "", school: (c.school && (c.school.abbr || c.school.name)) || "", orders: [] }, live[c.code]);
     for (const o of all) {
       if (!seats.ALIVE.has(o.status)) continue;
-      for (const it of o.items || []) if (it && byCode[it.code]) byCode[it.code].orders.push({ orderId: o.orderId, status: o.status, submittedAt: o.submittedAt, email: crm.mask(o, acc).email, waitlist: !!it.waitlist });
+      for (const it of o.items || []) if (it && byCode[it.code]) byCode[it.code].orders.push({ orderId: o.orderId, status: crm.statusOf(o), submittedAt: o.submittedAt, email: provider ? o.email : crm.mask(o, acc).email, waitlist: !!it.waitlist, child: it.child || null });
     }
     const classes = Object.values(byCode).sort((a, b) => (b.waitlist - a.waitlist) || (b.taken - a.taken) || a.code.localeCompare(b.code));
     classes.forEach((c) => c.orders.sort((a, b) => String(a.submittedAt || "").localeCompare(String(b.submittedAt || ""))));
@@ -542,12 +589,13 @@ async function handler(context, req) {
   }
   // 递补: an item leaves the waitlist (the family is seated) — or goes back on it. Does not touch the order's status.
   if (method === "POST" && action === "seat") {
-    if (!crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    if (!provider && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const id = String(body.orderId || "").trim(), code = String(body.code || "").trim(), waitlist = !!body.waitlist;
     if (!crm.ID_RE.test(id) || !code) { fail(context, 400, "bad_id"); return; }
     const cur = await crm.readOrder(id);
     if (!cur) { fail(context, 404, "not_found"); return; }
+    if (provider && !ofProvider(cur.order, pkeys)) { fail(context, 404, "not_found"); return; }
     const items = (cur.order.items || []).map((it) => (it.code === code ? Object.assign({}, it, { waitlist }) : it));
     if (!items.some((it) => it.code === code)) { fail(context, 404, "no_item"); return; }
     const at = new Date().toISOString();
@@ -555,7 +603,7 @@ async function handler(context, req) {
     try { await crm.writeOrder(next, cur.etag); } catch (err) { if (err && (err.statusCode === 412 || err.statusCode === 409)) { fail(context, 409, "changed_meanwhile"); return; } throw err; }
     seats.forget();
     await audit(context, { action: "crm.order.seat", by: normUser(user), orderId: id, code, waitlist });
-    ok(context, { ok: true, order: Object.assign(crm.mask(next, acc), { overdue: crm.overdue(next) }) });
+    ok(context, { ok: true, order: Object.assign(provider ? next : crm.mask(next, acc), { overdue: crm.overdue(next), status: crm.statusOf(next) }) });
     return;
   }
 
@@ -565,19 +613,23 @@ async function handler(context, req) {
     const cur = await crm.readOrder(id);
     if (!cur) { fail(context, 404, "not_found"); return; }
 
+    if (provider && !ofProvider(cur.order, pkeys)) { fail(context, 404, "not_found"); return; }
+    const live = crm.withExpiry(cur.order);
+    const nextFor = (o) => provider ? crm.providerNext(o.status) : crm.atLeast(roles, "orders", "rw") ? crm.nextStatuses(o.status, roles) : [];
+    const view = (o) => Object.assign(provider ? o : crm.mask(o, acc), { overdue: crm.overdue(o), status: crm.statusOf(o), expiresAt: crm.isLive(o) && ["submitted", "contacted"].includes(crm.statusOf(o)) ? new Date(crm.expiresAt(o)).toISOString() : null });
     if (method === "GET") {
-      ok(context, { order: Object.assign(crm.mask(cur.order, acc), { overdue: crm.overdue(cur.order) }), next: crm.atLeast(roles, "orders", "rw") ? crm.nextStatuses(cur.order.status, roles) : [] });
+      ok(context, { order: view(live), next: nextFor(live), provider });
       return;
     }
 
-    // PATCH: a status change.
-    if (!crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
+    // PATCH: a status change — the order manager's, or the provider's on its own hive's order.
+    if (!provider && !crm.atLeast(roles, "orders", "rw")) { fail(context, 403, "no_access"); return; }
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const to = String(body.status || "").toLowerCase();
     if (!crm.STATUSES.includes(to)) { fail(context, 400, "bad_status", { statuses: crm.STATUSES }); return; }
     let next;
     try {
-      next = crm.transition(cur.order, to, user, body.note, roles);
+      next = crm.transition(live, to, user, body.note, roles, null, provider ? crm.providerNext(live.status) : null);
     } catch (err) {
       if (err.code === "bad_transition") { fail(context, 400, "bad_transition", { from: cur.order.status, to, allowed: err.allowed }); return; }
       throw err;
@@ -589,8 +641,8 @@ async function handler(context, req) {
       throw err;
     }
     seats.forget();
-    await audit(context, { action: "crm.order.status", by: normUser(user), orderId: id, from: cur.order.status, to, note: String(body.note || "").slice(0, 500) });
-    ok(context, { ok: true, order: Object.assign(crm.mask(next, acc), { overdue: crm.overdue(next) }), next: crm.nextStatuses(next.status, roles) });
+    await audit(context, { action: "crm.order.status", by: normUser(user), orderId: id, from: cur.order.status, to, note: String(body.note || "").slice(0, 500), provider });
+    ok(context, { ok: true, order: view(next), next: nextFor(next), provider });
     return;
   }
 

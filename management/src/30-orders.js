@@ -6,23 +6,41 @@
   // 经营 › 订单 (CRM design §6, Rick 2026-10-06): the website's course orders, stored by
   // api/order at checkout, with their status and fulfilment record. Who sees what is the
   // server's business (api/crm masks by role); the page only hides the buttons a reader
-  // cannot use. Overdue rules (decision 18): submitted > 7 d, confirmed > 14 d, paid > 30 d.
+  // cannot use. Overdue rules (decision 18): submitted > 3 d, contacted > 14 d, parent_paid > 7 d, paid > 30 d.
+  //
+  // Stage 2 (design 2026-10-20, Rick 2026-10-21): the course fee goes from the family to the provider directly, so
+  // the flow records both sides — 家长已付款 (the family's word, from 我的订单) and 已收款 (the provider's). The
+  // provider's leader (机构负责人: domain_leader of the hive's domain) works its own hive's orders here with no CRM
+  // role; an order nobody pays within 21 days expires, and the provider may extend it 14 days at a time.
   // ================================================================================
-  var ORDER_TABS = [["all", "全部", "All"], ["submitted", "已提交", "Submitted"], ["confirmed", "已确认", "Confirmed"], ["paid", "已付款", "Paid"], ["started", "已开课", "Started"], ["cancelled", "已取消", "Cancelled"], ["overdue", "超期", "Overdue"], ["notifyFailed", "通知失败", "Notification failed"]];
-  var ORDER_ST = { submitted: ["已提交", "Submitted", "accent"], confirmed: ["已确认", "Confirmed", "accent"], paid: ["已付款", "Paid", "ok"], started: ["已开课", "Started", "ok"], cancelled: ["已取消", "Cancelled", "muted"] };
-  var ORDER_VERB = { confirmed: ["确认接单", "Confirm"], paid: ["标记已付款", "Mark paid"], started: ["标记已开课", "Mark started"], cancelled: ["取消订单", "Cancel order"], submitted: ["重新打开", "Reopen"] };
-  var ordersState = { list: null, counts: {}, tab: "all", q: "", access: {} };
+  var ORDER_TABS = [["all", "全部", "All"], ["submitted", "已提交", "Submitted"], ["contacted", "沟通中", "In touch"], ["parent_paid", "家长已付款", "Parent paid"], ["paid", "已收款", "Received"], ["started", "已开课", "Started"], ["cancelled", "已取消", "Cancelled"], ["expired", "已过期", "Expired"], ["overdue", "超期", "Overdue"], ["notifyFailed", "通知失败", "Notification failed"]];
+  var ORDER_ST = { submitted: ["已提交", "Submitted", "accent"], contacted: ["机构沟通中", "Provider in touch", "accent"], confirmed: ["机构沟通中", "Provider in touch", "accent"], parent_paid: ["家长已付款", "Parent paid", "warn"], paid: ["已收款", "Payment received", "ok"], started: ["已开课", "Started", "ok"], cancelled: ["已取消", "Cancelled", "muted"], expired: ["已过期", "Expired", "muted"] };
+  var ORDER_VERB = { contacted: ["已联系家长", "Contacted the family"], parent_paid: ["记家长已付款", "Record parent paid"], paid: ["已收款", "Payment received"], started: ["开课", "Start"], cancelled: ["取消订单", "Cancel order"], submitted: ["重新打开", "Reopen"] };
+  var ordersState = { list: null, counts: {}, tab: "all", q: "", access: {}, provider: null, expireDays: 21 };
   function crmLevel(domain) { return (me && me.crm && me.crm[domain]) || "none"; }
   function canSeeRoyalty() { return crmLevel("money") === "rw" || hasFn("ceo"); }
   function canSeeOrders() { return crmLevel("orders") !== "none"; }
+  // 机构负责人: leads the domain of a hive (me/summary.hive.providerHives) and holds no CRM order level — the 订单
+  // page is theirs for their own hive's orders and class sizes; nothing else of 经营.
+  function providerHives() { return (me && me.hive && me.hive.providerHives) || []; }
+  function isProviderOnly() { return !canSeeOrders() && providerHives().length > 0; }
+  function canSeeOrderPage() { return canSeeOrders() || isProviderOnly(); }
+  function ordersRw() { return crmLevel("orders") === "rw" || isProviderOnly(); }
+  function stName(status) { var d = ORDER_ST[status] || [status, status, ""]; return t(d[0], d[1]); }
   function stTag(status) { var d = ORDER_ST[status] || [status, status, ""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
+  // days until an unpaid order expires (expiresAt comes only while submitted / contacted)
+  function expiryDays(o) { if (!o.expiresAt) return null; return Math.ceil((Date.parse(o.expiresAt) - Date.now()) / 86400000); }
+  function expiryTag(o) {
+    var d = expiryDays(o); if (d === null || d > 7) return "";
+    return '<span class="tag ' + (d <= 3 ? "bad" : "warn") + '" title="' + esc(t("未付款的订单在提交 " + ordersState.expireDays + " 天后自动过期；机构可延长。", "An unpaid order expires " + ordersState.expireDays + " days after submission; the provider can extend it.")) + '">' + esc(d <= 0 ? t("今天到期", "Expires today") : t(d + " 天后到期", "Expires in " + d + " d")) + "</span>";
+  }
   function money(v, cur) { if (v === null || v === undefined) return '<span class="muted">' + t("不可见", "hidden") + "</span>"; return esc((cur === "CNY" || !cur ? "¥" : cur + " ") + Number(v).toLocaleString(EN ? "en-US" : "zh-CN")); }
   // the child a course is for (stage 2, 2026-10-21), under the course on an order's line
   function childLine(it) { var c = it && it.child; if (!c || !c.name) return ""; return '<span class="sub">' + t("学生：", "Student: ") + esc(c.name) + (c.grade ? " · " + esc(c.grade === "学前" ? t("学前", "Pre-K") : t(c.grade + " 年级", "Grade " + c.grade)) : "") + (c.account ? ' <span class="faint">' + esc(c.account) + "</span>" : "") + "</span>"; }
   function overdueTag(o) {
     if (!o.overdue) return "";
     var r = o.overdue;
-    return '<span class="tag warn" title="' + esc(t("在「" + t(ORDER_ST[r.rule][0], ORDER_ST[r.rule][1]) + "」已停留 " + r.days + " 天（上限 " + r.limit + " 天）", "In “" + t(ORDER_ST[r.rule][0], ORDER_ST[r.rule][1]) + "” for " + r.days + " days (limit " + r.limit + ")")) + '">' + esc(t("超期 " + r.days + " 天", r.days + " d overdue")) + "</span>";
+    return '<span class="tag warn" title="' + esc(t("在「" + stName(r.rule) + "」已停留 " + r.days + " 天（上限 " + r.limit + " 天）", "In “" + stName(r.rule) + "” for " + r.days + " days (limit " + r.limit + ")")) + '">' + esc(t("超期 " + r.days + " 天", r.days + " d overdue")) + "</span>";
   }
   // Order payloads carry "中文 / English" pairs for class type and teaching language; show one side.
   function side(v) { var parts = String(v || "").split(" / "); return parts.length === 2 ? (EN ? parts[1] : parts[0]) : String(v || ""); }
@@ -47,9 +65,10 @@
   function viewOrders() {
     // Equip textbook orders first and by default (Rick, 2026-10-08); the website's
     // course orders at #/ops/orders/hive. One compact tab row: name only, no subtitle.
-    var hiveTab = location.hash.indexOf("#/ops/orders/hive") === 0, classTab = location.hash.indexOf("#/ops/orders/classes") === 0;
+    // A provider's leader has the course orders and class sizes only: the Equip tab is not theirs (#/ops/orders → hive).
+    var prov = isProviderOnly(), classTab = location.hash.indexOf("#/ops/orders/classes") === 0, hiveTab = location.hash.indexOf("#/ops/orders/hive") === 0 || (prov && !classTab);
     $("content").innerHTML = '<div class="pagetabs compact" role="tablist">' +
-      '<a class="ptab' + (hiveTab || classTab ? "" : " on") + '" role="tab" aria-selected="' + !(hiveTab || classTab) + '" href="#/ops/orders" title="EquipMe · Airtable">' + t("Equip教材订单", "Equip textbook orders") + "</a>" +
+      (prov ? "" : '<a class="ptab' + (hiveTab || classTab ? "" : " on") + '" role="tab" aria-selected="' + !(hiveTab || classTab) + '" href="#/ops/orders" title="EquipMe · Airtable">' + t("Equip教材订单", "Equip textbook orders") + "</a>") +
       '<a class="ptab' + (hiveTab ? " on" : "") + '" role="tab" aria-selected="' + hiveTab + '" href="#/ops/orders/hive" title="fengchao.life">' + t("蜂巢课程订单", "Hive course orders") + "</a>" +
       '<a class="ptab' + (classTab ? " on" : "") + '" role="tab" aria-selected="' + classTab + '" href="#/ops/orders/classes">' + t("班级人数", "Class sizes") + '</a><div class="tabsRight" id="tabsRight"></div></div><div id="opsBody"></div>';
     if (classTab) viewClasses(); else if (hiveTab) viewCourseOrders(); else viewEquipOrders();
@@ -72,7 +91,7 @@
     api("crm/classes").then(function (r) {
       var tb = $("cltable") && $("cltable").querySelector("tbody"); if (!tb) return;
       if (!r.ok) { tb.innerHTML = '<tr><td colspan="6"><div class="msg err">' + esc(errText(r)) + "</div></td></tr>"; return; }
-      var rw = crmLevel("orders") === "rw", cls = r.body.classes || [];
+      var rw = ordersRw(), cls = r.body.classes || [];
       clState.classes = cls; clState.rw = rw;
       renderClasses();
     });
@@ -85,7 +104,7 @@
       if (!clState.classes.length) { tb.innerHTML = '<tr><td colspan="6" class="faint">' + t("还没有设定人数上限的课程，也没有报名。", "No course has a size limit or an enrollment yet.") + "</td></tr>"; return; }
       tb.innerHTML = cls.map(function (c) {
         var state = c.state === "full" ? '<span class="tag warn">' + t("已满", "Full") + "</span>" : c.belowMin ? '<span class="tag">' + t("还差 " + c.need + " 人开班", c.need + " more to run") + "</span>" : c.state === "few" ? '<span class="tag accent">' + t("还剩 " + c.open + " 席", c.open + " left") + "</span>" : '<span class="tag ok">' + t("可报名", "Open") + "</span>";
-        var rows = c.orders.map(function (o) { return '<div class="orow"><div class="omain"><b>' + esc(o.orderId) + "</b> " + stTag(o.status) + (o.waitlist ? ' <span class="tag warn">' + t("候补", "Waitlist") + "</span>" : "") + '<span class="sub">' + esc(when(o.submittedAt)) + " · " + esc(o.email || "") + "</span></div>" + (rw ? '<div><button type="button" class="btn secondary sm" data-seat="' + esc(o.orderId) + '" data-code="' + esc(c.code) + '" data-wl="' + (o.waitlist ? "0" : "1") + '">' + (o.waitlist ? t("递补", "Seat") : t("改为候补", "To waitlist")) + "</button></div>" : "") + "</div>"; }).join("");
+        var rows = c.orders.map(function (o) { return '<div class="orow"><div class="omain"><b>' + esc(o.orderId) + "</b> " + stTag(o.status) + (o.waitlist ? ' <span class="tag warn">' + t("候补", "Waitlist") + "</span>" : "") + '<span class="sub">' + esc(when(o.submittedAt)) + " · " + esc(o.email || "") + "</span>" + childLine({ child: o.child }) + "</div>" + (rw ? '<div><button type="button" class="btn secondary sm" data-seat="' + esc(o.orderId) + '" data-code="' + esc(c.code) + '" data-wl="' + (o.waitlist ? "0" : "1") + '">' + (o.waitlist ? t("递补", "Seat") : t("改为候补", "To waitlist")) + "</button></div>" : "") + "</div>"; }).join("");
         return '<tr class="pick" data-code="' + esc(c.code) + '"><td><span class="dn">' + esc(EN ? c.nameEn || c.nameZh : c.nameZh || c.nameEn) + '</span><span class="sub">' + esc(c.code) + "</span></td><td>" + esc(c.school) + '</td><td class="num"><b>' + c.taken + '</b></td><td class="num">' + (c.waitlist || "") + '</td><td class="num">' + (c.min != null ? c.min : "—") + " / " + (c.max != null ? c.max : "∞") + "</td><td>" + state + "</td></tr>" +
           '<tr class="cldetail" hidden><td colspan="6"><div class="olist">' + (rows || '<span class="faint">' + t("还没有订单。", "No orders yet.") + "</span>") + "</div></td></tr>";
       }).join("");
@@ -94,7 +113,9 @@
     setTitle(t("经营 › 订单", "Operations › Orders"), t("蜂巢课程订单", "Hive course orders"), '<button class="btn secondary sm" id="oReload">' + t("刷新", "Refresh") + '</button> <button class="btn secondary sm" id="oCsv">' + t("导出 CSV", "Export CSV") + "</button>",
       // The Teams import buttons are gone (Rick, 2026-10-08: 「不需要有"从Teams中读取订单"选项」; the
       // Hive Orders history is test data, decision of 2026-10-08). The endpoints stay; the handlers below are inert without the buttons.
-      t("网站下单的课程订单，下单即记录；状态由订单经理维护，每一步都留有记录。超期未推进的单会标出。", "Course orders from the website, recorded at checkout; the order manager maintains the status and every step is kept. Orders that stall are flagged."));
+      isProviderOnly()
+        ? t("贵机构课程的订单。请在 3 天内联系家长；课程费由家长直接付给贵机构，收到后点「已收款」。未付款的订单在提交 " + ordersState.expireDays + " 天后自动过期，可延长。", "Orders for your institution's courses. Contact the family within 3 days; the course fee is paid to you directly — click “Payment received” when it arrives. An unpaid order expires " + ordersState.expireDays + " days after submission; you can extend it.")
+        : t("网站下单的课程订单，下单即记录；课程提供方联系家长、收取课程费，家长和机构各自确认付款，每一步都留有记录。超期未推进的单会标出。", "Course orders from the website, recorded at checkout; the provider contacts the family and collects the course fee, both sides confirm the payment, and every step is kept. Orders that stall are flagged."));
     $("opsBody").innerHTML =
       '<div class="toolbar" id="obar">' + ORDER_TABS.map(function (tb) { return '<button class="chip" data-f="' + tb[0] + '" aria-pressed="' + (ordersState.tab === tb[0]) + '">' + esc(t(tb[1], tb[2])) + ' <span class="cnt" data-cnt="' + tb[0] + '"></span></button>'; }).join("") +
         '<span class="spacer"></span><div class="search">' + ICON.search + '<input type="search" id="oq" value="' + esc(ordersState.q) + '" placeholder="' + t("搜索订单号、邮箱、蜂巢、课程…", "Search order no., email, hive, course…") + '" /></div></div>' +
@@ -179,7 +200,7 @@
     if (ordersState.list && !force) return Promise.resolve(ordersState.list);
     return api("crm/orders").then(function (r) {
       if (!r.ok) throw r;
-      ordersState.list = r.body.orders || []; ordersState.counts = r.body.counts || {}; ordersState.access = r.body.access || {};
+      ordersState.list = r.body.orders || []; ordersState.counts = r.body.counts || {}; ordersState.access = r.body.access || {}; ordersState.provider = r.body.provider || null; if (r.body.expireDays) ordersState.expireDays = r.body.expireDays;
       return ordersState.list;
     });
   }
@@ -198,13 +219,13 @@
     ORDER_TABS.forEach(function (tb) { var el = $("obar").querySelector('[data-cnt="' + tb[0] + '"]'); if (el) el.textContent = c[tb[0]] ? "(" + c[tb[0]] + ")" : ""; });
     var now = new Date(), ym = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     var month = list.filter(function (o) { return String(o.submittedAt || "").slice(0, 7) === ym && o.status !== "cancelled"; });
-    var seeMoney = crmLevel("money") !== "none";
+    var prov = isProviderOnly(), seeMoney = crmLevel("money") !== "none" || prov;
     var sum = month.reduce(function (s, o) { return s + (typeof o.totalPrice === "number" ? o.totalPrice : 0); }, 0);
     $("okpi").innerHTML =
       '<button class="kpi" data-kf="all"><div class="l">' + t("本月订单", "Orders this month") + '</div><div class="v">' + month.length + "</div></button>" +
-      (seeMoney ? '<div class="kpi"><div class="l">' + t("本月成交额（Hive 课程）", "Transaction value this month (Hive courses)") + '</div><div class="v">' + money(sum, "CNY") + '</div><div class="s">' + t("只在仪表盘显示，不与教材销售合计", "Dashboard only; never summed with textbook sales") + "</div></div>" : "") +
-      '<button class="kpi" data-kf="submitted"><div class="l">' + t("待确认", "Awaiting confirmation") + '</div><div class="v' + (c.submitted ? " warn" : "") + '">' + (c.submitted || 0) + "</div></button>" +
-      '<button class="kpi" data-kf="confirmed"><div class="l">' + t("待付款", "Awaiting payment") + '</div><div class="v">' + (c.confirmed || 0) + "</div></button>" +
+      (seeMoney ? '<div class="kpi"><div class="l">' + (prov ? t("本月订单金额", "Order value this month") : t("本月成交额（Hive 课程）", "Transaction value this month (Hive courses)")) + '</div><div class="v">' + money(sum, "CNY") + "</div>" + (prov ? "" : '<div class="s">' + t("只在仪表盘显示，不与教材销售合计", "Dashboard only; never summed with textbook sales") + "</div>") + "</div>" : "") +
+      '<button class="kpi" data-kf="submitted"><div class="l">' + t("待联系", "To contact") + '</div><div class="v' + (c.submitted ? " warn" : "") + '">' + (c.submitted || 0) + "</div></button>" +
+      '<button class="kpi" data-kf="parent_paid"><div class="l">' + t("待确认收款", "Payment to confirm") + '</div><div class="v' + (c.parent_paid ? " warn" : "") + '">' + (c.parent_paid || 0) + "</div></button>" +
       '<button class="kpi" data-kf="overdue"><div class="l">' + t("超期", "Overdue") + '</div><div class="v' + (c.overdue ? " bad" : "") + '">' + (c.overdue || 0) + "</div></button>" +
       '<button class="kpi" data-kf="notifyFailed"><div class="l">' + t("通知失败", "Notification failed") + '</div><div class="v' + (c.notifyFailed ? " bad" : "") + '">' + (c.notifyFailed || 0) + "</div></button>";
     var rows = ordersNow(), opg = pageOf("orders", rows, renderOrders);
@@ -220,7 +241,7 @@
         '<td class="cell-ell" title="' + esc(courses.join(" · ")) + '">' + esc(courses.slice(0, 2).join(" · ")) + (courses.length > 2 ? ' <span class="muted">+' + (courses.length - 2) + "</span>" : "") + "</td>" +
         '<td class="nowrap">' + money(o.totalPrice, o.currency) + "</td>" +
         '<td class="nowrap">' + stTag(o.status) + "</td>" +
-        '<td class="nowrap"><span class="tags">' + overdueTag(o) + (o.notify && o.notify.ok === false && !o.notify.pending ? '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span>" : "") + "</span></td></tr>";
+        '<td class="nowrap"><span class="tags">' + overdueTag(o) + expiryTag(o) + (o.notify && o.notify.ok === false && !o.notify.pending ? '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span>" : "") + "</span></td></tr>";
     }).join("") : '<tr><td colspan="8" class="empty">' + t("没有符合条件的订单。", "No orders match.") + "</td></tr>";
     $("ofoot").textContent = t("显示 ", "Showing ") + opg.matched + " / " + list.length + t(" 单", " orders") + (list.length ? "" : t("。网站还没有新订单落库。", ". No orders have been recorded from the website yet."));
   }
@@ -229,7 +250,7 @@
     var head = [t("订单号", "Order no."), t("提交时间", "Submitted"), t("下单人", "Email"), "Teams", t("蜂巢", "Hive"), t("课程", "Courses"), t("件数", "Items"), t("金额", "Amount"), t("币种", "Currency"), t("状态", "Status"), t("最后变更", "Last change"), t("超期", "Overdue")].join(",");
     var lines = ordersNow().map(function (o) {
       var last = (o.history || [])[o.history.length - 1] || {};
-      return [o.orderId, o.submittedAt, o.email, o.teamsAccount, orderHives(o), orderCourses(o).join("; "), o.itemCount, o.totalPrice == null ? "" : o.totalPrice, o.currency, t(ORDER_ST[o.status][0], ORDER_ST[o.status][1]), last.at || "", o.overdue ? o.overdue.days : ""].map(cell).join(",");
+      return [o.orderId, o.submittedAt, o.email, o.teamsAccount, orderHives(o), orderCourses(o).join("; "), o.itemCount, o.totalPrice == null ? "" : o.totalPrice, o.currency, stName(o.status), last.at || "", o.overdue ? o.overdue.days : ""].map(cell).join(",");
     });
     var blob = new Blob(["﻿" + [head].concat(lines).join("\r\n")], { type: "text/csv;charset=utf-8" });
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "hive-orders-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
@@ -237,19 +258,25 @@
   function openOrderPanel(id) {
     var o = (ordersState.list || []).filter(function (x) { return x.orderId === id; })[0];
     if (!o) return;
-    var rw = crmLevel("orders") === "rw";
+    var rw = ordersRw();
     panelOpen('<div class="ph"><h3>' + esc(o.orderId) + "</h3>" + stTag(o.status) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>");
     api("crm/order?id=" + encodeURIComponent(id)).then(function (r) {
       if (!r.ok) { $("panel").querySelector(".pb").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
       drawOrderPanel(r.body.order, rw ? r.body.next || [] : []);
     });
   }
+  // the order as the panel and the table should now show it (the server's reply after a change)
+  function orderChanged(upd, next) {
+    ordersState.list = (ordersState.list || []).map(function (x) { return x.orderId === upd.orderId ? upd : x; });
+    loadOrders(true).then(renderOrders);
+    drawOrderPanel(upd, next || []);
+  }
   function drawOrderPanel(o, next) {
     var pb = $("panel").querySelector(".pb");
     $("panel").querySelector(".ph h3").textContent = o.orderId;
     var hdrTag = $("panel").querySelector(".ph .tag"); if (hdrTag) hdrTag.outerHTML = stTag(o.status);
     var items = (o.items || []).map(function (it) {
-      return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, side(it.classType), side(it.language), (it.grades || []).join("/")].filter(Boolean).join(" · ")) + childLine(it) + (it.prereq ? '<span class="sub">' + t("前置课程：", "Prerequisite: ") + esc(it.prereq.text) + " " + ({ cart: '<span class="tag ok">' + t("同时报名", "ordered together") + "</span>", ordered: '<span class="tag ok">' + t("历史订单已修", "from an earlier order") + "</span>", confirmed: '<span class="tag accent">' + t("家长已确认", "confirmed by the family") + "</span>", none: '<span class="tag warn">' + t("未确认", "not confirmed") + "</span>" }[it.prereq.met] || "") + "</span>" : "") + "</span></div>" + (it.waitlist ? '<span class="tag warn" title="' + esc(t("课程已满时下的单，等待递补", "Ordered when the course was full; waiting for a seat")) + '">' + t("候补", "Waitlist") + "</span>" + (next.length ? ' <button type="button" class="btn secondary sm" data-seat-code="' + esc(it.code) + '">' + t("递补", "Seat") + "</button>" : "") : "") + "<div class=\"oprice\">" + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : money(it.price, o.currency)) + "</div></div>";
+      return '<div class="orow"><div class="omain"><b>' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + '</b><span class="sub">' + esc([it.code, it.schoolAbbr || it.schoolName, side(it.classType), side(it.language), (it.grades || []).join("/")].filter(Boolean).join(" · ")) + "</span>" + childLine(it) + (it.prereq ? '<span class="sub">' + t("前置课程：", "Prerequisite: ") + esc(it.prereq.text) + " " + ({ cart: '<span class="tag ok">' + t("同时报名", "ordered together") + "</span>", ordered: '<span class="tag ok">' + t("历史订单已修", "from an earlier order") + "</span>", confirmed: '<span class="tag accent">' + t("家长已确认", "confirmed by the family") + "</span>", none: '<span class="tag warn">' + t("未确认", "not confirmed") + "</span>" }[it.prereq.met] || "") + "</span>" : "") + "</div>" + (it.waitlist ? '<span class="tag warn" title="' + esc(t("课程已满时下的单，等待递补", "Ordered when the course was full; waiting for a seat")) + '">' + t("候补", "Waitlist") + "</span>" + (next.length ? ' <button type="button" class="btn secondary sm" data-seat-code="' + esc(it.code) + '">' + t("递补", "Seat") + "</button>" : "") : "") + "<div class=\"oprice\">" + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : money(it.price, o.currency)) + "</div></div>";
     }).join("");
     var hist = (o.history || []).slice().reverse().map(function (h) {
       return '<div class="hrow"><span class="hat">' + esc(when(h.at)) + '<span class="hwho">' + esc(h.by === "system" ? t("系统", "system") : h.by) + "</span></span><span>" + (h.from ? stTag(h.from) + " → " : "") + stTag(h.to) + (h.note ? '<span class="hnote">' + esc(h.note) + "</span>" : "") + "</span></div>";
@@ -266,11 +293,22 @@
         (o.track && (o.track.nameZh || o.track.nameEn) ? '<span class="k">' + t("毕业路径", "Graduation track") + "</span><span>" + esc(EN ? (o.track.nameEn || o.track.nameZh) : (o.track.nameZh || o.track.nameEn)) + "</span>" : "") +
         '<span class="k">' + t("语言", "Language") + "</span><span>" + (o.lang === "en" ? "English" : "中文") + "</span>" +
         '<span class="k">' + t("通知", "Notification") + "</span><span>" + notifyLine + "</span>" +
+        // the clock on an unpaid order (stage 2): when it expires, and 延长 14 天 for whoever may move the order
+        (o.expiresAt ? '<span class="k">' + t("付款期限", "Pay by") + "</span><span>" + esc(day(o.expiresAt)) + " " + expiryTag(o) + (next.length ? ' <button type="button" class="btn secondary sm" id="oExtend">' + t("延长 14 天", "Extend 14 days") + "</button>" : "") + "</span>" : "") +
         (o.overdue ? '<span class="k">' + t("提醒", "Flag") + "</span><span>" + overdueTag(o) + "</span>" : "") + "</div>" +
       "<h4>" + t("课程", "Courses") + " · " + (o.itemCount || (o.items || []).length) + '</h4><div class="olist">' + items + '</div><div class="ototal">' + t("合计", "Total") + " " + money(o.totalPrice, o.currency) + "</div>" +
-      (next.length ? "<h4>" + t("推进状态", "Move on") + '</h4><label class="f">' + t("备注（可选）", "Note (optional)") + '<input type="text" id="oNote" maxlength="500" placeholder="' + t("例如：提供方已接单；家长已转账", "e.g. provider accepted; parent has paid") + '" /></label>' +
-        '<div class="actions">' + next.map(function (s) { return '<button class="btn' + (s === "cancelled" ? " danger" : s === "submitted" ? " secondary" : "") + '" type="button" data-to="' + s + '">' + esc(t(ORDER_VERB[s][0], ORDER_VERB[s][1])) + "</button>"; }).join("") + '</div><div id="oMsg"></div>' : "") +
+      (next.length ? "<h4>" + t("推进状态", "Move on") + '</h4><label class="f">' + t("备注（可选）", "Note (optional)") + '<input type="text" id="oNote" maxlength="500" placeholder="' + t("例如：已电话沟通；已收到转账", "e.g. spoke by phone; transfer received") + '" /></label>' +
+        '<div class="actions">' + next.map(function (s) { var v = ORDER_VERB[s] || [s, s]; return '<button class="btn' + (s === "cancelled" ? " danger" : s === "submitted" || s === "parent_paid" ? " secondary" : "") + '" type="button" data-to="' + s + '">' + esc(t(v[0], v[1])) + "</button>"; }).join("") + '</div><div id="oMsg"></div>' : "") +
       "<h4>" + t("执行记录", "Fulfilment record") + '</h4><div class="hist">' + hist + "</div>";
+    var ext = $("oExtend");
+    if (ext) ext.addEventListener("click", function () {
+      savingButton(ext);
+      post("crm/extend", "POST", { orderId: o.orderId }).then(function (r) {
+        if (!r.ok) { restoreButton(ext); $("oMsg") && ($("oMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"); return; }
+        flashOk(t("已延长至 ", "Extended to ") + esc(day(r.body.order.expiresAt)), 3000);
+        orderChanged(r.body.order, r.body.next);
+      });
+    });
     pb.querySelectorAll("button[data-seat-code]").forEach(function (b) {
       b.addEventListener("click", function () { savingButton(b); post("crm/seat", "POST", { orderId: o.orderId, code: b.getAttribute("data-seat-code"), waitlist: false }).then(function (r) { if (!r.ok) { restoreButton(b); $("oMsg") && ($("oMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"); return; } flashOk(t("已递补：请通知家长。", "Seated: tell the family."), 3000); drawOrderPanel(r.body.order, next); }); });
     });
@@ -287,9 +325,7 @@
             return;
           }
           var upd = r.body.order;
-          ordersState.list = (ordersState.list || []).map(function (x) { return x.orderId === upd.orderId ? upd : x; });
-          loadOrders(true).then(renderOrders);
-          drawOrderPanel(upd, r.body.next || []);
+          orderChanged(upd, r.body.next);
           flashOk("<b>" + esc(upd.orderId) + "</b> → " + stTag(upd.status));
         });
       });

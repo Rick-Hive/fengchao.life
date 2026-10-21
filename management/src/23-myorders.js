@@ -39,9 +39,11 @@
           (it.prereq && it.prereq.met === "none" ? '<span class="tag warn">' + t("前置课程未确认", "Prerequisite not confirmed") + "</span>" : "") +
           '</div><div class="oprice">' + (it.priceTbd ? '<span class="muted">' + t("价格待定", "Price TBD") + "</span>" : esc(moMoney(it.price, o.currency))) + "</div></div>";
       }).join("");
-      return '<div class="card mocard" data-order="' + esc(o.orderId) + '"><div class="ch"><h2>' + esc(o.orderId) + " " + moTag(o.status) + "</h2>" +
-        (o.canCancel ? '<button type="button" class="btn secondary sm danger" data-cancel="' + esc(o.orderId) + '">' + t("取消订单", "Cancel") + "</button>" : "") + "</div>" +
+      return '<div class="card mocard" data-order="' + esc(o.orderId) + '"><div class="ch"><h2>' + esc(o.orderId) + " " + moTag(o.status) + "</h2><div class=\"actions\">" +
+        (o.canConfirmPay ? '<button type="button" class="btn sm" data-paid="' + esc(o.orderId) + '">' + t("我已付款", "I have paid") + "</button>" : "") +
+        (o.canCancel ? '<button type="button" class="btn secondary sm danger" data-cancel="' + esc(o.orderId) + '">' + t("取消订单", "Cancel") + "</button>" : "") + "</div></div>" +
         '<div class="kv"><span class="k">' + t("提交时间", "Submitted") + "</span><span>" + esc(when(o.submittedAt)) + "</span>" +
+          (o.expiresAt ? '<span class="k">' + t("付款期限", "Pay by") + "</span><span>" + esc(day(o.expiresAt)) + ' <span class="faint">' + t("（到期未付款的订单自动取消；需要更多时间请联系课程提供方）", "(an unpaid order is cancelled after this date; ask the provider for more time)") + "</span></span>" : "") +
           '<span class="k">' + t("课程提供方", "Provider") + "</span><span>" + esc((o.hives || []).map(function (h) { return h.name || h.abbr || h.key; }).filter(Boolean).join("; ") || "—") + "</span>" +
           '<span class="k">' + t("联系邮箱", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" + moFee(o) +
           (o.notify && !o.notify.ok && !o.notify.pending ? '<span class="k">' + t("通知", "Notification") + '</span><span><span class="tag bad">' + t("确认邮件未送达", "Confirmation not delivered") + "</span></span>" : "") + "</div>" +
@@ -53,10 +55,23 @@
         var id = b.getAttribute("data-cancel");
         if (!window.confirm(t("取消订单 " + id + "？座位会释放给候补的家庭。", "Cancel order " + id + "? The seat goes to the next family."))) return;
         savingButton(b, t("取消中…", "Cancelling…"));
-        post("me/orders", "PATCH", { orderId: id }).then(function (r) {
+        post("me/orders", "PATCH", { orderId: id, status: "cancelled" }).then(function (r) {
           if (!r.ok) { restoreButton(b); flash(esc(r.status === 409 ? t("订单已进入下一步，请联系课程提供方或蜂巢取消。", "The order has moved on; ask the provider or Hive to cancel it.") : errText(r)), 5000); return; }
           moState.list = moState.list.map(function (x) { return x.orderId === id ? r.body.order : x; });
           renderMyOrders(); flashOk(t("已取消。", "Cancelled."));
+        });
+      });
+    });
+    // 我已付款 (stage 2): the family's half of the two-sided payment confirmation; the provider's 已收款 closes it
+    $("mobody").querySelectorAll("button[data-paid]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-paid");
+        if (!window.confirm(t("确认已向课程提供方付清订单 " + id + " 的课程费？机构确认收款后状态会更新为「已收款」。", "Confirm you have paid the provider for order " + id + "? The status becomes “Payment received” once the provider confirms."))) return;
+        savingButton(b, t("提交中…", "Sending…"));
+        post("me/orders", "PATCH", { orderId: id, status: "parent_paid" }).then(function (r) {
+          if (!r.ok) { restoreButton(b); flash(esc(r.status === 409 ? t("订单已进入下一步。", "The order has already moved on.") : errText(r)), 5000); return; }
+          moState.list = moState.list.map(function (x) { return x.orderId === id ? r.body.order : x; });
+          renderMyOrders(); flashOk(t("已记录，等待机构确认收款。", "Recorded; waiting for the provider to confirm."));
         });
       });
     });
@@ -65,11 +80,12 @@
   function moNextStep(o) {
     switch (o.status) {
       case "pending_fee": return t("付清选课费后订单才会送达课程提供方。", "The order reaches the provider once the selection fee is paid.");
-      case "submitted": return t("课程提供方会与您联系，介绍课程并确认报名；课程费直接付给课程提供方。", "The provider will contact you about the course and enrolment; the course fee is paid to the provider directly.");
-      case "confirmed": case "contacted": return t("请与课程提供方完成咨询和缴费。", "Please complete the consultation and payment with the provider.");
+      case "submitted": return t("课程提供方会与您联系，介绍课程并确认报名；课程费直接付给课程提供方，付款后请点「我已付款」。", "The provider will contact you about the course and enrolment; the course fee is paid to the provider directly — click “I have paid” once it is done.");
+      case "confirmed": case "contacted": return t("请与课程提供方完成咨询和缴费，付款后点「我已付款」。", "Please complete the consultation and payment with the provider, then click “I have paid”.");
       case "parent_paid": return t("等待课程提供方确认收款。", "Waiting for the provider to confirm the payment.");
       case "paid": return t("已缴费，等待开课。", "Paid; waiting for the course to start.");
       case "started": return t("课程已开始。", "The course has started.");
+      case "expired": return t("付款期限已过，订单已自动取消。如仍想报名，请重新选课或联系课程提供方。", "The payment deadline passed and the order was cancelled. To enrol after all, select the course again or contact the provider.");
       default: return "";
     }
   }

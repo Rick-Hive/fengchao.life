@@ -117,7 +117,10 @@
         .concat(teCanManage() ? [{ hash: "#/domain/teachers", icon: "users", zh: "教师资料", en: "Teacher profiles" }] : [])
         .concat(seesAccounts ? [{ hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" }] : []) });
     }
-    if (canSeeOrders() || isStaff()) {
+    // 机构负责人 (stage 2, 2026-10-21): the 订单 page for their own hive's orders, nothing else of 经营
+    if (isProviderOnly() && !isStaff()) {
+      groups.push({ title: t("经营", "Operations"), items: [{ hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" }] });
+    } else if (canSeeOrders() || isStaff()) {
       groups.push({ title: t("经营", "Operations"), items: [
         { hash: "#/dashboard", icon: "chart", zh: "仪表盘", en: "Dashboard" },
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },
