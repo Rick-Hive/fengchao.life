@@ -327,32 +327,7 @@
       }
     });
   }
-  function viewInstitutions() {
-    setTitle(t("系统", "System"), t("机构名称", "Institutions"), "", t("给每个域名一个中文和英文的机构名称；页面按语言显示其一（缺少时显示另一个）。除系统管理员外，所有人只看到名称。", "Give each domain a Chinese and an English institution name; the page shows the one of its language (the other if that is missing). Everyone but the system administrator sees only the names."));
-    var ds = (domainsInfo && domainsInfo.domains) || [];
-    $("content").innerHTML =
-      '<div class="card"><table class="roles inst" id="itable"><thead><tr><th>' + t("域名", "Domain") + "</th><th>" + t("中文名称", "Chinese name") + "</th><th>" + t("英文名称", "English name") + "</th><th></th></tr></thead><tbody>" +
-        ds.map(function (d) {
-          return '<tr data-domain="' + esc(d.domain) + '"><td>' + esc(d.domain) + (d.isDefault ? ' <span class="tag">' + t("默认", "default") + "</span>" : "") + "</td>" +
-            '<td><input type="text" data-n="zh" maxlength="60" value="' + esc(d.name || "") + '" placeholder="' + t("例如：北京某某学校", "e.g. 北京某某学校") + '" /></td>' +
-            '<td><input type="text" data-n="en" maxlength="80" value="' + esc(d.nameEn || "") + '" placeholder="e.g. Beijing Example School" /></td>' +
-            '<td><button class="btn secondary sm" type="button">' + t("保存", "Save") + "</button></td></tr>";
-        }).join("") + '</tbody></table><div id="imsg"></div></div>';
-    $("itable").addEventListener("click", function (ev) {
-      var b = ev.target.closest("button"); if (!b) return;
-      var tr = b.closest("tr"), domain = tr.getAttribute("data-domain");
-      var name = tr.querySelector("input[data-n=zh]").value.trim(), nameEn = tr.querySelector("input[data-n=en]").value.trim();
-      // The button itself answers (Rick, 2026-10-03: 「点击保存没有反应」): 保存中… → 已保存 ✓.
-      var label = b.textContent; b.disabled = true; b.textContent = t("保存中…", "Saving…"); $("imsg").innerHTML = "";
-      post("domain/institution", "PUT", { domain: domain, name: name, nameEn: nameEn }).then(function (r) {
-        b.disabled = false;
-        if (!r.ok) { b.textContent = label; $("imsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
-        var d = dinfo(domain); if (d) { d.name = name; d.nameEn = nameEn; }
-        b.textContent = t("已保存 ✓", "Saved ✓"); setTimeout(function () { b.textContent = label; }, 2500);
-        $("imsg").innerHTML = '<div class="msg ok">' + t("已保存：", "Saved: ") + esc(domain) + (name || nameEn ? " → " + esc([name, nameEn].filter(Boolean).join(" / ")) : t("（已清除名称）", " (names cleared)")) + "</div>";
-      }).catch(function (e) { b.disabled = false; b.textContent = label; $("imsg").innerHTML = '<div class="msg err">' + esc(String(e)) + "</div>"; });
-    });
-  }
+  // (系统 › 机构名称 moved into 经营 › 机构 on 2026-10-21: the names are set in an institution's panel — 50-institutions.js)
   function viewSync() {
     setTitle(t("系统", "System"), t("数据同步", "Data sync"), "", t("把 Airtable 里的课程数据发布到网站。", "Publish the course data from Airtable to the site."));
     $("content").innerHTML =

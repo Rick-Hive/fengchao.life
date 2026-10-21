@@ -62,7 +62,7 @@
     }
     if (h.indexOf("#/system") === 0) {
       if (!isAdmin()) { if (canAssignRoles() && h.indexOf("#/system/roles") === 0) return viewRoles(); location.hash = "#/account"; return; }
-      return h.indexOf("#/system/sync") === 0 ? viewSync() : h.indexOf("#/system/institutions") === 0 ? viewInstitutions() : viewRoles();
+      return h.indexOf("#/system/sync") === 0 ? viewSync() : h.indexOf("#/system/institutions") === 0 ? (location.hash = "#/ops/institutions") : viewRoles();
     }
     viewAccount();
   }

@@ -144,7 +144,7 @@ function mkOrder(i, status, agoDays, notifyOk) {
   for (const s of chain) { cur = s === "confirmed" ? Object.assign({}, cur, { status: "confirmed", history: cur.history.concat([{ at: new Date(Date.now() - Math.max(step--, 0) * dayMs).toISOString(), by: "om@fengchao.life", from: "submitted", to: "confirmed", note: "" }]) }) : crm.transition(cur, s, s === "parent_paid" ? "parent@gmail.com" : "om@fengchao.life", s === "paid" ? "已收到转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
-const teCreates = [], teFacts = [];
+const teCreates = [], teFacts = [], instPuts = [];
 const PT_NAMES = { "mei.wang@bes.qiaoliang.online": "Mei Wang" }; // the directory's display names for 项目经理 (2026-10-21)
 const seated = [], extended = [], termCancels = [], idBulk = [], createdUsers = [], merges = [], tPatches = [], tPhotos = [], tApproved = [];
 // 教师资料: two teachers, one of them the signed-in account under x:teacher
@@ -251,6 +251,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
       if (p === "/api/me/summary") body = me;
       else if (p === "/api/me/groups") body = groups;
+      else if (p === "/api/domain/institution" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); instPuts.push(b); const d0 = domains.domains.find(x => x.domain === b.domain); if (d0) { d0.name = b.name; d0.nameEn = b.nameEn; } body = { ok: true, domain: b.domain, name: b.name, nameEn: b.nameEn }; }
       else if (p === "/api/domain/domains") body = isAdm || rolesList.some(x => /^staff:/.test(x)) ? domains : rolesList.some(x => /^domain_leader:/.test(x)) ? { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [Object.assign({}, domains.domains[0], { can: { view: false, methods: false, people: false, plan: true, calendar: true, calendarEdit: true, broadcastOptout: true, full: false, institutions: false } })], showDomains: false } : { user: me.profile.upn, roles: rolesList, all: false, mine: "bes.qiaoliang.online", domains: [], showDomains: false };
       else if (p === "/api/calendar" && r.request().method() === "GET") {
         const REM = [0, 5, 10, 15, 30, 60, 120, 1440, 2880, 10080];
@@ -1896,6 +1897,23 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click("#ibGo"); await p.waitForTimeout(1200);
     assert.deepStrictEqual(idBulk.slice(-2).map(x => x.dryRun), [true, false], "执行: the dry run, the confirm, then the run");
     assert.ok(/已设置 \d+ 个账号的身份为「老师」，写入 Office 365 \d+ 个/.test(await p.$eval("#flash", e => e.textContent)), "the outcome: " + await p.$eval("#flash", e => e.textContent));
+  });
+  // 机构名称 merged into 机构 (2026-10-21): no 系统 › 机构名称; the old link lands on 机构; the 名称未填 chip; names set in the panel
+  await shot("institutions-names", 1280, 900, "#/system/institutions", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#itable tbody tr[data-key]"); await p.waitForTimeout(300);
+    assert.strictEqual(await p.evaluate(() => location.hash), "#/ops/institutions", "the old page's link lands on 机构");
+    assert.ok(!/机构名称/.test(await p.$eval("#nav", e => e.innerText)), "no 机构名称 in the sidebar");
+    const nn = await p.$eval("#iNoName", e => ({ hidden: e.hidden, n: e.querySelector(".cnt").textContent }));
+    assert.ok(!nn.hidden && Number(nn.n) >= 1, "the 名称未填 chip counts the unnamed domains: " + JSON.stringify(nn));
+    await p.click("#iNoName"); await p.waitForTimeout(200);
+    assert.ok(await p.$('#itable tbody tr[data-key="demo.fengchao.life"]'), "demo.fengchao.life is unnamed (and listed though no accounts are synced)");
+    await p.click('#itable tbody tr[data-key="demo.fengchao.life"]'); await p.waitForSelector("#panel.open #ipZh");
+    await p.fill("#ipZh", "演示学校"); await p.fill("#ipEn", "Demo School"); await p.click("#ipSave"); await p.waitForTimeout(500);
+    assert.deepStrictEqual(instPuts.pop(), { domain: "demo.fengchao.life", name: "演示学校", nameEn: "Demo School" }, "names saved");
+    assert.ok(/演示学校/.test(await p.$eval("#panel .ph h3", e => e.textContent)), "the panel title follows");
+    await p.keyboard.press("Escape"); await p.click("#iNoName"); await p.waitForTimeout(200);
+    assert.ok(/演示学校/.test(await p.$eval("#itable", e => e.innerText)), "the row is renamed");
+    await p.screenshot({ path: OUT + "/institutions-names.png" });
   });
   await shot("users-sticky", 1280, 500, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(500);

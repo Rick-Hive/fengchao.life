@@ -138,7 +138,6 @@
     if (isAdmin()) {
       groups.push({ title: t("系统", "System"), items: [
         { hash: "#/system/roles", icon: "key", zh: "角色分配", en: "Roles" },
-        { hash: "#/system/institutions", icon: "tree", zh: "机构名称", en: "Institutions" },
         { hash: "#/system/sync", icon: "sync", zh: "数据同步", en: "Data sync" },
       ] });
     } else if (canAssignRoles()) {
