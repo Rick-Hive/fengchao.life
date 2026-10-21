@@ -6,6 +6,7 @@
 //   3. nudge    — parent_paid for NUDGE_DAYS without the provider's 已收款 → provider Teams, once (parentPaidNudged)
 //   4. seat     — courses with open seats and a waitlist → the earliest waitlisted items are seated (递补, automatic),
 //                 the order's clock restarts, family + provider told
+//   5. child    — paid / started for CHILD_DAYS with a seated line still without its student → family email, once
 //
 // Reads evaluate expiry lazily too (crm.withExpiry), so a same-day read is right; the sweep is what writes it down
 // and sends the mail. Every step is best-effort per order: one failure is logged and the next order is tried.
@@ -14,7 +15,7 @@ const seats = require("./seats");
 const notify = require("./notify");
 const { readSnapshot } = require("./blob");
 
-const REMIND_DAYS = 3, NUDGE_DAYS = 7, DAY = 24 * 60 * 60 * 1000;
+const REMIND_DAYS = 3, NUDGE_DAYS = 7, CHILD_DAYS = 7, DAY = 24 * 60 * 60 * 1000;
 
 async function rewrite(orderId, change) {
   const cur = await crm.readOrder(orderId);
@@ -30,7 +31,7 @@ async function run(opts) {
   const now = opts.now ? +opts.now : Date.now(), dry = !!opts.dryRun, log = opts.log || (() => {});
   const snap = await readSnapshot().catch(() => null);
   const all = await crm.listOrders();
-  const out = { at: new Date(now).toISOString(), dryRun: dry, expired: [], reminded: [], nudged: [], seated: [], errors: [] };
+  const out = { at: new Date(now).toISOString(), dryRun: dry, expired: [], reminded: [], nudged: [], seated: [], childReminded: [], errors: [] };
   const fail = (step, o, err) => { out.errors.push({ step, orderId: o.orderId, error: String((err && err.message) || err).slice(0, 200) }); log(`sweep ${step} ${o.orderId}: ${(err && err.message) || err}`); };
   const nopts = { snapshot: snap, log, record: !dry };
 
@@ -107,9 +108,28 @@ async function run(opts) {
       if (!dry) await notify.notify(next, "seated", Object.assign({ note: "" }, nopts));
     } catch (err) { fail("seat", w.o, err); }
   }
+  // 5. the student still not named a week after the fee was paid (v3: the child is named after checkout)
+  for (const o of all) {
+    if (!needsChild(o) || o.childReminded) continue;
+    const since = Date.parse(crm.lastChange(o) || "");
+    if (!Number.isFinite(since) || now - since < CHILD_DAYS * DAY) continue;
+    try {
+      if (!dry) {
+        const next = await rewrite(o.orderId, (cur) => (cur.childReminded ? null : Object.assign({}, cur, { childReminded: new Date(now).toISOString() })));
+        if (!next) continue;
+        await notify.notify(next, "name_child", nopts);
+      }
+      out.childReminded.push(o.orderId);
+    } catch (err) { fail("child", o, err); }
+  }
   if (!dry && (out.expired.length || out.seated.length)) seats.forget();
-  out.total = out.expired.length + out.reminded.length + out.nudged.length + out.seated.length;
+  out.total = out.expired.length + out.reminded.length + out.nudged.length + out.seated.length + out.childReminded.length;
   return out;
 }
 
-module.exports = { run, REMIND_DAYS, NUDGE_DAYS };
+// A paid or started order with a seated, uncancelled line whose child is not named.
+function needsChild(o) {
+  return ["paid", "started"].includes(crm.statusOf(o)) && (o.items || []).some((it) => it && !it.cancelled && !it.waitlist && !(it.child && it.child.name));
+}
+
+module.exports = { run, needsChild, REMIND_DAYS, NUDGE_DAYS, CHILD_DAYS };

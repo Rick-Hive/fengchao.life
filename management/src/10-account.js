@@ -72,6 +72,7 @@
     var kids = (d.children || []).map(function (c, i) {
       var he = c.higherEd || [];
       return '<div class="kid"><div class="kid-head"><b>' + t("孩子 ", "Child ") + (i + 1) + '</b><button class="btn secondary sm" type="button" data-rm="' + i + '">' + t("移除", "Remove") + "</button></div>" +
+        '<div class="kid-courses" data-kid="' + esc(c.name || "") + '"></div>' +
         '<div class="grid2">' +
           '<label class="f">' + t("姓名", "Name") + '<input type="text" data-k="name" maxlength="30" value="' + esc(c.name || "") + '" /></label>' +
           '<label class="f">' + t("年龄", "Age") + '<input type="number" data-k="age" min="1" max="30" value="' + esc(c.age == null ? "" : c.age) + '" /></label>' +
@@ -97,6 +98,7 @@
         '<label class="f roles-other' + ((d.roles || []).indexOf("其它") >= 0 ? "" : " hidden") + '">' + t("其它（请填写）", "Other — please say") + '<input type="text" id="xRolesOther" maxlength="60" value="' + esc(d.rolesOther || "") + '" /></label>' +
         '<div id="kidsWrap" class="' + (isParent ? "" : "hidden") + '">' +
           '<div class="f-title">' + t("我的孩子", "My children") + "</div>" +
+          '<div id="kidOrders"></div>' +
           '<div id="kids">' + (kids || '<div class="muted" style="font-size:13px">' + t("还没有添加孩子。", "No children added yet.") + "</div>") + "</div>" +
           '<div class="actions"><button class="btn secondary sm" type="button" id="xAdd"' + ((d.children || []).length >= (voc.maxChildren || 8) ? " disabled" : "") + ">" + t("＋ 添加孩子", "+ Add a child") + "</button></div>" +
         "</div>" +
@@ -111,6 +113,7 @@
         '<div class="actions"><button class="btn secondary sm" type="button" id="xAddAcct"' + (d.otherAccounts.length >= (voc.maxAccounts || 5) ? " disabled" : "") + ">" + t(d.otherAccounts.length ? "＋ 添加另一个" : "＋ 添加账号", d.otherAccounts.length ? "+ Add another" : "+ Add an account") + "</button></div>" +
         '<footer class="cf"><button class="btn" type="submit" id="xSave">' + t("保存", "Save") + '</button><span id="xMsg">' + (msgHtml || "") + "</span></footer>" +
       "</form>";
+    kidCourses();
     $("xAdd").addEventListener("click", function () { extraDraft = readExtraForm(); extraDraft.children.push({}); renderExtra(); var last = document.querySelector("#kids .kid:last-child input"); if (last) last.focus(); });
     $("kids").addEventListener("click", function (ev) {
       var b = ev.target.closest("button[data-rm]"); if (!b) return;
@@ -127,7 +130,7 @@
       if (el.getAttribute("data-he") === "其它") el.closest(".kid").querySelector(".he-other").classList.toggle("hidden", !el.checked);
       if (el.getAttribute("data-role") === "其它") document.querySelector("#extraCard .roles-other").classList.toggle("hidden", !el.checked);
       if (el.getAttribute("data-topic") === "其它") document.querySelector("#extraCard .topics-other").classList.toggle("hidden", !el.checked);
-      if (el.getAttribute("data-role") === "家长") $("kidsWrap").classList.toggle("hidden", !el.checked);
+      if (el.getAttribute("data-role") === "家长") { $("kidsWrap").classList.toggle("hidden", !el.checked); kidCourses(); }
     });
     $("xf").addEventListener("submit", function (ev) {
       ev.preventDefault();
@@ -143,7 +146,28 @@
     });
   }
 
+  // v3 (2026-10-21): the child is named after checkout, from 我的订单 — the profile shows which courses each child is
+  // on and points to 我的订单 while a paid course still has no student. Read once per page view.
+  var kidOrdersCache = null;
+  function kidCourses() {
+    if (!$("kidOrders") || $("kidsWrap").classList.contains("hidden")) return;
+    var draw = function (orders) {
+      var live = orders.filter(function (o) { return ["paid", "started", "submitted", "contacted", "parent_paid"].indexOf(o.status) >= 0; });
+      var waiting = live.filter(function (o) { return o.needsChild; }).length;
+      if ($("kidOrders")) $("kidOrders").innerHTML = waiting ? '<div class="msg warn" style="margin-bottom:var(--s3)">' + esc(t("有 " + waiting + " 张订单的课程还没有指定上课的孩子。", waiting + " order(s) still need the student named.")) + ' <a href="#/myorders">' + t("去「我的订单」指定", "Name them in My orders") + "</a></div>" : "";
+      Array.prototype.forEach.call(document.querySelectorAll("#kids .kid-courses"), function (box) {
+        var name = box.getAttribute("data-kid"); if (!name) { box.innerHTML = ""; return; }
+        var rows = [];
+        live.forEach(function (o) { (o.items || []).forEach(function (it) { if (it && !it.cancelled && it.child && it.child.name === name) rows.push('<span class="tag' + (["paid", "started"].indexOf(o.status) >= 0 ? " ok" : "") + '" title="' + esc(o.orderId) + '">' + esc(EN ? (it.nameEn || it.nameZh) : (it.nameZh || it.nameEn)) + "</span>"); }); });
+        box.innerHTML = rows.length ? '<div class="sub" style="margin-bottom:var(--s2)">' + t("所报课程：", "Courses: ") + rows.join(" ") + ' <a href="#/myorders" class="faint">' + t("更换", "change") + "</a></div>" : "";
+      });
+    };
+    if (kidOrdersCache) return draw(kidOrdersCache);
+    api("me/orders").then(function (r) { if (!r.ok) return; kidOrdersCache = r.body.orders || []; draw(kidOrdersCache); });
+  }
+
   function viewAccount() {
+    kidOrdersCache = null;
     setTitle("", "", "", ""); // no title row on this page (Rick, 2026-10-02)
     var p = me.profile, hv = me.hive || {}, ms = (me.methods || []).filter(function (m) { return m.kind !== "password"; });
     var strong = ms.filter(function (m) { return m.strong; }).length;

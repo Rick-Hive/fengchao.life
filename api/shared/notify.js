@@ -16,6 +16,7 @@
 //   seated             yes            yes              递补: the provider / manager, or the sweep (automatic)
 //   extended           yes            —                provider / manager
 //   reopened           yes            —                the system administrator
+//   name_child         yes            —                the nightly sweep, 7 days after 已收款 with a course still without its student
 //
 // Wording: Airtable message-template rows `status_<event>` (family) and `provider_<event>` (provider) win over the
 // built-in defaults below, per language, as for order_confirmation. The outcome is written on the order as
@@ -41,6 +42,7 @@ const EVENTS = {
   seated: { family: true, provider: true },
   extended: { family: true },
   reopened: { family: true },
+  name_child: { family: true },
 };
 
 const F = (zh, en) => ({ zh, en });
@@ -50,8 +52,11 @@ const DEFAULTS = {
     { subject: "【蜂巢】{{providerName}} 已联系您 · 订单 {{orderId}}", body: "您好，\n\n课程提供方 {{providerName}} 已就订单 {{orderId}} 与您联系。课程费请直接付给课程提供方；付款后请登录「我的订单」点「我已付款」：{{myOrdersUrl}}\n\n请在 {{payBy}} 前完成缴费，逾期订单会自动过期、座位释放；需要更多时间请联系课程提供方。\n\n课程：\n{{courseList}}\n\n{{note}}" },
     { subject: "[Hive] {{providerName}} has been in touch · order {{orderId}}", body: "Hello,\n\n{{providerName}} has contacted you about order {{orderId}}. The course fee is paid to the provider directly; once paid, sign in to My orders and click \"I have paid\": {{myOrdersUrl}}\n\nPlease pay by {{payBy}}; after that the order expires and the seat is released. Ask the provider if you need more time.\n\nCourses:\n{{courseList}}\n\n{{note}}" }),
   status_paid: F(
-    { subject: "【蜂巢】已收到课程费 · 订单 {{orderId}}", body: "您好，\n\n课程提供方 {{providerName}} 已确认收到订单 {{orderId}} 的课程费，座位已确认。开课安排由课程提供方通知。\n\n课程：\n{{courseList}}\n\n「我的订单」：{{myOrdersUrl}}" },
-    { subject: "[Hive] Course fee received · order {{orderId}}", body: "Hello,\n\n{{providerName}} has confirmed the course fee for order {{orderId}}; your seat is confirmed. The provider will tell you when the course starts.\n\nCourses:\n{{courseList}}\n\nMy orders: {{myOrdersUrl}}" }),
+    { subject: "【蜂巢】已收到课程费 · 订单 {{orderId}}", body: "您好，\n\n课程提供方 {{providerName}} 已确认收到订单 {{orderId}} 的课程费，座位已确认。开课安排由课程提供方通知。\n\n请登录「我的订单」为每门课指定上课的孩子（老师的名单和成绩单都挂在孩子名下）：{{myOrdersUrl}}\n\n课程：\n{{courseList}}" },
+    { subject: "[Hive] Course fee received · order {{orderId}}", body: "Hello,\n\n{{providerName}} has confirmed the course fee for order {{orderId}}; your seat is confirmed. The provider will tell you when the course starts.\n\nPlease sign in to My orders and name the child for each course (the class list and the transcript hang on the child): {{myOrdersUrl}}\n\nCourses:\n{{courseList}}" }),
+  status_name_child: F(
+    { subject: "【蜂巢】请为课程指定上课的孩子 · 订单 {{orderId}}", body: "您好，\n\n订单 {{orderId}} 的课程费已收到，但还有课程没有填上课的孩子。请登录「我的订单」指定（可直接选个人资料里的孩子）：{{myOrdersUrl}}\n\n没有填孩子，老师的名单上只有家长的名字，成绩单也无法出具。\n\n课程：\n{{courseList}}" },
+    { subject: "[Hive] Please name the child for your course · order {{orderId}}", body: "Hello,\n\nThe course fee for order {{orderId}} has been received, but a course still has no student named. Please sign in to My orders and name the child (one from your profile, or a new name): {{myOrdersUrl}}\n\nWithout it the class list shows only your name and no transcript can be issued.\n\nCourses:\n{{courseList}}" }),
   status_started: F(
     { subject: "【蜂巢】课程已开始 · 订单 {{orderId}}", body: "您好，\n\n订单 {{orderId}} 的课程已开始。\n\n课程：\n{{courseList}}\n\n{{note}}" },
     { subject: "[Hive] Course started · order {{orderId}}", body: "Hello,\n\nThe courses on order {{orderId}} have started.\n\nCourses:\n{{courseList}}\n\n{{note}}" }),

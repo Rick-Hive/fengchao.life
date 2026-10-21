@@ -1261,6 +1261,16 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.evaluate(() => { location.hash = "#/ops/people"; }); await p.waitForTimeout(400);
     assert.ok(await p.$("#otable, #cltable") && !(await p.$("#ptable")), "people hub is not the provider's");
   });
+  // 我的账号 › 补充资料 (v3): each child shows the courses it is on; a paid-or-live course without its student points to 我的订单
+  MY_ORDERS = MY_ORDERS0(); MY_ORDERS[0].items[0].child = { name: "大宝", grade: "6", account: "" };
+  await shot("account-kids", 1280, 900, "#/account", "zh", [], async p => {
+    await p.waitForSelector("#kids .kid"); await p.waitForTimeout(500);
+    const banner = await p.$eval("#kidOrders", e => e.innerText);
+    assert.ok(/有 1 张订单的课程还没有指定上课的孩子/.test(banner) && await p.$('#kidOrders a[href="#/myorders"]'), "the banner and its link: " + banner);
+    const kid = await p.$eval('#kids .kid-courses[data-kid="大宝"]', e => e.innerText);
+    assert.ok(/所报课程：几何/.test(kid), "the child's courses from the orders: " + kid);
+    assert.strictEqual((await p.$eval('#kids .kid:nth-child(2) .kid-courses', e => e.innerText)).trim(), "", "the nameless child has none");
+  });
   // 我的订单 (2026-10-20): the account's orders, the family's own cancellation while still submitted
   MY_ORDERS = MY_ORDERS0();
   await shot("orders-mine", 1280, 900, "#/myorders", "zh", [], async p => {

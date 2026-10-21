@@ -91,9 +91,12 @@ const sci = () => ({ code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grad
   store["FC-20260926-KXC-006"] = mk("FC-20260926-KXC-006", "paid", 5, [math()]);
   // G: waitlisted too, later than E → stays
   store["FC-20260927-KXC-007"] = mk("FC-20260927-KXC-007", "submitted", 4, [math(true)]);
+  // H: paid 9 days ago, the student never named → one reminder; I: paid 9 days ago with the child named → nothing
+  store["FC-20260922-KXC-008"] = mk("FC-20260922-KXC-008", "paid", 9, [sci()]);
+  store["FC-20260922-KXC-009"] = mk("FC-20260922-KXC-009", "paid", 9, [Object.assign(sci(), { child: { name: "小明", grade: "7", account: "" } })]);
 
   const dry = await sweep.run({ now, dryRun: true });
-  assert.deepStrictEqual([dry.expired, dry.reminded, dry.nudged, dry.seated.map((x) => x.orderId)], [["FC-20260916-KXC-001"], [{ orderId: "FC-20260919-KXC-003", days: 2 }], ["FC-20260920-KXC-004"], ["FC-20260925-KXC-005"]], JSON.stringify(dry));
+  assert.deepStrictEqual([dry.expired, dry.reminded, dry.nudged, dry.seated.map((x) => x.orderId), dry.childReminded], [["FC-20260916-KXC-001"], [{ orderId: "FC-20260919-KXC-003", days: 2 }], ["FC-20260920-KXC-004"], ["FC-20260925-KXC-005"], ["FC-20260922-KXC-008"]], JSON.stringify(dry));
   assert.strictEqual(calls.length, 0, "a dry run sends nothing"); assert.strictEqual(store["FC-20260916-KXC-001"].status, "submitted", "…and writes nothing");
 
   const r1 = await sweep.run({ now });
@@ -106,7 +109,11 @@ const sci = () => ({ code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grad
   assert.strictEqual(e.items[0].waitlist, false, "E seated"); assert.ok(/递补（自动）/.test(e.history[e.history.length - 1].note));
   assert.strictEqual(store["FC-20260927-KXC-007"].items[0].waitlist, true, "G still waits: the course is full again");
   const events = calls.map((c) => c.event);
-  assert.deepStrictEqual(events.sort(), ["expired", "nudge", "reminder_expiry", "seated"].map((x) => (x === "nudge" ? "parent_paid_nudge" : x)).sort(), "one notice per step: " + events);
+  assert.deepStrictEqual(events.sort(), ["expired", "name_child", "nudge", "reminder_expiry", "seated"].map((x) => (x === "nudge" ? "parent_paid_nudge" : x)).sort(), "one notice per step: " + events);
+  const nc = calls.find((c) => c.event === "name_child");
+  assert.ok(/指定上课的孩子/.test(nc.emailSubject) && nc.emailTo === "fc-20260922-kxc-008@gmail.com" && nc.routes.length === 0 && store["FC-20260922-KXC-008"].childReminded, "the family is asked once to name the child: " + nc.emailSubject);
+  assert.ok(!store["FC-20260922-KXC-009"].childReminded, "a named child needs no reminder");
+  assert.ok(/指定上课的孩子/.test(notify.DEFAULTS.status_paid.zh.body) && /name the child/.test(notify.DEFAULTS.status_paid.en.body), "the paid mail asks for the child");
   const seatedCall = calls.find((c) => c.event === "seated");
   assert.ok(/候补成功/.test(seatedCall.emailSubject) && seatedCall.routes.length === 1 && /2026[/-]10[/-]15/.test(seatedCall.emailBodyText), "the seated family gets a fresh 14-day deadline: " + seatedCall.emailBodyText);
   const rem = calls.find((c) => c.event === "reminder_expiry");

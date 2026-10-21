@@ -70,23 +70,26 @@ async function recipients() {
 async function collect(now) {
   now = now || Date.now();
   const orders = await crm.listOrders().catch(() => []);
-  const overdue = [], notifyFailed = [], submitted = [];
+  const overdue = [], notifyFailed = [], submitted = [], noChild = [];
+  const { needsChild } = require("./sweep");
   for (const o of orders) {
     const od = crm.overdue(o, now);
     if (od) overdue.push({ orderId: o.orderId, status: o.status, days: od.days, limit: od.limit, email: o.email, total: o.totalPrice, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean).join(", ") });
     if (o.notify && o.notify.ok === false && !o.notify.pending) notifyFailed.push({ orderId: o.orderId, email: o.email, error: (o.notify && o.notify.error) || "" });
     if (o.status === "submitted" && !od) submitted.push(o.orderId);
+    // v3: paid a week ago, the student still not named (the family was mailed once by the sweep)
+    if (needsChild(o) && now - Date.parse(crm.lastChange(o) || "") >= 7 * 24 * 60 * 60 * 1000) noChild.push({ orderId: o.orderId, email: o.email, hives: (o.hives || []).map((h) => h.abbr || h.name).filter(Boolean).join(", ") });
   }
   overdue.sort((a, b) => b.days - a.days);
   const h = await hub.readHub().catch(() => null);
   const people = (h && h.people) || [];
   const replace = people.filter((p) => p.primaryTier === "replace");
   return {
-    overdue, notifyFailed, submitted: submitted.length,
+    overdue, notifyFailed, noChild, submitted: submitted.length,
     queue: (h && h.queue && h.queue.length) || 0,
     replace: replace.length, replaceWithOrders: replace.filter((p) => (p.orders || 0) > 0).length,
     writeBack: (h && h.stats && h.stats.writeBack) || 0,
-    total: overdue.length + notifyFailed.length + ((h && h.queue && h.queue.length) || 0),
+    total: overdue.length + notifyFailed.length + noChild.length + ((h && h.queue && h.queue.length) || 0),
   };
 }
 
@@ -110,6 +113,11 @@ function compose(d, date) {
   if (d.notifyFailed.length) {
     push(`通知失败 ${d.notifyFailed.length} 单（家长和蜂巢没有收到下单通知，请人工联系）：`, `${d.notifyFailed.length} order(s) whose notification failed (family and hive were not told — contact them):`);
     for (const o of d.notifyFailed.slice(0, 20)) lines.push(`• ${o.orderId} · ${o.email || ""}${o.error ? " · " + o.error : ""}`);
+    lines.push("");
+  }
+  if (d.noChild && d.noChild.length) {
+    push(`已收款 7 天仍未填学生 ${d.noChild.length} 单（家长已收到提醒邮件；机构联系时可在订单面板代填）：`, `${d.noChild.length} paid order(s) still without the student named a week on (the family was reminded; the provider can fill it in from the order panel):`);
+    for (const o of d.noChild.slice(0, 20)) lines.push(`• ${o.orderId} · ${o.hives || "—"} · ${o.email || ""}`);
     lines.push("");
   }
   if (d.queue) push(`待合并的人员配对 ${d.queue} 对（同名同校或备用邮箱相同，需要判断是否同一人）。`, `${d.queue} people pair(s) waiting for a merge decision.`);

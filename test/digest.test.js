@@ -36,6 +36,8 @@ crm.listOrders = async () => [
   mk("FC-20260901-KXC-003", "paid", "2026-09-01T00:00:00Z"),                 // 37 days paid → overdue (30)
   mk("FC-20261005-KXC-004", "confirmed", "2026-10-05T00:00:00Z", { notify: { ok: false, error: "HTTP 502" } }),
   mk("FC-20260801-KXC-005", "cancelled", "2026-08-01T00:00:00Z"),
+  mk("FC-20260925-KXC-006", "paid", "2026-09-25T00:00:00Z", { items: [{ code: "KXC-SCI-7", child: null }] }), // v3: paid 13 days, the student not named
+  mk("FC-20261006-KXC-007", "paid", "2026-10-06T00:00:00Z", { items: [{ code: "KXC-SCI-7", child: null }] }), // paid 2 days: not yet
 ];
 hub.readHub = async () => ({ people: [{ primaryTier: "replace", orders: 2 }, { primaryTier: "replace", orders: 0 }, { primaryTier: "safe", orders: 1 }], queue: [{}, {}], stats: { writeBack: 5 } });
 
@@ -46,10 +48,12 @@ hub.readHub = async () => ({ people: [{ primaryTier: "replace", orders: 2 }, { p
   assert.strictEqual(d.submitted, 1, "the one still within its limit");
   assert.strictEqual(d.queue, 2);
   assert.strictEqual(d.replace, 2); assert.strictEqual(d.replaceWithOrders, 1); assert.strictEqual(d.writeBack, 5);
-  assert.strictEqual(d.total, 5, "overdue 2 + notify failed 1 + queue 2");
+  assert.deepStrictEqual(d.noChild.map((o) => o.orderId), ["FC-20260925-KXC-006"], "a week after payment without the student");
+  assert.strictEqual(d.total, 6, "overdue 2 + notify failed 1 + queue 2 + no child 1");
 
   const m = D.compose(d, "2026-10-08");
-  assert.ok(/待处理 5 项/.test(m.subject) && /5 to do/.test(m.subject), m.subject);
+  assert.ok(/待处理 6 项/.test(m.subject) && /6 to do/.test(m.subject), m.subject);
+  assert.ok(/已收款 7 天仍未填学生 1 单/.test(m.text) && /FC-20260925-KXC-006 · KXC/.test(m.text), m.text);
   assert.ok(/超期订单 2 单/.test(m.text) && /FC-20260901-KXC-003 · 已付款 \/ paid · 37 天/.test(m.text), m.text);
   assert.ok(/通知失败 1 单/.test(m.text) && /HTTP 502/.test(m.text));
   assert.ok(/待合并的人员配对 2 对/.test(m.text) && /待替换邮箱 2 人（其中有订单 1 人）；待回写 CRM ID 5/.test(m.text));
