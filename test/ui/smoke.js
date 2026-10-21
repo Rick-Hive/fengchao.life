@@ -54,8 +54,8 @@ const CATALOG = [
 ];
 let MY_ORDERS = []; const myPatches = [];
 const MY_ORDERS0 = () => [
-  { orderId: "FC-20261020-KXC-003", submission: "FS-20261020-ABCDE", submittedAt: "2026-10-20T03:00:00Z", status: "submitted", email: "h.safe@gmail.com", account: "", items: [{ code: "KXC-MATH-HS-101", nameZh: "几何", nameEn: "Geometry", price: 2400, schoolAbbr: "KXC", grades: ["G9", "G10"], waitlist: false, prereq: null, child: { name: "张小明", grade: "9", account: "" } }], hives: [{ key: "kxc", name: "KXC", abbr: "KXC" }], itemCount: 1, totalPrice: 2400, currency: "CNY", fee: null, notify: { ok: true }, history: [{ at: "2026-10-20T03:00:00Z", to: "submitted", from: null }], canCancel: true, canConfirmPay: true, canNameChild: true, needsChild: false, expiresAt: "2026-11-10T03:00:00Z" },
-  { orderId: "FC-20261018-BES-001", submission: "FC-20261018-BES-001", submittedAt: "2026-10-18T03:00:00Z", status: "contacted", email: "h.safe@gmail.com", account: "", items: [{ code: "BES-SCI-MS-201", nameZh: "生命科学", nameEn: "Life Science", price: 1800, schoolAbbr: "BES", grades: ["G7"], waitlist: true, prereq: { text: "BES-SCI-MS-101 Earth Science / 地球科学", codes: ["BES-SCI-MS-101"], met: "none" }, child: null }], hives: [{ key: "bes", name: "BES", abbr: "BES" }], itemCount: 1, totalPrice: 1800, currency: "CNY", fee: { amount: 100, currency: "usd", status: "paid", receiptUrl: "https://pay.stripe.com/receipts/x" }, notify: { ok: true }, history: [], canCancel: false, canConfirmPay: true, canNameChild: true, needsChild: true, contact: { familyName: "张", givenName: "三", englishName: "" }, expiresAt: "2026-11-08T03:00:00Z" },
+  { orderId: "FC-20261020-KXC-003", submission: "FS-20261020-ABCDE", submittedAt: "2026-10-20T03:00:00Z", status: "submitted", email: "h.safe@gmail.com", account: "", items: [{ code: "KXC-MATH-HS-101", nameZh: "几何", nameEn: "Geometry", price: 2400, schoolAbbr: "KXC", grades: ["G9", "G10"], waitlist: false, prereq: null, child: { name: "张小明", grade: "9", account: "" } }], hives: [{ key: "KXC", name: "KXC", abbr: "KXC" }], itemCount: 1, totalPrice: 2400, currency: "CNY", fee: null, notify: { ok: true }, history: [{ at: "2026-10-20T03:00:00Z", to: "submitted", from: null }], canCancel: true, canConfirmPay: true, canNameChild: true, needsChild: false, expiresAt: "2026-11-10T03:00:00Z" },
+  { orderId: "FC-20261018-BES-001", submission: "FC-20261018-BES-001", submittedAt: "2026-10-18T03:00:00Z", status: "contacted", email: "h.safe@gmail.com", account: "", items: [{ code: "BES-SCI-MS-201", nameZh: "生命科学", nameEn: "Life Science", price: 1800, schoolAbbr: "BES", grades: ["G7"], waitlist: true, prereq: { text: "BES-SCI-MS-101 Earth Science / 地球科学", codes: ["BES-SCI-MS-101"], met: "none" }, child: null }], hives: [{ key: "BES", name: "BES", abbr: "BES" }], itemCount: 1, totalPrice: 1800, currency: "CNY", fee: { amount: 100, currency: "usd", status: "paid", receiptUrl: "https://pay.stripe.com/receipts/x" }, notify: { ok: true }, history: [], canCancel: false, canConfirmPay: true, canNameChild: true, needsChild: true, contact: { familyName: "张", givenName: "三", englishName: "" }, expiresAt: "2026-11-08T03:00:00Z" },
 ];
 const planPuts = [];
 // 所有学校 is paged (2026-10-21): the mock pages with the real module; every query the page sent is recorded
@@ -135,7 +135,7 @@ function mkOrder(i, status, agoDays, notifyOk) {
     track: { trackId: 2, nameZh: "国内路径", nameEn: "Domestic track" },
     items: [{ code: "KXC-MATH-7", nameZh: "七年级数学", nameEn: "Grade 7 Mathematics", classType: "直播课 / Live Course", language: "中文 / Chinese", grades: ["G7"], teachers: ["张老师"], price: 1200, priceTbd: false, schoolName: "Kids X Center", schoolAbbr: "KXC", child: { name: ["张小明", "李小红", "王小军", "赵小兰", "Ming", "Hong", "Jun", "Lan", "周小安"][i], grade: "7", account: "" } },
             { code: "KXC-SCI-7", nameZh: "七年级科学", nameEn: "Grade 7 Science", classType: "录播课 / Prerecorded", language: "英语 / English", grades: ["G7", "G8"], teachers: ["Mr Lee"], price: i % 4 ? 900 : 0, priceTbd: i % 4 === 0, schoolName: "Kids X Center", schoolAbbr: "KXC" }],
-    hives: [{ key: "kxc", name: "Kids X Center", abbr: "KXC", itemCount: 2, subtotal: 2100, notified: true }], itemCount: 2, totalPrice: 2100, currency: "CNY",
+    hives: [{ key: "KXC", name: "Kids X Center", abbr: "KXC", itemCount: 2, subtotal: 2100, notified: true }], itemCount: 2, totalPrice: 2100, currency: "CNY",
     status: "submitted", history: [{ at, by: "system", from: null, to: "submitted", note: "" }], notify: { ok: notifyOk, at, error: notifyOk ? undefined : "HTTP 502" }, crmId: null };
   if (i === 1) o.items[1].prereq = { text: "KXC-SCI-6 Grade 6 Science / 六年级科学", codes: ["KXC-SCI-6"], met: "none" };
   // stage-2 chain (2026-10-21): contacted → parent_paid → paid → started; a legacy `confirmed` record is kept as-is
@@ -152,10 +152,10 @@ const TWORK = {};
 let CREATE_LICENCE = { ok: true, plans: ["Office 365 A1 for faculty", "Power Automate Free"] };
 let ORDERS = [mkOrder(0, "submitted", 2, true), mkOrder(1, "submitted", 10, true), mkOrder(2, "confirmed", 12, true), mkOrder(3, "paid", 5, false), mkOrder(4, "started", 40, true), mkOrder(5, "cancelled", 3, true), mkOrder(6, "parent_paid", 4, true), mkOrder(7, "submitted", 1, false), mkOrder(8, "submitted", 25, true)];
 // the ninth is another hive's (BES): a provider's leader must not see it; its clock ran out 4 days ago → expired on read
-ORDERS[8].orderId = "FC-20260926-BES-009"; ORDERS[8].hives = [{ key: "bes", name: "BES School", abbr: "BES", itemCount: 2, subtotal: 2100, notified: true }]; ORDERS[8].items.forEach(it => { it.schoolAbbr = "BES"; it.schoolName = "BES School"; it.code = it.code.replace("KXC", "BES"); });
+ORDERS[8].orderId = "FC-20260926-BES-009"; ORDERS[8].hives = [{ key: "BES", name: "BES School", abbr: "BES", itemCount: 2, subtotal: 2100, notified: true }]; ORDERS[8].items.forEach(it => { it.schoolAbbr = "BES"; it.schoolName = "BES School"; it.code = it.code.replace("KXC", "BES"); });
 ORDERS[3] = crm.withCommission(ORDERS[3]); ORDERS[3].history[ORDERS[3].history.length - 1].via = "hive"; ORDERS[3].contact = { familyName: "赵", givenName: "小兰妈妈", englishName: "Lan" }; ORDERS[3].proof = [{ i: 1, name: "wechat.png", type: "image/png", size: 4, at: ORDERS[3].submittedAt }];
 ORDERS[1].notices = [{ event: "contacted", at: new Date(Date.now() - 2 * dayMs).toISOString(), ok: true, status: 202, to: { family: true, provider: false } }, { event: "reminder_expiry", at: new Date().toISOString(), ok: false, status: 502, to: { family: true, provider: true } }];
-const PROVIDER_KEYS = ["kxc"];
+const PROVIDER_KEYS = ["KXC"];
 const liveOrders = () => { ORDERS = ORDERS.map(o => crm.withExpiry(o)); return ORDERS; };
 const orderView = (o, acc, provider) => Object.assign(provider ? o : crm.mask(o, acc), { overdue: crm.overdue(o), status: crm.statusOf(o), expiresAt: crm.isLive(o) && ["submitted", "contacted"].includes(crm.statusOf(o)) ? new Date(crm.expiresAt(o)).toISOString() : null });
 const nextFor = (o, acc, provider, rolesList) => provider ? crm.providerNext(o.status) : acc.orders === "rw" ? crm.nextStatuses(o.status, rolesList) : [];
@@ -243,7 +243,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     if (rolesList.indexOf("x:teacher") >= 0) me.hive = Object.assign({}, me.hive, { teacherId: "recTEACH000000001" });
     // x:provider — the leader of a hive's domain (kxc.edu): me/summary names the hive, crm has no level for them
     const provider = rolesList.indexOf("x:provider") >= 0 && acc.orders === "none";
-    if (provider) me.hive = Object.assign({}, me.hive, { providerHives: [{ key: "kxc", name: "Kids X Center", abbr: "KXC" }] });
+    if (provider) me.hive = Object.assign({}, me.hive, { providerHives: [{ key: "KXC", name: "Kids X Center", abbr: "KXC", domain: "kxc.edu", via: "leader" }] });
     const isAdm = rolesList.indexOf("admin") >= 0;
     await page.route("**/api/**", r => {
       const u = new URL(r.request().url()); const p = u.pathname; let body = { error: "nf" }, status = 200;
@@ -302,7 +302,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/domain/groupmembers") { const b = JSON.parse(r.request().postData()); memberOps.push(b); body = { ok: true, id: b.id, added: (b.addMembers || []).length + (b.addOwners || []).length, removed: (b.removeMembers || []).length + (b.removeOwners || []).length }; }
       else if (p === "/api/domain/groups") body = dgroups;
       else if (p === "/api/roles" && r.request().method() === "GET" && u.searchParams.get("q")) body = { people: peopleHits };
-      else if (p === "/api/roles") body = r.request().method() === "GET" ? Object.assign({}, roles, { scope: isAdm ? "all" : "staff" }) : { ok: true, entries: roles.entries };
+      else if (p === "/api/roles") body = r.request().method() === "GET" ? Object.assign({}, roles, { scope: isAdm ? "all" : "staff", hives: isAdm ? [{ key: "KXC", name: "Kids X Center", abbr: "KXC", domain: "kxc.edu" }, { key: "IEW", name: "IEW Inc.", abbr: "IEW", domain: "" }] : [] }) : { ok: true, entries: roles.entries };
       else if (p === "/api/me/session") body = { signedIn: true, user: me.profile.upn, idleSeconds: 1800, maxSeconds: 43200, startedAt: new Date().toISOString() };
       else if (p === "/api/crm/orders") body = ordersBody(acc, provider);
       else if (p === "/api/crm/extend") { const b = JSON.parse(r.request().postData()); extended.push(b); const i = ORDERS.findIndex(x => x.orderId === b.orderId); ORDERS[i] = crm.extend(ORDERS[i], me.profile.upn); body = { ok: true, order: orderView(ORDERS[i], acc, provider), next: nextFor(ORDERS[i], acc, provider, rolesList) }; }
@@ -312,7 +312,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/crm/people") { const canMerge = isAdm || acc.orders === "rw"; const famById = new Map((HUB.families || []).map(f => [f.id, f])); const opts = peopleList.parseQuery(Object.fromEntries(u.searchParams)); peoplePages.push(opts); const pg = peopleList.page(hubMod.withMarks(HUB.people, MARKS), opts); body = { people: pg.people.map(x => hubMod.maskPerson(x.familyId ? Object.assign({}, x, { family: famById.get(x.familyId) }) : x, acc)), matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: opts, queue: canMerge ? HUB.queue : [], stats: Object.assign({}, HUB.stats, hubMod.markStats(HUB.people, MARKS)), generatedAt: HUB.generatedAt, sources: HUB.sources, access: acc, canMerge, canMark: isAdm || acc.identity === "rw", timing: { read: 5, page: 1, total: 6 } }; }
       else if (p === "/api/crm/person") { const x0 = HUB.people.find(x => x.crmId === u.searchParams.get("id")); if (!x0) { status = 404; body = { error: "not_found" }; } else { const x = hubMod.withMarks([x0], MARKS)[0]; const fam = (HUB.families || []).find(f => f.id === x.familyId); body = { person: hubMod.maskPerson(fam ? Object.assign({}, x, { family: fam }) : x, acc), access: acc }; } }
       else if (p === "/api/crm/email-replace") { const b = JSON.parse(r.request().postData()); const person = HUB.people.find(x => x.crmId === b.crmId); const em = hubMod.replaceEmailOf(person); if (b.status) MARKS.marks[em] = { status: b.status, by: "om", at: new Date().toISOString() }; else delete MARKS.marks[em]; body = { ok: true, mark: b.status ? Object.assign({ email: em }, MARKS.marks[em]) : null, stats: hubMod.markStats(HUB.people, MARKS) }; }
-      else if (p === "/api/teachers/list") { const approver = isAdm || rolesList.indexOf("staff:curriculum") >= 0; const mineT = rolesList.indexOf("x:teacher") >= 0 ? "recTEACH000000001" : null; const leaderOf = rolesList.filter(x => /^domain_leader:/.test(x)).map(x => x.slice(14)); const vis = TEACHERS.filter(x => approver || leaderOf.includes(x.domain) || x.id === mineT); body = { teachers: vis.map(x => ({ id: x.id, name: x.name, teamsAccount: x.teamsAccount, domain: x.domain, organization: x.organization, photoUrl: (TWORK[x.id] && TWORK[x.id].draft.photo && TWORK[x.id].draft.photo.url) || x.photoUrl, hasBio: !!x.bio, hasExpertise: !!x.expertise, status: (TWORK[x.id] || {}).status || "", updatedAt: (TWORK[x.id] || {}).updatedAt || null, submittedAt: null, mine: x.id === mineT })), me: { teacher: mineT, approver, leaderOf } }; }
+      else if (p === "/api/teachers/list") { const approver = isAdm || rolesList.indexOf("staff:curriculum") >= 0; const mineT = rolesList.indexOf("x:teacher") >= 0 ? "recTEACH000000001" : null; const leaderOf = rolesList.filter(x => /^domain_leader:/.test(x)).map(x => x.slice(14)).concat(provider ? ["kxc.edu"] : []); const vis = TEACHERS.filter(x => approver || leaderOf.includes(x.domain) || x.id === mineT); body = { teachers: vis.map(x => ({ id: x.id, name: x.name, teamsAccount: x.teamsAccount, domain: x.domain, organization: x.organization, photoUrl: (TWORK[x.id] && TWORK[x.id].draft.photo && TWORK[x.id].draft.photo.url) || x.photoUrl, hasBio: !!x.bio, hasExpertise: !!x.expertise, status: (TWORK[x.id] || {}).status || "", updatedAt: (TWORK[x.id] || {}).updatedAt || null, submittedAt: null, mine: x.id === mineT })), me: { teacher: mineT, approver, leaderOf } }; }
       else if (p === "/api/teachers/one") { const x = TEACHERS.find(t => t.id === u.searchParams.get("id")); const w = TWORK[x.id] || { recId: x.id, name: x.name, status: "", draft: { bio: x.bio, expertise: x.expertise, photo: null }, baseline: { bio: x.bio, expertise: x.expertise, photoUrl: x.photoUrl }, submitted: null, published: null, returned: null, history: [], updatedAt: null }; const approver = isAdm || rolesList.indexOf("staff:curriculum") >= 0; const canEdit = approver || rolesList.indexOf("x:teacher") >= 0 && x.id === "recTEACH000000001" || rolesList.includes("domain_leader:" + x.domain); body = Object.assign({}, w, { profile: { id: x.id, name: x.name, teamsAccount: x.teamsAccount, domain: x.domain, organization: x.organization, subjects: x.subjects, languages: x.languages, courseTypes: "", gradeLevels: x.gradeLevels, photoUrl: x.photoUrl }, canEdit, canApprove: approver }); }
       else if (p === "/api/teachers/field") { const b = JSON.parse(r.request().postData()); const x = TEACHERS.find(t => t.id === b.id); const w = TWORK[x.id] = TWORK[x.id] || { recId: x.id, name: x.name, status: "", draft: { bio: x.bio, expertise: x.expertise, photo: null }, baseline: { bio: x.bio, expertise: x.expertise, photoUrl: x.photoUrl }, submitted: null, published: null, returned: null, history: [], updatedAt: null }; w.draft[b.key] = b.value; w.status = "draft"; w.updatedAt = new Date().toISOString(); w.history.unshift({ at: w.updatedAt, by: me.profile.upn, action: "save", fields: [b.key] }); tPatches.push(b); body = { ok: true, status: "draft", updatedAt: w.updatedAt }; }
       else if (p === "/api/teachers/photo") { const b = JSON.parse(r.request().postData()); const w = TWORK[b.id]; tPhotos.push(b.data.length); w.draft.photo = { key: "teachers/work/" + b.id + ".jpg", url: "/assets/apple-touch-icon.png", at: new Date().toISOString() }; w.status = "draft"; w.updatedAt = w.draft.photo.at; body = { ok: true, photo: w.draft.photo, status: "draft" }; }
@@ -363,7 +363,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
         const act = p.slice("/api/courses/".length), m = r.request().method(), appr = rolesList.some(x => /^staff:(curriculum|ceo|sysadmin)$/.test(x) || x === "admin"), viewer = rolesList.includes("staff:community");
         const view = () => Object.assign({}, CO_DOC, { baseline: appr ? { nameEn: "Biology", nameZh: "生物", descriptionEn: "Cells and life.", classTime: "P3 10:00–10:45", price: 300 } : undefined, history: CO_DOC.history.slice().reverse() });
         const editable = {}; for (const k of Object.keys(CO_DOC.fields)) editable[k] = appr || !["textbooks", "teachers", "school", "tracks", "price", "available", "comments"].includes(k);
-        if (act === "list") body = { courses: [coListRow()], me: { approver: appr, viewer }, sync: { pending: false } };
+        if (act === "list") body = { courses: [Object.assign(coListRow(), provider ? { owned: true } : {})], me: { approver: appr, viewer, provider: provider ? PROVIDER_KEYS : [] }, sync: { pending: false } };
         else if (act === "lookups") body = Object.assign({}, CO_LOOK, { teachers: CO_LOOK.teachers.map(t => appr ? t : { id: t.id, name: t.name }) });
         else if (act === "course") body = { course: view(), assigned: CO_ASSIGNED, editable, translation: coTranslation(), needs: coNeeds() };
         else if (act === "field" && m === "PATCH") { const b = JSON.parse(r.request().postData()); coPatches.push(b); if (!editable[b.key]) { status = 403; body = { error: "read only" }; } else { CO_DOC.fields[b.key] = b.value; if (/(En|Zh)$/.test(b.key)) CO_DOC.meta.machine[b.key] = false; CO_DOC.draftAt = new Date().toISOString(); if (CO_DOC.status === "published" || CO_DOC.status === "returned") CO_DOC.status = "draft"; body = { savedAt: CO_DOC.draftAt, status: CO_DOC.status, meta: CO_DOC.meta, translation: coTranslation(), needs: coNeeds() }; } }
@@ -381,7 +381,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
         else if (act === "versions") body = { status: CO_DOC.status, items: CO_DOC.history.slice() };
         else if (act === "version") body = { ok: true, version: { at: "2026-10-18T02:00:00Z", by: "zhang@kxc.edu", fields: Object.assign({}, CO_DOC.fields, { classTime: "P2 9:00–9:45", descriptionZh: "" }) } };
         else if (act === "sync") body = m === "POST" ? { ran: true, status: 200, body: { counts: { courses: 1 } } } : { pending: false };
-        else if (act === "people") { const q = (u.searchParams.get("q") || "").toLowerCase(); body = { people: [{ crmId: "P-2", name: "Li Laoshi", upn: "li@kxc.edu", identity: "老师", org: "kxc.edu" }, { crmId: "P-3", name: "No Account", upn: "", identity: "", org: "" }].filter(x => x.name.toLowerCase().includes(q)) }; }
+        else if (act === "people") { const q = (u.searchParams.get("q") || "").toLowerCase(); body = { people: [{ crmId: "P-2", name: "Li Laoshi", upn: "li@kxc.edu", identity: "老师", org: "kxc.edu" }, { crmId: "P-3", name: "No Account", upn: "", identity: "", org: "" }, { crmId: "P-4", name: "Li Other", upn: "li@other.edu", identity: "老师", org: "other.edu" }].filter(x => x.name.toLowerCase().includes(q) && (!provider || x.org === "kxc.edu")) }; }
         else status = 404;
       }
       else if (p === "/api/me/photo") return r.fulfill({ status: 204, body: "" });
@@ -1235,10 +1235,49 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.keyboard.press("Escape");
   });
   // 机构负责人 (stage 2, 2026-10-21): the leader of a hive's domain sees and works its own hive's orders, nothing else of 经营
+  // 蜂巢课程负责人 (v3 第二批 ③): 概览 with the four numbers, each a door; 课程 in provider mode (own courses, 分配 within own
+  // people); 老师 = the hive's Teachers rows; the roles page offers the explicit provider:<key> role
+  await shot("hive-overview", 1280, 900, "", "zh", ["provider:KXC", "x:provider"], async p => {
+    await p.waitForSelector("#hvkpi button[data-go]"); await p.waitForTimeout(300);
+    assert.ok(["", "#/hive"].includes(await p.evaluate(() => location.hash)), "a provider's leader lands on 概览");
+    const kpi = await p.$eval("#hvkpi", e => e.innerText);
+    assert.ok(/待联系订单/.test(kpi) && /待确认收款/.test(kpi) && /待完善课程/.test(kpi) && /未达开班人数/.test(kpi) && /超期订单/.test(kpi), "the tiles: " + kpi);
+    const nums = await p.$$eval("#hvkpi button[data-go] .v", es => es.map(e => e.textContent));
+    assert.ok(nums.every(x => /^\d+$/.test(x)), "every tile has a count: " + nums);
+    assert.ok(/Kids X Center/.test(await p.$eval(".hvhead", e => e.innerText)), "the hive's name");
+    assert.ok(/待确认收款/.test(await p.$eval("#hvbody", e => e.innerText)), "the orders behind the numbers");
+    await p.screenshot({ path: OUT + "/hive-overview.png" });
+    await p.click('#hvkpi button[data-go="#/ops/orders/hive"][data-tab="parent_paid"]'); await p.waitForSelector("#otable tbody tr[data-id]"); await p.waitForTimeout(200);
+    assert.strictEqual(await p.$eval('#obar .chip[aria-pressed="true"]', e => e.getAttribute("data-f")), "parent_paid", "the tile opens 订单 on that filter");
+    // 课程: provider mode — its own course with 分配, the people picker limited to its own people
+    await p.click('#nav a[href="#/courses"]'); await p.waitForSelector("#cotable"); await p.waitForTimeout(200);
+    assert.ok(/蜂巢课程[\s\S]*课程/.test(await p.$eval("#title", e => e.innerText)), "title 蜂巢课程 › 课程");
+    assert.ok(await p.$('#cotable button[data-assign]') && !(await p.$("#coSyncNow")), "分配 on its own course, no website sync button");
+    await p.click('#cotable button[data-assign]'); await p.waitForSelector("#coPq");
+    assert.ok(/只能分配本机构的人/.test(await p.$eval("#panel .pb .info", e => e.getAttribute("data-tip"))), "the own-people rule is stated");
+    await p.fill("#coPq", "li"); await p.waitForTimeout(500);
+    const hits = await p.$eval("#coPres", e => e.innerText);
+    assert.ok(/Li Laoshi/.test(hits) && !/Li Other/.test(hits), "only the hive's own people: " + hits);
+    await p.keyboard.press("Escape");
+    // 老师: the hive's teachers
+    await p.click('#nav a[href="#/domain/teachers"]'); await p.waitForTimeout(600);
+    const tt = await p.$eval("#content", e => e.innerText);
+    assert.ok(/Mr Lee/.test(tt) && !/Zhang Lao/.test(tt), "the hive's teachers only: " + tt.slice(0, 300));
+    assert.ok(/蜂巢课程[\s\S]*老师/.test(await p.$eval("#title", e => e.innerText)), "title 蜂巢课程 › 老师");
+  });
+  await shot("roles-provider", 1280, 900, "#/system/roles", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector('#rtable tr[data-user]');
+    await p.click('#rtable tr[data-user="mei.wang@bes.qiaoliang.online"]'); await p.waitForTimeout(400);
+    assert.ok(await p.$('#rhives .chip[data-hive="IEW"]') && await p.$('#rhives .chip[data-hive="KXC"]'), "the hive chips");
+    await p.click('#rhives .chip[data-hive="IEW"]'); await p.waitForTimeout(100);
+    assert.ok(/蜂巢课程负责人 · IEW/.test(await p.$eval("#rprev", e => e.innerText)), "preview: " + await p.$eval("#rprev", e => e.innerText));
+    await p.click("#rsave"); await p.waitForTimeout(900);
+    assert.ok(/蜂巢课程负责人 · IEW/.test(await p.$eval("#flash", e => e.textContent)), "saved with the provider role: " + await p.$eval("#flash", e => e.textContent));
+  });
   await shot("orders-provider", 1280, 900, "#/ops/orders", "zh", ["domain_leader:kxc.edu", "x:provider"], async p => {
     await p.waitForSelector("#otable tbody tr[data-id]");
     const nav = await p.$eval("#nav", e => e.innerText);
-    assert.ok(/经营[\s\S]*订单/.test(nav) && !/人员库|仪表盘|合作伙伴/.test(nav), "the provider's 经营 group is 订单 alone: " + nav);
+    assert.ok(/蜂巢课程[\s\S]*概览[\s\S]*课程[\s\S]*订单/.test(nav) && !/经营|人员库|仪表盘|合作伙伴/.test(nav), "the provider's 蜂巢课程 group: 概览 · 课程 · 订单 (老师 is under 学校管理 for a school's leader), no 经营: " + nav);
     assert.ok(!(await p.$('.ptab[href="#/ops/orders"]')) && /蜂巢课程订单/.test(await p.$eval(".pagetabs", e => e.innerText)), "no Equip tab; the course orders open directly");
     assert.ok(/贵机构课程的订单/.test(await p.$eval("#title .info", e => e.getAttribute("data-tip"))), "the provider's intro");
     const rows = await p.$$eval("#otable tbody tr[data-id]", es => es.map(e => e.getAttribute("data-id")));

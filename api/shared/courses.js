@@ -34,6 +34,7 @@ const INDEX_BLOB = "crm/course-work/_index.json"; // { items: { <id>: { code, st
 const EMPTY_ASSIGN = () => ({ items: {}, updatedAt: null });
 const GRADE_ORDER = ["Pre-K", "K1", "K2", "K3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12", "Associate of Arts Degree"];
 const ID_RE = /^rec[A-Za-z0-9]{14}$/;
+const providerMod = require("./provider");
 const APPROVERS = ["curriculum", "ceo"];
 const VIEWERS = ["community"];
 const SYNC_GAP_MS = 2 * 60 * 1000;
@@ -531,18 +532,22 @@ async function assignedTo(upn) {
 
 // ---- the list ---------------------------------------------------------------------------------
 // Every course of the snapshot (or just the assigned ones) with its work status; small rows for a table.
+// A provider's leader (who.provider = its hive keys, v3 第二批 ③) sees its own hives' courses as well as the assigned ones;
+// `owned` marks the former.
 async function list(who) {
   const snap = await readSnapshot().catch(() => null);
   const a = await readAssignments();
   const mine = who.approver || who.viewer ? null : new Set(await assignedTo(who.user));
+  const keys = (who.provider || []);
   const idx = (await readIndex()).items || {};
   const rows = [];
   for (const c of (snap && snap.courses) || []) {
-    if (mine && !mine.has(c.id)) continue;
+    const owned = keys.length > 0 && providerMod.ownsCourse(keys, c);
+    if (mine && !mine.has(c.id) && !owned) continue;
     const w = idx[c.id] || null;
     rows.push({ id: c.id, code: c.code, nameEn: c.nameEn, nameZh: c.nameZh, school: c.school && (c.school.abbr || c.school.name) || "", teachers: c.teachers || [], subjects: (c.subjects || []).map((s) => ({ nameEn: s.nameEn, nameZh: s.nameZh })), available: c.available !== false,
       status: w ? w.status : "", updatedAt: w ? w.updatedAt : null, submittedAt: w ? w.submittedAt : null, publishedAt: w ? w.publishedAt : null, returnedAt: w ? w.returnedAt : null,
-      assigned: ((a.items[c.id] || {}).people || []).map((p) => ({ name: p.name, upn: p.upn, crmId: p.crmId })) });
+      assigned: ((a.items[c.id] || {}).people || []).map((p) => ({ name: p.name, upn: p.upn, crmId: p.crmId })), owned: owned || undefined });
   }
   // courses that have a working record but left the snapshot (unavailable, or new) still show for approvers
   return { courses: rows, generatedAt: snap && snap.generatedAt, assignments: who.approver ? a.items : undefined };

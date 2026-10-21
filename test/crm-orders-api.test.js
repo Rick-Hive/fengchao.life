@@ -134,6 +134,11 @@ async function call({ action, method = "GET", body = null, query = {} }) {
   assert.ok(!sci || sci.orders.length === 0, "cancelled lines are off the roster");
   assert.ok(r.body.classes.every((c) => c.code.startsWith("KXC-")), "its own courses only");
 
+  // the explicit role (蜂巢课程负责人 for a provider without a domain) reaches the same endpoints
+  who = { user: "ops@fengchao.life", roles: ["provider:KXC"] };
+  r = await call({ action: "orders" }); assert.strictEqual(r.status, 200); assert.ok(r.body.orders.length > 0 && r.body.orders.every((o) => o.orderId.includes("-KXC-")), "provider:KXC lists KXC's orders");
+  r = await call({ action: "people" }); assert.strictEqual(r.status, 403);
+
   // --- a masked reader (curriculum): proof and amounts withheld ---
   who = { user: "cur@fengchao.life", roles: ["staff:curriculum"] };
   r = await call({ action: "proof", query: { orderId: "FC-20261020-KXC-001", i: "1" } });

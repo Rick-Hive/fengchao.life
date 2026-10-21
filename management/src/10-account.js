@@ -276,6 +276,7 @@
     var m;
     if ((m = /^domain_(it|admin):(.+)$/.exec(r))) return t("IT 管理员 · ", "IT administrator · ") + dname(m[2]);
     if ((m = /^domain_leader:(.+)$/.exec(r))) return t("教育领袖 · ", "Education leader · ") + dname(m[1]);
+    if ((m = /^provider:(.+)$/.exec(r))) return t("蜂巢课程负责人 · ", "Hive Course Leader · ") + m[1];
     if ((m = /^staff:(.+)$/.exec(r))) return "Staff · " + (STAFF_FN[m[1]] ? STAFF_FN[m[1]][EN ? 1 : 0] : m[1]);
     if (r === "admin") return t("系统管理员", "System administrator");
     if (r === "coordinator") return t("Staff · 教育社区经理", "Staff · Education community manager");

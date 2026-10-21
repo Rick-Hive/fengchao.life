@@ -70,7 +70,9 @@ async function handler(context, req) {
         });
       });
       // `scope` tells the page what this caller may hand out: "all", or "staff" for the CEO.
-      context.res = { status: 200, body: { entries, kinds: KINDS, staff: STAFF, scope: full ? "all" : "staff" } };
+      // the hives a 蜂巢课程负责人 can be given (v3 第二批 ③): every routed hive, for the system administrator's picker
+      const hives = full ? require("../shared/provider").allHives(await require("../shared/blob").readSnapshot().catch(() => null)) : [];
+      context.res = { status: 200, body: { entries, kinds: KINDS, staff: STAFF, scope: full ? "all" : "staff", hives } };
       return;
     }
 

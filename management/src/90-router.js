@@ -40,6 +40,7 @@
     if (h.indexOf("#/myorders") === 0) return viewMyOrders();
     if (h.indexOf("#/calendar") === 0) return viewMyCalendar();
     if (h.indexOf("#/courses") === 0) return viewCourses();
+    if (h.indexOf("#/hive") === 0) { if (!providerHives().length) { location.hash = "#/account"; return; } return viewHiveOverview(); }
     if (h.indexOf("#/security") === 0) return viewSecurity();
     if (h.indexOf("#/teacher") === 0 && h.indexOf("#/teachers") !== 0) return viewTeacherMine();
     if (h.indexOf("#/domain/teachers") === 0) return teCanManage() ? viewTeachers() : viewTeacherMine();

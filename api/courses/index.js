@@ -16,13 +16,18 @@
 //                                          name, grade, standing; no contact details (teachers, approvers, viewers)
 //
 // Who: approvers = 课程总监, CEO, 系统管理员 (everything); viewers = 教育社区经理 (read); a teacher = assigned
-// courses, the teacher-editable fields only.
+// courses, the teacher-editable fields only; a provider's leader (蜂巢课程负责人, api/shared/provider.js) = its own
+// hives' courses like a teacher, plus assigning teachers to them from among its own people (the hive's domain, or
+// the Teachers table rows of that organization) — never publishing or returning.
 const C = require("../shared/courses");
 const FILES = require("../shared/files");
 const hub = require("../shared/hub");
 const { userRoles } = require("../shared/roles");
 const { guard, finish } = require("../shared/session");
 const { audit } = require("../shared/audit");
+const providerMod = require("../shared/provider");
+const { readSnapshot } = require("../shared/blob");
+const { hiveKey } = require("../shared/hive");
 
 const reply = (context, status, body) => { context.res = { status, headers: { "Cache-Control": "no-store" }, body }; };
 const ID_RE = /^rec[A-Za-z0-9]{14}$/;
@@ -38,18 +43,32 @@ module.exports = async function (context, req) {
     const done = (status, b) => { reply(context, status, b); finish(context, s); };
     const { user, roles } = await userRoles(req);
     if (!user) return done(401, { error: "sign in first" });
-    const who = { user, approver: C.isApprover(roles), viewer: C.isViewer(roles) };
-    const mayOpen = async (id) => who.approver || who.viewer || (await C.assignedTo(user)).includes(id);
+    const who = { user, approver: C.isApprover(roles), viewer: C.isViewer(roles), provider: [] };
+    let snap = null, hives = [];
+    if (!who.approver && !who.viewer && (providerMod.explicitKeys(roles).length || providerMod.leaderDomains(roles).length)) {
+      snap = await readSnapshot().catch(() => null);
+      hives = providerMod.hivesOf(roles, snap);
+      who.provider = hives.map((h) => h.key);
+    }
+    const owns = (cid) => who.provider.length > 0 && providerMod.ownsCourse(who.provider, ((snap && snap.courses) || []).find((c) => c.id === cid));
+    const mayOpen = async (id) => who.approver || who.viewer || owns(id) || (await C.assignedTo(user)).includes(id);
+    // the provider's own people: an account in one of its hives' domains, or a Teachers row of that organization
+    const ownPerson = (p) => {
+      const upn = String((p && p.upn) || "").toLowerCase(), dom = upn.split("@")[1] || "";
+      if (dom && hives.some((h) => h.domain && h.domain === dom)) return true;
+      const teachers = (((snap || {}).private || {}).teachers) || [];
+      return teachers.some((t) => String(t.teamsAccount || "").toLowerCase() === upn && upn && who.provider.includes(hiveKey(t.organization || "")));
+    };
     const id = String(body.id || q.id || "");
 
     if (method === "GET" && action === "list") {
       const assigned = who.approver || who.viewer ? null : await C.assignedTo(user);
-      if (assigned && !assigned.length) return done(200, { courses: [], me: who, none: true });
+      if (assigned && !assigned.length && !who.provider.length) return done(200, { courses: [], me: who, none: true });
       const r = await C.list(who);
       return done(200, Object.assign(r, { me: who, sync: await C.syncStatus() }));
     }
     if (method === "GET" && action === "lookups") {
-      if (!(who.approver || who.viewer || (await C.assignedTo(user)).length)) return done(403, { error: "no course is assigned to you" });
+      if (!(who.approver || who.viewer || who.provider.length || (await C.assignedTo(user)).length)) return done(403, { error: "no course is assigned to you" });
       const l = await C.lookups(q.fresh === "1");
       const out = Object.assign({}, l, { teachers: l.teachers.map((t) => who.approver ? t : { id: t.id, name: t.name }) });
       return done(200, out);
@@ -72,8 +91,9 @@ module.exports = async function (context, req) {
     if (method === "POST" && action === "op") {
       const op = String(body.op || "");
       if (op === "assign" || op === "unassign") {
-        if (!who.approver) return done(403, { error: "only the curriculum director, the CEO or the system administrator assign courses" });
         if (!ID_RE.test(id)) return done(400, { error: "id missing" });
+        if (!who.approver && !owns(id)) return done(403, { error: "only the curriculum director, the CEO, the system administrator or the course's own provider assign courses" });
+        if (!who.approver && op === "assign" && !ownPerson(body.person)) return done(403, { error: "a provider assigns its own people only", code: "not_own_person" });
         const it = op === "assign" ? await C.assign(id, String(body.code || ""), body.person || {}, who) : await C.unassign(id, body.person || {}, who);
         await audit(context, { actor: user, action: "course." + op, target: id, person: (body.person || {}).upn || (body.person || {}).crmId || "" });
         return done(200, { ok: true, assigned: it.people });
@@ -166,16 +186,28 @@ module.exports = async function (context, req) {
         enrolled, waitlist, counts: { enrolled: enrolled.length, paid: enrolled.filter((r) => r.status === "paid" || r.status === "started").length, waitlist: waitlist.length }, at: new Date(now).toISOString() });
     }
     if (method === "GET" && action === "people") {
-      if (!who.approver) return done(403, { error: "approvers only" });
+      if (!who.approver && !who.provider.length) return done(403, { error: "approvers only" });
       const sq = String(q.q || "").trim().toLowerCase();
       if (sq.length < 2) return done(200, { people: [] });
       const h = await hub.readHub().catch(() => null);
       const hit = (p) => [p.name, p.crmId, ...(p.keys || [])].some((k) => String(k || "").toLowerCase().includes(sq));
-      const people = ((h && h.people) || []).filter(hit).slice(0, 12).map((p) => {
+      let people = ((h && h.people) || []).filter(hit).map((p) => {
         const acc = (p.facets && p.facets.accounts) || [];
-        return { crmId: p.crmId, name: p.name, upn: acc.map((a) => a.upn).find(Boolean) || "", identity: acc.map((a) => a.identity).find(Boolean) || "", org: acc.map((a) => a.domain).find(Boolean) || "" };
+        // a provider picks among its own people: the account in its domain, if the person has several
+        const own = who.provider.length ? acc.find((a) => ownPerson(a)) : null;
+        return { crmId: p.crmId, name: p.name, upn: (own && own.upn) || acc.map((a) => a.upn).find(Boolean) || "", identity: (own && own.identity) || acc.map((a) => a.identity).find(Boolean) || "", org: (own && own.domain) || acc.map((a) => a.domain).find(Boolean) || "" };
       });
-      return done(200, { people });
+      if (!who.approver) {
+        people = people.filter((p) => p.upn && ownPerson(p));
+        // the hive's Teachers rows with a Teams account that the people hub does not know yet
+        const teachers = (((snap || {}).private || {}).teachers) || [];
+        for (const t of teachers) {
+          const upn = String(t.teamsAccount || "").toLowerCase();
+          if (!upn || !ownPerson({ upn }) || people.some((p) => p.upn === upn) || ![t.name, upn].some((k) => String(k || "").toLowerCase().includes(sq))) continue;
+          people.push({ crmId: "", name: t.name || upn, upn, identity: "老师", org: upn.split("@")[1] || "" });
+        }
+      }
+      return done(200, { people: people.slice(0, 12) });
     }
     return done(404, { error: "no such action" });
   } catch (err) {

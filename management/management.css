@@ -1399,3 +1399,4 @@ body.coedit .content { padding-bottom: 140px; } /* room under the preview on a p
 .tefacts .kv { margin-top: 8px; }
 #teCard textarea, .panel textarea[data-k] { width: 100%; box-sizing: border-box; }
 #teActions .faint { margin-left: 8px; font-size: 12px; }
+.hvhead { margin-bottom: var(--s3); color: var(--faint); }

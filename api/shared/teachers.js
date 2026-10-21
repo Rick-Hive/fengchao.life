@@ -20,6 +20,8 @@ const blob = require("./blob");
 const { AirtableBase } = require("./airtable");
 const { isAdmin, staffFunctions, DOMAIN_LEADER_RE } = require("./roles");
 const C = require("./courses");
+const provider = require("./provider");
+const { hiveKey } = require("./hive");
 
 const INDEX_BLOB = "crm/teacher-work/_index.json";
 const workBlob = (recId) => `crm/teacher-work/${recId}.json`;
@@ -44,18 +46,22 @@ function whoIs(user, roles, snap) {
   const all = teachersOf(snap);
   const mine = all.find((t) => t.teamsAccount === upn) || null;
   const approver = isApprover(roles);
-  const domains = approver ? null : leaderDomains(roles); // null = every school
-  return { upn, mine, approver, domains, all };
+  // 蜂巢课程负责人 (v3): the hives it leads — teachers by the hive's domain, or by the Teachers row's organization
+  const hives = approver ? [] : provider.hivesOf(roles, snap);
+  const domains = approver ? null : leaderDomains(roles).concat(hives.map((h) => h.domain).filter(Boolean)); // null = every school
+  const keys = hives.map((h) => h.key);
+  return { upn, mine, approver, domains, keys, all };
 }
+const ofHive = (who, t) => !!(who.keys && who.keys.length && t.organization && who.keys.includes(hiveKey(t.organization)));
 function mayEdit(who, rec) {
   if (!rec) return false;
   if (who.approver) return true;
   if (who.mine && who.mine.id === rec.id) return true;
-  return !!(who.domains && rec.domain && who.domains.includes(rec.domain));
+  return !!(who.domains && rec.domain && who.domains.includes(rec.domain)) || ofHive(who, rec);
 }
 function visible(who) {
   if (who.approver) return who.all;
-  const out = who.all.filter((t) => who.domains && who.domains.includes(t.domain));
+  const out = who.all.filter((t) => (who.domains && t.domain && who.domains.includes(t.domain)) || ofHive(who, t));
   if (who.mine && !out.some((t) => t.id === who.mine.id)) out.unshift(who.mine);
   return out;
 }

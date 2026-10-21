@@ -39,6 +39,7 @@ const royalty = require("../shared/royalty");
 const licenses = require("../shared/licenses");
 const seats = require("../shared/seats");
 const { readSnapshot } = require("../shared/blob");
+const providerMod = require("../shared/provider");
 const { audit } = require("../shared/audit");
 const { guard, finish } = require("../shared/session");
 const partnersApi = require("./partners");
@@ -80,12 +81,10 @@ function tabsOf(order, od) {
 // 机构负责人 (design 2026-10-20: the hive's own 教育领袖): the hive keys whose Schools row names a domain this
 // account leads. Such an account sees and moves its own hive's orders — contact details included, since it is the
 // one that settles payment and admission with the family — and nothing of other hives.
+// 蜂巢课程负责人 (api/shared/provider.js): the explicit provider:<key> role, or the school's education leader by inference
 async function providerKeys(roles) {
-  const domains = (roles || []).map((r) => (DOMAIN_LEADER_RE.exec(r) || [])[1]).filter(Boolean);
-  if (!domains.length) return [];
-  const snap = await readSnapshot().catch(() => null);
-  const routing = (snap && snap.private && snap.private.schoolRouting) || {};
-  return Object.keys(routing).filter((k) => routing[k] && routing[k].domain && domains.includes(String(routing[k].domain).toLowerCase()));
+  if (!providerMod.explicitKeys(roles).length && !providerMod.leaderDomains(roles).length) return [];
+  return providerMod.keysOf(roles, await readSnapshot().catch(() => null));
 }
 const ofProvider = (o, keys) => keys.length > 0 && (o.hives || []).some((h) => keys.includes(h.key));
 // Orders are read through this: an order whose time ran out reads as expired (lazy expiry; crm.withExpiry), and the

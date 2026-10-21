@@ -26,8 +26,8 @@ C._test.baseFor({ read: () => new FakeBase(cfg.baseId, "pat-read"), write: () =>
 const T = require(R("api", "shared", "teachers.js"));
 
 const snap = {
-  teacherProfiles: [{ id: "recT1", name: "Zhang Lao", bio: "Old bio", expertise: "", photoUrl: null, subjects: "Math", organization: "BES" }, { id: "recT2", name: "Mr Lee", bio: "Science", expertise: "Labs", photoUrl: "/api/asset?key=teachers/recT2.jpg" }],
-  private: { teachers: [{ id: "recT1", name: "Zhang Lao", teamsAccount: "zhang@bes.edu" }, { id: "recT2", name: "Mr Lee", teamsAccount: "lee@kxc.edu" }, { id: "recT3", name: "Nobody", teamsAccount: "" }] },
+  teacherProfiles: [{ id: "recT1", name: "Zhang Lao", bio: "Old bio", expertise: "", photoUrl: null, subjects: "Math", organization: "BES" }, { id: "recT2", name: "Mr Lee", bio: "Science", expertise: "Labs", photoUrl: "/api/asset?key=teachers/recT2.jpg" }, { id: "recT4", name: "IEW Tutor", bio: "", expertise: "", photoUrl: null, organization: "IEW" }],
+  private: { teachers: [{ id: "recT1", name: "Zhang Lao", teamsAccount: "zhang@bes.edu" }, { id: "recT2", name: "Mr Lee", teamsAccount: "lee@kxc.edu" }, { id: "recT3", name: "Nobody", teamsAccount: "" }, { id: "recT4", name: "IEW Tutor", teamsAccount: "tutor@gmail.com", organization: "IEW" }], schoolRouting: { KXC: { name: "Kids X Center", abbr: "KXC", domain: "kxc.edu" }, IEW: { name: "IEW Inc.", abbr: "IEW", domain: "" } } },
 };
 (async () => {
   // who may edit
@@ -38,7 +38,12 @@ const snap = {
   assert.ok(director.approver && T.mayEdit(director, t1) && T.mayEdit(director, t2), "the curriculum director edits and approves every record");
   assert.ok(!nobody.mine && !T.mayEdit(nobody, t1), "anyone else edits nothing");
   assert.deepStrictEqual(T.visible(leader).map((t) => t.id), ["recT1"], "the leader lists the school's teachers");
-  assert.deepStrictEqual(T.visible(director).map((t) => t.id), ["recT1", "recT2", "recT3"], "approvers list everyone");
+  assert.deepStrictEqual(T.visible(director).map((t) => t.id), ["recT1", "recT2", "recT3", "recT4"], "approvers list everyone");
+  // 蜂巢课程负责人 (v3): the explicit role → the hive's teachers by its domain, or by the Teachers row's organization
+  const kxcLead = T.whoIs("ops@fengchao.life", ["provider:KXC"], snap), iewLead = T.whoIs("ops@fengchao.life", ["provider:IEW"], snap);
+  assert.deepStrictEqual(T.visible(kxcLead).map((t) => t.id), ["recT2"], "KXC's leader: the kxc.edu teacher");
+  assert.deepStrictEqual(T.visible(iewLead).map((t) => t.id), ["recT4"], "IEW has no domain: its teachers by organization");
+  assert.ok(T.mayEdit(iewLead, teacher.all.find((t) => t.id === "recT4")) && !T.mayEdit(iewLead, t1) && !iewLead.approver, "edits its own, approves nothing");
   assert.deepStrictEqual((await T.list(leader))[0], { id: "recT1", name: "Zhang Lao", teamsAccount: "zhang@bes.edu", domain: "bes.edu", organization: "BES", photoUrl: null, hasBio: true, hasExpertise: false, status: "", updatedAt: null, submittedAt: null, mine: false });
 
   // the draft

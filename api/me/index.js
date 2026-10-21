@@ -249,9 +249,8 @@ async function handler(context, req) {
       const teacherRec = ((((snap || {}).private || {}).teachers) || []).find((t) => t.teamsAccount === upn) || null;
       const roles = rolesAll.roles;
       // 机构负责人 (stage 2): the hives whose Schools row names a domain this account leads → the 订单 page for that hive
-      const leaderDomains = roles.map((r) => (DOMAIN_LEADER_RE.exec(r) || [])[1]).filter(Boolean);
-      const routing = (((snap || {}).private || {}).schoolRouting) || {};
-      const providerHives = Object.keys(routing).filter((k) => routing[k] && routing[k].domain && leaderDomains.includes(String(routing[k].domain).toLowerCase())).map((k) => ({ key: k, name: routing[k].name || "", abbr: routing[k].abbr || "" }));
+      // (v3 第二批 ③: the explicit provider:<key> role too — api/shared/provider.js)
+      const providerHives = require("../shared/provider").hivesOf(roles, snap);
       const rec = doc.people[upn] || {};
       context.res = {
         status: 200,

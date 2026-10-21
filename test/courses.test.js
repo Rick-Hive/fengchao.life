@@ -23,8 +23,8 @@ jsonstore.update = async (name, fallback, mutate) => { const doc = await jsonsto
 const blobMod = require(R("api", "shared", "blob.js"));
 blobMod.readSnapshot = async () => ({ generatedAt: "2026-10-18T00:00:00Z", courses: [
   { id: "recCOURSE00000001", code: "SCI-HS-101", nameEn: "Biology", nameZh: "生物", teachers: ["Zhang"], subjects: [{ nameEn: "Science", nameZh: "科学" }], school: { abbr: "KXC" }, available: true },
-  { id: "recCOURSE00000002", code: "MTH-MS-101", nameEn: "Algebra", nameZh: "", teachers: [], subjects: [], school: null, available: true },
-] });
+  { id: "recCOURSE00000002", code: "MTH-MS-101", nameEn: "Algebra", nameZh: "", teachers: [], subjects: [], school: { abbr: "OTH" }, available: true },
+], private: { schoolRouting: { KXC: { name: "Kids X Center", abbr: "KXC", domain: "kxc.edu" }, OTH: { name: "Other", abbr: "OTH", domain: "other.edu" } }, teachers: [{ id: "recT9", name: "Tutor", teamsAccount: "tutor@gmail.com", organization: "KXC" }] } });
 
 // ---- a fake Airtable base: schema + records + what was written ----------------------------------
 const cfg = require(R("api", "shared", "config.js"));
@@ -63,11 +63,11 @@ const session = require(R("api", "shared", "session.js"));
 session.guard = async (context, req) => { if (req.headers && req.headers["x-ms-client-principal"]) return { u: "x" }; context.res = { status: 403, body: { code: "signed_out" } }; return null; };
 session.finish = () => {};
 require(R("api", "shared", "audit.js")).audit = async () => {};
-require(R("api", "shared", "hub.js")).readHub = async () => ({ people: [{ crmId: "P-1", name: "Zhang Lao", keys: ["zhang@a.edu"], facets: { accounts: [{ upn: "zhang@a.edu", identity: "老师", domain: "a.edu" }] } }] });
+require(R("api", "shared", "hub.js")).readHub = async () => ({ people: [{ crmId: "P-1", name: "Zhang Lao", keys: ["zhang@a.edu"], facets: { accounts: [{ upn: "zhang@a.edu", identity: "老师", domain: "a.edu" }, { upn: "zhang@kxc.edu", identity: "老师", domain: "kxc.edu" }] } }, { crmId: "P-9", name: "Zhou Other", keys: ["zhou@other.edu"], facets: { accounts: [{ upn: "zhou@other.edu", identity: "老师", domain: "other.edu" }] } }] });
 require.cache[require.resolve(R("api", "sync", "index.js"))] = { id: "sync", filename: "sync", loaded: true, exports: { runSync: async () => ({ status: 200, body: { ok: true, counts: { courses: 2 } } }) } };
 const handler = require(R("api", "courses", "index.js"));
 
-const ROLES = { "cd@fengchao.life": ["staff:curriculum"], "cm@fengchao.life": ["staff:community"] };
+const ROLES = { "cd@fengchao.life": ["staff:curriculum"], "cm@fengchao.life": ["staff:community"], "lead@kxc.edu": ["provider:KXC"], "head@kxc.edu": ["domain_leader:kxc.edu"] };
 const principal = (u) => Buffer.from(JSON.stringify({ identityProvider: "aad", userId: "x", userDetails: u, userRoles: ["authenticated"].concat(ROLES[u] || []) })).toString("base64");
 async function call(user, method, action, { q, body } = {}) {
   const context = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
@@ -195,6 +195,23 @@ const CD = "cd@fengchao.life", TEACHER = "zhang@a.edu", CM = "cm@fengchao.life",
   assert.deepStrictEqual([r.body.course.code, r.body.course.nameZh], ["SCI-HS-101", "生物"]);
   r = await call(TEACHER, "GET", "roster", { q: { id: "recCOURSE00000002" } }); assert.strictEqual(r.status, 403, "not the teacher's course");
   r = await call(CM, "GET", "roster", { q: { id: "recCOURSE00000002" } }); assert.strictEqual(r.status, 200, "a viewer may read any roster");
+
+  // 蜂巢课程负责人 (v3 第二批 ③): the explicit provider:KXC role, and the school's leader by the routing domain — the hive's
+  // courses are listed (owned), opened like a teacher's, teachers assigned from the hive's own people; never published
+  for (const LEAD of ["lead@kxc.edu", "head@kxc.edu"]) {
+    r = await call(LEAD, "GET", "list"); assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    assert.deepStrictEqual([r.body.courses.map((c) => c.code), r.body.courses[0].owned, r.body.me.provider], [["SCI-HS-101"], true, ["KXC"]], LEAD + " sees its hive's course: " + JSON.stringify(r.body.courses));
+    r = await call(LEAD, "GET", "course", { q: { id: ID } }); assert.strictEqual(r.status, 200, LEAD + " opens it"); assert.strictEqual(r.body.editable.price, false, "the teacher-editable fields only");
+    r = await call(LEAD, "GET", "course", { q: { id: "recCOURSE00000002" } }); assert.strictEqual(r.status, 403, "another provider's course is not theirs");
+    r = await call(LEAD, "POST", "op", { body: { id: ID, op: "publish" } }); assert.strictEqual(r.status, 403, "no publishing");
+    r = await call(LEAD, "POST", "op", { body: { id: ID, op: "assign", code: "SCI-HS-101", person: { upn: "x@other.edu", name: "X" } } }); assert.strictEqual(r.status, 403, "not its own person"); assert.strictEqual(r.body.code, "not_own_person");
+    r = await call(LEAD, "POST", "op", { body: { id: ID, op: "assign", code: "SCI-HS-101", person: { upn: "li@kxc.edu", name: "Li" } } }); assert.strictEqual(r.status, 200, JSON.stringify(r.body)); assert.ok(r.body.assigned.some((p) => p.upn === "li@kxc.edu"), "an account in the hive's domain");
+    r = await call(LEAD, "POST", "op", { body: { id: ID, op: "assign", code: "SCI-HS-101", person: { upn: "tutor@gmail.com", name: "Tutor" } } }); assert.strictEqual(r.status, 200, "a Teachers-table row of the organization, whatever its account's domain");
+    r = await call(LEAD, "POST", "op", { body: { id: "recCOURSE00000002", op: "assign", code: "MTH-MS-101", person: { upn: "li@kxc.edu" } } }); assert.strictEqual(r.status, 403, "not on another provider's course");
+    r = await call(LEAD, "GET", "people", { q: { q: "zh" } }); assert.deepStrictEqual(r.body.people.map((p) => p.upn), ["zhang@kxc.edu"], "the picker: the person's account in the hive's domain, others left out");
+    r = await call(LEAD, "GET", "people", { q: { q: "tutor" } }); assert.deepStrictEqual(r.body.people.map((p) => [p.upn, p.identity]), [["tutor@gmail.com", "老师"]], "the Teachers row the hub does not know");
+    for (const upn of ["li@kxc.edu", "tutor@gmail.com"]) await call(CD, "POST", "op", { body: { id: ID, op: "unassign", person: { upn } } });
+  }
 
   // unassign: the teacher loses the course
   r = await call(CD, "POST", "op", { body: { id: ID, op: "unassign", person: { upn: "zhang@a.edu" } } }); assert.deepStrictEqual(r.body.assigned, []);

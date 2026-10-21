@@ -93,7 +93,7 @@
 
   // Where a sign-in lands when the address has no hash: staff on the dashboard, everyone else on
   // 毕业要求与课程地图 (Rick, 2026-10-19). The router and the sidebar highlight both use this.
-  function landingHash() { return isStaff() ? "#/dashboard" : "#/plan"; }
+  function landingHash() { return isStaff() ? "#/dashboard" : isProviderOnly() ? "#/hive" : "#/plan"; }
   // ---- shell: sidebar, footer, sign-out, drawer ------------------------------
   function nav() {
     var groups = [
@@ -105,8 +105,16 @@
         { hash: "#/calendar", icon: "cal", zh: "我的日历", en: "Calendar" },
         { hash: "#/security", icon: "key", zh: "Teams 登录与安全", en: "Security & Sign-in" },
         { hash: "#/account", icon: "user", zh: "个人资料", en: "Profile" },
-      ].concat(me && me.hive && me.hive.teacherId ? [{ hash: "#/teacher", icon: "user", zh: "教师资料", en: "Teacher profile" }] : []).concat(coursesInfo && !coIsApprover() && !coIsViewer() && (coursesInfo.courses || []).length ? [{ hash: "#/courses", icon: "book", zh: "我的课程", en: "My courses", badge: coMyBadge() }] : []) },
+      ].concat(me && me.hive && me.hive.teacherId ? [{ hash: "#/teacher", icon: "user", zh: "教师资料", en: "Teacher profile" }] : []) },
     ];
+    // 蜂巢课程 / Hive Courses (v3 第二批 ③, Rick 2026-10-21): the quick entry for a Hive course teacher (我的课程) and for a
+    // provider's leader (概览 · 课程 · 订单 · 老师), beside 我的账号 and the school group — a person can hold both.
+    var prov = providerHives().length > 0, hiveItems = [];
+    if (prov) hiveItems.push({ hash: "#/hive", icon: "chart", zh: "概览", en: "Overview" });
+    if (prov || (coursesInfo && !coIsApprover() && !coIsViewer() && (coursesInfo.courses || []).length)) hiveItems.push({ hash: "#/courses", icon: "book", zh: prov ? "课程" : "我的课程", en: prov ? "Courses" : "My courses", badge: coMyBadge() });
+    if (prov && isProviderOnly()) hiveItems.push({ hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" });
+    if (prov && !isAdmin() && !coIsApprover() && !teIsLeader()) hiveItems.push({ hash: "#/domain/teachers", icon: "users", zh: "老师", en: "Teachers" });
+    if (hiveItems.length) groups.push({ title: t("蜂巢课程", "Hive Courses"), items: hiveItems });
     if (domainsInfo && domainsInfo.domains && domainsInfo.domains.length) {
       // Accounts pages for whoever may view a school's accounts (IT 管理员, staff); 课程方案
       // for an 教育领袖 (who sees nothing else of the school), 课程总监 and the sysadmin.
@@ -119,10 +127,8 @@
         .concat(teCanManage() ? [{ hash: "#/domain/teachers", icon: "users", zh: "教师资料", en: "Teacher profiles" }] : [])
         .concat(seesAccounts ? [{ hash: "#/domain/handbook", icon: "book", zh: "操作手册", en: "Handbook" }] : []) });
     }
-    // 机构负责人 (stage 2, 2026-10-21): the 订单 page for their own hive's orders, nothing else of 经营
-    if (isProviderOnly() && !isStaff()) {
-      groups.push({ title: t("经营", "Operations"), items: [{ hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" }] });
-    } else if (canSeeOrders() || isStaff()) {
+    // (a provider's leader without a CRM level finds 订单 under 蜂巢课程 above, nothing else of 经营)
+    if (canSeeOrders() || isStaff()) {
       groups.push({ title: t("经营", "Operations"), items: [
         { hash: "#/dashboard", icon: "chart", zh: "仪表盘", en: "Dashboard" },
         { hash: "#/ops/orders", icon: "cart", zh: "订单", en: "Orders" },

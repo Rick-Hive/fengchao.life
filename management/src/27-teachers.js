@@ -7,7 +7,7 @@
 
   var teState = { list: null, me: null, doc: null, timers: {}, filter: "all", scope: "" };
   function teIsLeader() { return ((me && me.roles) || []).some(function (r) { return /^domain_leader:/.test(r); }); }
-  function teCanManage() { return isAdmin() || coIsApprover() || teIsLeader(); }
+  function teCanManage() { return isAdmin() || coIsApprover() || teIsLeader() || providerHives().length > 0; }
   function teStatusTag(s) {
     var m = { "": ["未修改", "Unchanged", "muted"], draft: ["草稿", "Draft", ""], submitted: ["待审批", "Pending approval", "accent"], published: ["已发布", "Published", "ok"] }[s] || ["", "", ""];
     return m[0] ? '<span class="tag ' + m[2] + '">' + esc(t(m[0], m[1])) + "</span>" : "";
@@ -28,7 +28,8 @@
 
   // ---- 学校管理 › 教师资料: the school's (or every) teacher, a panel per row ----------------------------------
   function viewTeachers() {
-    setTitle(domainGroupTitle(), t("教师资料", "Teacher profiles"), "", { info: t("本校在蜂巢授课的老师：照片、简介、专长是否齐全，谁的资料待批准。点一行即可填写或批准。", "The school's Hive course teachers: whether the photo, biography and expertise are there, and whose changes await approval. Click a row to fill in or approve.") });
+    var provOnly = providerHives().length > 0 && !isAdmin() && !coIsApprover() && !teIsLeader();
+    setTitle(provOnly ? t("蜂巢课程", "Hive Courses") : domainGroupTitle(), provOnly ? t("老师", "Teachers") : t("教师资料", "Teacher profiles"), "", { info: provOnly ? t("本机构在蜂巢授课的老师（教师表）：照片、简介、专长是否齐全。点一行可以填写；审批归课程总监。没有 Teams 账号的老师请联系蜂巢开通。", "Your institution's Hive course teachers (the Teachers table): whether the photo, biography and expertise are there. Click a row to fill in; approval is the curriculum director's. Ask Hive for a Teams account for a teacher who has none.") : t("本校在蜂巢授课的老师：照片、简介、专长是否齐全，谁的资料待批准。点一行即可填写或批准。", "The school's Hive course teachers: whether the photo, biography and expertise are there, and whose changes await approval. Click a row to fill in or approve.") });
     $("content").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     teLoadList().then(function (r) {
       if (!r.ok) { $("content").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }

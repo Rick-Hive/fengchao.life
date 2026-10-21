@@ -36,7 +36,9 @@
   function coName(c, lang) { var f = c.fields || c; var l = lang || co.lang; return (l === "en" ? f.nameEn || f.nameZh : f.nameZh || f.nameEn) || t("（未命名）", "(untitled)"); }
   function coIsApprover() { return !!(coursesInfo && coursesInfo.me && coursesInfo.me.approver); }
   function coIsViewer() { return !!(coursesInfo && coursesInfo.me && coursesInfo.me.viewer); }
-  function coHasCourses() { return !!(coursesInfo && ((coursesInfo.courses || []).length || coIsApprover() || coIsViewer())); }
+  // 蜂巢课程负责人 (v3 第二批 ③): courses/list says which hives the account leads; its own courses carry `owned`
+  function coIsProvider() { return !coIsApprover() && !coIsViewer() && !!(coursesInfo && coursesInfo.me && (coursesInfo.me.provider || []).length); }
+  function coHasCourses() { return !!(coursesInfo && ((coursesInfo.courses || []).length || coIsApprover() || coIsViewer() || coIsProvider())); }
   function coFileSize(n) { n = Number(n) || 0; return n >= 1024 * 1024 ? (n / 1024 / 1024).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
   function coAgo(iso) { if (!iso) return ""; var d = (Date.now() - new Date(iso).getTime()) / 86400000; return d < 1 ? t("今天", "today") : Math.floor(d) + t(" 天", " d"); }
   // the sidebar badges: returned / newly published for a teacher, submitted for an approver
@@ -52,10 +54,10 @@
     var h = location.hash, m = /^#\/courses\/(rec[A-Za-z0-9]{14})/.exec(h);
     if (m) return viewCourseEditor(m[1]);
     if (!coHasCourses()) { location.hash = "#/account"; return; }
-    var manage = coIsApprover() || coIsViewer();
+    var manage = coIsApprover() || coIsViewer() || coIsProvider(), prov = coIsProvider();
     if (/^#\/courses\/(pending|assign|draft|returned|published)/.test(h)) co.tab = RegExp.$1; else if (!/^#\/courses\/?$/.test(h) && manage) co.tab = co.tab || "all"; else co.tab = "all";
-    setTitle(manage ? t("经营", "Operations") : t("我的账号", "My account"), manage ? t("课程管理", "Course management") : t("我的课程", "My courses"), "",
-      { info: manage ? t("老师在蜂巢里维护自己的课程，提交后由课程总监、CEO 或系统管理员审批发布，发布时写入 Airtable 并更新网站。这里分配老师、审批、查看每门课的状态。", "Teachers maintain their courses in Hive; the curriculum director, the CEO or the system administrator reviews and publishes, which writes to Airtable and refreshes the website. Assign teachers, review and follow every course here.")
+    setTitle(prov ? t("蜂巢课程", "Hive Courses") : manage ? t("经营", "Operations") : t("蜂巢课程", "Hive Courses"), prov ? t("课程", "Courses") : manage ? t("课程管理", "Course management") : t("我的课程", "My courses"), "",
+      { info: prov ? t("本机构的课程，以及分配给你的课程。打开一门课修改属性（老师可编辑的字段），提交后由课程总监审批发布；「分配」把本机构的老师加到课程上，老师就能在蜂巢里编辑它。", "Your institution's courses, and those assigned to you. Open one to change it (the teacher-editable fields) and submit it; the curriculum director reviews and publishes. “Assign” adds one of your institution's teachers to a course so they can edit it in Hive.") : manage ? t("老师在蜂巢里维护自己的课程，提交后由课程总监、CEO 或系统管理员审批发布，发布时写入 Airtable 并更新网站。这里分配老师、审批、查看每门课的状态。", "Teachers maintain their courses in Hive; the curriculum director, the CEO or the system administrator reviews and publishes, which writes to Airtable and refreshes the website. Assign teachers, review and follow every course here.")
         : t("分配给你的课程。打开一门课修改属性，保存后提交审批；发布后出现在网站上。", "The courses assigned to you. Open one to change it, then submit it for approval; once published it appears on the website.") });
     $("content").innerHTML = '<div id="cobody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     api("courses/list").then(function (r) {
@@ -119,13 +121,13 @@
     $("cobody").innerHTML =
       '<div class="toolbar sticky" id="cotabs">' + FILTERS.map(function (f) { return '<button type="button" class="chip" data-tab="' + f[0] + '" aria-pressed="' + (co.tab === f[0]) + '">' + esc(f[1]) + ' <span class="cnt' + (f[0] === "pending" && f[2].length ? " cobadge" : "") + '">' + f[2].length + "</span></button>"; }).join("") +
         '<div class="tabsRight"><input type="search" id="coq" placeholder="' + esc(t("搜索课程、老师", "Search courses, teachers")) + '" value="' + esc(co.q) + '" />' +
-        (sync && sync.pending ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") + "</div>" + pagerTile("courses", cpg) + "</div>" +
+        (sync && sync.pending && coIsApprover() ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") + "</div>" + pagerTile("courses", cpg) + "</div>" +
       '<div class="tbl-wrap"><table class="data" id="cotable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学科", "Subject") + "</th><th>" + t("学校", "School") + "</th><th>" + t("老师", "Teachers") + "</th><th>" + t("进度", "Progress") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (c) {
         var waiting = c.status === "submitted" || c.status === "reviewing" ? (Date.now() - new Date(c.submittedAt).getTime()) / 86400000 : 0;
         return '<tr class="pick" data-id="' + esc(c.id) + '"><td><span class="dn">' + esc(coName(c)) + '</span><span class="sub">' + esc(c.code || "") + "</span></td>" +
           "<td>" + (c.subjects || []).map(function (s) { return esc(t(s.nameZh || s.nameEn, s.nameEn || s.nameZh)); }).join(", ") + "</td><td>" + esc(c.school || "") + "</td>" +
-          '<td class="coassigned">' + ((c.assigned || []).length ? (c.assigned || []).map(function (p) { return '<span class="tag">' + esc(p.name || p.upn) + "</span>"; }).join(" ") : '<span class="faint">' + ((c.teachers || []).join(", ") || "—") + "</span>") + ' <button type="button" class="linkbtn" data-assign="' + esc(c.id) + '">' + t("分配", "Assign") + "</button></td>" +
+          '<td class="coassigned">' + ((c.assigned || []).length ? (c.assigned || []).map(function (p) { return '<span class="tag">' + esc(p.name || p.upn) + "</span>"; }).join(" ") : '<span class="faint">' + ((c.teachers || []).join(", ") || "—") + "</span>") + (coIsApprover() || c.owned ? ' <button type="button" class="linkbtn" data-assign="' + esc(c.id) + '">' + t("分配", "Assign") + "</button>" : "") + "</td>" +
           "<td>" + coMiniSteps(c.status) + coStatusTag(c.status) + (waiting >= 1 ? ' <span class="' + (waiting > 7 ? "tag warn" : "faint") + '">' + t("等待 ", "waiting ") + Math.floor(waiting) + t(" 天", " d") + "</span>" : "") + "</td>" +
           '<td class="faint">' + esc(c.updatedAt ? when(c.updatedAt) : "") + "</td></tr>";
       }).join("") : '<tr><td colspan="6" class="faint">' + (co.tab === "pending" ? t("没有待审批的课程。", "Nothing to review.") : co.tab !== "all" && !q ? t("这个状态下没有课程。", "No course in this state.") : t("没有匹配的课程。", "No matching course.")) + "</td></tr>") + "</tbody></table></div>";
@@ -145,7 +147,7 @@
     panelOpen('<div class="ph"><span class="avatar">👩‍🏫</span><h3>' + esc(coName(c)) + ' <small class="faint">' + esc(c.code || "") + '</small></h3><button class="x" type="button" aria-label="close">✕</button></div>' +
       '<div class="pb"><h4>' + t("已分配的老师", "Assigned teachers") + '</h4><div id="coAssigned"></div>' +
       '<h4>' + t("添加老师", "Add a teacher") + '</h4><input type="search" id="coPq" placeholder="' + esc(t("输入姓名或账号（人员库）", "Name or account (people hub)")) + '" autocomplete="off" /><div id="coPres" class="copres"></div>' +
-      '<p class="hint">' + esc(t("分配的老师可以在蜂巢里编辑这门课；有 Teams 账号才能登录。分配不会自动改网站上显示的「授课老师」，那在编辑器的「授课老师」字段里改。", "An assigned teacher can edit this course in Hive (a Teams account is needed to sign in). Assigning does not change the website's “Teachers” by itself — that is the Teachers field in the editor.")) + "</p></div>");
+      '<p class="hint">' + esc(t("分配的老师可以在蜂巢里编辑这门课；有 Teams 账号才能登录。分配不会自动改网站上显示的「授课老师」，那在编辑器的「授课老师」字段里改。", "An assigned teacher can edit this course in Hive (a Teams account is needed to sign in). Assigning does not change the website's “Teachers” by itself — that is the Teachers field in the editor.") + (coIsProvider() ? " " + t("只能分配本机构的人：本机构域下的账号，或教师表里属于本机构的老师。", "Your own people only: accounts in your institution's domain, or teachers listed under it in the Teachers table.") : "")) + "</p></div>");
     function paint() {
       $("coAssigned").innerHTML = people.length ? people.map(function (p) {
         return '<div class="corow"><span class="avatar">' + esc(initials(p.name || p.upn || "?")) + '</span><span class="corow-t"><b>' + esc(p.name || p.upn) + '</b><small>' + (p.upn ? esc(p.upn) : '<span class="tag warn">' + t("没有 Teams 账号，无法登录编辑", "No Teams account — cannot sign in") + "</span>") + '</small></span><button type="button" class="linkbtn" data-rm="' + esc(p.upn || p.crmId) + '">' + t("移除", "Remove") + "</button></div>";

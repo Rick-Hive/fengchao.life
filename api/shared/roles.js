@@ -7,6 +7,10 @@
 //                       which reads as the principal): the domain's accounts — create,
 //                       edit, licence, password, sign-in devices, delete — its Teams
 //                       groups, and 身份 / 关联账号 / 备注.
+//   蜂巢课程负责人        `provider:<hiveKey>`   — Hive Course Leader (v3, Rick 2026-10-21): runs a course
+//                       provider's side of Hive — its orders, courses and teachers (api/shared/provider.js).
+//                       Explicit, for providers without a tenant domain; a school's 教育领袖 holds it for the
+//                       school's own hive by inference. System administrator only.
 //   教育领袖              `domain_leader:<domain>` — the school's education leader (Rick,
 //                       2026-10-08/12): sets the school's graduation credit requirements
 //                       and curriculum map (课程方案), which the school's families then see
@@ -49,6 +53,7 @@ const DOMAIN = "[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}";
 const DOMAIN_IT_RE = new RegExp(`^domain_it:(${DOMAIN})$`);
 const DOMAIN_ADMIN_RE = new RegExp(`^domain_admin:(${DOMAIN})$`); // legacy: both
 const DOMAIN_LEADER_RE = new RegExp(`^domain_leader:(${DOMAIN})$`);
+const PROVIDER_RE = /^provider:([A-Z0-9一-鿿]{1,12})$/; // = require("./provider").PROVIDER_RE (kept here: provider.js needs hive.js only)
 const STAFF_RE = /^staff:(ceo|curriculum|fundraising|partnership|consultant|community|finance|sales|sysadmin)$/;
 
 const STAFF = {
@@ -68,6 +73,7 @@ const STAFF = {
 const KINDS = {
   domain_it: { zh: "IT 管理员", en: "IT administrator" },
   domain_leader: { zh: "教育领袖", en: "Education leader" },
+  provider: { zh: "蜂巢课程负责人", en: "Hive Course Leader" },
   staff: { zh: "Staff", en: "Staff" },
 };
 // Kept for old callers; everything assignable is described by the regexes above.
@@ -75,7 +81,7 @@ const ASSIGNABLE = { admin: { zh: "系统管理员", en: "System administrator" 
 
 function isAssignable(role) {
   const r = String(role || "");
-  return r === "admin" || DOMAIN_IT_RE.test(r) || DOMAIN_LEADER_RE.test(r) || STAFF_RE.test(r);
+  return r === "admin" || DOMAIN_IT_RE.test(r) || DOMAIN_LEADER_RE.test(r) || PROVIDER_RE.test(r) || STAFF_RE.test(r);
 }
 
 // Roles as a person sees them, for lists and pickers.
@@ -85,6 +91,7 @@ function roleLabel(role, lang) {
   if ((m = DOMAIN_IT_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
   if ((m = DOMAIN_ADMIN_RE.exec(role))) return `${en ? KINDS.domain_it.en : KINDS.domain_it.zh} · ${m[1]}`;
   if ((m = DOMAIN_LEADER_RE.exec(role))) return `${en ? KINDS.domain_leader.en : KINDS.domain_leader.zh} · ${m[1]}`;
+  if ((m = PROVIDER_RE.exec(role))) return `${en ? KINDS.provider.en : KINDS.provider.zh} · ${m[1]}`;
   if ((m = STAFF_RE.exec(role))) return `Staff · ${en ? STAFF[m[1]].en : STAFF[m[1]].zh}`;
   if (role === "admin") return en ? "System administrator" : "系统管理员";
   if (role === "coordinator") return en ? "Staff · Education community manager (old name)" : "Staff · 教育社区经理（旧名）";
@@ -277,7 +284,7 @@ async function userRoles(req) {
 
 // A school's account — IT administrator or education leader — is not a family: it may look and select on the map but
 // never orders for a family (Rick, 2026-10-20: 「管理员不能代下单」; a school buys in bulk instead, 团购, to come).
-function isSchoolAccount(roles) { return (roles || []).some((r) => DOMAIN_IT_RE.test(r) || DOMAIN_ADMIN_RE.test(r) || DOMAIN_LEADER_RE.test(r)); }
+function isSchoolAccount(roles) { return (roles || []).some((r) => DOMAIN_IT_RE.test(r) || DOMAIN_ADMIN_RE.test(r) || DOMAIN_LEADER_RE.test(r) || PROVIDER_RE.test(r)); }
 
 // True when the account holds `role`, or is an admin.
 async function userHasRole(req, role) {
@@ -286,4 +293,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser, isSchoolAccount };
+module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, PROVIDER_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser, isSchoolAccount };
