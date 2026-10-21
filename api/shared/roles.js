@@ -201,6 +201,13 @@ function blobClient() {
 function normUser(u) {
   return String(u || "").trim().toLowerCase();
 }
+// A role as stored: lower-case, except the hive key of 蜂巢课程负责人, which is hive.hiveKey() — upper-case
+// (Rick 2026-10-21: assigning provider:SHINE failed as "unknown role: provider:shine").
+function normRole(r) {
+  const s = String(r || "").trim();
+  const m = /^provider:(.+)$/i.exec(s);
+  return m ? "provider:" + m[1].toUpperCase() : s.toLowerCase();
+}
 
 function normalizeRoles(parsed) {
   const entries = Array.isArray(parsed && parsed.entries) ? parsed.entries : [];
@@ -208,7 +215,7 @@ function normalizeRoles(parsed) {
     entries: entries
       .map((e) => ({
         user: normUser(e.user),
-        roles: Array.isArray(e.roles) ? e.roles.filter(isAssignable) : [],
+        roles: Array.isArray(e.roles) ? e.roles.map(normRole).filter(isAssignable) : [],
         by: e.by || "",
         at: e.at || "",
       }))
@@ -277,7 +284,7 @@ async function userRoles(req) {
   // A sign-in from before a role was deleted (domain_hive, staff:contractor) still
   // carries it in the principal; only roles that exist today (or their old names) count.
   const known = (r) => isAssignable(r) || DOMAIN_ADMIN_RE.test(r) || r === "coordinator";
-  const roles = new Set((p.userRoles || []).filter((r) => r !== "anonymous" && r !== "authenticated" && known(r)));
+  const roles = new Set((p.userRoles || []).map(normRole).filter((r) => r !== "anonymous" && r !== "authenticated" && known(r)));
   if (user) (await rolesFor(user)).forEach((r) => roles.add(r));
   return { user, roles: Array.from(roles) };
 }
@@ -293,4 +300,4 @@ async function userHasRole(req, role) {
   return roles.includes(role) || isAdmin(roles);
 }
 
-module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, PROVIDER_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser, isSchoolAccount };
+module.exports = { ASSIGNABLE, STAFF, KINDS, staffFunctions, canAssign, DOMAIN_IT_RE, DOMAIN_ADMIN_RE, DOMAIN_LEADER_RE, PROVIDER_RE, STAFF_RE, BOOTSTRAP_ADMINS, isAssignable, normRole, roleLabel, managedDomains, can, isAdmin, isStaff, readRoles, writeRoles, updateRoles, rolesFor, userRoles, userHasRole, normUser, isSchoolAccount };

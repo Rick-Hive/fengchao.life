@@ -14,7 +14,7 @@
 // Accounts are stored lowercase; roles are limited to the ASSIGNABLE set in
 // api/shared/roles.js.
 const { getPrincipal } = require("../shared/auth");
-const { STAFF, KINDS, isAssignable, roleLabel, readRoles, writeRoles, updateRoles, normUser, userRoles, isAdmin, canAssign } = require("../shared/roles");
+const { STAFF, KINDS, isAssignable, normRole, roleLabel, readRoles, writeRoles, updateRoles, normUser, userRoles, isAdmin, canAssign } = require("../shared/roles");
 const { guard, finish } = require("../shared/session");
 const dir = require("../shared/directory");
 
@@ -84,7 +84,7 @@ async function handler(context, req) {
     }
     let wanted = null; // null = DELETE
     if (method !== "DELETE") {
-      wanted = Array.isArray(body.roles) ? body.roles.map((r) => String(r).trim().toLowerCase()) : [];
+      wanted = Array.isArray(body.roles) ? body.roles.map(normRole) : [];
       const bad = wanted.filter((r) => !isAssignable(r));
       if (bad.length) {
         context.res = { status: 400, body: { error: "unknown role: " + bad.join(", ") } };

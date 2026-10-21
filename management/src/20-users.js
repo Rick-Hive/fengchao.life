@@ -190,7 +190,7 @@
     else if (state.allDomains == null) state.allDomains = true; // 所有学校 by default for whoever manages several (Rick, 2026-10-20)
     var all = state.allDomains;
     setTitle(domainGroupTitle(), t("用户管理", "User management"),
-      (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>",
+      (all ? "" : (canDo("methods") ? '<button class="btn sm" id="newUser">' + t("＋ 新建账号", "+ New account") + "</button> " : "") + (canDo("people") ? '<button class="btn secondary sm" id="idBulk">' + t("批量设置身份…", "Set identity in bulk…") + "</button> " : "") + syncButtons("us")) + ' <button class="btn secondary sm" id="csv">' + t("导出 CSV", "Export CSV") + "</button>",
       t("本校的每一个账号：验证器与设备、Teams 群组、身份、关联账号。数据来自每夜刷新的目录缓存；点一行打开人员面板。身份未填时按许可证推断：学生版 A1 为学生，其余为家长；身份与许可证对不上的账号标为异常。", "Every account of the school: authenticator and devices, Teams groups, identity, linked accounts. From the directory cache refreshed nightly; click a row for the person's panel. An unset identity is inferred from the license: A1 for students → student, otherwise parent; an identity that contradicts the license is flagged."));
     // Role filter (Rick, 2026-10-08): identity (家长/学生/老师/行政/教育顾问), Hive roles
     // (domain IT, domain Hive, staff, system administrator) and 蜂巢课程教师 — within the
@@ -245,6 +245,7 @@
       e.stopPropagation(); reloadAllUsers(Number(b.getAttribute("data-offset")));
     });
     var nu = $("newUser"); if (nu) nu.addEventListener("click", function () { openNewUserPanel(currentDomain); });
+    var ib = $("idBulk"); if (ib) ib.addEventListener("click", function () { openIdentityBulkPanel(currentDomain); });
     $("utable").addEventListener("click", function (e) {
       var gb = e.target.closest("button[data-group]");
       var trd = e.target.closest("tr[data-dom]"), rowDom = trd ? trd.getAttribute("data-dom") : "";
@@ -255,6 +256,45 @@
       openUserPanel(tr.getAttribute("data-upn"), rowDom || undefined);
     });
     (state.allDomains ? loadAllUsers() : loadDomainData("users")).then(renderUsers).catch(showUsersError);
+  }
+  // 批量设置身份 (Rick 2026-10-21): one identity for the school's accounts, and — the IT 管理员 only — written to each
+  // Microsoft account's 职务 (jobTitle), never to department (policy 2026-10-10). 预览 first (a dry run), then 执行.
+  function openIdentityBulkPanel(domain) {
+    var canWrite = canDo("methods");
+    panelOpen('<div class="ph"><span class="avatar">👥</span><h3>' + t("批量设置身份", "Set identity in bulk") + ' <small class="faint">' + esc(dname(domain)) + '</small></h3><button class="x" type="button" aria-label="close">✕</button></div>' +
+      '<div class="pb"><p class="hint">' + esc(t("把本校账号的身份一次设好。先「预览」看会改哪些账号，再「执行」。写入 Office 365 时写的是账号的职务（jobTitle）字段，不写部门（department）。", "Set the identity of the school's accounts in one go. 预览 shows which accounts would change; 执行 applies it. Writing to Office 365 sets each account's job title (jobTitle), never the department.")) + "</p>" +
+        '<label class="f">' + t("身份", "Identity") + '<select id="ibId">' + IDENTITIES.map(function (i) { return '<option value="' + esc(i) + '">' + esc(vl(i)) + "</option>"; }).join("") + "</select></label>" +
+        '<label class="f">' + t("范围", "Scope") + '<select id="ibScope"><option value="all">' + t("本校全部账号", "Every account of the school") + '</option><option value="noid">' + t("仅身份未填的账号", "Only accounts without an identity") + "</option></select></label>" +
+        '<label class="chk"><input type="checkbox" id="ibStu" /> ' + t("包含学生版许可（A1 for students）的账号", "Include accounts on the A1-for-students plan") + "</label>" +
+        '<label class="chk"><input type="checkbox" id="ibWrite"' + (canWrite ? "" : " disabled") + ' /> ' + t("同时写入 Office 365 账号的职务（jobTitle）", "Also write it to the Office 365 account's job title (jobTitle)") + (canWrite ? "" : ' <span class="faint">' + t("（需要 IT 管理员）", "(IT administrator only)") + "</span>") + "</label>" +
+        '<div class="actions"><button type="button" class="btn secondary" id="ibPreview">' + t("预览", "Preview") + '</button><button type="button" class="btn" id="ibGo" disabled>' + t("执行", "Apply") + "</button></div>" +
+        '<div id="ibMsg"></div></div>');
+    var body = function (dry) { return { domain: domain, identity: $("ibId").value, scope: $("ibScope").value, includeStudentPlan: $("ibStu").checked, writeBack: $("ibWrite").checked, dryRun: !!dry }; };
+    var why = { disabled: t("已停用", "disabled"), has_identity: t("已有身份", "has an identity"), student_plan: t("学生版许可", "student plan") };
+    var skippedText = function (sk) { var c = {}; (sk || []).forEach(function (x) { c[x.why] = (c[x.why] || 0) + 1; }); return Object.keys(c).map(function (k) { return c[k] + " " + (why[k] || k); }).join("，"); };
+    $("ibPreview").addEventListener("click", function () {
+      var b = this; savingButton(b, t("预览中…", "Previewing…"));
+      post("domain/identity-bulk", "POST", body(true)).then(function (r) {
+        restoreButton(b);
+        if (!r.ok) { $("ibMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        var d = r.body;
+        $("ibMsg").innerHTML = '<div class="msg">' + esc(t("将把 " + d.count + " 个账号的身份设为「" + vl(d.identity) + "」" + (d.writeBack ? "，并写入 Office 365" : "") + "。", d.count + " account(s) → “" + vl(d.identity) + "”" + (d.writeBack ? ", written to Office 365 too" : "") + ".")) + (d.skipped.length ? "<br>" + esc(t("跳过 " + d.skipped.length + " 个：", "Skipped " + d.skipped.length + ": ") + skippedText(d.skipped)) : "") + "</div>";
+        $("ibGo").disabled = !d.count;
+      });
+    });
+    ["ibId", "ibScope", "ibStu", "ibWrite"].forEach(function (id) { $(id).addEventListener("change", function () { $("ibGo").disabled = true; $("ibMsg").innerHTML = ""; }); });
+    $("ibGo").addEventListener("click", function () {
+      var b = this, bd = body(false);
+      if (!window.confirm(t("确定把 " + dname(domain) + " 的账号身份设为「" + vl(bd.identity) + "」" + (bd.writeBack ? "并写入 Office 365" : "") + "？", "Set the identity of " + dname(domain) + "'s accounts to “" + vl(bd.identity) + "”" + (bd.writeBack ? " and write it to Office 365" : "") + "?"))) return;
+      savingButton(b, t("执行中…", "Applying…"));
+      post("domain/identity-bulk", "POST", bd).then(function (r) {
+        if (!r.ok) { restoreButton(b); $("ibMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        var d = r.body;
+        delete state.domainUsers[domain];
+        savedAndClose(b, esc(t("已设置 " + d.count + " 个账号的身份为「" + vl(d.identity) + "」", d.count + " account(s) set to “" + vl(d.identity) + "”")) + (d.writeBack ? esc(t("，写入 Office 365 " + d.written.length + " 个" + (d.failed.length ? "，失败 " + d.failed.length + " 个：" + d.failed.map(function (f) { return f.upn; }).join("、") : ""), "; " + d.written.length + " written to Office 365" + (d.failed.length ? ", " + d.failed.length + " failed: " + d.failed.map(function (f) { return f.upn; }).join(", ") : ""))) : "") + (d.skipped.length ? esc(t("；跳过 " + d.skipped.length + " 个（" + skippedText(d.skipped) + "）", "; skipped " + d.skipped.length + " (" + skippedText(d.skipped) + ")")) : ""));
+        loadDomainData("users", true).then(renderUsers).catch(showUsersError);
+      });
+    });
   }
   function showUsersError(e) { var tb = $("utable") && $("utable").tBodies[0]; if (tb) tb.innerHTML = '<tr><td colspan="7"><div class="msg err">' + esc(e.message || e) + "</div></td></tr>"; }
   // 从未登录 = no sign-in time from Microsoft AND no authenticator: registering one takes a

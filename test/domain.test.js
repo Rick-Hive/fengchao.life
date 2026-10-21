@@ -377,6 +377,36 @@ const IT = [`domain_it:${DOMAIN}`], HIVE = [`domain_hive:${DOMAIN}`]; // HIVE: t
   r = await call({ action: "person", method: "PATCH", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, linked: `lei@${DOMAIN}` }, user: DOMADMIN, roles: DOMROLE });
   assert.strictEqual(r.status, 400, "an account cannot be linked to itself");
 
+  // 7b. 批量设置身份 (2026-10-21): a dry run names the accounts; the run writes people.json and, with writeBack, each
+  //     account's jobTitle (never department); staff may set identities but only the IT 管理员 writes the accounts;
+  //     scope "noid" skips accounts that already have one; a student-plan account is skipped unless asked for
+  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "老师", scope: "all", dryRun: true }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.dryRun, r.body.count, r.body.picked.sort()], [true, 2, [`elaine@${DOMAIN}`, `lei@${DOMAIN}`]], "both members, the guest left out: " + JSON.stringify(r.body));
+  assert.strictEqual((peopleStore.people || {})[`elaine@${DOMAIN}`], undefined, "a dry run writes nothing");
+  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "老师", writeBack: true }, user: "cm@fengchao.life", roles: ["staff:community"] });
+  assert.strictEqual(r.status, 403, "staff do not write the Microsoft accounts");
+  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "校长" }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 400);
+  const before = userPatches.length;
+  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "老师", scope: "all", writeBack: true }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  assert.deepStrictEqual([r.body.count, r.body.written.length, r.body.failed], [2, 2, []]);
+  assert.strictEqual(peopleStore.people[`lei@${DOMAIN}`].identity, "老师", "the identity set a moment ago is replaced (scope all)");
+  assert.strictEqual(peopleStore.people[`elaine@${DOMAIN}`].identity, "老师");
+  const jt = userPatches.slice(before).map((x) => [x.id, x.body]);
+  assert.deepStrictEqual(jt.sort(), [["u-elaine", { jobTitle: "老师" }], ["u-lei", { jobTitle: "老师" }]], "jobTitle written, department untouched: " + JSON.stringify(jt));
+  assert.strictEqual(JSON.parse(blobs[`${DOMAIN}.json`]).users.find((x) => x.id === "u-elaine").jobTitle, "老师", "the cache row follows");
+  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "家长", scope: "noid", dryRun: true }, user: DOMADMIN, roles: IT });
+  assert.deepStrictEqual([r.body.count, r.body.skipped.map((x) => x.why)], [0, ["has_identity", "has_identity"]], "noid: everyone has one now");
+  { const d = JSON.parse(blobs[`${DOMAIN}.json`]); d.users.find((x) => x.id === "u-lei").plan = "student"; blobs[`${DOMAIN}.json`] = JSON.stringify(d); }
+  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "家长", dryRun: true }, user: DOMADMIN, roles: IT });
+  assert.deepStrictEqual([r.body.count, r.body.skipped.map((x) => x.why)], [1, ["student_plan"]], "a student-plan account is not made a parent");
+  r = await call({ action: "identity-bulk", method: "POST", body: { domain: DOMAIN, identity: "家长", includeStudentPlan: true, dryRun: true }, user: DOMADMIN, roles: IT });
+  assert.strictEqual(r.body.count, 2, "…unless asked");
+  { const d = JSON.parse(blobs[`${DOMAIN}.json`]); d.users.find((x) => x.id === "u-lei").plan = ""; blobs[`${DOMAIN}.json`] = JSON.stringify(d); }
+  r = await call({ action: "person", method: "PATCH", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, identity: "学生" }, user: DOMADMIN, roles: IT }); // as step 7 left it
+
   // 8. Deleting a verifier: outside account refused; unknown id 404; a real one is deleted; the reply counts what remains.
   r = await call({ action: "method", method: "DELETE", body: { domain: DOMAIN, user: `lei@${DOMAIN}`, id: "auth-lei-1" }, user: DOMADMIN, roles: HIVE });
   assert.strictEqual(r.status, 403, "域蜂巢管理员 does not remove devices");

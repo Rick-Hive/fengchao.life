@@ -12,7 +12,7 @@
   // state and small helpers
   // ================================================================================
   var coursesInfo = null; // /api/courses/list at boot: { me: {approver, viewer}, courses: [...], none }
-  var co = { list: null, lookups: null, tab: "all", q: "", id: null, course: null, editable: null, translation: null, needs: 0, assigned: [],
+  var co = { list: null, lookups: null, tab: "all", q: "", school: "", id: null, course: null, editable: null, translation: null, needs: 0, assigned: [],
     lang: LANG, timers: {}, pending: {}, saving: 0, savedAt: null, failed: false, prevOpen: false, syncPoll: null };
   var CO_STATUS = { "": ["未编辑", "Not edited", ""], draft: ["编辑中", "Editing", ""], submitted: ["待审批", "Submitted", "accent"], reviewing: ["审阅中", "In review", "accent"], returned: ["已退回", "Returned", "warn"], published: ["已发布", "Published", "ok"] };
   var CO_FILE_CHUNK = 2 * 1024 * 1024, CO_PDF_MAX = 10 * 1024 * 1024;
@@ -113,6 +113,13 @@
     var FILTERS = [["all", t("全部", "All"), list], ["draft", t("编辑中", "Editing"), list.filter(function (c) { return !c.status || c.status === "draft"; })], ["pending", t("待审批", "Pending approval"), pending], ["returned", t("已退回", "Returned"), list.filter(function (c) { return c.status === "returned"; })], ["published", t("已发布", "Published"), list.filter(function (c) { return c.status === "published"; })]];
     if (!FILTERS.some(function (f) { return f[0] === co.tab; })) co.tab = "all";
     var q = co.q.trim().toLowerCase();
+    // 按课程提供方筛选 (Rick 2026-10-21: 「从系统管理员视角，在课程管理中按照课程提供方（机构）过滤课程」): the deliverer of each
+    // course, a select beside the search; the chips' counts follow the chosen provider
+    var schools = {}; list.forEach(function (c) { var k = c.school || ""; schools[k] = (schools[k] || 0) + 1; });
+    var schoolKeys = Object.keys(schools).sort(function (a, b) { return (a || "~").localeCompare(b || "~"); });
+    if (co.school && !schools[co.school]) co.school = "";
+    var bySchool = function (c) { return !co.school || (c.school || "") === co.school; };
+    FILTERS.forEach(function (f) { f[2] = f[2].filter(bySchool); });
     var rows = FILTERS.filter(function (f) { return f[0] === co.tab; })[0][2].filter(function (c) { return !q || [c.code, c.nameEn, c.nameZh, c.school].concat((c.assigned || []).map(function (p) { return p.name; }), c.teachers || []).some(function (x) { return String(x || "").toLowerCase().indexOf(q) >= 0; }); });
     if (co.tab === "pending") rows.sort(function (a, b) { return String(a.submittedAt || "").localeCompare(String(b.submittedAt || "")); });
     var sync = coursesInfo && coursesInfo.sync;
@@ -120,7 +127,8 @@
     var cpg = pageOf("courses", rows, coRenderManage); rows = cpg.rows;
     $("cobody").innerHTML =
       '<div class="toolbar sticky" id="cotabs">' + FILTERS.map(function (f) { return '<button type="button" class="chip" data-tab="' + f[0] + '" aria-pressed="' + (co.tab === f[0]) + '">' + esc(f[1]) + ' <span class="cnt' + (f[0] === "pending" && f[2].length ? " cobadge" : "") + '">' + f[2].length + "</span></button>"; }).join("") +
-        '<div class="tabsRight"><input type="search" id="coq" placeholder="' + esc(t("搜索课程、老师", "Search courses, teachers")) + '" value="' + esc(co.q) + '" />' +
+        '<div class="tabsRight">' + (schoolKeys.length > 1 ? '<select id="coSchool" aria-label="' + esc(t("按课程提供方筛选", "Filter by provider")) + '"><option value="">' + esc(t("全部机构", "All providers")) + "</option>" + schoolKeys.map(function (k) { return '<option value="' + esc(k) + '"' + (co.school === k ? " selected" : "") + ">" + esc(k || t("（未填机构）", "(no provider)")) + " · " + schools[k] + "</option>"; }).join("") + "</select>" : "") +
+        '<input type="search" id="coq" placeholder="' + esc(t("搜索课程、老师", "Search courses, teachers")) + '" value="' + esc(co.q) + '" />' +
         (sync && sync.pending && coIsApprover() ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") + "</div>" + pagerTile("courses", cpg) + "</div>" +
       '<div class="tbl-wrap"><table class="data" id="cotable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学科", "Subject") + "</th><th>" + t("学校", "School") + "</th><th>" + t("老师", "Teachers") + "</th><th>" + t("进度", "Progress") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (c) {
@@ -132,6 +140,7 @@
           '<td class="faint">' + esc(c.updatedAt ? when(c.updatedAt) : "") + "</td></tr>";
       }).join("") : '<tr><td colspan="6" class="faint">' + (co.tab === "pending" ? t("没有待审批的课程。", "Nothing to review.") : co.tab !== "all" && !q ? t("这个状态下没有课程。", "No course in this state.") : t("没有匹配的课程。", "No matching course.")) + "</td></tr>") + "</tbody></table></div>";
     $("cotabs").addEventListener("click", function (e) { var a = e.target.closest("[data-tab]"); if (!a) return; co.tab = a.getAttribute("data-tab"); pageReset("courses"); history.replaceState(null, "", co.tab === "all" ? "#/courses" : "#/courses/" + co.tab); coRenderManage(); });
+    if ($("coSchool")) $("coSchool").addEventListener("change", function () { co.school = this.value; pageReset("courses"); coRenderManage(); });
     $("coq").addEventListener("input", debounce(function () { co.q = $("coq").value; pageReset("courses"); var pos = $("coq").selectionStart; coRenderManage(); $("coq").focus(); try { $("coq").setSelectionRange(pos, pos); } catch (e) {} }, 150));
     $("cotable").addEventListener("click", function (e) {
       var b = e.target.closest("[data-assign]"); if (b) { e.stopPropagation(); coAssignPanel(b.getAttribute("data-assign")); return; }

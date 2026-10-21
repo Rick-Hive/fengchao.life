@@ -525,6 +525,55 @@ async function handler(context, req) {
       return;
     }
 
+    // 批量设置身份 (Rick 2026-10-21: 「set users role to 老师 for 华西人文学院, write back to office 365 tenant」): one
+    // identity for every account of the school (or only those without one), written to people.json like a single
+    // PATCH person; with writeBack, also to each Microsoft account's jobTitle — never department (policy 2026-10-10:
+    // the school's name, or anything Hive-set, stays out of department). Accounts on the A1-for-students plan are
+    // skipped unless the identity is 学生 or includeStudentPlan is set (the licence rule: that plan is a student's).
+    // {domain, identity, scope: "all"|"noid", users?: [upn…], writeBack?, includeStudentPlan?, dryRun?}
+    if (method === "POST" && action === "identity-bulk") {
+      if (!can(roles, "people", domain)) return fail(context, 403, "身份 is edited by the IT 管理员 or Hive staff", { code: "forbidden" });
+      const b = req.body || {};
+      const identity = String(b.identity || "").trim();
+      if (!IDENTITIES.includes(identity)) return fail(context, 400, "identity must be one of " + IDENTITIES.join(" / "), { code: "identity" });
+      const writeBack = !!b.writeBack, dry = !!b.dryRun, scope = b.scope === "noid" ? "noid" : "all";
+      if (writeBack && !can(roles, "methods", domain)) return fail(context, 403, "writing the Microsoft accounts needs the IT 管理员", { code: "forbidden" });
+      const [doc, pdoc] = await Promise.all([dir.readDomain(domain), readPeople()]);
+      const only = Array.isArray(b.users) && b.users.length ? new Set(b.users.map(normUser)) : null;
+      const picked = [], skipped = [];
+      for (const r of doc.users || []) {
+        const upn = String(r.upn || "").toLowerCase();
+        if (only && !only.has(upn)) continue;
+        if (r.enabled === false) { skipped.push({ upn, why: "disabled" }); continue; }
+        const rec = (pdoc.people || {})[upn] || null;
+        const cur = identityOf(rec, { department: r.department, jobTitle: r.jobTitle, plan: r.plan || "" });
+        if (scope === "noid" && rec && IDENTITIES.includes(rec.identity)) { skipped.push({ upn, why: "has_identity", identity: rec.identity }); continue; }
+        if (r.plan === "student" && identity !== "学生" && !b.includeStudentPlan) { skipped.push({ upn, why: "student_plan" }); continue; }
+        picked.push({ upn, id: r.id, from: cur, jobTitle: r.jobTitle || "" });
+      }
+      if (dry) { context.res = { status: 200, body: { ok: true, dryRun: true, identity, scope, writeBack, count: picked.length, picked: picked.map((p) => p.upn), skipped } }; return; }
+      const at = new Date().toISOString();
+      if (picked.length) await people.updatePeople((d) => { for (const p of picked) d.people[p.upn] = Object.assign({}, d.people[p.upn] || {}, { identity, by: actor, at }); });
+      const written = [], failed = [];
+      if (writeBack) {
+        // ten at a time; a refused account is reported, the rest go on
+        for (let i = 0; i < picked.length; i += 10) {
+          await Promise.all(picked.slice(i, i + 10).map(async (p) => {
+            if (p.jobTitle === identity) { written.push(p.upn); return; }
+            try {
+              await graph("PATCH", `/users/${encodeURIComponent(p.id || p.upn)}`, { jobTitle: identity });
+              written.push(p.upn);
+            } catch (err) { failed.push({ upn: p.upn, error: String((err && (err.code || err.status || err.message)) || err).slice(0, 120) }); }
+          }));
+        }
+      }
+      // the cache rows follow, one write at a time (two concurrent touchUser calls would overwrite each other)
+      for (const upn of written) await dir.touchUser(domain, upn, { jobTitle: identity }).catch((err) => context.log.warn(`identity-bulk: cache row not updated for ${upn}: ${err && err.message}`));
+      await audit(context, { actor, action: "person.identity-bulk", domain, identity, scope, writeBack, count: picked.length, written: written.length, failed: failed.length, skipped: skipped.length, result: failed.length ? "partial" : "ok" });
+      context.res = { status: 200, body: { ok: true, identity, scope, writeBack, count: picked.length, picked: picked.map((p) => p.upn), written, failed, skipped } };
+      return;
+    }
+
     if (method === "PATCH" && action === "person") {
       if (!can(roles, "people", domain)) return fail(context, 403, "身份 and linked accounts are edited by the IT 管理员 or Hive staff", { code: "forbidden" });
       const b = req.body || {};

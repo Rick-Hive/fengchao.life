@@ -144,7 +144,7 @@ function mkOrder(i, status, agoDays, notifyOk) {
   for (const s of chain) { cur = s === "confirmed" ? Object.assign({}, cur, { status: "confirmed", history: cur.history.concat([{ at: new Date(Date.now() - Math.max(step--, 0) * dayMs).toISOString(), by: "om@fengchao.life", from: "submitted", to: "confirmed", note: "" }]) }) : crm.transition(cur, s, s === "parent_paid" ? "parent@gmail.com" : "om@fengchao.life", s === "paid" ? "已收到转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
-const seated = [], extended = [], termCancels = [], createdUsers = [], merges = [], tPatches = [], tPhotos = [], tApproved = [];
+const seated = [], extended = [], termCancels = [], idBulk = [], createdUsers = [], merges = [], tPatches = [], tPhotos = [], tApproved = [];
 // 教师资料: two teachers, one of them the signed-in account under x:teacher
 const TEACHERS = [{ id: "recTEACH000000001", name: "Zhang Lao", teamsAccount: "rick.zhang@bes.qiaoliang.online", domain: "bes.qiaoliang.online", organization: "北京某某学校", subjects: "Math", languages: "Chinese", gradeLevels: "G7-G9", bio: "", expertise: "", photoUrl: null },
   { id: "recTEACH000000002", name: "Mr Lee", teamsAccount: "lee@kxc.edu", domain: "kxc.edu", organization: "Kids X Center", subjects: "Science", languages: "English", gradeLevels: "G9-G12", bio: "Twenty years of lab-based science teaching.", expertise: "Biology, chemistry", photoUrl: "/assets/apple-touch-icon.png" }];
@@ -286,6 +286,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/school-plan" && r.request().method() === "PUT") { const b = JSON.parse(r.request().postData()); planPuts.push(b); const at = new Date().toISOString(); if (b.unpublish) PLAN_DOC = Object.assign({}, PLAN_DOC, { published: null, updatedAt: at }); else { const map = {}; Object.keys(b.map || {}).forEach(st => { map[st] = { grades: PLAN_DEFAULTS.map[st].grades, rows: (b.map[st].rows || []).map((row, i) => ({ id: row.id || "s" + i, order: i + 1, subjects: row.subjects, trackIds: row.trackIds || [], pedagogy: row.pedagogy || null, spanAll: !!row.spanAll, cells: Object.fromEntries(Object.entries(row.cells || {}).filter(([, v]) => String(v).trim()).map(([g, v]) => [g, String(v).split(/[;；\n]+/).map(x => x.trim()).filter(Boolean).map(x => { const i = x.indexOf("/"); return i < 0 ? { en: x, zh: null } : { en: x.slice(0, i).trim(), zh: x.slice(i + 1).trim() }; })])) })) }; }); PLAN_DOC = Object.assign({}, PLAN_DOC, { draft: { tracks: b.tracks || {}, map }, updatedAt: at, updatedBy: me.profile.upn }); if (b.publish) PLAN_DOC.published = Object.assign({}, PLAN_DOC.draft, { at, by: me.profile.upn }); } body = { ok: true, domain: "bes.qiaoliang.online", school: { domain: "bes.qiaoliang.online", name: "北京某某学校" }, plan: PLAN_DOC, defaults: PLAN_DEFAULTS }; }
       else if (p === "/api/domain/user" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); createdUsers.push(b); const upn = b.account + "@" + b.domain; body = { ok: true, user: upn, id: "u-new", displayName: b.displayName || (b.givenName + " " + b.surname), password: "Hive-2026-xyz", mustChange: true, licence: CREATE_LICENCE, license: CREATE_LICENCE }; }
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
+      else if (p === "/api/domain/identity-bulk") { const b = JSON.parse(r.request().postData()); idBulk.push(b); const picked = users.users.filter(x => x.enabled !== false).map(x => x.upn); body = { ok: true, dryRun: !!b.dryRun, identity: b.identity, scope: b.scope, writeBack: !!b.writeBack, count: picked.length, picked, written: b.dryRun ? [] : (b.writeBack ? picked : []), failed: [], skipped: [{ upn: "x@bes.qiaoliang.online", why: "student_plan" }] }; }
       else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? (() => { const all = users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))); const opts = userList.parseQuery(Object.fromEntries(u.searchParams)); const pg = userList.page(all, opts, {}); usersPages.push(opts); return { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: pg.users, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: opts, timing: { shared: 12, schools: 30, page: 2, total: 44, schoolsRead: 2 } }; })() : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
       else if (p === "/api/domain/user" && r.request().method() === "GET") { const up = u.searchParams.get("upn"); const hit = users.users.find(x => x.upn === up); body = { domain: u.searchParams.get("domain"), user: hit || null, gone: !hit, profile: u.searchParams.get("full") && hit ? { givenName: "", surname: "", displayName: hit.displayName, jobTitle: hit.jobTitle || "", city: hit.city || "南京", postalCode: "210000", usageLocation: "CN", safeEmail: hit.safeEmail || "" } : null }; }
       else if (p === "/api/domain/user" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); acctEdits.push(b); const hit = users.users.find(x => x.upn === b.user); if (b.jobTitle !== undefined) hit.jobTitle = b.jobTitle; if (b.displayName) hit.displayName = b.displayName; body = { ok: true, user: hit, changed: Object.keys(b).filter(k => k !== "domain" && k !== "user") }; }
@@ -363,7 +364,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
         const act = p.slice("/api/courses/".length), m = r.request().method(), appr = rolesList.some(x => /^staff:(curriculum|ceo|sysadmin)$/.test(x) || x === "admin"), viewer = rolesList.includes("staff:community");
         const view = () => Object.assign({}, CO_DOC, { baseline: appr ? { nameEn: "Biology", nameZh: "生物", descriptionEn: "Cells and life.", classTime: "P3 10:00–10:45", price: 300 } : undefined, history: CO_DOC.history.slice().reverse() });
         const editable = {}; for (const k of Object.keys(CO_DOC.fields)) editable[k] = appr || !["textbooks", "teachers", "school", "tracks", "price", "available", "comments"].includes(k);
-        if (act === "list") body = { courses: [Object.assign(coListRow(), provider ? { owned: true } : {})], me: { approver: appr, viewer, provider: provider ? PROVIDER_KEYS : [] }, sync: { pending: false } };
+        if (act === "list") body = { courses: [Object.assign(coListRow(), provider ? { owned: true } : {})].concat(appr || viewer ? [{ id: "recCOURSE00000002", code: "IEW-W-1", nameEn: "Writing 1", nameZh: "写作 1", school: "IEW", teachers: [], subjects: [], available: true, status: "published", updatedAt: "2026-10-01T00:00:00Z", assigned: [] }] : []), me: { approver: appr, viewer, provider: provider ? PROVIDER_KEYS : [] }, sync: { pending: false } };
         else if (act === "lookups") body = Object.assign({}, CO_LOOK, { teachers: CO_LOOK.teachers.map(t => appr ? t : { id: t.id, name: t.name }) });
         else if (act === "course") body = { course: view(), assigned: CO_ASSIGNED, editable, translation: coTranslation(), needs: coNeeds() };
         else if (act === "field" && m === "PATCH") { const b = JSON.parse(r.request().postData()); coPatches.push(b); if (!editable[b.key]) { status = 403; body = { error: "read only" }; } else { CO_DOC.fields[b.key] = b.value; if (/(En|Zh)$/.test(b.key)) CO_DOC.meta.machine[b.key] = false; CO_DOC.draftAt = new Date().toISOString(); if (CO_DOC.status === "published" || CO_DOC.status === "returned") CO_DOC.status = "draft"; body = { savedAt: CO_DOC.draftAt, status: CO_DOC.status, meta: CO_DOC.meta, translation: coTranslation(), needs: coNeeds() }; } }
@@ -1854,6 +1855,22 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/已发布到网站/.test(await p.$eval("#panel #teStatus", e => e.innerText)), "the panel says published");
     await p.click("#panel .x"); await p.waitForSelector("#panel:not(.open)");
   });
+  // 批量设置身份 (2026-10-21): preview, then apply with the write-back to Office 365
+  await shot("users-identity-bulk", 1280, 900, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
+    await p.waitForSelector("#dsel"); await p.selectOption("#dsel", "bes.qiaoliang.online"); await p.waitForSelector("#utable tr[data-upn]:not([data-dom])"); await p.waitForTimeout(300);
+    await p.click("#idBulk"); await p.waitForSelector("#panel.open #ibId");
+    await p.selectOption("#ibId", "老师"); await p.check("#ibWrite");
+    assert.ok(await p.$eval("#ibGo", e => e.disabled), "执行 waits for the preview");
+    await p.click("#ibPreview"); await p.waitForTimeout(400);
+    assert.deepStrictEqual(idBulk[idBulk.length - 1], { domain: "bes.qiaoliang.online", identity: "老师", scope: "all", includeStudentPlan: false, writeBack: true, dryRun: true }, "the dry run");
+    const msg = await p.$eval("#ibMsg", e => e.innerText);
+    assert.ok(/将把 \d+ 个账号的身份设为「老师」，并写入 Office 365/.test(msg) && /跳过 1 个：1 学生版许可/.test(msg), "the preview names the counts: " + msg);
+    assert.ok(!(await p.$eval("#ibGo", e => e.disabled)), "执行 enabled after the preview");
+    p.once("dialog", d => d.accept());
+    await p.click("#ibGo"); await p.waitForTimeout(900);
+    assert.strictEqual(idBulk[idBulk.length - 1].dryRun, false, "applied");
+    assert.ok(/已设置 \d+ 个账号的身份为「老师」，写入 Office 365 \d+ 个/.test(await p.$eval("#flash", e => e.textContent)), "the outcome: " + await p.$eval("#flash", e => e.textContent));
+  });
   await shot("users-sticky", 1280, 500, "#/domain/users", "en", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(500);
     await p.evaluate(() => { const c = document.getElementById("content"); c.scrollTop = 350; });
@@ -2191,6 +2208,14 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.waitForTimeout(600);
     assert.ok(/课程管理/.test(await p.$eval("#nav", e => e.innerText)), "an approver sees 课程管理");
     assert.ok(await p.$("#cotable tr[data-id]"), "the table"); assert.ok(/待审批/.test(await p.$eval("#cotabs", e => e.innerText)));
+    // 按课程提供方筛选 (2026-10-21): a select of the deliverers with counts; the rows and the chips' counts follow
+    assert.deepStrictEqual(await p.$$eval("#coSchool option", es => es.map(e => e.value)), ["", "IEW", "KXC"], "the providers");
+    assert.strictEqual((await p.$$("#cotable tr[data-id]")).length, 2);
+    await p.selectOption("#coSchool", "IEW"); await p.waitForTimeout(200);
+    assert.deepStrictEqual(await p.$$eval("#cotable tr[data-id]", es => es.map(e => e.getAttribute("data-id"))), ["recCOURSE00000002"], "IEW's course only");
+    assert.ok(/全部 1/.test(await p.$eval("#cotabs", e => e.innerText).then(x => x.replace(/\s+/g, " "))), "the chip counts follow the provider: " + await p.$eval("#cotabs", e => e.innerText));
+    await p.selectOption("#coSchool", "KXC"); await p.waitForTimeout(200);
+    assert.deepStrictEqual(await p.$$eval("#cotable tr[data-id]", es => es.map(e => e.getAttribute("data-id"))), [CO_ID]);
     await p.click('#cotable [data-assign]'); await p.waitForSelector("#panel.open"); await p.fill("#coPq", "li"); await p.waitForTimeout(400);
     await p.click('#coPres [data-i="0"]'); await p.waitForTimeout(300);
     assert.ok(coOps.some(o => o.op === "assign" && o.person.upn === "li@kxc.edu"), "assigned through the picker"); assert.ok(/Li Laoshi/.test(await p.$eval("#coAssigned", e => e.innerText)));

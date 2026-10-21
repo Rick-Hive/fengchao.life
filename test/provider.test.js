@@ -31,6 +31,7 @@ assert.strictEqual(P.courseKey({ school: { name: "Kids' X-Center" } }), "KIDSXCE
 // the role itself
 assert.ok(roles.isAssignable("provider:KXC") && roles.isAssignable("provider:中文"), "assignable");
 assert.ok(!roles.isAssignable("provider:kxc") && !roles.isAssignable("provider:"), "keys are upper-case hive keys");
+assert.deepStrictEqual(["provider:shine", " Provider:Shine ", "Staff:Sales", "DOMAIN_IT:KXC.EDU"].map(roles.normRole), ["provider:SHINE", "provider:SHINE", "staff:sales", "domain_it:kxc.edu"], "a role as stored: lower-case, the hive key upper-case (the roles page sent provider:shine, 2026-10-21)");
 assert.strictEqual(roles.roleLabel("provider:KXC", "zh"), "蜂巢课程负责人 · KXC"); assert.strictEqual(roles.roleLabel("provider:KXC", "en"), "Hive Course Leader · KXC");
 assert.ok(roles.canAssign(["admin"], "provider:KXC") && !roles.canAssign(["staff:ceo"], "provider:KXC"), "the system administrator gives it, the CEO does not");
 assert.ok(roles.isSchoolAccount(["provider:IEW"]), "a leader never orders for a family");

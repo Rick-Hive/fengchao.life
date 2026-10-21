@@ -16,7 +16,8 @@
   // 蜂巢课程负责人 (provider:<hiveKey>, v3 第二批 ③, Rick 2026-10-21): a course provider's own orders, courses and teachers.
   var ROLE_KIND = { it: ["IT 管理员", "IT administrator"], leader: ["教育领袖", "Education leader"], provider: ["蜂巢课程负责人", "Hive Course Leader"], staff: ["Staff", "Staff"], sys: ["系统管理员", "System administrator"] };
   var roleHives = []; // every routed hive, for the picker (GET roles → hives)
-  function hiveName(key) { var h = roleHives.filter(function (x) { return x.key === key; })[0]; return h ? (h.abbr || h.name) + (h.name && h.abbr && h.name !== h.abbr ? " · " + h.name : "") : key; }
+  // the hive as the reader names it (Rick 2026-10-21): the Chinese full name on the Chinese site, the abbreviation in English
+  function hiveName(key) { var h = roleHives.filter(function (x) { return x.key === key; })[0]; return h ? (EN ? (h.abbr || h.name || key) : (h.name || h.abbr || key)) : key; }
   function roleKind(r) {
     if (/^domain_it:/.test(r)) return "it";
     if (/^domain_leader:/.test(r)) return "leader";
@@ -240,7 +241,7 @@
     // 蜂巢课程负责人: chips of the routed hives (a school's own 教育领袖 holds it for the school's hive without this)
     function hivesHTML() {
       if (!roleHives.length) return '<p class="muted" style="font-size:12px">' + t("还没有同步到机构（蜂巢）列表。", "No hives synced yet.") + "</p>";
-      return '<div class="rstaff" id="rhives">' + roleHives.map(function (h) { return '<button type="button" class="chip" data-hive="' + esc(h.key) + '" aria-pressed="' + (st.hives.indexOf(h.key) >= 0) + '" title="' + esc(h.name + (h.domain ? " · " + h.domain : "")) + '">' + esc(h.abbr || h.name || h.key) + "</button>"; }).join("") + "</div>";
+      return '<div class="rstaff" id="rhives">' + roleHives.map(function (h) { return '<button type="button" class="chip" data-hive="' + esc(h.key) + '" aria-pressed="' + (st.hives.indexOf(h.key) >= 0) + '" title="' + esc((EN ? h.name : h.abbr) + (h.domain ? " · " + h.domain : "")) + '">' + esc(hiveName(h.key)) + "</button>"; }).join("") + "</div>";
     }
     function schoolCard(d) {
       var known = doms.indexOf(d) >= 0;

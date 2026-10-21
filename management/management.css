@@ -1400,3 +1400,4 @@ body.coedit .content { padding-bottom: 140px; } /* room under the preview on a p
 #teCard textarea, .panel textarea[data-k] { width: 100%; box-sizing: border-box; }
 #teActions .faint { margin-left: 8px; font-size: 12px; }
 .hvhead { margin-bottom: var(--s3); color: var(--faint); }
+.toolbar .tabsRight select#coSchool { width: auto; min-width: 0; max-width: 220px; padding: 0 28px 0 8px; font-size: 13px; height: 32px; }
