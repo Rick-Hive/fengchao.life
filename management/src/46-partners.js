@@ -44,10 +44,10 @@
     var type = PT_TYPES.indexOf(m[1]) >= 0 ? m[1] : (ptState.type || "it");
     var openId = m[2] || "";
     if (ptState.type !== type) { ptState.type = type; ptState.data = null; ptState.stage = ""; }
-    $("content").innerHTML = '<div class="pagetabs compact" role="tablist" id="ptTabs"></div><div id="ptBody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
+    $("content").innerHTML = pmTabsHtml("rel") + '<div class="pagetabs compact" role="tablist" id="ptTabs"></div><div id="ptBody"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>";
     renderPtTabs();
     setTitle(t("经营 › 合作伙伴", "Operations › Partners"), ptTypeLabel(type), "", { info: ptTypeInfo(type) });
-    loadPartners(true).then(function () { renderPartnersPage(); if (openId) openRelationship(openId); }).catch(function (r) { $("ptBody").innerHTML = '<div class="card"><p class="sub">' + esc(errText(r)) + "</p></div>"; });
+    loadPartners(true).then(function () { renderPartnersPage(); if (openId) openRelationship(openId); if (ptState.newFor && ptState.data.canEdit) { var nf = ptState.newFor; ptState.newFor = null; openNewRelationship(nf); } }).catch(function (r) { $("ptBody").innerHTML = '<div class="card"><p class="sub">' + esc(errText(r)) + "</p></div>"; });
   }
   function ptTypeInfo(type) {
     return {
@@ -73,7 +73,8 @@
   }
   function renderPartnersPage() {
     var d = ptState.data; if (!d || !$("ptBody")) return;
-    setTitle(t("经营 › 合作伙伴", "Operations › Partners"), ptTypeLabel(d.type), (d.canEdit ? '<button class="btn sm" id="ptNew">' + t("新建关系", "New relationship") + "</button> " : "") + '<button class="btn secondary sm" id="ptReload">' + t("刷新", "Refresh") + "</button>", { info: ptTypeInfo(d.type) });
+    setTitle(t("经营 › 合作伙伴", "Operations › Partners"), ptTypeLabel(d.type), (d.canEdit ? '<button class="btn sm" id="ptNew">' + t("新建关系", "New relationship") + "</button> " : "") + (crmLevel("partners") === "rw" || isAdmin() ? '<button class="btn secondary sm" id="ptSeed" title="' + esc(t("按租户域名、蜂巢工作区、教师表和出版商生成起始关系，只新增不覆盖", "Starting relationships from tenant domains, the Hive workspace, the Teachers table and the publishers — adding only, never overwriting")) + '">' + t("自动填入合作关系", "Seed relationships") + "</button> " : "") + '<button class="btn secondary sm" id="ptReload">' + t("刷新", "Refresh") + "</button>", { info: ptTypeInfo(d.type) });
+    if ($("ptSeed")) $("ptSeed").addEventListener("click", function () { partnersSeed($("ptSeed"), function () { instState.data = null; loadPartners(true).then(renderPartnersPage); }); });
     $("ptRight").innerHTML = '<div class="seg" role="group"><button type="button" class="chip" data-view="board" aria-pressed="' + (ptState.view === "board") + '">' + t("看板", "Board") + '</button><button type="button" class="chip" data-view="table" aria-pressed="' + (ptState.view === "table") + '">' + t("表格", "Table") + "</button></div>";
     var owners = {}; d.rows.forEach(function (r) { if (r.owner) owners[r.owner] = 1; });
     $("ptBody").innerHTML =
@@ -91,7 +92,7 @@
     $("ptClosed").addEventListener("click", function () { ptState.closed = !ptState.closed; this.setAttribute("aria-pressed", ptState.closed); renderPartnerRows(); });
     $("ptRight").addEventListener("click", function (e) { var b = e.target.closest("[data-view]"); if (!b) return; ptState.view = b.getAttribute("data-view"); try { localStorage.setItem("fc-pt-view", ptState.view); } catch (err) {} $("ptRight").querySelectorAll(".chip").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); renderPartnerRows(); });
     $("ptReload").addEventListener("click", function () { loadPartners(true).then(renderPartnersPage); });
-    if ($("ptNew")) $("ptNew").addEventListener("click", openNewRelationship);
+    if ($("ptNew")) $("ptNew").addEventListener("click", function () { openNewRelationship(); });
     $("ptList").addEventListener("click", function (e) { var c = e.target.closest("[data-rel]"); if (c) { document.querySelectorAll("table.data tr.sel").forEach(function (x) { x.classList.remove("sel"); }); if (c.tagName === "TR") c.classList.add("sel"); openRelationship(c.getAttribute("data-rel")); } });
     renderPartnerRows();
   }
@@ -170,6 +171,7 @@
   function renderRelationshipPanel() {
     var d = ptState.rel, rel = d.relationship, canEdit = d.canEdit;
     panelOpen('<div class="ph"><span class="tav" style="background:' + hue(rel.party ? rel.party.id : rel.id) + '">' + esc(initials(rel.partyName || "?")) + '</span><h3 title="' + esc(rel.partyName) + '">' + esc(rel.partyName) + "</h3>" + ptStageTag(rel) + ptHealthTag(rel) + '<button class="x" type="button" aria-label="close">✕</button></div>' +
+      (rel.party && rel.party.kind !== "person" && rel.party.key ? '<div class="pb" style="padding-bottom:0"><a class="lnk" href="#/ops/institutions/' + encodeURIComponent(rel.party.key) + '">' + t("机构档案 ›", "Institution profile ›") + "</a></div>" : "") +
       '<div class="pb"><div class="rtop">' + ptTrackSvg(rel, d.stages, canEdit) + ptTimelineSvg(rel, d.projects) + "</div>" +
       '<div class="ptabs" role="tablist">' + [["overview", "概览", "Overview"], ["projects", "项目", "Projects"], ["log", "跟进", "Follow-ups"], ["contacts", "联系人", "Contacts"], ["metrics", "度量", "Metrics"]].map(function (tb) { return '<button type="button" class="pt' + (ptState.tab === tb[0] ? " on" : "") + '" data-ptab="' + tb[0] + '">' + t(tb[1], tb[2]) + (tb[0] === "projects" && d.projects.length ? " · " + d.projects.length : "") + "</button>"; }).join("") + "</div>" +
       '<div id="rpBody"></div></div>');
@@ -499,7 +501,7 @@
   }
 
   // ---- new relationship ------------------------------------------------------------
-  function openNewRelationship() {
+  function openNewRelationship(preset) {
     var d = ptState.data, type = d.type;
     panelOpen('<div class="ph"><h3>' + esc(t("新建关系 · ", "New relationship · ") + ptTypeLabel(type)) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
       '<h4>' + t("一方", "Party") + '</h4><div class="seg"><button type="button" class="chip" data-pk="org" aria-pressed="true">' + t("机构", "Organization") + '</button><button type="button" class="chip" data-pk="person" aria-pressed="false">' + t("个人", "Person") + "</button></div>" +
@@ -509,6 +511,8 @@
       '<label class="f">' + t("第一个下一步", "First next step") + '<input type="text" id="nrNext" maxlength="300" /></label><div class="grid2"><label class="f">' + t("到期", "Due") + '<input type="date" id="nrDue" /></label></div><label class="f">' + t("备注", "Note") + '<input type="text" id="nrNote" maxlength="500" /></label>' +
       '<div class="actions"><button class="btn" type="submit" id="nrSave">' + t("创建", "Create") + '</button></div><div id="nrMsg"></div></form></div>');
     var kind = "org", org = null, person = null;
+    // from an institution's panel (2026-10-22): the institution is already the party
+    if (preset && preset.key) { org = { key: preset.key, name: preset.name }; $("nrOch").hidden = false; $("nrOch").querySelector(".who").innerHTML = "<b>" + esc(preset.name) + '</b><span class="sub">' + esc(preset.key) + "</span>"; var pq = $("nrOq") && $("nrOq").closest(".picker"); if (pq) pq.hidden = true; }
     $("panel").querySelectorAll("[data-pk]").forEach(function (b) { b.addEventListener("click", function () { kind = b.getAttribute("data-pk"); $("panel").querySelectorAll("[data-pk]").forEach(function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); $("nrOrg").hidden = kind !== "org"; $("nrPerson").hidden = kind !== "person"; }); });
     $("nrOq").addEventListener("input", debounce(function () {
       var s = $("nrOq").value.trim(); if (!s) { $("nrOres").hidden = true; return; }

@@ -341,16 +341,9 @@ async function handler(context, req) {
         ok(context, { ok: true, internal: body.internal, orgId: doc.byKey[k] });
         return;
       }
-      const domain = /^hive:/i.test(rawKey) ? "hive:" + rawKey.slice(5).toUpperCase() : rawKey.toLowerCase(), stage = String(body.stage || "");
-      if (!(/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain) || /^hive:[A-Z0-9\u4e00-\u9fff]{1,12}$/.test(domain)) || (stage && !hub.PARTNER_STAGES.includes(stage))) { fail(context, 400, "bad_request"); return; }
-      const type = String(body.type || ""), region = String(body.region || "");
-      if ((type && !licenses.INST_TYPES.includes(type)) || (region && !licenses.REGIONS.includes(region))) { fail(context, 400, "bad_request"); return; }
-      const saved = await hub.updatePartners((d) => {
-        if (stage || body.note || body.owner || type || region) d.partners[domain] = { stage, note: String(body.note || "").slice(0, 500), owner: String(body.owner || "").slice(0, 120), type, region, by: normUser(user), at: new Date().toISOString() };
-        else delete d.partners[domain];
-      });
-      await audit(context, { action: "crm.partner.update", by: normUser(user), domain, stage });
-      ok(context, { ok: true, partner: saved.doc.partners[domain] || null });
+      // The old per-institution 合作阶段 / 备注 / 负责人 (partners.json) is retired (2026-10-22): the relationships on the
+      // 合作伙伴 page carry the stage, owner and notes; partners.json is kept for its region (许可) and the seed only.
+      fail(context, 410, "retired", { hint: "the partnership stage lives on the relationship (合作伙伴)" });
       return;
     }
     // this school year's Equip sales per institution: the customers' orders in the FY

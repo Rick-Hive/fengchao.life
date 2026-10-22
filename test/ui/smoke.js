@@ -916,7 +916,12 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click('#panel button[data-person]'); await p.waitForTimeout(300);
     if (!/Bao/.test(await p.$eval("#panel .ph h3", e => e.innerText))) throw new Error("member click did not open the member");
     await p.click("#panel .x");
-    await p.click('#nav a[href="#/ops/institutions"]'); await p.waitForTimeout(600);
+    // 合作伙伴 and 机构 are one sidebar entry with two tabs (2026-10-22)
+    assert.ok(!(await p.$('#nav a[href="#/ops/institutions"]')), "no separate 机构 entry in the sidebar");
+    await p.click('#nav a[href="#/ops/partners"]'); await p.waitForSelector("#pmTabs");
+    await p.click('#pmTabs a[href="#/ops/institutions"]'); await p.waitForSelector("#itable tbody tr[data-key]"); await p.waitForTimeout(300);
+    assert.ok(await p.$('#nav a.nav-item.active[href="#/ops/partners"]') && await p.$('#pmTabs a.on[href="#/ops/institutions"]'), "合作伙伴 stays highlighted, the 机构 tab is on");
+    assert.ok(!/讲座线索/.test(await p.$eval("#itable thead", e => e.innerText)), "讲座线索 is gone (2026-10-22)");
     const it = await p.$eval("#itable", e => e.innerText); if (!/Kids X Center/.test(it) || !/xqzw\.edu/.test(it)) throw new Error("institutions table: " + it.slice(0, 300));
     // The Hive workspace's rows are there too (Rick, 2026-10-08): the university without a tenant domain has its own row; the hive that is also a tenant domain is one row.
     if (!/Grace Christian University/.test(it) || !/大学/.test(it)) throw new Error("university from the Hive workspace missing: " + it.slice(0, 400));
@@ -933,26 +938,40 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       assert.ok(w1 >= w0 + 70, "the dragged column grew: " + w0 + " → " + w1);
       assert.ok(/px$/.test(await p.$eval("#itable colgroup col:nth-child(2)", e => e.style.width)), "the <col> carries the width");
       await p.$eval("#itable thead th:nth-child(2) .rz", e => e.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
-      assert.strictEqual(await p.$eval("#itable colgroup col:nth-child(2)", e => e.style.width), "10%", "double-click puts the percentage back");
+      assert.strictEqual(await p.$eval("#itable colgroup col:nth-child(2)", e => e.style.width), "12%", "double-click puts the percentage back");
     }
     await p.click('#itable tbody tr[data-key="hive:GCU"]'); await p.waitForTimeout(400);
     if (!/蜂巢工作区/.test(await p.$eval("#panel", e => e.innerText))) throw new Error("university panel lacks the workspace line");
     // 合作伙伴 v2: 自动填入 creates the starting relationships from what the hub knows; the
     // rows show them as badges; our own entities are marked internal and get none.
     PARTNERS["xqzw.edu"] = { stage: "trial", note: "试用两个月", owner: "", type: "school", region: "cn" };
-    await p.click("#panel .x"); await p.click("#iSeed"); await p.waitForTimeout(800);
+    await p.click("#panel .x"); await p.waitForTimeout(150);
+    assert.ok(!(await p.$("#iSeed")), "自动填入 lives on the 合作关系 tab now");
+    await p.click('#pmTabs a[href="#/ops/partners"]'); await p.waitForSelector("#ptSeed"); await p.click("#ptSeed"); await p.waitForTimeout(800);
+    const seedBtn = await p.$eval("#ptSeed", e => ({ disabled: e.disabled, text: e.innerText })); if (seedBtn.disabled || /填入中/.test(seedBtn.text)) throw new Error("自动填入 button stuck: " + JSON.stringify(seedBtn));
+    await p.click('#pmTabs a[href="#/ops/institutions"]'); await p.waitForSelector("#itable tbody tr[data-key]"); await p.waitForTimeout(400);
     const seeded = seeds[0]; if (!seeded || !seeded.created.some(c => c.type === "it") || !seeded.created.some(c => c.type === "university") || !seeded.created.some(c => c.type === "publisher")) throw new Error("seed result: " + JSON.stringify(seeded));
     const xq = await p.$eval('#itable tbody tr[data-key="xqzw.edu"]', e => e.innerText); if (!/IT 服务 · 方案/.test(xq)) throw new Error("the old 试用 stage folds into the IT relationship: " + xq);
     const gcu = await p.$eval('#itable tbody tr[data-key="hive:GCU"]', e => e.innerText); if (!/大学 · 线索/.test(gcu)) throw new Error("university relationship badge: " + gcu);
     const xqRel = Object.values(REL.items).find(x => x.party.key === "xqzw.edu" && x.type === "it"); if (!xqRel || !xqRel.contacts.length || xqRel.contacts[0].role !== "学校/机构代表") throw new Error("domain admin seeded as the contact: " + JSON.stringify(xqRel && xqRel.contacts));
     if (!xqRel.log.some(l => l.migrated)) throw new Error("the old note was not carried into the log");
     // the button comes back after the run (Rick, 2026-10-09: 点击后就冻住了 — a shadowed `var b`)
-    const seedBtn = await p.$eval("#iSeed", e => ({ disabled: e.disabled, text: e.innerText })); if (seedBtn.disabled || /填入中/.test(seedBtn.text)) throw new Error("自动填入 button stuck: " + JSON.stringify(seedBtn));
     await p.click('#itable tbody tr[data-key="hive:GCU"]'); await p.waitForTimeout(400);
     if (!/大学/.test(await p.$eval("#panel .olist", e => e.innerText))) throw new Error("panel lists the relationship");
     await p.click("#ipInternal"); await p.waitForTimeout(500);
     if (!ORGS.orgs[ORGS.byKey["hive:GCU"]].internal) throw new Error("internal flag not saved");
     if (!/内部/.test(await p.$eval('#itable tbody tr[data-key="hive:GCU"]', e => e.innerText))) throw new Error("internal badge not shown");
+    // a new relationship from the institution's panel: the 合作关系 tab opens with the institution already the party
+    await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+    await p.click('#itable tbody tr[data-key="xqzw.edu"]'); await p.waitForSelector("#ipNewRel");
+    await p.waitForTimeout(400); await p.selectOption("#ipNewType", "course"); await p.$eval("#ipNewRel", e => e.click()); await p.waitForSelector("#panel.open #nrForm"); await p.waitForTimeout(200);
+    assert.ok(/#\/ops\/partners\/course/.test(await p.evaluate(() => location.hash)) && !(await p.$eval("#nrOch", e => e.hidden)) && /xqzw\.edu/.test(await p.$eval("#nrOch", e => e.innerText)), "the institution is preset: " + await p.$eval("#nrOch", e => e.innerText));
+    await p.keyboard.press("Escape"); await p.waitForTimeout(150);
+    // and back: a relationship's 机构档案 opens the institution's panel
+    await p.goto(p.url().replace(/#.*$/, "") + "#/ops/partners/it/" + xqRel.id); await p.waitForSelector('#panel.open a[href^="#/ops/institutions/"]');
+    await p.click('#panel a[href^="#/ops/institutions/"]'); await p.waitForSelector("#panel.open #ipNewRel"); await p.waitForTimeout(200);
+    assert.ok(/xqzw\.edu/.test(await p.$eval("#panel", e => e.innerText)), "the institution profile from the relationship");
+    await p.keyboard.press("Escape");
     await p.click('#nav a[href="#/dashboard"]'); await p.waitForTimeout(900);
     const dp = await p.$eval("#dPartners", e => e.innerText); if (!/Kids X Center/.test(dp) || !/IT 服务/.test(dp) || !/全部机构/.test(dp)) throw new Error("partners panel: " + dp.slice(0, 300));
   });
