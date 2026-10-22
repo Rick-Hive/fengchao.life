@@ -297,7 +297,10 @@
           (ro ? "" : '<button type="button" class="mi" data-op="milestone">' + t("存一个版本", "Save a version") + "</button>") +
           (appr && (c.status === "submitted" || c.status === "reviewing") ? '<button type="button" class="mi" data-op="return">' + t("退回给老师", "Return to the teacher") + "</button>" : "") +
           '<button type="button" class="mi" data-op="preview">' + t("显示 / 隐藏预览", "Show / hide preview") + "</button>" +
-          '<a class="mi" href="https://www.fengchao.life/" target="_blank" rel="noopener">' + t("在网站上查看 ↗", "Open the website ↗") + "</a>" +
+          // the course's own card on the website (Rick 2026-10-22: 「点击在网站上查看，并不能显示课程」); a course made here
+          // reaches the website only after it is published and the website is synced
+          (/^new/.test(co.id) ? '<span class="mi muted" title="' + esc(t("发布并同步网站后才会出现在网站上", "On the website once published and synced")) + '">' + t("在网站上查看（尚未发布）", "On the website (not published yet)") + "</span>"
+            : '<a class="mi" href="/courses?course=' + encodeURIComponent(co.id) + '" target="_blank" rel="noopener">' + t("在网站上查看 ↗", "View on the website ↗") + "</a>") +
         "</div>" +
       "</div>" + coSectionsNav() + "</div>";
   }

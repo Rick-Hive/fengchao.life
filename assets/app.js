@@ -268,6 +268,10 @@
   // lands on an entry that re-resolves away from itself.
   // 选课费 (v3 第二批, 2026-10-22): Stripe sends the family back to /done?submission=… (paid, being confirmed) or to
   // /order?payment=cancelled&submission=… (not paid: the hold is released at once so the seats are free again).
+  // 在网站上查看 (management centre course editor, 2026-10-22): /courses?course=<record id or code> opens that course's
+  // card once the catalogue is loaded, whatever step the wizard is on.
+  var pendingCourse = "";
+  try { pendingCourse = String(new URLSearchParams(location.search).get("course") || "").trim().slice(0, 40); } catch (e) {}
   (function () {
     var qs; try { qs = new URLSearchParams(location.search); } catch (e) { return; }
     var sub = qs.get("submission") || "";
@@ -277,12 +281,19 @@
     try { history.replaceState(null, "", location.pathname); } catch (e) {}
   })();
   function pollSubmission(sub, n) {
-    fetch("/api/order/status?submission=" + encodeURIComponent(sub), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    var pay = null; try { pay = JSON.parse(sessionStorage.getItem("fc-paying") || "null"); } catch (e) {}
+    var em = pay && pay.submission === sub ? pay.email : "";
+    fetch("/api/order/status?submission=" + encodeURIComponent(sub) + (em ? "&email=" + encodeURIComponent(em) : ""), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
       if (!state.done || state.done.submission !== sub) return;
       if (j && j.status === "paid" && (j.orderIds || []).length) {
         state.done = { orderId: j.orderIds[0], orderIds: j.orderIds, notified: true, submission: sub, receiptUrl: j.fee && j.fee.receiptUrl };
         state.cart = {}; try { sessionStorage.removeItem("fc-paying"); } catch (e) {}
         persistWizard(); render(); return;
+      }
+      // paid, but this tab does not hold the family's email (another device or tab): the numbers came by email
+      if (j && j.status === "paid" && j.limited) {
+        state.done = { orderId: sub, orderIds: [sub], notified: true, submission: sub };
+        state.cart = {}; persistWizard(); render(); return;
       }
       if (j && j.status === "abandoned") { state.done = { submission: sub, failed: true }; render(); return; }
       if (n === 20 && !state.done.slow) { state.done.slow = true; render(); }
@@ -2739,6 +2750,13 @@
       var n = document.getElementById("loadingNotice");
       if (n) n.remove();
       render();
+      if (pendingCourse) {
+        var want = pendingCourse.toLowerCase(), hit = (data.courses || []).filter(function (c) { return c.id === pendingCourse || String(c.code || "").toLowerCase() === want; })[0];
+        pendingCourse = "";
+        try { history.replaceState(null, "", location.pathname); } catch (e) {}
+        if (hit) openCourseModal(hit.id);
+        else openModal('<button type="button" class="modal-x" data-close aria-label="' + esc(t().dClose) + '">✕</button><div class="modal-body"><p>' + esc(t().courseNotListed) + "</p></div>", "notice-modal");
+      }
       loadSeats().then(function () { if (Object.keys(state.seats).length) render(); });
       // is a selection fee charged? (the order page's fee line and button)
       fetch("/api/order/status", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {

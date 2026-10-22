@@ -4,15 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>蜂巢 Hive · 重建中国C教育生态</title>
-  <script>
-    // One address for the whole site (2026-09-29): the sign-in is a cookie of
-    // the host it was made on, so www.fengchao.life and fengchao.life would be
-    // two separate sessions — signing out on one would leave the other signed in.
-    if (location.hostname === "www.fengchao.life") location.replace("https://fengchao.life" + location.pathname + location.search + location.hash);
-    // ?signedout=<why> (set by assets/session-guard.js after an automatic sign-out) is read
-    // here, before app.js rewrites the address; assets/account-button.js shows the notice.
-    window.__fcSignedOut = (location.search.match(/[?&]signedout=([a-z]+)/) || [])[1] || "";
-  </script>
+  <script src="/assets/boot.js"></script>
   <link rel="stylesheet" href="/assets/site-header.css" />
   <link rel="stylesheet" href="/assets/app.css" />
   <link rel="icon" type="image/png" href="/assets/favicon.png" />

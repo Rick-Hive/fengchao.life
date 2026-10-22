@@ -20,13 +20,13 @@ const schoolTable = { id: cfg.tables.schools.id, fields: [fieldDef("Name/名称"
 const schoolRows = [{ id: "recSCHOOLKXC00001", fields: { "Name/名称": "Kids X Center", "简称/Abbreviation": "KXC", "Teams Channel ID": "19:kxc" } }];
 const writes = [];
 const base = { list: async () => copy(schoolRows), table: async () => schoolTable,
-  create: async (t, fields) => { const rec = { id: "recSCHOOLJCA00001", fields: copy(fields) }; schoolRows.push(rec); writes.push({ op: "create", fields }); return rec; },
+  create: async (t, fields) => { const rec = { id: "recSCHOOLABC00001", fields: copy(fields) }; schoolRows.push(rec); writes.push({ op: "create", fields }); return rec; },
   update: async (t, id, fields) => { const r = schoolRows.find((x) => x.id === id); Object.assign(r.fields, fields); writes.push({ op: "update", id, fields }); return r; } };
 let rels = { next: 1, items: {} }, orgs = { next: 1, byKey: {}, orgs: {} }, roles = { entries: [] }, synced = 0;
 O._deps({
   findTeam: async () => ({ id: "team1", name: "Hive Orders" }),
   graphList: async () => copy(channels),
-  graph: async (m, p, body) => { graphCalls.push({ m, p, body }); if (deny) throw Object.assign(new Error("Forbidden"), { status: 403 }); const ch = { id: "19:jca" + channels.length, displayName: body.displayName }; channels.push(ch); return ch; },
+  graph: async (m, p, body) => { graphCalls.push({ m, p, body }); if (deny) throw Object.assign(new Error("Forbidden"), { status: 403 }); const ch = { id: "19:abc" + channels.length, displayName: body.displayName }; channels.push(ch); return ch; },
   readBase: () => base, writeBase: () => base,
   partners: () => Object.assign({}, P, { readRels: async () => copy(rels), readOrgs: async () => copy(orgs), updateOrgs: async (m) => { m(orgs); return { doc: copy(orgs) }; }, updateRels: async (m) => { m(rels); return { doc: copy(rels) }; } }),
   roles: () => ({ readRoles: async () => copy(roles), updateRoles: async (m) => { m(roles); return { doc: roles }; } }),
@@ -35,21 +35,21 @@ O._deps({
 });
 
 (async () => {
-  const input = { key: "jca.example.org", abbr: "JCA", name: "嘉恩学院", domain: "jca.example.org", leader: "Eve.Zhou@jca.example.org", country: "中国" };
+  const input = { key: "abc.example.org", abbr: "ABC", name: "示范学院", domain: "abc.example.org", leader: "Eve.Zhou@abc.example.org", country: "中国" };
   assert.throws(() => O.clean({ name: "x" }), (e) => e.status === 400 && /abbr/.test(e.problems.join()));
   // preview: nothing changes
   let r = await O.run(input, { dryRun: true, by: "rick@fengchao.life" });
   assert.deepStrictEqual(r.steps.map((s) => [s.step, s.status]), [["channel", "todo"], ["school", "todo"], ["partnership", "todo"], ["leader", "todo"], ["sync", "todo"]]);
   assert.ok(!graphCalls.length && !writes.length && !Object.keys(rels.items).length && !roles.entries.length && !synced, "a preview writes nothing");
-  assert.strictEqual(r.steps[0].detail, "Hive Orders › JCA Orders", "the channel's name");
+  assert.strictEqual(r.steps[0].detail, "Hive Orders › ABC Orders", "the channel's name");
   // run
   r = await O.run(input, { by: "rick@fengchao.life" });
   assert.ok(r.ok, JSON.stringify(r.steps));
-  assert.deepStrictEqual(graphCalls[0], { m: "POST", p: "/teams/team1/channels", body: { displayName: "JCA Orders", description: "嘉恩学院 — 蜂巢课程订单 / Hive course orders", membershipType: "standard" } });
-  assert.deepStrictEqual(writes[0], { op: "create", fields: { "Name/名称": "嘉恩学院", "简称/Abbreviation": "JCA", Domain: "jca.example.org", "Teams Channel ID": "19:jca1", "Notify Email": "eve.zhou@jca.example.org", "Country/国家": "中国" } }, "the Schools row with the channel; the leader as notify email");
+  assert.deepStrictEqual(graphCalls[0], { m: "POST", p: "/teams/team1/channels", body: { displayName: "ABC Orders", description: "示范学院 — 蜂巢课程订单 / Hive course orders", membershipType: "standard" } });
+  assert.deepStrictEqual(writes[0], { op: "create", fields: { "Name/名称": "示范学院", "简称/Abbreviation": "ABC", Domain: "abc.example.org", "Teams Channel ID": "19:abc1", "Notify Email": "eve.zhou@abc.example.org", "Country/国家": "中国" } }, "the Schools row with the channel; the leader as notify email");
   const rel = Object.values(rels.items)[0];
-  assert.ok(rel && rel.type === "course" && rel.stage === "design" && rel.party.key === "jca.example.org", "the partnership");
-  assert.deepStrictEqual(roles.entries[0].roles, ["provider:JCA"], "Eve leads JCA"); assert.strictEqual(roles.entries[0].user, "eve.zhou@jca.example.org");
+  assert.ok(rel && rel.type === "course" && rel.stage === "design" && rel.party.key === "abc.example.org", "the partnership");
+  assert.deepStrictEqual(roles.entries[0].roles, ["provider:ABC"], "Eve leads ABC"); assert.strictEqual(roles.entries[0].user, "eve.zhou@abc.example.org");
   assert.strictEqual(synced, 1, "the website synced");
   // again: everything is there
   r = await O.run(input, { by: "rick@fengchao.life" });

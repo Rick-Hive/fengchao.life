@@ -85,6 +85,12 @@ function fakeJpeg(w, h) { const sof = Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08,
 function fakePng(w, h) { const b = Buffer.alloc(33); Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b); b.writeUInt32BE(13, 8); b.write("IHDR", 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20); return b; }
 const dataUrl = (type, buf) => `data:${type};base64,${buf.toString("base64")}`;
 
+// blob documents in memory (people.json: the safe email a person set themselves, security review 2026-10-22)
+const jstore = require(path.join(__dirname, "..", "api", "shared", "jsonstore.js"));
+const MEM = {};
+const fresh = (fb) => (typeof fb === "function" ? fb() : JSON.parse(JSON.stringify(fb)));
+jstore.read = async (n, fb) => (MEM[n] ? JSON.parse(JSON.stringify(MEM[n])) : fresh(fb));
+jstore.update = async (n, fb, mutate) => { const doc = MEM[n] ? JSON.parse(JSON.stringify(MEM[n])) : fresh(fb); if (mutate(doc) !== false) MEM[n] = doc; return { doc: JSON.parse(JSON.stringify(MEM[n] || doc)), etag: "m" }; };
 const meFn = require(path.join(__dirname, "..", "api", "me", "index.js"));
 const rolesFn = require(path.join(__dirname, "..", "api", "auth-roles", "index.js"));
 
@@ -141,6 +147,7 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   const patch = JSON.parse(calls.find((c) => c.method === "PATCH").body);
   assert.deepStrictEqual(patch, { postalCode: "210008", otherMails: ["h.new@outlook.com"] });
+  assert.strictEqual(MEM["people.json"].people["teacher.h@example.edu"].selfSafeEmail, "h.new@outlook.com", "a safe email the person typed is remembered as self-set");
   // The school's IT administrator may set it (role on the sign-in principal).
   calls.length = 0;
   const context2 = { log: Object.assign(() => {}, { error() {}, warn() {} }), res: null };
@@ -222,6 +229,14 @@ async function call(fn, { action, id, method = "GET", body = null, user = "Teach
     assert.strictEqual(r.status, 200);
     assert.deepStrictEqual(r.body.orders.map((o) => o.orderId).sort(), ["FC-20261020-KXC-001", "FC-20261020-KXC-002", "FC-20261020-KXC-003"], "by account, by safe email, by Teams account — not the stranger's");
     assert.deepStrictEqual(r.body.addresses, ["teacher.h@example.edu", "h.safe@gmail.com"]);
+    // a safe email the person set themselves proves nothing: the orders placed under it are not theirs to read or change
+    MEM["people.json"].people["teacher.h@example.edu"].selfSafeEmail = "h.safe@gmail.com";
+    r = await call(meFn, { action: "orders" });
+    assert.deepStrictEqual([r.body.orders.map((o) => o.orderId).sort(), r.body.addresses], [["FC-20261020-KXC-001", "FC-20261020-KXC-003"], ["teacher.h@example.edu"]], "self-set safe email: not an order address");
+    r = await call(meFn, { action: "orders", method: "PATCH", body: { orderId: "FC-20261020-KXC-002", status: "parent_paid" } });
+    assert.strictEqual(r.status, 404, "nor may it change one");
+    MEM["people.json"].people["teacher.h@example.edu"].selfSafeEmail = "h.new@outlook.com";
+    r = await call(meFn, { action: "orders" });
     const o2 = r.body.orders.find((o) => o.orderId === "FC-20261020-KXC-002");
     assert.ok(o2.history.every((h) => !("note" in h)) && !o2.canCancel, "the fulfilment notes stay with the staff; a confirmed order is not the family's to cancel");
     assert.ok(r.body.orders.find((o) => o.orderId === "FC-20261020-KXC-001").canCancel);

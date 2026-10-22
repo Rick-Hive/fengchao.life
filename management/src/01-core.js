@@ -399,6 +399,9 @@
   function navInfo() {
     var old = document.querySelectorAll("#nav .navinfo"); for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
     var a = document.querySelector("#nav .nav-item.active");
+    // the page's own item in sight: 课程管理 sits low in the sidebar, under the fold on a laptop (Rick 2026-10-22: in the
+    // course editor 「看不到课程列表」)
+    if (a) { var sc = $("nav"); if (sc && sc.scrollHeight > sc.clientHeight) { var ar = a.getBoundingClientRect(), sr = sc.getBoundingClientRect(); if (ar.bottom > sr.bottom - 60 || ar.top < sr.top) sc.scrollTop += ar.top - sr.top - sc.clientHeight / 3; } }
     if (a && pageInfo) { var s = document.createElement("span"); s.className = "info navinfo"; s.tabIndex = 0; s.setAttribute("data-tip", pageInfo); s.textContent = "i"; a.appendChild(s); }
   }
   // The sidebar item's ⓘ opens to the RIGHT of the sidebar, as a floating box (Rick, 2026-10-19: the CSS tooltip was

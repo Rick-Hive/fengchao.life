@@ -756,6 +756,7 @@ async function handler(context, req) {
       if (has("postalCode")) { const v = str("postalCode"); if (!v) problems.push("postal code is required"); else if (!/^[A-Za-z0-9 -]{3,12}$/.test(v)) problems.push("postal code: 3–12 letters or digits"); else patch.postalCode = v; }
       if (has("usageLocation")) { const v = str("usageLocation").toUpperCase(); if (!/^[A-Z]{2}$/.test(v)) problems.push("usage location must be a two-letter country code"); else patch.usageLocation = v; }
       if (has("safeEmail")) { const v = str("safeEmail").toLowerCase(); const why = safeEmailProblem(v, upn); if (why) problems.push(why); else patch.otherMails = v ? [v] : []; }
+      // an address the IT 管理员 / Hive sets is vouched for: it no longer counts as self-set (api/me orderAddresses)
       if (problems.length) return fail(context, 400, "please check the form", { problems });
       if (!Object.keys(patch).length) return fail(context, 400, "nothing to change");
       let target;
@@ -770,6 +771,7 @@ async function handler(context, req) {
         throw err;
       }
       await audit(context, { actor, action: "user.update", target: upn, fields: Object.keys(patch), result: "ok" });
+      if (patch.otherMails && String(actor || "").toLowerCase() !== upn) await require("../shared/people").updatePeople((d) => { const cur = d.people[upn]; if (cur && cur.selfSafeEmail !== undefined) delete cur.selfSafeEmail; }).catch((e) => context.log.warn(`safe email vouch ${upn}: ${e.message}`));
       try { await dir.refreshUser(domain, upn); } catch { /* the next sync catches up */ }
       const view = (await usersView(domain)).users.find((u) => u.upn === upn) || null;
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { ok: true, user: view, changed: Object.keys(patch).map((k) => (k === "otherMails" ? "safeEmail" : k)) } };

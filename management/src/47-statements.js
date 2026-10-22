@@ -246,8 +246,10 @@
       (s.note ? '<p class="muted">' + esc(s.note) + "</p>" : "") +
       detail +
       '<p class="muted" style="margin-top:24px">' + t("账号数来自蜂巢管理中心的目录快照；账单由财务审核后发送。", "Counts come from the Hive Management Center's directory snapshots; statements are sent after review by finance.") + "</p>" +
-      '<button onclick="window.print()" style="margin-top:12px">' + t("打印 / 保存为 PDF", "Print / Save as PDF") + "</button></body></html>";
+      '<button id="fcPrint" type="button" style="margin-top:12px">' + t("打印 / 保存为 PDF", "Print / Save as PDF") + "</button></body></html>";
     var w = window.open("", "_blank");
     if (!w) { flash(t("浏览器拦截了新窗口，请允许弹出窗口后再试。", "The browser blocked the window; allow pop-ups and try again."), 5000); return; }
     w.document.open(); w.document.write(html); w.document.close();
+    // bound from here: the window inherits the site's CSP, which allows no inline handlers (2026-10-22)
+    var pb = w.document.getElementById("fcPrint"); if (pb) pb.addEventListener("click", function () { w.print(); });
   }

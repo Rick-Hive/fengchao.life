@@ -179,6 +179,7 @@ window.I18N = {
     nameFamily: "姓（必填）",
     nameGiven: "名（必填）",
     nameEnglish: "英文名（选填）",
+    courseNotListed: "这门课还没有在网站上架（发布后，下一次同步网站时出现）。",
     nameNote: "请填写真实姓名：付款后课程提供方会据此为您开设上课账号。",
     errName: "请填写您的姓和名。",
     // 选课费 / selection fee (v3 第二批, 2026-10-22): shown only when the fee is charged
@@ -201,7 +202,7 @@ window.I18N = {
     // 我要教课 (/teach, Rick 2026-10-22): the application to become a course provider
     teach: {
       title: "我要教课",
-      lead: "蜂巢欢迎认同古典教育理念、以圣经世界观施教的老师、教学团队和学校，把好课程带给更多家庭。",
+      lead: "欢迎 C 教育者、专科教学团队和学校，将自己的精品课程上传至蜂巢平台，以祝福更多的主内家庭！",
       steps: [["提交申请", "填写下面的表格，约 5 分钟"], ["交流与审核", "蜂巢教育社区经理两周内联系您"], ["开通", "订单频道和课程负责人账号"], ["建课上架", "在管理中心建课，审核后上架"], ["开课", "家长下单，您联系家长、开班"]],
       getTitle: "蜂巢提供",
       get: ["课程在蜂巢网站展示，家长在线选课下单", "订单直接发到您的订单频道和邮箱", "管理中心：课程、老师资料、订单、班级名单"],
@@ -215,7 +216,7 @@ window.I18N = {
       phone: "电话或微信（选填）",
       org: "团队 / 机构名称",
       orgIndividual: "对外名称（选填，默认用您的姓名）",
-      abbr: "简称（选填，2–8 个字母，如 JCA）",
+      abbr: "简称（选填，2–8 个字母，如 ABC）",
       website: "网站（选填）",
       domain: "自己的邮箱域名（选填，如 school.org）",
       domainNote: "有自己的 Microsoft 365 域名，可用它为学生开账号；没有也可以开课。",
@@ -495,6 +496,7 @@ window.I18N = {
     nameFamily: "Family name (required)",
     nameGiven: "Given name (required)",
     nameEnglish: "English name (optional)",
+    courseNotListed: "This course is not on the website yet (it appears at the next website sync after it is published).",
     nameNote: "Please use your real name: once you have paid, the course provider opens your class account with it.",
     errName: "Please enter your family and given names.",
     doneSplit: "Your courses come from different institutions, so they are split into separate orders; each institution will contact you. Please keep the order numbers:",
@@ -504,7 +506,7 @@ window.I18N = {
     loading: "Loading…",
     teach: {
       title: "I Want to Teach",
-      lead: "Hive welcomes teachers, teaching teams and schools who share the classical approach and teach from a biblical worldview, to bring good courses to more families.",
+      lead: "We welcome Christian educators, specialist teaching teams and schools to bring their finest courses to the Hive platform and bless more Christian families!",
       steps: [["Apply", "The form below, about 5 minutes"], ["Talk and review", "Hive's community manager contacts you within two weeks"], ["Onboarding", "An orders channel and a course leader's account"], ["Create and list", "Create courses in the management centre; listed after review"], ["Teach", "Families order; you contact them and start the class"]],
       getTitle: "Hive provides",
       get: ["Your courses on the Hive website, where families choose and order", "Orders sent straight to your orders channel and email", "The management centre: courses, teacher profiles, orders, class lists"],
@@ -518,7 +520,7 @@ window.I18N = {
       phone: "Phone or WeChat (optional)",
       org: "Team / organisation name",
       orgIndividual: "Public name (optional; your name by default)",
-      abbr: "Short name (optional, 2–8 letters, e.g. JCA)",
+      abbr: "Short name (optional, 2–8 letters, e.g. ABC)",
       website: "Website (optional)",
       domain: "Your own email domain (optional, e.g. school.org)",
       domainNote: "With your own Microsoft 365 domain you can give students accounts on it; you can teach without one too.",

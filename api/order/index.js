@@ -114,7 +114,8 @@ const FALLBACK_ALPHABET = "23456789ACDEFGHJKMNPQRTVWXYZ";
 function randomSuffix(n) {
   let out = "";
   for (let i = 0; i < n; i++) {
-    out += FALLBACK_ALPHABET[Math.floor(Math.random() * FALLBACK_ALPHABET.length)];
+    // crypto, not Math.random: a submission id is what /api/order/status answers to (security review 2026-10-22)
+    out += FALLBACK_ALPHABET[require("crypto").randomInt(FALLBACK_ALPHABET.length)];
   }
   return out;
 }

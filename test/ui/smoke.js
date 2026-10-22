@@ -11,11 +11,13 @@ require("child_process").execFileSync(process.execPath, [path.join(ROOT, "script
 const OUT = process.env.OUT || path.join(__dirname, "shots");
 fs.mkdirSync(OUT, { recursive: true });
 const mime = { ".html": "text/html", ".css": "text/css", ".js": "application/javascript", ".png": "image/png", ".json": "application/json", ".svg": "image/svg+xml" };
+const CSP = JSON.parse(fs.readFileSync(path.join(ROOT, "staticwebapp.config.json"), "utf8")).globalHeaders["Content-Security-Policy"];
 const srv = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p.endsWith("/")) p += "index.html";
   const f = path.join(ROOT, p);
-  if (fs.existsSync(f) && fs.statSync(f).isFile()) { res.writeHead(200, { "content-type": mime[path.extname(f)] || "application/octet-stream" }); fs.createReadStream(f).pipe(res); }
+  // pages carry the production Content-Security-Policy, so an inline script or handler shows up here as a console error
+  if (fs.existsSync(f) && fs.statSync(f).isFile()) { res.writeHead(200, Object.assign({ "content-type": mime[path.extname(f)] || "application/octet-stream" }, path.extname(f) === ".html" ? { "content-security-policy": CSP } : {})); fs.createReadStream(f).pipe(res); }
   else { res.writeHead(404); res.end("nf " + p); }
 });
 const summary = {
@@ -2448,6 +2450,8 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     CO_DOC.status = "submitted"; CO_DOC.submitted = { at: new Date().toISOString(), by: "zhang@kxc.edu", note: "ready" };
     await p.click("#cotable tr[data-id] td:first-child"); await p.waitForSelector("#coed .cobar"); await p.waitForTimeout(300);
     assert.ok(await p.$("#coPublish") && !(await p.$("#coSubmit")), "an approver publishes"); assert.ok(!(await p.$eval('.cof[data-k="price"]', e => e.readOnly)), "price is editable for an approver");
+    assert.ok(await p.$eval("#nav .nav-item.active", e => { const n = document.getElementById("nav").getBoundingClientRect(), r = e.getBoundingClientRect(); return /课程管理/.test(e.textContent) && r.top >= n.top && r.bottom <= n.bottom; }), "the sidebar's 课程管理 is in sight in the editor (Rick 2026-10-22)");
+    assert.strictEqual(await p.$eval('#coMenu a.mi[href^="/courses"]', e => e.getAttribute("href")), "/courses?course=" + CO_ID, "在网站上查看 opens this course's card");
     await p.click("#coMore"); assert.ok(await p.$('#coMenu [data-op="return"]'), "return is in the menu for a submitted course"); await p.click('#coMenu [data-op="return"]'); await p.waitForSelector("#panel.open");
     await p.click("#coGo"); await p.waitForTimeout(200); assert.ok(!coOps.some(o => o.op === "return"), "no return without a comment");
     await p.fill("#coCmt", "请补充课时安排"); await p.click("#coGo"); await p.waitForTimeout(400);

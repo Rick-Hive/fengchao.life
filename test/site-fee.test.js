@@ -67,12 +67,13 @@ const fillForm = (doc, w) => {
   check("fee: the tab remembers what is being paid for", JSON.parse(P.w.sessionStorage.getItem("fc-paying")), { submission: "FS-20261022-ABCDE", email: "mama@example.com" });
 
   // ---- back from Stripe, paid: the done page waits, then lists the orders ----
-  let polls = 0;
-  P = page("https://www.fengchao.life/done?submission=FS-20261022-ABCDE", true, [[/\/api\/order\/status\?submission=/, (u, b, json) => (++polls < 2 ? json(200, { status: "held", orderIds: [] }) : json(200, { status: "paid", orderIds: ["FC-20261022-KXC-001"], fee: { receiptUrl: "https://pay.stripe.com/receipts/r1" } }))]]);
+  let polls = 0, pollUrl = "";
+  P = page("https://www.fengchao.life/done?submission=FS-20261022-ABCDE", true, [[/\/api\/order\/status\?submission=/, (u, b, json) => (pollUrl = u, ++polls < 2 ? json(200, { status: "held", orderIds: [] }) : json(200, { status: "paid", orderIds: ["FC-20261022-KXC-001"], fee: { receiptUrl: "https://pay.stripe.com/receipts/r1" } }))]], { submission: "FS-20261022-ABCDE", email: "mama@example.com" });
   await wait(100);
   check("paid: confirming first", [!!P.doc.querySelector(".done-card .spinner"), /正在确认付款/.test(P.doc.querySelector(".done-card").textContent)], [true, true]);
   await wait(3200);
   check("paid: the order number and the receipt", [P.doc.querySelector(".done-card .order-id").textContent, !!P.doc.querySelector('.done-card a[href="https://pay.stripe.com/receipts/r1"]')], ["FC-20261022-KXC-001", true]);
+  check("paid: the poll carries the family's email (the order numbers are theirs only)", /&email=mama%40example\.com$/.test(pollUrl), true);
   check("paid: the cart emptied", Object.keys(JSON.parse(P.w.localStorage.getItem("fc-wizard-v1")).cart), []);
   check("the address no longer carries the submission", P.w.location.search, "");
 

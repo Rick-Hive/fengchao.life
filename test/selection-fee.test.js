@@ -121,7 +121,9 @@ const contact = { familyName: "王", givenName: "五" };
   s = await submissions.read(sub);
   assert.ok(s.status === "paid" && s.orderIds.length === 2 && !(await submissions.openList())[sub], "paid, out of the open list");
   r = await get({ submission: sub });
-  assert.deepStrictEqual([r.body.status, r.body.orderIds.length, r.body.fee.receiptUrl], ["paid", 2, "https://pay.stripe.com/receipts/r1"], "the done page reads the orders");
+  assert.deepStrictEqual([r.body.status, r.body.orderIds.length, r.body.fee, r.body.limited], ["paid", 0, null, true], "the submission id alone: the status, nothing of the family's");
+  r = await get({ submission: sub, email: "B@gmail.com" });
+  assert.deepStrictEqual([r.body.status, r.body.orderIds.length, r.body.fee.receiptUrl], ["paid", 2, "https://pay.stripe.com/receipts/r1"], "the done page, with the family's email, reads the orders");
 
   // a refund of the fee is recorded on the submission and its orders
   r = await hook({ id: "evt_3", type: "charge.refunded", data: { object: { id: "ch_1", payment_intent: "pi_1", amount: 100, amount_refunded: 100 } } });
@@ -148,7 +150,7 @@ const contact = { familyName: "王", givenName: "五" };
   const sub4 = r.body.submission;
   blobs[submissions.blobOf(sub4)].createdAt = new Date(Date.now() - 10000).toISOString();
   sessions.cs_test_4.status = "complete"; sessions.cs_test_4.payment_status = "paid";
-  r = await get({ submission: sub4 });
+  r = await get({ submission: sub4, email: "f@gmail.com" });
   assert.ok(r.body.status === "paid" && r.body.orderIds.length === 1, "the poll catches up with Stripe: " + JSON.stringify(r.body));
 
   // ---- the nightly sweep: a held submission past its hold — paid → orders; unpaid → abandoned ----

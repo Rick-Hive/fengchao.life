@@ -1,5 +1,5 @@
-// 开通为课程提供方 / Onboard a course provider (Rick 2026-10-22: 「在管理中心直接为 JCA 开通能否做到自动化？你现在 Hive
-// Orders 中创建 JCA 的频道，将其写入 Airtable，其它字段可以直接使用机构的值写入」).
+// 开通为课程提供方 / Onboard a course provider (Rick 2026-10-22: 「在管理中心直接为一个机构开通能否做到自动化？你现在 Hive
+// Orders 中创建该机构的频道，将其写入 Airtable，其它字段可以直接使用机构的值写入」).
 //
 // One action from the 机构 panel, five steps, each idempotent (run it again and it fills in what is missing):
 //   1. channel      a standard channel "<ABBR> Orders" in the Hive Orders team (Graph, Channel.Create) — or the one
@@ -37,7 +37,7 @@ function clean(input) {
   const out = { key: s(input.key, 120), abbr: s(input.abbr, 20), name: s(input.name, 120), nameEn: s(input.nameEn, 160), domain: s(input.domain, 120).toLowerCase(), notifyEmail: s(input.notifyEmail, 200).toLowerCase(),
     leader: s(input.leader, 200).toLowerCase(), channelName: s(input.channelName, 50), country: s(input.country, 60), city: s(input.city, 60), website: s(input.website, 200) };
   const problems = [];
-  if (!out.abbr || !hiveKey(out.abbr)) problems.push("abbr: the short name (e.g. JCA) is required");
+  if (!out.abbr || !hiveKey(out.abbr)) problems.push("abbr: the short name (e.g. ABC) is required");
   if (!out.name) problems.push("name: the institution's name is required");
   if (out.notifyEmail && !EMAIL_RE.test(out.notifyEmail)) problems.push("notifyEmail: not an address");
   if (out.leader && !EMAIL_RE.test(out.leader)) problems.push("leader: an account name@domain");
@@ -49,7 +49,7 @@ function clean(input) {
   return out;
 }
 
-// What Microsoft said, in words the administrator can act on (2026-10-22: the first JCA run failed with a raw Graph line)
+// What Microsoft said, in words the administrator can act on (2026-10-22: the first run failed with a raw Graph line)
 function channelError(err, name) {
   const st = err && err.status, msg = String((err && err.message) || err || "");
   const said = msg.replace(/^Graph \w+ \S+ -> (HTTP \d+: )?/, "");

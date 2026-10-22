@@ -43,8 +43,19 @@ const notify = require("../shared/notify");
 // 我的订单 (design 2026-10-20): the orders that are this person's — placed while signed in as this account, or under
 // one of the account's addresses (the UPN itself, the work mail, the safe email). Theirs to read in full and, while
 // still only submitted, to cancel; everything after that is the hive's and the order manager's.
-function orderAddresses(upn, user) {
-  return Array.from(new Set([upn, user.mail, (user.otherMails || [])[0]].map((v) => String(v || "").trim().toLowerCase()).filter(Boolean)));
+//
+// The safe email counts only when someone other than the person set it (the school's IT 管理员 or Hive, when the account
+// was made or since): a person can type any address as their own safe email, unverified, and must not thereby read
+// and cancel the orders a stranger placed under that address (security review 2026-10-22). people.json remembers the
+// address a person set themselves (`selfSafeEmail`); an administrator setting it clears that. Unreadable → not counted.
+async function orderAddresses(upn, user) {
+  const safe = String((user.otherMails || [])[0] || "").trim().toLowerCase();
+  let trusted = false;
+  if (safe) {
+    try { const d = await require("../shared/jsonstore").read("people.json", { people: {} }); const rec = d && d.people && d.people[upn]; trusted = !(rec && String(rec.selfSafeEmail || "").toLowerCase() === safe); }
+    catch { trusted = false; }
+  }
+  return Array.from(new Set([upn, user.mail, trusted ? safe : ""].map((v) => String(v || "").trim().toLowerCase()).filter(Boolean)));
 }
 function isMine(o, upn, addrs) {
   if (!o) return false;
@@ -317,7 +328,7 @@ async function handler(context, req) {
       const orderId = String((req.query && req.query.orderId) || ""), i = Number((req.query && req.query.i) || 0);
       if (!crm.ID_RE.test(orderId) || !(i > 0)) return fail(context, 400, "bad request");
       const cur = await crm.readOrder(orderId);
-      if (!cur || !isMine(cur.order, upn, orderAddresses(upn, user))) return fail(context, 404, "no such order");
+      if (!cur || !isMine(cur.order, upn, await orderAddresses(upn, user))) return fail(context, 404, "no such order");
       const p = (cur.order.proof || []).find((x) => x.i === i);
       const buf = p ? await crm.readProof(orderId, i, p.type) : null;
       if (!buf) return fail(context, 404, "no such proof");
@@ -325,7 +336,7 @@ async function handler(context, req) {
       return;
     }
     if (method === "GET" && action === "orders") {
-      const addrs = orderAddresses(upn, user);
+      const addrs = await orderAddresses(upn, user);
       const all = await crm.listOrders();
       const mine = all.filter((o) => isMine(o, upn, addrs)).map(myOrderView);
       context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { orders: mine, addresses: addrs } };
@@ -339,7 +350,7 @@ async function handler(context, req) {
       const orderId = String(b.orderId || ""), want = String(b.status || "cancelled");
       if (!crm.ID_RE.test(orderId)) return fail(context, 400, "bad order id");
       const cur = await crm.readOrder(orderId);
-      if (!cur || !isMine(cur.order, upn, orderAddresses(upn, user))) return fail(context, 404, "no such order");
+      if (!cur || !isMine(cur.order, upn, await orderAddresses(upn, user))) return fail(context, 404, "no such order");
       const live = crm.withExpiry(cur.order), st = crm.statusOf(live);
       // v3: the child a course is for, named after checkout (any live order; 个人资料 › 我的孩子 or typed here);
       // {orderId, code, child: {name, grade, account}} — child null clears it
@@ -500,6 +511,9 @@ async function handler(context, req) {
       }
       if (problems.length) return fail(context, 400, "please fix the form", { problems });
       if (!Object.keys(patch).length) return fail(context, 400, "nothing to change");
+      // a safe email typed by the person themselves is theirs to be reached at, not proof that its orders are theirs:
+      // remembered BEFORE Microsoft is told, so a failed write can never leave it trusted (see orderAddresses)
+      if (patch.otherMails) await people.updatePeople((d) => { const cur = d.people[upn] || {}; cur.selfSafeEmail = patch.otherMails[0] || ""; d.people[upn] = cur; });
       try {
         await graph("PATCH", `/users/${user.id}`, patch);
       } catch (err) {

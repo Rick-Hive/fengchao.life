@@ -65,6 +65,14 @@ function page(url, wizard) {
   check("the form is sent", [sent.kind, sent.name, sent.email, sent.org, sent.subjects, sent.language, sent.agree, sent.lang, "account" in sent], ["team", "周老师", "eve@example.org", "心桥中文", "中文阅读", "zh", true, "zh", false]);
   check("the application number", doc.querySelector(".teach-done .order-id").textContent, "REL-000061");
 
+  // 在网站上查看: /courses?course=<id or code> opens the course's card; an unknown one says it is not listed yet
+  P = page("https://www.fengchao.life/courses?course=c1");
+  await wait(80);
+  check("a deep link opens the course card", [!!P.doc.querySelector(".modal.course-modal"), P.w.location.search], [true, ""]);
+  P = page("https://www.fengchao.life/courses?course=newABCDEFGHIJKLMN");
+  await wait(80);
+  check("a course not on the website yet: said so", /还没有在网站上架/.test((P.doc.querySelector(".modal") || {}).textContent || ""), true);
+
   // the order page: a real name, because the provider opens the class account from it
   P = page("https://www.fengchao.life/order", { stage: "grammar", mode: null, pedagogy: "classical", cart: { c1: true }, cartAt: Date.now(), filters: {} });
   await wait(80);
