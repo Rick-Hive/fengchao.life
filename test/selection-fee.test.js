@@ -74,23 +74,26 @@ const contact = { familyName: "王", givenName: "五" };
   assert.throws(() => stripe.verifyWebhook(raw, sig, ""), /no secret/);
 
   // ---- off: nothing changes ----
-  process.env.SELECTION_FEE_CENTS = "134";
+  process.env.SELECTION_FEE_CENTS = "100";
   assert.strictEqual(fee.activeFee(), null, "a fee amount alone does not charge anything: Stripe must be set up too");
   assert.deepStrictEqual((await get()).body, { fee: null, test: false });
   let r = await post({ email: "a@gmail.com", trackId: 1, courseIds: ["recB"], contact, lang: "zh" });
   assert.ok(r.status === 200 && r.body.orderIds.length === 1 && !r.body.checkout, "fee off: the order is made at once, as before");
   assert.strictEqual(orders[r.body.orderIds[0]].fee, null, "no fee on the record");
   assert.strictEqual(calls.length, 0, "Stripe never called");
+  process.env.SELECTION_FEE_CENTS = "134"; process.env.STRIPE_SECRET_KEY = "sk_test_x";
+  assert.strictEqual(fee.activeFee().label, "USD 1.34", "cents shown only when there are some");
+  process.env.SELECTION_FEE_CENTS = "100"; delete process.env.STRIPE_SECRET_KEY;
 
   // ---- on ----
   process.env.STRIPE_SECRET_KEY = "sk_test_x"; process.env.STRIPE_WEBHOOK_SECRET = SECRET;
-  assert.deepStrictEqual(fee.activeFee(), { amount: 134, currency: "usd", label: "USD 1.34" });
-  assert.deepStrictEqual((await get()).body, { fee: { amount: 134, currency: "usd", label: "USD 1.34" }, test: true }, "the order page's line");
+  assert.deepStrictEqual(fee.activeFee(), { amount: 100, currency: "usd", label: "USD 1" });
+  assert.deepStrictEqual((await get()).body, { fee: { amount: 100, currency: "usd", label: "USD 1" }, test: true }, "the order page's line");
   const nOrders = Object.keys(orders).length, nFlow = flowCalls.length;
   r = await post({ email: "b@gmail.com", trackId: 1, courseIds: ["recA", "recB"], contact, lang: "en" });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   const sub = lastSub = r.body.submission;
-  assert.ok(/^https:\/\/checkout\.stripe\.com\//.test(r.body.checkout) && r.body.fee.label === "USD 1.34", "the family goes to Stripe");
+  assert.ok(/^https:\/\/checkout\.stripe\.com\//.test(r.body.checkout) && r.body.fee.label === "USD 1", "the family goes to Stripe");
   assert.strictEqual(Object.keys(orders).length, nOrders, "no order yet — no order number spent before the fee is paid");
   assert.strictEqual(flowCalls.length, nFlow, "nobody notified yet");
   const cs = calls.find((c) => c.p === "/checkout/sessions");
@@ -121,7 +124,7 @@ const contact = { familyName: "王", givenName: "五" };
   assert.deepStrictEqual([r.body.status, r.body.orderIds.length, r.body.fee.receiptUrl], ["paid", 2, "https://pay.stripe.com/receipts/r1"], "the done page reads the orders");
 
   // a refund of the fee is recorded on the submission and its orders
-  r = await hook({ id: "evt_3", type: "charge.refunded", data: { object: { id: "ch_1", payment_intent: "pi_1", amount: 134, amount_refunded: 134 } } });
+  r = await hook({ id: "evt_3", type: "charge.refunded", data: { object: { id: "ch_1", payment_intent: "pi_1", amount: 100, amount_refunded: 100 } } });
   assert.strictEqual(r.status, 200);
   assert.ok((await submissions.read(sub)).fee.status === "refunded" && orders[o1.orderId].fee.status === "refunded" && orders[o1.orderId].status === "submitted", "the fee refunded; the order itself untouched");
 

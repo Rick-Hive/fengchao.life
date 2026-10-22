@@ -530,7 +530,7 @@ async function holdForPayment(context, base, feeOn) {
       submission: base.submission, fee: feeOn, email: base.email, lang: base.lang, expiresAt,
       successUrl: `${SITE()}/done?submission=${q}`,
       cancelUrl: `${SITE()}/order?payment=cancelled&submission=${q}`,
-      description: en ? "Hive selection fee (incl. payment processing)" : "蜂巢选课费（含支付手续费）",
+      description: en ? "Hive selection fee" : "蜂巢选课费",
     });
     await submissions.update(base.submission, (d) => { d.stripe = { sessionId: session.id, url: session.url, expiresAt: new Date(expiresAt).toISOString(), livemode: !!session.livemode }; });
     return { ok: true, url: session.url, holdUntil };

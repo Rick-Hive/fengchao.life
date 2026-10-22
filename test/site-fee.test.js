@@ -1,5 +1,5 @@
 // The website's order page with and without the selection fee (2026-10-22), driven in jsdom: without a fee nothing
-// changes (button 提交订单, the order number at once); with one the page names the fee, the button says 提交并支付,
+// changes (button 提交订单, the order number at once); with one the page names the fee, the button stays 提交订单,
 // the family is sent to Stripe, and the done page waits for the payment and then lists the orders; a family coming
 // back without paying sees why and its hold is released.
 //
@@ -29,7 +29,7 @@ function page(url, feeOn, routes, paying) {
     const json = (status, j) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(j) });
     for (const [re, fn] of routes || []) if (re.test(url)) return fn(url, body, json);
     if (/\/api\/seats/.test(url)) return json(200, { seats: {} });
-    if (/\/api\/order\/status$/.test(url)) return json(200, feeOn ? { fee: { amount: 134, currency: "usd", label: "USD 1.34" }, test: true } : { fee: null, test: false });
+    if (/\/api\/order\/status$/.test(url)) return json(200, feeOn ? { fee: { amount: 100, currency: "usd", label: "USD 1" }, test: true } : { fee: null, test: false });
     if (/\/api\/me\//.test(url)) return json(401, {});
     if (/\/api\/data/.test(url)) return json(200, snapshot);
     return json(404, {});
@@ -56,10 +56,11 @@ const fillForm = (doc, w) => {
   check("no fee: the order number at once, nobody sent anywhere", [P.doc.querySelector(".done-card .order-id") && P.doc.querySelector(".done-card .order-id").textContent, P.navigations.length], ["FC-20261022-KXC-001", 0]);
 
   // ---- with the fee: the line, the button, off to Stripe ----
-  P = page("https://www.fengchao.life/order", true, [[/\/api\/order$/, (u, b, json) => json(200, { ok: true, checkout: "https://checkout.stripe.com/c/pay/cs_test_1", submission: "FS-20261022-ABCDE", fee: { label: "USD 1.34" } })]]);
+  P = page("https://www.fengchao.life/order", true, [[/\/api\/order$/, (u, b, json) => json(200, { ok: true, checkout: "https://checkout.stripe.com/c/pay/cs_test_1", submission: "FS-20261022-ABCDE", fee: { label: "USD 1" } })]]);
   await wait(50);
-  check("fee: the line names it, test mode marked", [/选课费 USD 1\.34/.test((P.doc.querySelector(".fee-line") || {}).textContent || ""), !!P.doc.querySelector(".fee-line .fee-test")], [true, true]);
-  check("fee: the button says what it does", P.doc.getElementById("submitBtn").textContent, "提交并支付 USD 1.34");
+  check("fee: the line names it, test mode marked", [/^选课费 USD 1，/.test((P.doc.querySelector(".fee-line") || {}).textContent || ""), !!P.doc.querySelector(".fee-line .fee-test")], [true, true]);
+  check("fee: the button stays 提交订单 (Rick 2026-10-22)", P.doc.getElementById("submitBtn").textContent, "提交订单");
+  check("fee: no word about processing fees", /手续费/.test(P.doc.querySelector(".fee-line").textContent), false);
   fillForm(P.doc, P.w); P.doc.getElementById("submitBtn").click(); await wait(50);
   check("fee: the family is sent to Stripe's page", P.navigations, ["https://checkout.stripe.com/c/pay/cs_test_1"]);
   check("fee: the cart is kept until the payment is confirmed", Object.keys(JSON.parse(P.w.localStorage.getItem("fc-wizard-v1")).cart), ["c1"]);

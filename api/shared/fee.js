@@ -21,7 +21,7 @@ function selectionFee() {
 function activeFee() {
   const f = selectionFee();
   if (!f || !require("./stripe").configured()) return null;
-  return Object.assign({}, f, { label: `${f.currency.toUpperCase()} ${(f.amount / 100).toFixed(2)}` });
+  return Object.assign({}, f, { label: `${f.currency.toUpperCase()} ${f.amount % 100 ? (f.amount / 100).toFixed(2) : f.amount / 100}` }); // "USD 1", "USD 1.34"
 }
 
 // The fee part of a fresh order record: null when no fee is configured.

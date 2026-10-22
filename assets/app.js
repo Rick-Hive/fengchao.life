@@ -1725,7 +1725,7 @@
       (state.fee ? '<p class="fee-line">' + esc(fill(t().feeLine, { fee: state.fee.label })) + (state.feeTest ? ' <span class="fee-test">' + esc(t().feeTest) + "</span>" : "") + "</p>" : "") +
       '<p class="form-err" id="formErr">' + esc(state.formErr) + "</p>" +
       '<button class="btn btn-primary" id="submitBtn" style="width:100%;margin-top:8px" ' + (state.submitting || (state.account && state.account.schoolAccount) ? "disabled" : "") + ">" +
-      esc(state.submitting ? t().submitting : state.fee ? fill(t().submitPay, { fee: state.fee.label }) : t().submitOrder) + "</button></div></div>" +
+      esc(state.submitting ? t().submitting : t().submitOrder) + "</button></div></div>" +
       '<div class="nav-row"><button class="btn btn-ghost" id="back5">' + esc(t().back) + "</button><span></span></div></section>"
     );
   }
