@@ -39,18 +39,19 @@
   }
   function ptPartyLink(rel) { return '<b>' + esc(rel.partyName || (rel.party && rel.party.name) || "") + "</b>" + (rel.party && rel.party.kind === "person" ? ' <span class="tag">' + t("个人", "person") + "</span>" : "") + (rel.source === "application" ? ' <span class="tag accent">' + t("网站申请", "applied") + "</span>" : ""); }
   // 我要教课 (2026-10-22): what the applicant wrote on the website, on the relationship it opened
-  var PT_APP_KIND = { individual: ["个人老师", "Individual teacher"], team: ["教学团队", "Teaching team"], school: ["学校 / 机构", "School / organisation"] };
+  var PT_APP_KIND = { solo: ["一人团队", "One-person team"], individual: ["一人团队", "One-person team"], team: ["多人团队", "Teaching team"], school: ["学校 / 机构", "School / organisation"] };
   var PT_APP_LANG = { zh: ["中文", "Chinese"], en: ["英文", "English"], both: ["中英双语", "Chinese and English"] };
   function ptApplicationHtml(a) {
     if (!a) return "";
     var L = function (m, k) { return m[k] ? t(m[k][0], m[k][1]) : ""; };
     var link = function (u) { var h = /^https?:\/\//i.test(u) ? u : "https://" + u; return /^https?:\/\/[^\s<>"]+$/i.test(h) ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + esc(u) + " ↗</a>" : esc(u); };
     return '<h4>' + t("网站申请", "Website application") + ' <small class="faint">' + esc(day(a.at)) + (a.firstAt && a.firstAt !== a.at ? t("（首次 ", " (first ") + esc(day(a.firstAt)) + t("）", ")") : "") + "</small></h4>" +
-      '<div class="kv app-kv">' + ptKv(t("申请人", "Applicant"), esc(a.name) + " · " + esc(a.email) + (a.phone ? " · " + esc(a.phone) : "") + (a.account ? ' · <span class="muted">' + t("登录账号 ", "signed in as ") + esc(a.account) + "</span>" : "")) +
+      '<div class="kv app-kv">' + ptKv(t("申请人", "Applicant"), esc(a.name) + (a.familyName ? ' <span class="muted">(' + t("姓 ", "family ") + esc(a.familyName) + t(" · 名 ", " · given ") + esc(a.givenName) + ")</span>" : "") + " · " + esc(a.email) + (a.phone ? " · " + esc(a.phone) : "") + (a.account ? ' · <span class="muted">' + t("登录账号 ", "signed in as ") + esc(a.account) + "</span>" : "")) +
       ptKv(t("类型", "Type"), esc(L(PT_APP_KIND, a.kind)) + (a.teachers ? " · " + esc(a.teachers) + t(" 位老师", " teachers") : "")) +
-      ptKv(t("名称", "Name"), esc(a.org) + (a.abbr ? " · " + esc(a.abbr) : "") + (a.domain ? " · " + esc(a.domain) : "") + (a.website ? " · " + link(a.website) : "")) +
+      ptKv(t("名称", "Name"), esc(a.org) + (a.abbr ? " · " + esc(a.abbr) : "") + (a.domain ? " · " + esc(a.domain) : "") + (a.needDomain ? ' <span class="tag warn">' + t("需要蜂巢帮助创建域名", "needs a domain from Hive") + "</span>" : "") + (a.website ? " · " + link(a.website) : "")) +
       ((a.city || a.country) ? ptKv(t("地区", "Where"), esc([a.city, a.country].filter(Boolean).join(", "))) : "") +
-      ptKv(t("课程", "Courses"), esc(a.subjects) + (a.grades ? " · " + esc(a.grades) : "") + (a.language ? " · " + esc(L(PT_APP_LANG, a.language)) : "")) +
+      (a.subjects ? ptKv(t("课程", "Courses"), esc(a.subjects) + (a.grades ? " · " + esc(a.grades) : "") + (a.language ? " · " + esc(L(PT_APP_LANG, a.language)) : "")) : "") +
+      ((a.courses || []).length ? ptKv(t("填写的课程", "Courses entered"), a.courses.map(function (c) { return '<a href="#/courses/' + esc(c.id) + '">' + esc(c.nameZh || c.nameEn || c.id) + "</a>"; }).join(" · ")) : "") +
       ptKv(t("介绍", "About"), '<span class="pre">' + esc(a.intro) + "</span>") +
       (a.sample ? ptKv(t("样课", "Sample"), /^\S+$/.test(a.sample) ? link(a.sample) : '<span class="pre">' + esc(a.sample) + "</span>") : "") + "</div>";
   }

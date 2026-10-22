@@ -1826,82 +1826,227 @@
   }
 
   /* ---------- 我要教课 / I want to teach (/teach) ---------- */
-  // The application to become a course provider (Rick 2026-10-22). It lands on the partner pipeline as a 课程提供方
-  // relationship at 申请 / 推荐 (api/shared/applications.js); review and 开通 happen in the management centre.
-  // What is typed lives in state.teach, so a language toggle or a failed submission keeps it.
-  var TEACH_FIELDS = ["name", "email", "phone", "org", "abbr", "website", "domain", "country", "city", "subjects", "grades", "teachers", "intro", "sample"];
+  // A wizard (Rick 2026-10-22: 「做成向导，流程 1-5 要保留，很清晰的整体画面」). The five phases stay in view on top; the
+  // page does the first two: ① 提交申请 in three short steps (团队类型 → 您的资料 → 介绍与提交; a team or a school gives its
+  // own domain and short name, a one-person team neither), then ② 填写课程 — each course saved as a draft in the course
+  // editor's store (api/shared/applications.js addCourse) with the key the application returned. Nobody is signed in:
+  // until the application is submitted the form is kept in this browser; after, every course is on the server, and the
+  // confirmation email carries a link (?app=&key=) to go on adding courses from any device for 7 days.
+  var TEACH_KEY = "fc-teach-v2";
+  var TEACH_FIELDS = ["familyName", "givenName", "email", "org", "abbr", "domain", "teachers", "website", "country", "city", "intro", "sample"];
+  var COURSE_FIELDS = ["nameZh", "nameEn", "description", "numClasses", "minSize", "maxSize", "classTime", "prerequisite", "price"];
+  function teachBlankCourse() { return { nameZh: "", nameEn: "", subject: "", grades: [], classType: "Live Course", language: state.lang === "en" ? "English" : "Chinese", description: "", numClasses: "", minSize: "", maxSize: "", classTime: "", prerequisite: "", price: "" }; }
   function teachState() {
-    if (!state.teach) state.teach = { f: { kind: "", language: "zh", agree: false }, err: "", errField: "", sending: false, done: null };
-    var f = state.teach.f;
-    if (state.account) { if (!f.email && state.email) f.email = state.email; if (!f.name && state.account.name) f.name = state.account.name; }
-    return state.teach;
+    if (state.teach) return state.teach;
+    var saved = null; try { saved = JSON.parse(localStorage.getItem(TEACH_KEY) || "null"); } catch (e) {}
+    var st = { phase: "apply", step: 0, f: { kind: "", agree: false }, app: null, courses: [], c: teachBlankCourse(), lists: null, err: "", errField: "", msg: "", sending: false };
+    if (saved && typeof saved === "object") ["phase", "step", "f", "app", "courses", "c"].forEach(function (k) { if (saved[k] != null) st[k] = saved[k]; });
+    if (st.phase === "done") { st = { phase: "apply", step: 0, f: { kind: "", agree: false }, app: null, courses: [], c: teachBlankCourse(), lists: null, err: "", errField: "", msg: "", sending: false }; }
+    if (state.account && !st.f.email && state.email) st.f.email = state.email;
+    state.teach = st;
+    // the continue link from the confirmation email
+    var qs = null; try { qs = new URLSearchParams(location.search); } catch (e) {}
+    var appId = qs && qs.get("app"), key = qs && qs.get("key");
+    if (appId && key) {
+      try { history.replaceState(null, "", location.pathname); } catch (e) {}
+      fetch("/api/teach/app?id=" + encodeURIComponent(appId) + "&key=" + encodeURIComponent(key), { cache: "no-store" })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
+        .then(function (r) {
+          if (r.status !== 200) { st.phase = "apply"; st.step = 0; st.err = t().teach.err.expired; render(); return; }
+          st.app = { id: r.body.id, key: key, email: r.body.email, again: false, kind: r.body.kind }; st.courses = r.body.courses || []; st.phase = "courses"; st.err = ""; teachSave(); render();
+        }).catch(function () {});
+    }
+    return st;
+  }
+  function teachLong(x) { x = String(x || "").trim(); return x.length >= (/[\u3400-\u9fff]/.test(x) ? 10 : 20); }
+  function teachSave() {
+    var st = state.teach; if (!st) return;
+    try { localStorage.setItem(TEACH_KEY, JSON.stringify({ phase: st.phase, step: st.step, f: st.f, app: st.app, courses: st.courses, c: st.c })); } catch (e) {}
+  }
+  function teachLists() {
+    var st = state.teach;
+    if (st.lists || st.listsLoading) return;
+    st.listsLoading = true;
+    fetch("/api/teach/lists").then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { st.listsLoading = false; st.lists = j || { failed: true }; if (state.page === "teach") render(); })
+      .catch(function () { st.listsLoading = false; st.lists = { failed: true }; if (state.page === "teach") render(); });
+  }
+  function teachPhasesHtml(cur) {
+    var T = t().teach;
+    return '<ol class="tphases" aria-label="' + esc(T.title) + '">' + T.phases.map(function (p, i) {
+      var cls = i < cur ? "done" : i === cur ? "now" : "";
+      return '<li class="' + cls + '"' + (i === cur ? ' aria-current="step"' : "") + '><span class="tn">' + (i < cur ? "✓" : i + 1) + '</span><span class="tt"><b>' + esc(p[0]) + "</b><small>" + esc(p[1]) + "</small></span></li>";
+    }).join("") + "</ol>";
+  }
+  function teachField(k, label, opts) {
+    opts = opts || {};
+    var st = state.teach, v = (opts.src || st.f)[k];
+    var id = (opts.prefix || "te_") + k, bad = st.errField === k;
+    return '<div class="tf' + (opts.cls ? " " + opts.cls : "") + (bad ? " bad" : "") + '"><label for="' + id + '">' + esc(label) + (opts.req ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>" +
+      (opts.area ? '<textarea id="' + id + '" data-tf="' + k + '" rows="' + (opts.rows || 5) + '" maxlength="' + (opts.max || 3000) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ">" + esc(v || "") + "</textarea>"
+        : '<input id="' + id + '" data-tf="' + k + '" type="' + (opts.type || "text") + '" maxlength="' + (opts.max || 120) + '" value="' + esc(v == null ? "" : v) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ' autocomplete="' + (opts.ac || "off") + '"' + (opts.type === "number" ? ' min="1" max="999" inputmode="numeric"' : "") + " />") +
+      (opts.note ? '<p class="tnote">' + esc(opts.note) + "</p>" : "") + "</div>";
   }
   function renderTeach() {
     var T = t().teach, st = teachState(), f = st.f;
-    if (st.done) {
-      return '<div class="done-card teach-done">' +
-        '<svg class="mark" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-        "<h2>" + esc(T.doneTitle) + "</h2><p>" + esc(fill(T.doneDesc, { email: st.done.email })) + "</p>" +
-        '<div class="order-id">' + esc(st.done.id) + "</div><br/>" +
-        (st.done.again ? '<p class="done-split">' + esc(T.doneAgain) + "</p>" : "") +
-        '<a class="btn btn-primary" href="/" id="teachHome">' + esc(T.doneBack) + "</a></div>";
+    var head = '<div class="teach-head"><h2>' + esc(T.title) + '</h2><p class="hint">' + esc(T.lead) + "</p></div>";
+    if (st.phase === "done") {
+      return '<section class="teach-page">' + head + teachPhasesHtml(2) +
+        '<div class="tcard tdone"><svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        "<h3>" + esc(T.doneTitle) + '</h3><div class="order-id">' + esc(st.app.id) + "</div>" +
+        (st.app.again ? '<p class="tnote">' + esc(T.doneAgain) + "</p>" : "") +
+        "<p>" + esc(fill(T.doneCourses, { n: st.courses.length })) + "</p><p>" + esc(fill(T.doneNext, { email: st.app.email || f.email || "" })) + "</p>" +
+        '<a class="btn btn-primary" href="/" id="teachHome">' + esc(T.doneBack) + "</a></div></section>";
     }
-    var inp = function (k, label, opts) {
-      opts = opts || {};
-      return '<label for="te_' + k + '">' + esc(label) + (opts.req ? ' <span class="req">*</span>' : "") + "</label>" +
-        (opts.area ? '<textarea id="te_' + k + '" data-tf="' + k + '" rows="' + (opts.rows || 5) + '" maxlength="' + (opts.max || 3000) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ">" + esc(f[k] || "") + "</textarea>"
-          : '<input id="te_' + k + '" data-tf="' + k + '" type="' + (opts.type || "text") + '" maxlength="' + (opts.max || 120) + '" value="' + esc(f[k] == null ? "" : f[k]) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + (opts.ac ? ' autocomplete="' + opts.ac + '"' : "") + " />") +
-        (opts.note ? '<p class="field-note">' + esc(opts.note) + "</p>" : "");
-    };
-    var individual = f.kind === "individual";
-    return '<section class="panel teach-page"><h2>' + esc(T.title) + '</h2><p class="hint">' + esc(T.lead) + "</p>" +
-      '<ol class="teach-steps">' + T.steps.map(function (s, i) { return '<li><span class="n">' + (i + 1) + "</span><b>" + esc(s[0]) + "</b><span>" + esc(s[1]) + "</span></li>"; }).join("") + "</ol>" +
-      '<div class="teach-two"><div class="teach-box"><h3>' + esc(T.getTitle) + "</h3><ul>" + T.get.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + '</ul></div><div class="teach-box"><h3>' + esc(T.doTitle) + "</h3><ul>" + T["do"].map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div></div>" +
-      '<form class="form-card teach-form" id="teachForm" novalidate><h3>' + esc(T.formTitle) + "</h3>" +
-      (state.account ? '<p class="signed-in">' + esc(fill(T.signedIn, { who: state.account.upn })) + "</p>" : "") +
-      '<label>' + esc(T.kind) + ' <span class="req">*</span></label><div class="teach-kinds" role="radiogroup">' + ["individual", "team", "school"].map(function (k) { return '<label class="kind' + (f.kind === k ? " on" : "") + '"><input type="radio" name="te_kind" value="' + k + '"' + (f.kind === k ? " checked" : "") + " /> " + esc(T.kinds[k]) + "</label>"; }).join("") + "</div>" +
-      '<div class="teach-grid"><div>' + inp("name", T.name, { req: true, max: 80, ac: "name" }) + "</div><div>" + inp("email", T.email, { req: true, type: "email", max: 200, ac: "email" }) + "</div>" +
-      "<div>" + inp("phone", T.phone, { max: 60, ac: "tel" }) + "</div><div>" + inp("org", individual ? T.orgIndividual : T.org, { req: !individual, max: 120, ac: "off" }) + "</div>" +
-      "<div>" + inp("abbr", T.abbr, { max: 12, ac: "off" }) + "</div><div>" + inp("website", T.website, { max: 200, ac: "url" }) + "</div>" +
-      "<div>" + inp("country", T.country, { max: 60, ac: "country-name" }) + "</div><div>" + inp("city", T.city, { max: 60, ac: "address-level2" }) + "</div></div>" +
-      inp("domain", T.domain, { max: 120, ac: "off", note: T.domainNote }) +
-      inp("subjects", T.subjects, { req: true, max: 300, ph: T.subjectsPh }) +
-      '<div class="teach-grid three"><div>' + inp("grades", T.grades, { max: 120, ph: T.gradesPh }) + '</div><div><label for="te_language">' + esc(T.language) + '</label><select id="te_language" data-tf="language">' + ["zh", "en", "both"].map(function (k) { return '<option value="' + k + '"' + (f.language === k ? " selected" : "") + ">" + esc(T.languages[k]) + "</option>"; }).join("") + "</select></div><div>" + inp("teachers", T.teachers, { type: "number", max: 3 }) + "</div></div>" +
-      inp("intro", T.intro, { req: true, area: true, rows: 6, ph: T.introPh }) +
-      inp("sample", T.sample, { area: true, rows: 2, max: 1000 }) +
+    if (st.phase === "courses") return '<section class="teach-page">' + head + teachPhasesHtml(1) + renderTeachCourse() + "</section>";
+    var group = f.kind === "team" || f.kind === "school", n = st.step, body = "";
+    if (n === 0) {
+      body = '<h3 class="tq">' + esc(T.kindQ) + '</h3><div class="tchoices" role="radiogroup">' + ["solo", "team", "school"].map(function (k) {
+        return '<label class="tchoice' + (f.kind === k ? " on" : "") + '"><input type="radio" name="te_kind" value="' + k + '"' + (f.kind === k ? " checked" : "") + ' /><span class="dot" aria-hidden="true"></span><span class="tt"><b>' + esc(T.kinds[k][0]) + "</b><small>" + esc(T.kinds[k][1]) + "</small></span></label>";
+      }).join("") + "</div>" + (group ? '<p class="tnote">' + esc(T.noDomain) + "</p>" : "") +
+        '<div class="tgive"><div><h4>' + esc(T.getTitle) + "</h4><ul>" + T.get.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div><div><h4>" + esc(T.doTitle) + "</h4><ul>" + T["do"].map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div></div>";
+    } else if (n === 1) {
+      body = '<h3 class="tq">' + esc(T.profileQ) + "</h3>" +
+        (state.account ? '<p class="signed-in">' + esc(fill(T.signedIn, { who: state.account.upn })) + "</p>" : "") +
+        '<div class="tgrid">' + teachField("familyName", T.familyName, { req: true, max: 40, ac: "family-name" }) + teachField("givenName", T.givenName, { req: true, max: 40, ac: "given-name" }) + "</div>" +
+        '<p class="tnote tnote-tight">' + esc(T.nameNote) + "</p>" +
+        teachField("email", T.email, { req: true, type: "email", max: 200, ac: "email", note: T.emailNote }) +
+        (group ? '<h4 class="tsub">' + esc(T.orgHead[f.kind]) + "</h4>" + teachField("org", T.org[f.kind], { req: true, max: 120, ac: "organization" }) +
+          '<div class="tgrid">' + teachField("abbr", T.abbr, { req: true, max: 8, note: T.abbrNote }) + (f.needDomain ? '<div class="tf"><label>' + esc(T.domain) + '</label><p class="tnote tdomain-help">' + esc(T.needDomainNote) + "</p></div>" : teachField("domain", T.domain, { req: true, max: 120, ph: T.domainPh, note: T.domainNote })) + "</div>" +
+          // a team or a school without a domain yet: Hive creates one with them (Rick 2026-10-22: 「否则申请者会焦虑」)
+          '<label class="tcheck tcheck-tight"><input type="checkbox" id="te_needDomain"' + (f.needDomain ? " checked" : "") + " /><span>" + esc(T.needDomain) + "</span></label>" +
+          '<div class="tgrid">' + teachField("teachers", T.teachers, { type: "number", max: 3 }) + teachField("website", T.website, { max: 200, ac: "url" }) + "</div>" : "") +
+        '<div class="tgrid">' + teachField("country", T.country, { max: 60, ac: "country-name" }) + teachField("city", T.city, { max: 60, ac: "address-level2" }) + "</div>" +
+        (group ? "" : teachField("website", T.website, { max: 200, ac: "url" }));
+    } else {
+      body = '<h3 class="tq">' + esc(T.introQ) + "</h3>" +
+        teachField("intro", T.intro[f.kind] || T.intro.solo, { req: true, area: true, rows: 7, ph: T.introPh }) +
+        teachField("sample", T.sample, { max: 500 }) +
+        '<label class="tcheck' + (st.errField === "agree" ? " bad" : "") + '"><input type="checkbox" id="te_agree"' + (f.agree ? " checked" : "") + " /><span>" + esc(T.agree) + "</span></label>" +
+        '<p class="tnote">' + esc(T.afterSubmit) + "</p>";
+    }
+    return '<section class="teach-page">' + head + teachPhasesHtml(0) +
+      '<form class="tcard" id="teachForm" novalidate><div class="tbar"><span class="tstep">' + esc(T.phases[0][0]) + " · " + esc(fill(T.stepOf, { n: n + 1, m: 3 })) + '</span><span class="tdots" aria-hidden="true">' + [0, 1, 2].map(function (i) { return '<i class="' + (i <= n ? "on" : "") + '"></i>'; }).join("") + "</span></div>" +
+      body +
       '<div class="hp" aria-hidden="true"><input id="teHp" name="fc_hp_field" type="text" tabindex="-1" autocomplete="off" /></div>' +
-      '<label class="teach-agree"><input type="checkbox" id="te_agree"' + (f.agree ? " checked" : "") + " /> " + esc(T.agree) + "</label>" +
-      '<p class="form-err" id="teachErr">' + esc(st.err) + "</p>" +
-      '<button class="btn btn-primary" id="teachSubmit" type="submit" style="width:100%;margin-top:8px"' + (st.sending ? " disabled" : "") + ">" + esc(st.sending ? T.sending : T.submit) + "</button></form></section>";
+      '<p class="form-err" id="teachErr" role="alert">' + esc(st.err) + "</p>" +
+      '<div class="tnav">' + (n > 0 ? '<button type="button" class="btn btn-ghost" id="teachBack">' + esc(T.back) + "</button>" : '<span class="tkept">' + (f.kind ? esc(T.draftKept) : "") + "</span>") +
+      '<button type="submit" class="btn btn-primary" id="teachNext"' + (st.sending ? " disabled" : "") + ">" + esc(n < 2 ? T.next : st.sending ? T.sending : T.submit) + "</button></div></form></section>";
+  }
+  function renderTeachCourse() {
+    var T = t().teach, st = state.teach, c = st.c, L = st.lists, max = 10;
+    teachLists();
+    var nm = function (x) { return state.lang === "en" ? (x.nameEn || x.nameZh) : (x.nameZh || x.nameEn); };
+    var full = st.courses.length >= max;
+    var list = st.courses.length ? '<div class="tsaved"><h4>' + esc(T.saved) + " · " + st.courses.length + "</h4><ul>" + st.courses.map(function (x) { return '<li><span class="ok">✓</span>' + esc(nm(x) || x.id) + "</li>"; }).join("") + "</ul></div>" : "";
+    var cf = function (k, label, opts) { return teachField(k, label, Object.assign({ src: c, prefix: "tc_" }, opts || {})); };
+    var sel = function (k, label, items, req) {
+      return '<div class="tf' + (st.errField === k ? " bad" : "") + '"><label for="tc_' + k + '">' + esc(label) + (req ? ' <span class="req" aria-hidden="true">*</span>' : "") + '</label><select id="tc_' + k + '" data-tc="' + k + '">' + (req ? '<option value="">' + esc(T.choose) + "</option>" : "") + items.map(function (it) { return '<option value="' + esc(it[0]) + '"' + (c[k] === it[0] ? " selected" : "") + ">" + esc(it[1]) + "</option>"; }).join("") + "</select></div>";
+    };
+    var form = "";
+    if (full) form = '<p class="tnote">' + esc(fill(T.maxReached, { max: max })) + "</p>";
+    else if (!L) form = '<p class="tnote">' + esc(t().loading) + "</p>";
+    else if (L.failed) form = '<p class="form-err">' + esc(T.listsErr) + "</p>";
+    else {
+      var zh = state.lang !== "en";
+      form = '<h4 class="tsub">' + esc(T.newCourse) + "</h4>" +
+        '<div class="tgrid">' + cf("nameZh", T.nameZh, { max: 120 }) + cf("nameEn", T.nameEn, { max: 120 }) + '</div><p class="tnote tnote-tight' + (st.errField === "courseName" ? " bad" : "") + '">' + esc(T.nameEither) + "</p>" +
+        '<div class="tgrid three">' + sel("subject", T.subject, L.subjects.map(function (x) { return [x.id, zh ? (x.nameZh || x.nameEn) : (x.nameEn || x.nameZh)]; }), true) +
+          sel("classType", T.classType, L.classTypes.map(function (x) { return [x.en, zh ? x.zh : x.en]; })) + sel("language", T.language, L.languages.map(function (x) { return [x.en, zh ? x.zh : x.en]; })) + "</div>" +
+        '<div class="tf' + (st.errField === "grades" ? " bad" : "") + '"><label>' + esc(T.grades) + ' <span class="req" aria-hidden="true">*</span></label><div class="tgrades" role="group" aria-label="' + esc(T.grades) + '">' + L.grades.map(function (g) { var on = c.grades.indexOf(g.id) >= 0; return '<button type="button" class="tg' + (on ? " on" : "") + '" data-grade="' + esc(g.id) + '" aria-pressed="' + on + '">' + esc(g.name) + "</button>"; }).join("") + "</div></div>" +
+        cf("description", T.description, { req: true, area: true, rows: 6, max: 4000, ph: T.descriptionPh }) +
+        '<div class="tgrid three">' + cf("numClasses", T.numClasses, { type: "number", max: 3 }) + cf("minSize", T.minSize, { type: "number", max: 3 }) + cf("maxSize", T.maxSize, { type: "number", max: 3 }) + "</div>" +
+        '<div class="tgrid">' + cf("classTime", T.classTime, { max: 200, ph: T.classTimePh }) + cf("price", T.price, { max: 60, ph: T.pricePh }) + "</div>" +
+        cf("prerequisite", T.prerequisite, { area: true, rows: 2, max: 500 });
+    }
+    return '<form class="tcard" id="teachCourse" novalidate><div class="tbar"><span class="tstep">' + esc(T.phases[1][0]) + '</span><span class="tid">' + esc(st.app ? st.app.id : "") + "</span></div>" +
+      '<h3 class="tq">' + esc(T.coursesQ) + '</h3><p class="tlead">' + esc(fill(T.coursesLead, { id: st.app ? st.app.id : "", max: max })) + "</p>" + list +
+      (st.msg ? '<p class="tmsg">' + esc(st.msg) + "</p>" : "") + form +
+      '<p class="form-err" role="alert">' + esc(st.err) + "</p>" +
+      '<div class="tnav">' + (st.courses.length ? '<button type="button" class="btn btn-ghost" id="teachFinish">' + esc(T.finish) + "</button>" : '<span class="tkept">' + esc(T.draftKept) + "</span>") +
+      (full || !L || L.failed ? "" : '<button type="submit" class="btn btn-primary" id="teachSaveCourse"' + (st.sending ? " disabled" : "") + ">" + esc(st.sending ? T.saving : T.saveCourse) + "</button>") + "</div></form>";
+  }
+  function teachFocus(st) {
+    if (!st.errField) return;
+    var el = document.getElementById("te_" + st.errField) || document.getElementById("tc_" + st.errField) || (st.errField === "kind" && document.querySelector('input[name="te_kind"]')) || (st.errField === "agree" && document.getElementById("te_agree")) || (st.errField === "grades" && document.querySelector(".tg")) || (st.errField === "courseName" && document.getElementById("tc_nameZh")) || (st.errField === "subjects" && document.getElementById("tc_subject"));
+    if (el && el.focus) el.focus();
+    st.errField = "";
   }
   function bindTeach() {
-    var st = teachState(), f = st.f, form = document.getElementById("teachForm");
-    if (!form) { var h = document.getElementById("teachHome"); if (h) h.addEventListener("click", function (e) { e.preventDefault(); state.teach = null; navigate("/"); }); return; }
-    form.addEventListener("input", function (e) { var k = e.target.getAttribute("data-tf"); if (k) f[k] = e.target.value; });
-    form.addEventListener("change", function (e) {
-      if (e.target.name === "te_kind") { f.kind = e.target.value; render(); var r = document.querySelector('input[name="te_kind"][value="' + f.kind + '"]'); if (r) r.focus(); return; }
-      if (e.target.id === "te_agree") f.agree = e.target.checked;
-      var k = e.target.getAttribute("data-tf"); if (k) f[k] = e.target.value;
+    var st = state.teach, f = st.f, T = t().teach;
+    var home = document.getElementById("teachHome");
+    if (home) home.addEventListener("click", function (e) { e.preventDefault(); state.teach = null; try { localStorage.removeItem(TEACH_KEY); } catch (x) {} navigate("/"); });
+    var form = document.getElementById("teachForm");
+    var need = function (k) { return String(f[k] == null ? "" : f[k]).trim(); };
+    if (form) {
+      form.addEventListener("input", function (e) { var k = e.target.getAttribute("data-tf"); if (k) { f[k] = e.target.value; teachSave(); } });
+      form.addEventListener("change", function (e) {
+        if (e.target.name === "te_kind") { f.kind = e.target.value; st.err = ""; teachSave(); render(); var r = document.querySelector('input[name="te_kind"]:checked'); if (r) r.focus(); return; }
+        if (e.target.id === "te_agree") { f.agree = e.target.checked; teachSave(); }
+        if (e.target.id === "te_needDomain") { f.needDomain = e.target.checked; st.err = ""; teachSave(); render(); }
+      });
+      var back = document.getElementById("teachBack");
+      if (back) back.addEventListener("click", function () { st.step = Math.max(0, st.step - 1); st.err = ""; teachSave(); render(); });
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var group = f.kind === "team" || f.kind === "school", miss = "";
+        if (st.step === 0) miss = f.kind ? "" : "kind";
+        else if (st.step === 1) miss = !need("familyName") ? "familyName" : !need("givenName") ? "givenName" : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(need("email")) ? "email" : group && !need("org") ? "org" : group && !/^[A-Za-z0-9]{2,8}$/.test(need("abbr")) ? "abbr" : group && !f.needDomain && !/^(https?:\/\/)?(www\.)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,}\/?$/i.test(need("domain")) ? "domain" : "";
+        else miss = !teachLong(need("intro")) ? "intro" : !f.agree ? "agree" : "";
+        if (miss) { st.err = T.err[miss]; st.errField = miss; render(); return; }
+        st.err = "";
+        if (st.step < 2) { st.step++; teachSave(); render(); window.scrollTo({ top: 0 }); return; }
+        var body = { kind: f.kind, agree: true, lang: state.lang === "en" ? "en" : "zh", fc_hp_field: (document.getElementById("teHp") || {}).value || "" };
+        TEACH_FIELDS.forEach(function (k) { body[k] = need(k); });
+        if (!group) { body.org = ""; body.abbr = ""; body.domain = ""; }
+        body.needDomain = group && !!f.needDomain; if (body.needDomain) body.domain = "";
+        st.sending = true; render();
+        fetch("/api/teach", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
+          .then(function (r) {
+            st.sending = false;
+            if (r.status === 200 && r.body && r.body.ok) { st.app = { id: r.body.id, key: r.body.token, again: !!r.body.again, email: body.email, kind: f.kind }; st.phase = "courses"; st.courses = []; st.c = teachBlankCourse(); teachSave(); window.scrollTo({ top: 0 }); render(); return; }
+            var p = r.body && r.body.problems && r.body.problems[0];
+            st.err = r.status === 429 ? T.err.rate : p && T.err[p] ? T.err[p] : T.err.generic; st.errField = p || "";
+            if (p && ["familyName", "givenName", "email", "org", "abbr", "domain"].indexOf(p) >= 0) st.step = 1; else if (p === "kind") st.step = 0;
+            render();
+          })
+          .catch(function () { st.sending = false; st.err = T.err.generic; render(); });
+      });
+      teachFocus(st);
+      return;
+    }
+    var cform = document.getElementById("teachCourse");
+    if (!cform) return;
+    var c = st.c;
+    cform.addEventListener("input", function (e) { var k = e.target.getAttribute("data-tf"); if (k) { c[k] = e.target.value; teachSave(); } });
+    cform.addEventListener("change", function (e) { var k = e.target.getAttribute("data-tc"); if (k) { c[k] = e.target.value; teachSave(); } });
+    cform.addEventListener("click", function (e) {
+      var g = e.target.closest && e.target.closest(".tg"); if (!g) return;
+      var id = g.getAttribute("data-grade"), i = c.grades.indexOf(id);
+      if (i >= 0) c.grades.splice(i, 1); else c.grades.push(id);
+      g.classList.toggle("on", i < 0); g.setAttribute("aria-pressed", String(i < 0)); teachSave();
     });
-    if (st.errField) { var bad = document.getElementById("te_" + st.errField) || document.querySelector('input[name="te_kind"]'); if (bad && bad.focus) bad.focus(); st.errField = ""; }
-    form.addEventListener("submit", function (e) {
+    var fin = document.getElementById("teachFinish");
+    if (fin) fin.addEventListener("click", function () { st.phase = "done"; st.msg = ""; st.err = ""; teachSave(); try { localStorage.removeItem(TEACH_KEY); } catch (x) {} window.scrollTo({ top: 0 }); render(); });
+    cform.addEventListener("submit", function (e) {
       e.preventDefault();
-      var T = t().teach, need = function (k) { return String(f[k] || "").trim(); };
-      var miss = !f.kind ? "kind" : !need("name") ? "name" : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(need("email")) ? "email" : (f.kind !== "individual" && !need("org")) ? "org" : !need("subjects") ? "subjects" : need("intro").length < 20 ? "intro" : !f.agree ? "agree" : "";
-      if (miss) { st.err = T.err[miss]; st.errField = miss; render(); return; }
-      var body = { kind: f.kind, language: f.language, agree: true, lang: state.lang === "en" ? "en" : "zh", fc_hp_field: (document.getElementById("teHp") || {}).value || "" };
-      TEACH_FIELDS.forEach(function (k) { body[k] = need(k); });
+      var v = function (k) { return String(c[k] == null ? "" : c[k]).trim(); };
+      var miss = !v("nameZh") && !v("nameEn") ? "courseName" : !v("subject") ? "subjects" : !c.grades.length ? "grades" : !teachLong(v("description")) ? "description" : v("minSize") && v("maxSize") && +v("minSize") > +v("maxSize") ? "size" : "";
+      if (miss) { st.err = T.err[miss]; st.errField = miss === "size" ? "minSize" : miss === "description" ? "description" : miss; st.msg = ""; render(); return; }
+      var course = { subjects: [v("subject")], grades: c.grades.slice(), classType: c.classType, language: c.language };
+      COURSE_FIELDS.forEach(function (k) { course[k] = v(k); });
       st.err = ""; st.sending = true; render();
-      fetch("/api/teach", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) })
+      fetch("/api/teach/course", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: st.app.id, key: st.app.key, course: course }) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
         .then(function (r) {
           st.sending = false;
-          if (r.status === 200 && r.body && r.body.ok) { st.done = { id: r.body.id, again: !!r.body.again, email: body.email }; window.scrollTo({ top: 0 }); render(); return; }
-          var p = r.body && r.body.problems && r.body.problems[0];
-          st.err = r.status === 429 ? T.err.rate : p && T.err[p] ? T.err[p] : T.err.generic; st.errField = p || ""; render();
+          if (r.status === 200 && r.body && r.body.ok) { st.courses.push(r.body.course); st.msg = fill(T.savedMsg, { name: course.nameZh || course.nameEn }); st.c = teachBlankCourse(); teachSave(); render(); var top = document.querySelector(".tsaved"); if (top && top.scrollIntoView) top.scrollIntoView({ block: "center" }); return; }
+          var p = r.body && (r.body.problems && r.body.problems[0] || r.body.error);
+          st.err = r.status === 429 ? T.err.rate : p && T.err[p] ? T.err[p] : T.err.generic; st.errField = r.body && r.body.problems ? r.body.problems[0] : ""; st.msg = ""; render();
         })
-        .catch(function () { st.sending = false; st.err = t().teach.err.generic; render(); });
+        .catch(function () { st.sending = false; st.err = T.err.generic; render(); });
     });
+    teachFocus(st);
   }
 
   /* ---------- G.P.A. calculator page (assets/gpa.js) ---------- */

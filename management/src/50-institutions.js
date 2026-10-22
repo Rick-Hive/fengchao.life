@@ -188,7 +188,7 @@
   }
   // 开通为课程提供方: the values come from the institution; preview first (dryRun), then run. Each step is idempotent,
   // so running it again fills in what is missing (a channel the app could not create, a leader added later).
-  var OB_STEP = { channel: ["Hive Orders 频道", "Hive Orders channel"], school: ["Airtable 学校表", "Airtable Schools row"], partnership: ["课程提供方合作关系", "Course-provider partnership"], leader: ["蜂巢课程负责人", "Hive Course Leader"], sync: ["网站与选项同步", "Website and pick lists"] };
+  var OB_STEP = { channel: ["Hive Orders 频道", "Hive Orders channel"], school: ["Airtable 学校表", "Airtable Schools row"], partnership: ["课程提供方合作关系", "Course-provider partnership"], leader: ["蜂巢课程负责人", "Hive Course Leader"], courses: ["申请时填写的课程", "Courses from the application"], sync: ["网站与选项同步", "Website and pick lists"] };
   var OB_STATUS = { todo: ["将执行", "to do", "accent"], done: ["已完成", "done", "ok"], exists: ["已存在", "already there", "muted"], skipped: ["跳过", "skipped", "muted"], failed: ["失败", "failed", "warn"] };
   function openOnboardPanel(r) {
     var f = function (id, zh, en, val, ph, req) { return '<label class="f">' + t(zh, en) + (req ? ' <span class="req">*</span>' : "") + '<input type="text" id="' + id + '" value="' + esc(val || "") + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : "") + " /></label>"; };

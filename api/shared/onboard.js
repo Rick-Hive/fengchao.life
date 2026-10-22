@@ -113,6 +113,7 @@ async function run(input, opts) {
   } catch (err) { step("school", "failed", String(err.message || err).slice(0, 200)); }
 
   // 3. the partnership
+  let appCourses = [];
   try {
     const P = deps.partners();
     const key = v.key || (v.domain || "hive:" + v.hive);
@@ -127,6 +128,7 @@ async function run(input, opts) {
     if (!dry && partyId && aliases.some((k) => !orgs.byKey[k])) {
       await P.updateOrgs((o) => { const org = o.orgs[partyId]; if (!org) return; for (const k of aliases) if (!o.byKey[k]) { o.byKey[k] = partyId; if (!(org.keys || []).includes(k)) (org.keys = org.keys || []).push(k); } });
     }
+    appCourses = ((open && open.application && open.application.courses) || []).map((c) => c.id);
     if (open) step("partnership", "exists", `${open.id} · ${stageName(open.stage)}`, { relId: open.id });
     else if (dry) step("partnership", "todo", "课程提供方 · 课程设计与上架");
     else {
@@ -152,6 +154,15 @@ async function run(input, opts) {
       }
     } catch (err) { step("leader", "failed", String(err.message || err).slice(0, 200)); }
   } else step("leader", "skipped", "no account given");
+
+  // 4b. the courses the applicant entered on the website (我要教课): now the provider's, with its Schools row
+  if (appCourses.length) {
+    if (dry) step("courses", "todo", `${appCourses.length} 门网站申请的课程归入 ${v.hive}`);
+    else {
+      try { const ch = await deps.courses().adopt(appCourses, v.hive, schoolId); step("courses", ch.length ? "done" : "exists", `${appCourses.length} 门网站申请的课程 · ${v.hive}`); }
+      catch (err) { step("courses", "failed", String(err.message || err).slice(0, 200)); }
+    }
+  }
 
   // 5. the pick lists and the website (the routing comes from the snapshot)
   if (dry) step("sync", "todo", "pick lists + website");

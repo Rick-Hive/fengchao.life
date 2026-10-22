@@ -223,7 +223,7 @@ async function indexPut(d) {
   await store.update(INDEX_BLOB, () => ({ items: {} }), (x) => {
     x.items[d.courseId] = { code: d.code, status: d.status, updatedAt: d.updatedAt, submittedAt: d.submitted ? d.submitted.at : null, publishedAt: d.published ? d.published.at : null, returnedAt: d.returned && d.status === "returned" ? d.returned.at : null, by: d.draft.by || "" };
     // a course made here: enough to list it before the website has it (name, provider, who owns it)
-    if (d.isNew || d.createdFrom) Object.assign(x.items[d.courseId], { isNew: true, nameEn: d.draft.fields.nameEn || "", nameZh: d.draft.fields.nameZh || "", schoolId: (d.draft.fields.school || [])[0] || "", ownerHive: d.ownerHive || "", createdBy: d.createdBy || "" });
+    if (d.isNew || d.createdFrom) Object.assign(x.items[d.courseId], { isNew: true, nameEn: d.draft.fields.nameEn || "", nameZh: d.draft.fields.nameZh || "", schoolId: (d.draft.fields.school || [])[0] || "", ownerHive: d.ownerHive || "", createdBy: d.createdBy || "", application: d.application || undefined });
     x.updatedAt = now();
   });
 }
@@ -560,14 +560,34 @@ async function create(who, opts) {
     copiedFrom = { id: src.courseId, code: src.code || "" }; sourceLang = (src.draft.meta && src.draft.meta.sourceLang) || "";
   }
   if (opts.schoolId) fields.school = [String(opts.schoolId)];
+  // 我要教课 (2026-10-22): the applicant's course, its fields already checked by applications.addCourse
+  if (opts.fields) for (const [k, v] of Object.entries(opts.fields)) if (FIELDS[k]) fields[k] = v;
   const d = emptyWork(id, "");
-  Object.assign(d, { isNew: true, ownerHive: opts.hive || "", createdBy: who.user, copiedFrom });
+  Object.assign(d, { isNew: true, ownerHive: opts.hive || "", createdBy: who.user, copiedFrom, application: opts.application || undefined });
   d.draft.fields = fields; d.draft.baseline = emptyFields(); d.draft.at = now(); d.draft.by = who.user; d.draft.meta.sourceLang = sourceLang;
   d.updatedAt = d.draft.at;
   pushHistory(d, { by: who.user, action: "create", note: copiedFrom ? `copy of ${copiedFrom.code || copiedFrom.id}` : "" });
   await store.write(workBlob(id), d);
   await indexPut(d);
   return d;
+}
+
+// 开通 (onboard.js): the courses an applicant entered on the website become the provider's — its hive owns them and its
+// Schools row is their provider, unless someone has set one already. Returns the ids changed.
+async function adopt(ids, hive, schoolId) {
+  const changed = [];
+  for (const id of ids || []) {
+    if (!NEW_RE.test(String(id))) continue;
+    const d = await readWork(id).catch(() => null);
+    if (!d || !d.isNew || d.movedTo) continue;
+    let touched = false;
+    if (hive && !d.ownerHive) { d.ownerHive = hive; touched = true; }
+    if (schoolId && !(d.draft.fields.school || []).length) { d.draft.fields.school = [schoolId]; touched = true; }
+    if (!touched) continue;
+    pushHistory(d, { by: "system", action: "adopt", note: `开通 · ${hive}` });
+    await store.write(workBlob(id), d); await indexPut(d); changed.push(id);
+  }
+  return changed;
 }
 
 // Refresh the website after publishes, at most once every two minutes; a call inside the gap leaves
@@ -699,6 +719,6 @@ async function list(who) {
   return { courses: rows, generatedAt: snap && snap.generatedAt, assignments: who.approver ? a.items : undefined };
 }
 
-module.exports = { NEW_RE, WORK_RE, create, emptyFields, writeBase, baseWrite: () => baseFor.write(), baseRead: () => baseFor.read(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
+module.exports = { NEW_RE, WORK_RE, create, adopt, emptyFields, writeBase, baseWrite: () => baseFor.write(), baseRead: () => baseFor.read(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
   translateCourse, translationState, translationNeeds, publish, syncWebsite, syncStatus, versions, versionContent, restore, readAssignments, assign, unassign, syncTeacherAssignments, assignedTo, list, readWork,
   _test: { baseFor: (b) => { baseFor = Object.assign({}, baseFor, b); }, resetLookups: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; return store.write(LOOKUP_BLOB, null).catch(() => {}); }, coldInstance: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; }, building: () => lookupBuilding || Promise.resolve(null), hash } };

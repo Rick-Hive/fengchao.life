@@ -19,49 +19,81 @@ const A = require(R("api", "shared", "applications.js"));
 const O = require(R("api", "shared", "onboard.js"));
 
 (async () => {
-  const form = { kind: "team", name: "周老师", email: "Eve@Gmail.com", phone: "wechat eve", org: "心桥中文", abbr: "xq-c", subjects: "中文阅读", grades: "G1-G6", language: "zh", teachers: "3", intro: "我们是一个教中文阅读的老师团队，已有五年教学经验。", agree: true, domain: "gmail.com", country: "美国" };
-  // what is required
+  const form = { kind: "team", familyName: "周", givenName: "老师", email: "Eve@Gmail.com", phone: "wechat eve", org: "心桥中文", abbr: "xq-c", teachers: "3", intro: "我们是一个教中文阅读的老师团队，已有五年教学经验。", agree: true, domain: "https://www.XQ-Chinese.org/about", country: "美国" };
+  // what is required: a team gives its name, short name and own domain; a one-person team none of them
   let c = A.clean({});
-  assert.deepStrictEqual(c.problems, ["kind", "name", "email", "org", "subjects", "intro", "agree"]);
-  c = A.clean({ kind: "individual", name: "王老师", email: "w@x.org", subjects: "数学", intro: "x".repeat(20), agree: 1 });
-  assert.strictEqual(c.problems.length, 0); assert.strictEqual(c.app.org, "王老师", "an individual's name is the partner's name");
+  assert.deepStrictEqual(c.problems, ["kind", "familyName", "givenName", "email", "intro", "agree"]);
+  c = A.clean({ kind: "team", familyName: "王", givenName: "明", email: "w@x.org", intro: "x".repeat(20), agree: 1, domain: "gmail.com" });
+  assert.deepStrictEqual(c.problems, ["org", "abbr", "domain"], "a team without its name, short name or own domain (a mail service is not one)");
+  c = A.clean({ kind: "school", familyName: "王", givenName: "明", email: "w@x.org", org: "某学校", abbr: "MX", intro: "我们学校想开设几门古典课程。", agree: 1, needDomain: true, domain: "ignored.org" });
+  assert.deepStrictEqual([c.problems, c.app.needDomain, c.app.domain], [[], true, ""], "no domain yet: Hive creates one, none required");
+  c = A.clean({ kind: "individual", familyName: "王", givenName: "明", email: "w@x.org", intro: "x".repeat(20), agree: 1, org: "Ignored", abbr: "IGN", domain: "ign.org" });
+  assert.strictEqual(c.problems.length, 0); assert.deepStrictEqual([c.app.kind, c.app.org, c.app.abbr, c.app.domain, c.app.name], ["solo", "王明", "", "", "王明"], "a one-person team: its name is the person's; no short name, no domain");
+  assert.strictEqual(A.clean({ kind: "solo", familyName: "Smith", givenName: "Anna", email: "a@x.org", intro: "x".repeat(20), agree: 1 }).app.name, "Anna Smith");
   c = A.clean(form);
-  assert.strictEqual(c.app.email, "eve@gmail.com"); assert.strictEqual(c.app.abbr, "XQC"); assert.strictEqual(c.app.domain, "", "a mail service is not an organisation's domain"); assert.strictEqual(c.app.teachers, 3);
+  assert.strictEqual(c.problems.length, 0, c.problems.join());
+  assert.strictEqual(c.app.email, "eve@gmail.com"); assert.strictEqual(c.app.abbr, "XQC"); assert.strictEqual(c.app.domain, "xq-chinese.org"); assert.strictEqual(c.app.teachers, 3); assert.ok(!("phone" in c.app), "no phone or WeChat");
   // the first application: a course relationship at 申请 / 推荐, party apply:<email>
   let r = await A.submit(c.app, { account: "" });
-  assert.deepStrictEqual(r, { id: "REL-000050", again: false, key: "apply:eve@gmail.com" });
+  assert.ok(r.token && r.token.length > 20); const token = r.token; delete r.token;
+  assert.deepStrictEqual(r, { id: "REL-000050", again: false, key: "xq-chinese.org" });
   const rel = rels.items["REL-000050"];
   assert.strictEqual(rel.type, "course"); assert.strictEqual(rel.stage, "apply"); assert.strictEqual(rel.source, "application"); assert.strictEqual(rel.confirmed, true);
   assert.strictEqual(rel.region, "na"); assert.strictEqual(rel.party.id, "ORG-000009"); assert.strictEqual(rel.party.name, "心桥中文");
-  assert.strictEqual(rel.application.intro, form.intro); assert.strictEqual(rel.application.phone, "wechat eve");
+  assert.strictEqual(rel.application.intro, form.intro); assert.strictEqual(rel.application.tokenHash, A.tokenHash(token)); assert.ok(!JSON.stringify(rel).includes(token), "the key itself is not stored");
   assert.strictEqual(orgs.orgs["ORG-000009"].name, "心桥中文");
   // again: the same relationship, the form replaced, the log says so
-  r = await A.submit(Object.assign({}, c.app, { subjects: "中文阅读、写作" }), { account: "eve@xq.fengchao.life" });
-  assert.deepStrictEqual(r, { id: "REL-000050", again: true, key: "apply:eve@gmail.com" });
+  r = await A.submit(Object.assign({}, c.app, { intro: c.app.intro + " 也教写作。" }), { account: "eve@xq.fengchao.life" });
+  assert.ok(r.token && r.token !== token, "applying again gives a new key"); const token2 = r.token; delete r.token; assert.deepStrictEqual(r, { id: "REL-000050", again: true, key: "xq-chinese.org" });
   assert.strictEqual(Object.keys(rels.items).length, 1);
-  assert.strictEqual(rels.items["REL-000050"].application.subjects, "中文阅读、写作"); assert.strictEqual(rels.items["REL-000050"].application.account, "eve@xq.fengchao.life");
+  assert.ok(/也教写作/.test(rels.items["REL-000050"].application.intro)); assert.strictEqual(rels.items["REL-000050"].application.account, "eve@xq.fengchao.life");
   assert.ok(rels.items["REL-000050"].application.firstAt <= rels.items["REL-000050"].application.at);
   assert.ok(/再次提交/.test(rels.items["REL-000050"].log.slice(-1)[0].text));
   // a school with its own domain: keyed by the domain, so an institution of that domain finds it
-  r = await A.submit(A.clean(Object.assign({}, form, { email: "head@abc-school.org", domain: "https://www.abc-school.org/", org: "ABC School" })).app, {});
-  assert.strictEqual(r.key, "abc-school.org"); assert.strictEqual(rels.items[r.id].party.key, "abc-school.org");
+  r = await A.submit(A.clean({ kind: "solo", familyName: "Lee", givenName: "Ann", email: "ann@gmail.com", intro: "x".repeat(30), agree: 1 }).app, {});
+  assert.strictEqual(r.key, "apply:ann@gmail.com", "a one-person team: keyed by the email"); assert.strictEqual(rels.items[r.id].party.key, "apply:ann@gmail.com");
   // the notices' words
   const m = A.texts("REL-000050", Object.assign({}, c.app, { account: "" }));
   assert.ok(/REL-000050/.test(m.ack.subject) && /两周内/.test(m.ack.body)); assert.ok(/#\/ops\/partners\/course\/REL-000050/.test(m.staff));
+  assert.ok(/\/teach\?app=REL-000050&key=k3y/.test(A.texts("REL-000050", c.app, "k3y").ack.body), "the confirmation carries the continue link");
+
+  // 第 2 步 填写课程: a course draft in the course editor's store, with the application's key
+  const C = require(R("api", "shared", "courses.js"));
+  const LISTS = { subjects: [{ id: "recSUBJ0000000001", nameZh: "中文", nameEn: "Chinese" }], grades: [{ id: "recGRAD0000000001", name: "G1" }, { id: "recGRAD0000000002", name: "G2" }] };
+  const work = {}, made = [];
+  C.lookups = async () => LISTS;
+  C.create = async (who, opts) => { const id = "newTEST" + String(made.length).padStart(7, "0"); const d = { courseId: id, isNew: true, ownerHive: "", createdBy: who.user, application: opts.application, draft: { fields: Object.assign({ school: [] }, opts.fields) }, history: [] }; work[id] = d; made.push(d); return d; };
+  const good = { nameZh: "中文阅读一", subjects: ["recSUBJ0000000001", "recFAKE"], grades: ["recGRAD0000000001"], classType: "Live Course", language: "Chinese", description: "每周一次，读绘本、讲故事、学写字。", numClasses: "16", minSize: "4", maxSize: "8", price: "1200 元" };
+  await assert.rejects(A.addCourse("REL-000050", "wrong", good), (e) => e.status === 404, "a wrong key: no such application");
+  await assert.rejects(A.addCourse("REL-000050", token2, Object.assign({}, good, { grades: [] })), (e) => e.status === 400 && e.problems.includes("grades"));
+  r = await A.addCourse("REL-000050", token2, good);
+  assert.strictEqual(r.count, 1); const d0 = made[0];
+  assert.deepStrictEqual([d0.createdBy, d0.application, d0.draft.fields.subjects, d0.draft.fields.grades, d0.draft.fields.classType, d0.draft.fields.language, d0.draft.fields.numClasses, d0.draft.fields.descriptionZh.slice(0, 4)], ["eve@gmail.com", "REL-000050", ["recSUBJ0000000001"], ["recGRAD0000000001"], { en: "Live Course", zh: "直播课" }, { en: "Chinese", zh: "中文" }, 16, "每周一次"], "the draft: only known subjects, the pair values, numbers");
+  assert.ok(/建议价格/.test(d0.draft.fields.comments));
+  assert.deepStrictEqual(rels.items["REL-000050"].application.courses.map((x) => x.id), [d0.courseId], "listed on the application");
+  const pk = await A.peek("REL-000050", token2);
+  assert.deepStrictEqual([pk.id, pk.courses.length, pk.email, "tokenHash" in pk], ["REL-000050", 1, "eve@gmail.com", false], "the continue link: the courses so far, not the key's hash");
+  // a key older than a week: expired
+  rels.items["REL-000050"].application.tokenAt = new Date(Date.now() - 8 * 864e5).toISOString();
+  await assert.rejects(A.peek("REL-000050", token2), (e) => e.status === 410);
+  rels.items["REL-000050"].application.tokenAt = new Date().toISOString();
   assert.ok(/Thank you/.test(A.texts("X", Object.assign({}, c.app, { lang: "en" })).ack.body));
 
+  const adopted = [];
   // 开通 from the application: the open relationship is found by its party key, and hive:XQC now names the same partner
   O._deps({
     findTeam: async () => ({ id: "t", name: "Hive Orders" }), graphList: async () => [], graph: async (m, p, b) => ({ id: "19:xqc", displayName: b.displayName }),
     readBase: () => ({ list: async () => [] }), writeBase: () => ({ table: async () => ({ fields: [] }), create: async () => ({ id: "recXQC" }) }),
     partners: () => P, roles: () => ({ readRoles: async () => ({ entries: [] }), updateRoles: async (fn) => fn({ entries: [] }) }),
-    courses: () => ({ lookups: async () => ({}), syncWebsite: async () => ({ ran: true }) }), runSync: () => async () => ({}),
+    courses: () => ({ lookups: async () => ({}), syncWebsite: async () => ({ ran: true }), adopt: async (ids, hive, sid) => { adopted.push([ids, hive, sid]); return ids; } }), runSync: () => async () => ({}),
   });
-  const res = await O.run({ key: "apply:eve@gmail.com", abbr: "XQC", name: "心桥中文", leader: "eve@xq.fengchao.life" }, { by: "rick" });
+  const res = await O.run({ key: "xq-chinese.org", abbr: "XQC", name: "心桥中文", domain: "xq-chinese.org", leader: "eve@xq-chinese.org" }, { by: "rick" });
   const pt = res.steps.find((s) => s.step === "partnership");
   assert.strictEqual(pt.status, "exists", JSON.stringify(res.steps)); assert.ok(/REL-000050/.test(pt.detail));
   assert.strictEqual(orgs.byKey["hive:XQC"], "ORG-000009", "the Schools row's key names the applicant's partner");
   assert.ok(orgs.orgs["ORG-000009"].keys.includes("hive:XQC"));
   assert.strictEqual(Object.values(rels.items).filter((x) => x.party.id === "ORG-000009").length, 1, "no second relationship");
+  assert.deepStrictEqual(adopted, [[[d0.courseId], "XQC", "recXQC"]], "the courses entered on the website become the provider's");
+  assert.strictEqual(res.steps.find((x) => x.step === "courses").status, "done");
   console.log("teach: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

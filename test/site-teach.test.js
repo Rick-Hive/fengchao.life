@@ -13,16 +13,20 @@ let failures = 0;
 const check = (name, got, want) => { const ok = JSON.stringify(got) === JSON.stringify(want); if (!ok) failures++; console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : `\n     got  ${JSON.stringify(got)}\n     want ${JSON.stringify(want)}`}`); };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function page(url, wizard) {
+function page(url, wizard, store) {
   const vc = new VirtualConsole(); vc.on("jsdomError", (e) => console.log("   [page error]", e.message.split("\n")[0]));
   const dom = new JSDOM(html, { runScripts: "outside-only", url, virtualConsole: vc });
   const w = dom.window, posts = [];
   if (wizard) w.localStorage.setItem("fc-wizard-v1", JSON.stringify(wizard));
+  if (store) for (const k of Object.keys(store)) w.localStorage.setItem(k, store[k]);
   w.fetch = (u, opts) => {
     const url = String(u), body = opts && opts.body ? JSON.parse(opts.body) : null;
     if (body) posts.push({ url, body });
     const json = (status, j) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(j) });
-    if (/\/api\/teach$/.test(url)) return json(200, { ok: true, id: "REL-000061", again: false, notified: true });
+    if (/\/api\/teach$/.test(url)) return json(200, { ok: true, id: "REL-000061", again: false, token: "K3Y", notified: true });
+    if (/\/api\/teach\/lists$/.test(url)) return json(200, { subjects: [{ id: "recS1", nameZh: "中文", nameEn: "Chinese" }], grades: [{ id: "recG1", name: "G1" }, { id: "recG2", name: "G2" }], classTypes: [{ en: "Live Course", zh: "直播课" }], languages: [{ en: "Chinese", zh: "中文" }, { en: "English", zh: "英语" }] });
+    if (/\/api\/teach\/course$/.test(url)) return json(200, { ok: true, course: { id: "newABCDEFGHIJKLM", nameZh: body.course.nameZh, nameEn: "" }, count: 1 });
+    if (/\/api\/teach\/app\?/.test(url)) return /key=K3Y/.test(url) ? json(200, { id: "REL-000061", kind: "solo", name: "周老师", email: "eve@example.org", courses: [{ id: "newA", nameZh: "已存的课" }] }) : json(404, { error: "not_found" });
     if (/\/api\/seats/.test(url)) return json(200, { seats: {} });
     if (/\/api\/order\/status$/.test(url)) return json(200, { fee: null });
     if (/\/api\/data/.test(url)) return json(200, snapshot);
@@ -45,25 +49,54 @@ function page(url, wizard) {
 
   P = page("https://www.fengchao.life/teach");
   await wait(50);
-  const doc = P.doc, w = P.w;
-  check("five steps and the form", [doc.querySelectorAll(".teach-steps li").length, !!doc.getElementById("teachForm")], [5, true]);
-  doc.getElementById("teachSubmit").click(); await wait(20);
-  check("nothing chosen: asks for the kind first, sends nothing", [doc.getElementById("teachErr").textContent, P.posts.filter((p) => /teach/.test(p.url)).length], ["请选择申请身份。", 0]);
-  const kind = doc.querySelector('input[name="te_kind"][value="team"]'); kind.checked = true; kind.dispatchEvent(new w.Event("change", { bubbles: true })); await wait(10);
-  const set = (k, v) => { const el = doc.getElementById("te_" + k); el.value = v; el.dispatchEvent(new w.Event("input", { bubbles: true })); };
-  set("name", "周老师"); set("email", "eve@example.org"); set("org", "心桥中文"); set("subjects", "中文阅读");
-  set("intro", "短");
-  doc.getElementById("teachSubmit").click(); await wait(20);
-  check("a too-short introduction is caught on the page", doc.getElementById("teachErr").textContent, "请用几句话介绍您和您的教学（至少 20 字）。");
-  set("intro", "我们是一个教中文阅读的老师团队，已有五年的教学经验。");
-  check("typed values survive a re-render", doc.getElementById("te_org").value, "心桥中文");
-  doc.getElementById("teachSubmit").click(); await wait(20);
+  let doc = P.doc, w = P.w;
+  const click = (sel) => doc.querySelector(sel).click();
+  const set = (id, v) => { const el = doc.getElementById(id); el.value = v; el.dispatchEvent(new w.Event("input", { bubbles: true })); };
+  const pick = (v) => { const r = doc.querySelector('input[name="te_kind"][value="' + v + '"]'); r.checked = true; r.dispatchEvent(new w.Event("change", { bubbles: true })); };
+  check("the five phases in view, the first current", [doc.querySelectorAll(".tphases li").length, doc.querySelector(".tphases li.now .tt b").textContent], [5, "提交申请"]);
+  check("step 1 of 3: how will you teach, three choices with a plain dot", [doc.querySelector(".tbar .tstep").textContent, doc.querySelectorAll(".tchoice .dot").length], ["提交申请 · 第 1 步，共 3 步", 3]);
+  click("#teachNext"); await wait(10);
+  check("nothing chosen: asked to choose", doc.getElementById("teachErr").textContent, "请选择开课方式。");
+  pick("solo"); await wait(10); click("#teachNext"); await wait(10);
+  check("one-person team: 姓 and 名 apart, no short name or domain, no phone", [!!doc.getElementById("te_familyName"), !!doc.getElementById("te_givenName"), !!doc.getElementById("te_abbr"), !!doc.getElementById("te_domain"), !!doc.getElementById("te_phone"), /Teams 账号/.test(doc.querySelector(".tnote-tight").textContent)], [true, true, false, false, false, true]);
+  click("#teachBack"); await wait(10); pick("team"); await wait(10); click("#teachNext"); await wait(10);
+  check("a team: its name, short name and own domain", [!!doc.getElementById("te_org"), !!doc.getElementById("te_abbr"), !!doc.getElementById("te_domain")], [true, true, true]);
+  set("te_familyName", "周"); set("te_givenName", "老师"); set("te_email", "eve@example.org"); set("te_org", "心桥中文"); set("te_abbr", "XQC");
+  click("#teachNext"); await wait(10);
+  check("a team without a domain: asked for one", doc.getElementById("teachErr").textContent.slice(0, 9), "请填写您自己的域名");
+  const nd = doc.getElementById("te_needDomain"); nd.checked = true; nd.dispatchEvent(new w.Event("change", { bubbles: true })); await wait(10);
+  check("no domain yet: Hive creates one — the field gives way to a note", [!!doc.getElementById("te_domain"), /无需现在准备/.test(doc.querySelector(".tdomain-help").textContent)], [false, true]);
+  const nd2 = doc.getElementById("te_needDomain"); nd2.checked = false; nd2.dispatchEvent(new w.Event("change", { bubbles: true })); await wait(10);
+  set("te_domain", "xq-chinese.org"); click("#teachNext"); await wait(10);
+  check("step 3: about you", doc.querySelector(".tbar .tstep").textContent, "提交申请 · 第 3 步，共 3 步");
+  // the form is kept in this browser: a new page in the same browser resumes here
+  const kept = P.w.localStorage.getItem("fc-teach-v2");
+  P = page("https://www.fengchao.life/teach", null, { "fc-teach-v2": kept }); await wait(50); doc = P.doc; w = P.w;
+  check("kept in this browser: the same step, the values", [doc.querySelector(".tbar .tstep").textContent, JSON.parse(kept).f.domain], ["提交申请 · 第 3 步，共 3 步", "xq-chinese.org"]);
+  set("te_intro", "我们是一个教中文阅读的老师团队。");
+  click("#teachNext"); await wait(10);
   check("the agreement is required", doc.getElementById("teachErr").textContent, "请勾选同意。");
   const ag = doc.getElementById("te_agree"); ag.checked = true; ag.dispatchEvent(new w.Event("change", { bubbles: true }));
-  doc.getElementById("teachSubmit").click(); await wait(50);
+  click("#teachNext"); await wait(60);
   const sent = P.posts.filter((p) => /\/api\/teach$/.test(p.url)).map((p) => p.body)[0] || {};
-  check("the form is sent", [sent.kind, sent.name, sent.email, sent.org, sent.subjects, sent.language, sent.agree, sent.lang, "account" in sent], ["team", "周老师", "eve@example.org", "心桥中文", "中文阅读", "zh", true, "zh", false]);
-  check("the application number", doc.querySelector(".teach-done .order-id").textContent, "REL-000061");
+  check("the application is sent", [sent.kind, sent.familyName, sent.givenName, sent.org, sent.abbr, sent.domain, sent.agree, "phone" in sent, "account" in sent], ["team", "周", "老师", "心桥中文", "XQC", "xq-chinese.org", true, false, false]);
+  check("then phase 2, the courses, with the application number", [doc.querySelector(".tphases li.now .tt b").textContent, doc.querySelector(".tbar .tid").textContent], ["填写课程", "REL-000061"]);
+  await wait(30);
+  set("tc_nameZh", "中文阅读一"); const sub = doc.getElementById("tc_subject"); sub.value = "recS1"; sub.dispatchEvent(new w.Event("change", { bubbles: true }));
+  set("tc_description", "每周一次，读绘本、讲故事、学写字。");
+  click("#teachSaveCourse"); await wait(10);
+  check("no grade: asked for one", doc.querySelector("#teachCourse .form-err").textContent, "请至少选择一个年级。");
+  click('.tg[data-grade="recG2"]'); await wait(5); click("#teachSaveCourse"); await wait(60);
+  const cs = P.posts.filter((p) => /\/api\/teach\/course$/.test(p.url)).map((p) => p.body)[0] || {};
+  check("the course goes up with the key", [cs.id, cs.key, cs.course && cs.course.subjects, cs.course && cs.course.grades, cs.course && cs.course.nameZh], ["REL-000061", "K3Y", ["recS1"], ["recG2"], "中文阅读一"]);
+  check("saved, listed, the form empty again", [doc.querySelectorAll(".tsaved li").length, doc.getElementById("tc_nameZh").value, /已保存《中文阅读一》/.test(doc.querySelector(".tmsg").textContent)], [1, "", true]);
+  click("#teachFinish"); await wait(10);
+  check("finished: the number, phase 3 next", [doc.querySelector(".tdone .order-id").textContent, doc.querySelector(".tphases li.now .tt b").textContent, P.w.localStorage.getItem("fc-teach-v2")], ["REL-000061", "交流与审核", null]);
+  // the continue link from the email
+  P = page("https://www.fengchao.life/teach?app=REL-000061&key=K3Y"); await wait(80);
+  check("the email's link: back to the courses, from any device", [P.doc.querySelector(".tphases li.now .tt b").textContent, P.doc.querySelectorAll(".tsaved li").length, P.w.location.search], ["填写课程", 1, ""]);
+  P = page("https://www.fengchao.life/teach?app=REL-000061&key=bad"); await wait(80);
+  check("a bad link: said so", /已过期或无效/.test(P.doc.getElementById("teachErr").textContent), true);
 
   // 在网站上查看: /courses?course=<id or code> opens the course's card; an unknown one says it is not listed yet
   P = page("https://www.fengchao.life/courses?course=c1");
