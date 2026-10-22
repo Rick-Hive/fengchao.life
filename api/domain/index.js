@@ -223,7 +223,7 @@ async function handler(context, req) {
       const opts = userList.parseQuery(req.query);
       const pg = userList.page(users, opts, inst.institutions || {});
       const t3 = Date.now();
-      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain: "*", domains: list, users: pg.users, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: { q: opts.q, filter: opts.filter, role: opts.role, sort: opts.sort }, partial: users.some((u) => u.partial), sync: latest, timing: { shared: t1 - t0, schools: t2 - t1, page: t3 - t2, total: t3 - t0, schoolsRead: views.filter(Boolean).length } } };
+      context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: { domain: "*", domains: list, users: pg.users, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, schools: userList.bySchool(users), query: { q: opts.q, filter: opts.filter, role: opts.role, sort: opts.sort }, partial: users.some((u) => u.partial), sync: latest, timing: { shared: t1 - t0, schools: t2 - t1, page: t3 - t2, total: t3 - t0, schoolsRead: views.filter(Boolean).length } } };
       return;
     }
 
@@ -552,7 +552,9 @@ async function handler(context, req) {
         if (r.enabled === false) { skipped.push({ upn, why: "disabled" }); continue; }
         const rec = (pdoc.people || {})[upn] || null;
         const cur = identityOf(rec, { department: r.department, jobTitle: r.jobTitle, plan: r.plan || "" });
-        if (scope === "noid" && rec && IDENTITIES.includes(rec.identity)) { skipped.push({ upn, why: "has_identity", identity: rec.identity }); continue; }
+        // 仅身份未确认: skip whoever has one SET — in Hive, or in Microsoft's department / job title (not a licence guess)
+        const setId = rec && IDENTITIES.includes(rec.identity) ? rec.identity : identityOf(null, { department: r.department, jobTitle: r.jobTitle });
+        if (scope === "noid" && setId) { skipped.push({ upn, why: "has_identity", identity: setId }); continue; }
         picked.push({ upn, id: r.id, from: cur, jobTitle: r.jobTitle || "" });
       }
       if (dry) { context.res = { status: 200, body: { ok: true, dryRun: true, identity, scope, writeBack, count: picked.length, picked: picked.map((p) => p.upn), skipped } }; return; }

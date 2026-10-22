@@ -6,14 +6,15 @@ const L = require(path.join(__dirname, "..", "api", "shared", "userList.js"));
 const mk = (i, extra) => Object.assign({ upn: `user${String(i).padStart(2, "0")}@bes.edu`, displayName: "User " + i, domain: "bes.edu", identity: i % 3 === 0 ? "" : i % 3 === 1 ? "家长" : "学生", verified: i % 4 === 0 ? false : true, lastSignIn: i % 5 === 0 ? "" : "2026-10-0" + ((i % 9) + 1) + "T00:00:00Z", roles: i === 7 ? [{ role: "domain_it:bes.edu", zh: "IT 管理员", en: "IT administrator" }] : [], hiveTeacher: i === 2 ? { name: "T" } : null, anomaly: i === 4 ? "x" : "", groups: [{ id: "g" + (i % 3), name: "组" + (i % 3), nameZh: "组" + (i % 3), nameEn: "Group " + (i % 3) }], devices: [{ name: i % 2 ? "iPhone" : "Pixel" }], linked: [] }, extra);
 const users = Array.from({ length: 23 }, (_, i) => mk(i));
 users.push(mk(40, { upn: "zz@demo.edu", domain: "demo.edu", identity: "老师", verified: null, lastSignIn: "" }));
+users[1].identitySource = "hive"; users[2].identitySource = "entra"; users[4].identitySource = "licence";
 
 // counts over the whole set
 const c = L.counts(users);
 assert.strictEqual(c.total, 24);
 assert.strictEqual(c.noauth, users.filter((u) => u.verified === false).length);
-assert.strictEqual(c.noid, users.filter((u) => !u.identity).length);
+assert.strictEqual(c.noid, users.filter((u) => u.identitySource !== "hive" && u.identitySource !== "entra").length, "身份未确认: nobody set it (a licence guess is not set)");
 assert.strictEqual(c.anomaly, 1);
-assert.strictEqual(c.teacher, 2, "the Teachers-table one and the one whose identity is 老师");
+assert.strictEqual(c.teacher, 1, "the Teachers-table one only; identity 老师 is the 身份 filter (2026-10-22)");
 assert.strictEqual(c.never, users.filter((u) => !u.lastSignIn && u.verified !== true).length);
 assert.strictEqual(c.groups, 3);
 assert.ok(c.anySignIn);
@@ -29,9 +30,12 @@ assert.strictEqual(L.page(users, { limit: Infinity }).users.length, 24, "limit=a
 
 // filters and roles, as the page sent them
 assert.strictEqual(L.page(users, { filter: "noauth", limit: 100 }).matched, c.noauth);
+assert.strictEqual(L.page(users, { filter: "noid", limit: 100 }).matched, 22, "24 less the one set in Hive and the one set in Microsoft");
+assert.deepStrictEqual(L.bySchool(users).map((x) => [x.domain, x.total, x.noid]), [["bes.edu", 23, 21], ["demo.edu", 1, 1]], "the 学校 table: per school, most accounts first");
 assert.strictEqual(L.page(users, { filter: "anomaly", limit: 100 }).matched, 1);
 assert.strictEqual(L.page(users, { role: "role:it", limit: 100 }).matched, 1);
-assert.strictEqual(L.page(users, { role: "role:teacher", limit: 100 }).matched, 2);
+assert.strictEqual(L.page(users, { role: "role:teacher", limit: 100 }).matched, 1);
+assert.strictEqual(L.page(users, { role: "id:老师", limit: 100 }).matched, 1, "身份 老师");
 assert.strictEqual(L.page(users, { role: "role:any", limit: 100 }).matched, 1);
 assert.strictEqual(L.page(users, { role: "id:家长", limit: 100 }).matched, users.filter((u) => u.identity === "家长").length);
 // search: account, group name in either language, the school's names

@@ -291,7 +291,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       else if (p === "/api/domain/user" && r.request().method() === "POST") { const b = JSON.parse(r.request().postData()); createdUsers.push(b); const upn = b.account + "@" + b.domain; body = { ok: true, user: upn, id: "u-new", displayName: b.displayName || (b.givenName + " " + b.surname), password: "Hive-2026-xyz", mustChange: true, licence: CREATE_LICENCE, license: CREATE_LICENCE }; }
       else if (p === "/api/domain/user" && r.request().method() === "DELETE") { const b = JSON.parse(r.request().postData()); deleted.push(b); users.users = users.users.filter(u => u.upn !== b.user); dgroups.groups.forEach(g => { g.members = g.members.filter(m => m !== b.user); g.domainMembers = g.members.length; }); body = { ok: true, user: b.user, displayName: "Tom Li", restorableDays: 30 }; }
       else if (p === "/api/domain/identity-bulk") { const b = JSON.parse(r.request().postData()); idBulk.push(b); const picked = users.users.filter(x => x.enabled !== false).map(x => x.upn); body = { ok: true, dryRun: !!b.dryRun, identity: b.identity, scope: b.scope, writeBack: !!b.writeBack, count: picked.length, picked, written: b.dryRun ? [] : (b.writeBack ? picked : []), failed: [], skipped: [{ upn: "x@bes.qiaoliang.online", why: "disabled" }] }; }
-      else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? (() => { const all = users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))); const opts = userList.parseQuery(Object.fromEntries(u.searchParams)); const pg = userList.page(all, opts, {}); usersPages.push(opts); return { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: pg.users, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, query: opts, timing: { shared: 12, schools: 30, page: 2, total: 44, schoolsRead: 2 } }; })() : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
+      else if (p === "/api/domain/users") { const demo = users.users.slice(0, 3).map(u => ({ ...u, upn: u.upn.replace("bes.qiaoliang.online", "demo.fengchao.life"), roles: [], hiveTeacher: null })); body = u.searchParams.get("domain") === "*" ? (() => { const all = users.users.map(x => ({ ...x, domain: "bes.qiaoliang.online" })).concat(demo.map(x => ({ ...x, domain: "demo.fengchao.life" }))); const opts = userList.parseQuery(Object.fromEntries(u.searchParams)); const pg = userList.page(all, opts, {}); usersPages.push(opts); return { domain: "*", domains: ["bes.qiaoliang.online", "demo.fengchao.life"], partial: false, sync: SYNC, users: pg.users, matched: pg.matched, offset: pg.offset, limit: pg.limit, counts: pg.counts, schools: userList.bySchool(all), query: opts, timing: { shared: 12, schools: 30, page: 2, total: 44, schoolsRead: 2 } }; })() : /demo\.fengchao\.life/.test(u.search) ? { domain: "demo.fengchao.life", partial: false, sync: SYNC, users: demo } : users; }
       else if (p === "/api/domain/user" && r.request().method() === "GET") { const up = u.searchParams.get("upn"); const hit = users.users.find(x => x.upn === up); body = { domain: u.searchParams.get("domain"), user: hit || null, gone: !hit, profile: u.searchParams.get("full") && hit ? { givenName: "", surname: "", displayName: hit.displayName, jobTitle: hit.jobTitle || "", city: hit.city || "南京", postalCode: "210000", usageLocation: "CN", safeEmail: hit.safeEmail || "" } : null }; }
       else if (p === "/api/domain/user" && r.request().method() === "PATCH") { const b = JSON.parse(r.request().postData()); acctEdits.push(b); const hit = users.users.find(x => x.upn === b.user); if (b.jobTitle !== undefined) hit.jobTitle = b.jobTitle; if (b.displayName) hit.displayName = b.displayName; body = { ok: true, user: hit, changed: Object.keys(b).filter(k => k !== "domain" && k !== "user") }; }
       else if (p === "/api/domain/licenses") body = { usageLocation: "CN", faculty: { skuId: "f", name: "Office 365 A1 for faculty", total: 500, used: 12, free: 488 }, student: { skuId: "s", name: "Office 365 A1 for students", total: 1000, used: 990, free: 10 }, extras: [], a1: [] };
@@ -2028,7 +2028,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.selectOption("#urole", "role:teacher"); await p.waitForTimeout(200);
     let rows = await p.$$eval("#utable tr[data-upn]", r => r.length);
     assert.strictEqual(rows, 2, "12 users: i % 5 === 2 are in the Teachers table and are the ones whose identity is 老师 → two: " + rows);
-    assert.ok(await p.$("#ukpi .kpi[data-kf=teacher]"), "teacher tile");
+    assert.ok(!(await p.$("#ukpi .kpi[data-kf=teacher]")), "no 蜂巢课程教师 tile (2026-10-22)");
     await p.selectOption("#urole", "role:it"); await p.waitForTimeout(200);
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 1, "one domain IT: " + rows);
     await p.selectOption("#urole", ""); assert.ok(!(await p.$("#ukpi .kpi[data-kf=anomaly]")) && !(await p.$("#utable .tag.bad[title*='许可证']")), "no 异常 tile or tag: the licence ↔ identity rule was withdrawn (2026-10-21)");
@@ -2038,6 +2038,13 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.selectOption("#urole", ""); await p.selectOption("#dsel", "*"); await p.waitForTimeout(900);
     await p.waitForSelector("#utable tr[data-dom]");
     rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 15, "12 + 3 across two schools: " + rows);
+    // 学校 tile (2026-10-22): the per-school table; a row opens that school
+    await p.click("#ukpi .kpi[data-kf=schools]"); await p.waitForSelector("#panel.open #uschools tr[data-dom]");
+    assert.deepStrictEqual(await p.$$eval("#uschools tr[data-dom]", es => es.map(e => e.getAttribute("data-dom"))), ["bes.qiaoliang.online", "demo.fengchao.life"], "one row per school, most accounts first");
+    await p.click('#uschools tr[data-dom="demo.fengchao.life"]'); await p.waitForSelector("#utable tr[data-upn]:not([data-dom])");
+    assert.ok(!(await p.$("#panel.open")) && (await p.$$("#utable tr[data-upn]")).length === 3, "the school's own accounts");
+    assert.ok(/身份未确认/.test(await p.$eval("#ukpi", e => e.innerText)) && !/身份未填/.test(await p.$eval("#ukpi", e => e.innerText)), "身份未确认, not 身份未填");
+    await p.selectOption("#dsel", "*"); await p.waitForSelector("#utable tr[data-dom]");
     assert.ok(!(await p.$("#newUser")) && !(await p.$("#usNew")), "no new-account or sync buttons across all schools");
     let foot = await p.$eval("#ufoot", e => e.textContent); assert.ok(/第 1–15 \/ 匹配 15/.test(foot) && /共 15 个账号/.test(foot) && /2 所学校/.test(foot) && /44 ms/.test(foot) && !(await p.$("#ukpi .upager")), "paged footer, the server's timing for the sysadmin, no pager under one page: " + foot);
     assert.ok(/从未登录/.test(await p.$eval("#ukpi", e => e.innerText)), "tiles come from the server's counts");
@@ -2045,10 +2052,12 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     usersPages.length = 0;
     await p.selectOption("#urole", "role:teacher"); await p.waitForTimeout(400);
     assert.deepStrictEqual([usersPages.length, usersPages[0] && usersPages[0].role, usersPages[0] && usersPages[0].offset], [1, "role:teacher", 0], "one paged query for the role: " + JSON.stringify(usersPages));
-    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 3, "teachers across schools: two from the Teachers table + the demo school's one whose identity is 老师: " + rows);
+    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 2, "Hive course teachers across schools: the two the Teachers table names (身份 老师 alone no longer counts, 2026-10-22): " + rows);
     await p.fill("#uq", "demo"); await p.waitForTimeout(700);
     assert.ok(usersPages[usersPages.length - 1].q === "demo" && usersPages[usersPages.length - 1].role === "role:teacher", "search and role travel together: " + JSON.stringify(usersPages[usersPages.length - 1]));
-    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 1, "the demo school's teacher: " + rows);
+    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 0, "the demo school has no Hive course teacher: " + rows);
+    await p.selectOption("#urole", "id:老师"); await p.waitForTimeout(700);
+    rows = await p.$$eval("#utable tr[data-upn]", r => r.length); assert.strictEqual(rows, 1, "its teacher by 身份: " + rows);
     await p.fill("#uq", ""); await p.selectOption("#urole", ""); await p.waitForTimeout(700);
     await p.click("#utable tr[data-dom]"); await p.waitForTimeout(500);
     assert.ok(await p.$("#panel .ph h3"), "person panel opens from the all-schools table (that school's cache is loaded on demand)");

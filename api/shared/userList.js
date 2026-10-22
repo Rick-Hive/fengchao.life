@@ -17,8 +17,9 @@ function hasRole(u, kind) {
   if (kind === "leader") return rs.some((r) => /^domain_leader:/.test(r));
   if (kind === "staff") return rs.some((r) => /^staff:/.test(r) || r === "coordinator");
   if (kind === "admin") return rs.some((r) => r === "admin" || r === "staff:sysadmin");
-  // 蜂巢课程教师 (Rick, 2026-10-08): from the Hive Teachers table, or any account whose identity is 老师.
-  if (kind === "teacher") return !!u.hiveTeacher || u.identity === "老师";
+  // 蜂巢课程教师: the accounts the Hive Teachers table names (Teams Account or email). Until 2026-10-22 also every
+  // account whose 身份 is 老师 — Rick: 「it is confusing」 once whole schools were set to 老师; that is the 身份 filter.
+  if (kind === "teacher") return !!u.hiveTeacher;
   return true;
 }
 
@@ -35,10 +36,15 @@ function haystack(u, schoolNames) {
   ].join(" ").toLowerCase();
 }
 
+// 身份未确认 (Rick 2026-10-22: 「No identity, what does this mean? 0?」): every licensed account gets an identity from
+// its licence (students' plan → 学生, otherwise 家长), so "no identity" was always 0. What matters is whether anyone
+// SET it — in Hive (people.json) or in Microsoft's department / job title; a licence guess is not that.
+function unconfirmed(u) { return u.identitySource !== "hive" && u.identitySource !== "entra"; }
+
 function matches(u, opts, schoolNames) {
   const f = opts.filter || "all", role = opts.role || "", q = String(opts.q || "").trim().toLowerCase();
   if (f === "noauth" && u.verified !== false) return false;
-  if (f === "noid" && u.identity) return false;
+  if (f === "noid" && !unconfirmed(u)) return false;
   if (f === "never" && !neverSigned(u)) return false;
   if (f === "anomaly" && !u.anomaly) return false;
   if (role.indexOf("id:") === 0 && u.identity !== role.slice(3)) return false;
@@ -55,9 +61,9 @@ function counts(users) {
     if (neverSigned(u)) out.never++;
     if (u.lastSignIn) out.anySignIn = true;
     if (u.verified === false) out.noauth++;
-    if (!u.identity) out.noid++;
+    if (unconfirmed(u)) out.noid++;
     if (u.anomaly) out.anomaly++;
-    if (u.hiveTeacher || u.identity === "老师") out.teacher++;
+    if (u.hiveTeacher) out.teacher++;
     for (const g of u.groups || []) if (g && g.id) gids.add(g.id);
   }
   out.groups = gids.size;
@@ -85,6 +91,16 @@ function parseQuery(q) {
 }
 
 // One page of the rows that match, plus the total that matches and the counts of the whole set.
+// The 学校 tile's table (2026-10-22): per school, the same numbers as the strip
+function bySchool(users) {
+  const m = new Map();
+  for (const u of users) {
+    const d = u.domain || ""; if (!m.has(d)) m.set(d, { domain: d, total: 0, never: 0, noauth: 0, noid: 0, teacher: 0 });
+    const x = m.get(d); x.total++; if (neverSigned(u)) x.never++; if (u.verified === false) x.noauth++; if (unconfirmed(u)) x.noid++; if (u.hiveTeacher) x.teacher++;
+  }
+  return Array.from(m.values()).sort((a, b) => b.total - a.total || a.domain.localeCompare(b.domain));
+}
+
 function page(users, opts, schoolNames) {
   const o = Object.assign({ q: "", filter: "all", role: "", sort: "upn", offset: 0, limit: 100 }, opts || {});
   const hit = users.filter((u) => matches(u, o, schoolNames)).sort(SORTS[o.sort] || SORTS.upn);
@@ -94,4 +110,4 @@ function page(users, opts, schoolNames) {
   return { users: rows, matched: hit.length, offset, limit: o.limit === Infinity ? "all" : limit, counts: counts(users) };
 }
 
-module.exports = { neverSigned, hasRole, haystack, matches, counts, parseQuery, page, SORTS };
+module.exports = { unconfirmed, bySchool, neverSigned, hasRole, haystack, matches, counts, parseQuery, page, SORTS };

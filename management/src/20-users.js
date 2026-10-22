@@ -237,7 +237,7 @@
       var k = e.target.closest(".kpi[data-kf]"); if (!k) return;
       var f = k.getAttribute("data-kf");
       if (f === "groups") { if (!state.allDomains) location.hash = "#/domain/groups"; return; }
-      if (f === "teacher") { state.userRole = state.userRole === "role:teacher" ? "" : "role:teacher"; $("urole").value = state.userRole; refilter(); return; }
+      if (f === "schools") { openSchoolsSummary(); return; }
       state.userFilter = f; refilter();
     });
     $("ukpi").addEventListener("click", function (e) {
@@ -264,7 +264,7 @@
     panelOpen('<div class="ph"><span class="avatar">👥</span><h3>' + t("批量设置身份", "Set identity in bulk") + ' <small class="faint">' + esc(dname(domain)) + '</small></h3><button class="x" type="button" aria-label="close">✕</button></div>' +
       '<div class="pb"><p class="hint">' + esc(t("把本校账号的身份一次设好。先「预览」看会改哪些账号，再「执行」。写入 Office 365 时写的是账号的职务（jobTitle）字段，不写部门（department）。", "Set the identity of the school's accounts in one go. 预览 shows which accounts would change; 执行 applies it. Writing to Office 365 sets each account's job title (jobTitle), never the department.")) + "</p>" +
         '<label class="f">' + t("身份", "Identity") + '<select id="ibId">' + IDENTITIES.map(function (i) { return '<option value="' + esc(i) + '">' + esc(vl(i)) + "</option>"; }).join("") + "</select></label>" +
-        '<label class="f">' + t("范围", "Scope") + '<select id="ibScope"><option value="all">' + t("本校全部账号", "Every account of the school") + '</option><option value="noid">' + t("仅身份未填的账号", "Only accounts without an identity") + "</option></select></label>" +
+        '<label class="f">' + t("范围", "Scope") + '<select id="ibScope"><option value="all">' + t("本校全部账号", "Every account of the school") + '</option><option value="noid">' + t("仅身份未确认的账号", "Only accounts with an unconfirmed identity") + "</option></select></label>" +
         '<label class="chk"><input type="checkbox" id="ibWrite"' + (canWrite ? "" : " disabled") + ' /> ' + t("同时写入 Office 365 账号的职务（jobTitle）", "Also write it to the Office 365 account's job title (jobTitle)") + (canWrite ? "" : ' <span class="faint">' + t("（需要 IT 管理员）", "(IT administrator only)") + "</span>") + "</label>" +
         '<div class="actions"><button type="button" class="btn secondary" id="ibPreview">' + t("预览", "Preview") + '</button><button type="button" class="btn" id="ibGo">' + t("执行", "Apply") + "</button></div>" +
         '<div id="ibMsg"></div></div>');
@@ -300,6 +300,20 @@
   // sign-in, and Microsoft's signInActivity lags hours behind (Rick, 2026-10-12: Linda H.
   // had iPhone 13 registered and was shown as never signed in).
   function neverSigned(u) { return !u.lastSignIn && u.verified !== true; }
+  function uUnconfirmed(u) { return u.identitySource !== "hive" && u.identitySource !== "entra"; }
+  // 学校 tile (所有学校, 2026-10-22): the strip's numbers per school; a row opens that school's accounts
+  function openSchoolsSummary() {
+    var d = state.domainUsers["*"], list = (d && d.schools) || [];
+    var num = function (n, warn) { return '<td class="num' + (warn && n ? " warnc" : "") + '">' + fmtNum(n) + "</td>"; };
+    panelOpen('<div class="ph"><h3>' + t("学校", "Schools") + " · " + list.length + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb">' +
+      '<table class="data" id="uschools"><thead><tr><th>' + t("学校", "School") + '</th><th class="num">' + t("账号", "Accounts") + '</th><th class="num">' + t("从未登录", "Never signed in") + '</th><th class="num">' + t("未登记验证器", "No authenticator") + '</th><th class="num">' + t("身份未确认", "Unconfirmed") + "</th></tr></thead><tbody>" +
+      (list.length ? list.map(function (x) { return '<tr class="pick" data-dom="' + esc(x.domain) + '"><td><b>' + esc(dname(x.domain)) + '</b><span class="sub">' + esc(x.domain) + "</span></td>" + num(x.total) + num(x.never, true) + num(x.noauth, true) + num(x.noid, true) + "</tr>"; }).join("") : '<tr><td colspan="5" class="faint">' + t("没有数据。", "No data.") + "</td></tr>") +
+      "</tbody></table><p class=\"hint\">" + t("点一所学校，查看它的账号。", "Click a school to see its accounts.") + "</p></div>", null, { wide: true });
+    $("uschools").addEventListener("click", function (e) {
+      var tr = e.target.closest("tr[data-dom]"); if (!tr) return;
+      panelClose(); state.allDomains = false; currentDomain = tr.getAttribute("data-dom"); viewUsers();
+    });
+  }
   function usersNow() { var d = state.domainUsers[currentDomain]; return d ? d.users : []; }
   function renderUsers() {
     if (!$("utable")) return;
@@ -312,13 +326,13 @@
       if (kind === "leader") return rs.some(function (r) { return /^domain_leader:/.test(r); });
       if (kind === "staff") return rs.some(function (r) { return /^staff:/.test(r) || r === "coordinator"; });
       if (kind === "admin") return rs.some(function (r) { return r === "admin" || r === "staff:sysadmin"; });
-      // 蜂巢课程教师 (Rick, 2026-10-08): from the Hive Teachers table, or any account whose identity is 老师.
-      if (kind === "teacher") return !!u.hiveTeacher || u.identity === "老师";
+      // 蜂巢课程教师: the accounts the Hive Teachers table names (身份 老师 is the identity filter, 2026-10-22)
+      if (kind === "teacher") return !!u.hiveTeacher;
       return true;
     }
     var rows = d.all ? d.users : d.users.filter(function (u) {
       if (f === "noauth" && u.verified !== false) return false;
-      if (f === "noid" && u.identity) return false;
+      if (f === "noid" && !uUnconfirmed(u)) return false;
       if (f === "never" && !neverSigned(u)) return false;
       if (role.indexOf("id:") === 0 && u.identity !== role.slice(3)) return false;
       if (role.indexOf("role:") === 0 && !hasRole(u, role.slice(5))) return false;
@@ -330,8 +344,7 @@
     });
     // the tile numbers: over the whole set — the server's counts in the paged 所有学校 view, counted here for one school
     var cs = d.all && d.counts ? d.counts : null;
-    var teachers = cs ? cs.teacher : d.users.filter(function (u) { return u.hiveTeacher || u.identity === "老师"; }).length;
-    var n = cs ? cs.total : d.users.length, noauth = cs ? cs.noauth : d.users.filter(function (u) { return u.verified === false; }).length, noid = cs ? cs.noid : d.users.filter(function (u) { return !u.identity; }).length;
+    var n = cs ? cs.total : d.users.length, noauth = cs ? cs.noauth : d.users.filter(function (u) { return u.verified === false; }).length, noid = cs ? cs.noid : d.users.filter(uUnconfirmed).length;
     // Never signed in to Microsoft 365 (no successful sign-in on record — Rick, 2026-10-04:
     // 「Display how many users haven't login office 365 successfully」). The date comes from
     // Entra's signInActivity; when the tenant does not expose it, nobody has one and the
@@ -343,9 +356,10 @@
     $("ukpi").innerHTML = kpi("all", t("账号", "Accounts"), n) +
       kpi("never", t("从未登录", "Never signed in"), anySignIn || !n ? never : "—", never && anySignIn ? " warn" : "", anySignIn || !n ? "" : '<div class="s">' + t("租户未提供登录记录", "No sign-in records from the tenant") + "</div>") +
       kpi("noauth", t("未登记验证器", "No authenticator"), noauth, noauth ? " bad" : "") +
-      kpi("noid", t("身份未填", "No identity"), noid) +
-      (teachers ? '<button type="button" class="kpi' + (state.userRole === "role:teacher" ? " on" : "") + '" data-kf="teacher"><div class="l">' + t("蜂巢课程教师", "Course teachers") + '</div><div class="v">' + teachers + "</div></button>" : "") +
-      (d.all ? kpi("", t("学校", "Schools"), allDomainList().length) : kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)));
+      // 身份未确认 (2026-10-22): nobody set it — only the licence's guess (students' plan → 学生, else 家长), or nothing
+      kpi("noid", t("身份未确认", "Identity unconfirmed") + tipI(t("没有人设置过身份：既没在蜂巢设置，也没写在 Microsoft 的部门里，只是按许可证推断（学生许可证→学生，其他→家长）。可用「批量设置身份」的「仅身份未确认的账号」补上。", "Nobody set the identity — not in Hive, not in Microsoft's department; it is only guessed from the licence (students' plan → student, else parent). Fill them in with Set identity in bulk › Only accounts with an unconfirmed identity.")), noid, noid ? " warn" : "") +
+      // no 蜂巢课程教师 tile (Rick 2026-10-22: 「Don't display this, it is confusing」): the role filter has it
+      (d.all ? kpi("schools", t("学校", "Schools"), (d.schools || []).length || allDomainList().length) : kpi("groups", t("群组", "Groups"), state.domainGroups[currentDomain] ? state.domainGroups[currentDomain].groups.length : uniqueGroups(d.users)));
     $("ubar").querySelectorAll(".chip[data-f]").forEach(function (c) { c.setAttribute("aria-pressed", c.getAttribute("data-f") === state.userFilter ? "true" : "false"); });
     // one school: the rows are filtered here and shown a page at a time (a school can have 500+ accounts)
     var upg = null;

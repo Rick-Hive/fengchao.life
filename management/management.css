@@ -1454,3 +1454,8 @@ button.lnk.inum:hover { text-decoration-style: solid; }
 .plreq-code, .plreq-cr { color: #3f7a52; }
 .plreq-chip.in-cart { border-color: var(--accent); background: var(--accent-soft, #e8eef7); color: inherit; }
 .plreq-chip.in-cart .plreq-code, .plreq-chip.in-cart .plreq-cr { color: var(--accent); }
+/* 用户管理 › 学校 tile (2026-10-22): the strip's numbers per school */
+#uschools td.num, #uschools th.num { text-align: right; font-variant-numeric: tabular-nums; }
+#uschools td.warnc { color: var(--warn); font-weight: 600; }
+#uschools td .sub { display: block; }
+#ukpi .kpi .info { margin-left: 4px; }
