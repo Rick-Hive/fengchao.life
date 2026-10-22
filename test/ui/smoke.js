@@ -115,6 +115,17 @@ const roles = { entries: [
 ], kinds: {}, staff: {} };
 // A 100×60 red PNG for the photo test (zlib-compressed raw rows).
 const zlib = require("zlib");
+// A 240×240 PNG for the photo uploads (the browser crops it to a JPEG), made here so the test needs no file of its own
+const PHOTO_PNG = (() => {
+  const w = 240, h = 240, crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  const raw = Buffer.alloc((w * 3 + 1) * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = 30 + x / 2; raw[o + 1] = 80 + y / 3; raw[o + 2] = 160; }
+  const file = path.join(OUT, "_photo.png"); fs.mkdirSync(OUT, { recursive: true });
+  fs.writeFileSync(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]));
+  return file;
+})();
 function png(w, h) {
   const crc = (buf) => { let c, n, k, table = png.t || (png.t = (() => { const t = []; for (n = 0; n < 256; n++) { c = n; for (k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })()); c = 0xffffffff; for (n = 0; n < buf.length; n++) c = table[(c ^ buf[n]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
   const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
@@ -1332,7 +1343,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click('#teNew button[data-tr="zh"]'); await p.waitForTimeout(400);
     assert.deepStrictEqual(teTranslates[0], { from: "zh", texts: { bio: "教数学十年。", expertise: "代数" } }, "一键翻译 sends the Chinese side");
     assert.strictEqual(await p.$eval('#teNew textarea[data-k="bio"]', e => e.value), "EN:教数学十年。", "and fills the English side");
-    await p.setInputFiles("#teNew #tePhotoFile", "/tmp/claude-0/-home-claude/27981cac-7b36-5135-8725-84dc55cbba17/scratchpad/photo.png"); await p.waitForSelector("#teNew img#tePhotoImg");
+    await p.setInputFiles("#teNew #tePhotoFile", PHOTO_PNG); await p.waitForSelector("#teNew img#tePhotoImg");
     assert.ok(await p.$eval("#panel", e => e.classList.contains("wide")), "the wide panel");
     await p.screenshot({ path: OUT + "/teacher-add.png" });
     assert.strictEqual(await p.$eval("#tnSave", e => e.textContent), "保存并发布", "the leader publishes at once");
@@ -1938,7 +1949,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.fill('#teCard textarea[data-k="expertise"]', "Primary maths"); await p.waitForTimeout(1900);
     assert.strictEqual(tPatches[tPatches.length - 1].key, "expertise");
     // the photo: a small PNG from the repo, cropped and sent as a JPEG data URL
-    await p.setInputFiles("#tePhotoFile", "/tmp/claude-0/-home-claude/27981cac-7b36-5135-8725-84dc55cbba17/scratchpad/photo.png"); await p.waitForTimeout(1200);
+    await p.setInputFiles("#tePhotoFile", PHOTO_PNG); await p.waitForTimeout(1200);
     assert.ok(tPhotos.length === 1 && tPhotos[0] > 1000, "the photo went up as a JPEG data URL");
     await p.waitForSelector('#teCard textarea[data-k="bio"]'); await p.screenshot({ path: OUT + "/teacher-mine.png" });
     await p.click("#teSubmit"); await p.waitForTimeout(600);
@@ -2007,7 +2018,9 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.strictEqual(instLists.pop(), "customers");
     const n = (await p.$$("#ilist button.orow[data-crm]")).length;
     assert.ok(n >= 1 && new RegExp(n + " 条").test(await p.$eval("#ilist", e => e.innerText)), "the customers, counted");
-    await p.screenshot({ path: OUT + "/institution-customers.png" });
+    await p.waitForTimeout(400); await p.screenshot({ path: OUT + "/institution-customers.png" });
+    const r2 = await p.$eval("#panel2", e => e.getBoundingClientRect()), r1 = await p.$eval("#panel", e => e.getBoundingClientRect());
+    assert.ok(r2.right <= r1.left + 1 && r2.left >= 0, "the list sits beside the panel, whole: " + JSON.stringify([r2.left, r2.right, r1.left]));
     await p.click("#ilist button.orow[data-crm]"); await p.waitForTimeout(500);
     assert.ok(!(await p.$("#panel2.open")) && await p.$("#panel.open"), "a customer opens as the person");
     await p.keyboard.press("Escape");

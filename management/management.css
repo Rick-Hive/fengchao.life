@@ -1459,3 +1459,6 @@ button.lnk.inum:hover { text-decoration-style: solid; }
 #uschools td.warnc { color: var(--warn); font-weight: 600; }
 #uschools td .sub { display: block; }
 #ukpi .kpi .info { margin-left: 4px; }
+/* the second panel beside a wide one (教师资料) */
+.panel.wide.open ~ .panel.second.open { right: min(680px, 100vw); }
+@media (max-width: 960px) { .panel.wide.open ~ .panel.second.open { right: 0; } }
