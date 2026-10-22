@@ -62,5 +62,12 @@ O._deps({
   assert.deepStrictEqual(writes[1], { op: "update", id: "recSCHOOLKXC00001", fields: { Domain: "kxc.edu" } }, "only the empty cell filled; the channel id already there is kept");
   assert.strictEqual(r.steps[3].status, "skipped", "no leader given");
   assert.ok(!r.ok);
+  // what Microsoft said, readable: a name still held by a deleted channel; any other 400 with its words
+  O._deps({ graph: async () => { throw Object.assign(new Error("Graph POST /teams/team1/channels -> HTTP 400: BadRequest Channel name already existed, please use other name"), { status: 400, code: "BadRequest" }); } });
+  r = await O.run({ key: "x.edu", abbr: "XYZ", name: "X" }, { by: "rick" });
+  assert.ok(/已被占用/.test(r.steps[0].detail) && r.steps[0].httpStatus === 400 && /already existed/.test(r.steps[0].raw), r.steps[0].detail);
+  O._deps({ graph: async () => { throw Object.assign(new Error("Graph POST /teams/team1/channels -> HTTP 400: BadRequest Invalid description"), { status: 400 }); } });
+  r = await O.run({ key: "x.edu", abbr: "XYZ", name: "X" }, { by: "rick" });
+  assert.ok(/^Microsoft 不接受这个请求 \(400\)：BadRequest Invalid description/.test(r.steps[0].detail), r.steps[0].detail);
   console.log("onboard: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

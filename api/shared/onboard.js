@@ -49,6 +49,17 @@ function clean(input) {
   return out;
 }
 
+// What Microsoft said, in words the administrator can act on (2026-10-22: the first JCA run failed with a raw Graph line)
+function channelError(err, name) {
+  const st = err && err.status, msg = String((err && err.message) || err || "");
+  const said = msg.replace(/^Graph \w+ \S+ -> (HTTP \d+: )?/, "");
+  if (st === 401 || st === 403) return `Microsoft 拒绝 (${st})：蜂巢应用还没有 Graph 应用权限 Channel.Create，或管理员同意尚未生效（最多一小时）。 / Hive's app lacks Channel.Create, or the consent is not in effect yet.`;
+  if (/already exist|NameAlreadyExists|duplicate/i.test(msg)) return `频道名「${name}」已被占用（含 30 天内删除的频道），请换一个名称再执行。 / The name "${name}" is taken (a channel deleted in the last 30 days still holds it).`;
+  if (st === 404) return `找不到 Hive Orders 团队或它的频道列表 (404)。 / The Hive Orders team was not found. ${said}`.slice(0, 300);
+  if (st === 400) return `Microsoft 不接受这个请求 (400)：${said}`.slice(0, 300);
+  return `${said || msg}`.slice(0, 300);
+}
+
 async function run(input, opts) {
   opts = opts || {};
   const v = clean(input || {}), dry = !!opts.dryRun, by = opts.by || "system", log = opts.log || (() => {});
@@ -69,8 +80,7 @@ async function run(input, opts) {
       channelId = ch.id; step("channel", "done", `${team.name} › ${ch.displayName || v.channelName}`, { channelId });
     }
   } catch (err) {
-    const perm = err && (err.status === 403 || err.status === 401);
-    step("channel", "failed", perm ? "Microsoft refused: Hive's app needs the Graph application permission Channel.Create (admin consent)" : String(err.message || err).slice(0, 200), { code: perm ? "app_permission" : err.code || "" });
+    step("channel", "failed", channelError(err, v.channelName), { code: err && err.status === 403 || err && err.status === 401 ? "app_permission" : (err && err.code) || "", httpStatus: (err && err.status) || 0, raw: String((err && err.message) || err).slice(0, 500) });
   }
 
   // 2. the Schools row
@@ -107,7 +117,8 @@ async function run(input, opts) {
     const rels = await P.readRels(), orgs = await P.readOrgs();
     const orgId = orgs.byKey[key] || null;
     const open = Object.values(rels.items || {}).find((r) => r && r.type === "course" && !r.closed && r.party && (r.party.key === key || (orgId && r.party.id === orgId)));
-    if (open) step("partnership", "exists", `${open.id} · ${open.stage}`, { relId: open.id });
+    const stageName = (k) => { const x = P.stageOf("course", k); return x ? x.zh : k; };
+    if (open) step("partnership", "exists", `${open.id} · ${stageName(open.stage)}`, { relId: open.id });
     else if (dry) step("partnership", "todo", "课程提供方 · 课程设计与上架");
     else {
       const { doc: od } = await P.updateOrgs((o) => { P.orgIdFor(o, key, { name: v.name, nameEn: v.nameEn }); });
