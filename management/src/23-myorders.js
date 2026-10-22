@@ -14,7 +14,7 @@
   function moFee(o) {
     var f = o.fee; if (!f) return "";
     var amt = (f.currency || "usd").toUpperCase() + " " + (f.amount / 100).toFixed(2);
-    var st = { unpaid: t("未付", "unpaid"), paid: t("已付", "paid"), waived: t("免收", "waived"), refunded: t("已退", "refunded") }[f.status] || f.status;
+    var st = { unpaid: t("未付", "unpaid"), paid: t("已付", "paid"), waived: t("免收", "waived"), refunded: t("已退", "refunded"), partially_refunded: t("部分退款", "partly refunded") }[f.status] || f.status;
     return '<span class="k">' + t("选课费", "Selection fee") + "</span><span>" + esc(amt + " · " + st) + (f.receiptUrl ? ' · <a href="' + esc(f.receiptUrl) + '" target="_blank" rel="noopener">' + t("收据", "receipt") + "</a>" : "") + "</span>";
   }
   function viewMyOrders() {

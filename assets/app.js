@@ -124,7 +124,7 @@
       for (var k in state.filters) if (typeof r.filters[k] === "string") state.filters[k] = r.filters[k];
     }
     // r.email / r.teams are ignored on purpose — see persistWizard above.
-    if (r.done && typeof r.done === "object") state.done = r.done;
+    if (r.done && typeof r.done === "object" && !r.done.pending && !r.done.failed) state.done = r.done; // a payment being confirmed is the URL's to say
   }
   // ---- learning stages (see window.LEARNING_STAGES in i18n.js) ------------
   // The stage is the parent's top-level choice and scopes everything after it:
@@ -266,6 +266,34 @@
   // (a bare URL, a legacy #/… link, an unknown path, a bare /gpa), and a
   // Back/Forward landing that clampStep resolved elsewhere — so Back never
   // lands on an entry that re-resolves away from itself.
+  // 选课费 (v3 第二批, 2026-10-22): Stripe sends the family back to /done?submission=… (paid, being confirmed) or to
+  // /order?payment=cancelled&submission=… (not paid: the hold is released at once so the seats are free again).
+  (function () {
+    var qs; try { qs = new URLSearchParams(location.search); } catch (e) { return; }
+    var sub = qs.get("submission") || "";
+    if (!/^FS-\d{8}-[A-Z0-9]{5}$/.test(sub)) return;
+    if (routeFromLocation() === "done") { state.done = { submission: sub, pending: true }; setTimeout(function () { pollSubmission(sub, 0); }, 800); }
+    else if (qs.get("payment") === "cancelled") { state.payNotice = t().payCancelled; releaseSubmission(sub); }
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  })();
+  function pollSubmission(sub, n) {
+    fetch("/api/order/status?submission=" + encodeURIComponent(sub), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!state.done || state.done.submission !== sub) return;
+      if (j && j.status === "paid" && (j.orderIds || []).length) {
+        state.done = { orderId: j.orderIds[0], orderIds: j.orderIds, notified: true, submission: sub, receiptUrl: j.fee && j.fee.receiptUrl };
+        state.cart = {}; try { sessionStorage.removeItem("fc-paying"); } catch (e) {}
+        persistWizard(); render(); return;
+      }
+      if (j && j.status === "abandoned") { state.done = { submission: sub, failed: true }; render(); return; }
+      if (n === 20 && !state.done.slow) { state.done.slow = true; render(); }
+      if (n < 60) setTimeout(function () { pollSubmission(sub, n + 1); }, n < 20 ? 2000 : 10000);
+    }).catch(function () { if (n < 60) setTimeout(function () { pollSubmission(sub, n + 1); }, 5000); });
+  }
+  function releaseSubmission(sub) {
+    var p = null; try { p = JSON.parse(sessionStorage.getItem("fc-paying") || "null"); sessionStorage.removeItem("fc-paying"); } catch (e) {}
+    if (!p || p.submission !== sub) return;
+    fetch("/api/order/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ submission: sub, email: p.email, action: "release" }) }).catch(function () {});
+  }
   var URL_REPLACE_NEXT = true;
   function syncUrl() {
     var want = wantedPath();
@@ -1692,19 +1720,29 @@
       // Teams). The name is meaningless to autofill heuristics, the wrapper is
       // aria-hidden so screen readers skip it, and autocomplete is off.
       '<div class="hp" aria-hidden="true"><input id="fcHpField" name="fc_hp_field" type="text" tabindex="-1" autocomplete="off" /></div>' +
+      (state.payNotice ? '<p class="form-note pay-note">' + esc(state.payNotice) + "</p>" : "") +
+      // 选课费 (v3 第二批): the line and the button say what happens next — only when a fee is charged
+      (state.fee ? '<p class="fee-line">' + esc(fill(t().feeLine, { fee: state.fee.label })) + (state.feeTest ? ' <span class="fee-test">' + esc(t().feeTest) + "</span>" : "") + "</p>" : "") +
       '<p class="form-err" id="formErr">' + esc(state.formErr) + "</p>" +
       '<button class="btn btn-primary" id="submitBtn" style="width:100%;margin-top:8px" ' + (state.submitting || (state.account && state.account.schoolAccount) ? "disabled" : "") + ">" +
-      esc(state.submitting ? t().submitting : t().submitOrder) + "</button></div></div>" +
+      esc(state.submitting ? t().submitting : state.fee ? fill(t().submitPay, { fee: state.fee.label }) : t().submitOrder) + "</button></div></div>" +
       '<div class="nav-row"><button class="btn btn-ghost" id="back5">' + esc(t().back) + "</button><span></span></div></section>"
     );
   }
 
   function renderDone() {
+    // 选课费: back from Stripe — confirming, or not paid
+    if (state.done.pending || state.done.failed) {
+      return '<div class="done-card">' + (state.done.failed ? "<h2>" + esc(t().doneFailed) + "</h2>" : '<div class="spinner" aria-hidden="true"></div><h2>' + esc(t().donePaying) + "</h2>" + (state.done.slow ? "<p>" + esc(t().donePayingSlow) + "</p>" : "")) +
+        '<div class="order-id">' + esc(state.done.submission || "") + "</div><br/>" +
+        (state.done.failed ? '<button class="btn btn-primary" id="backToOrderBtn">' + esc(t().doneBackToOrder) + "</button>" : "") + "</div>";
+    }
     return (
       '<div class="done-card">' +
       '<svg class="mark" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
       "<h2>" + esc(t().doneTitle) + "</h2><p>" + esc(state.done.notified === false ? t().doneNoEmail : t().doneDesc) + "</p>" +
       (state.done.orderIds && state.done.orderIds.length > 1 ? '<p class="done-split">' + esc(t().doneSplit) + "</p>" + state.done.orderIds.map(function (id) { return '<div class="order-id">' + esc(id) + "</div>"; }).join("") : '<div class="order-id">' + esc(state.done.orderId) + "</div>") + "<br/>" +
+      (state.done.receiptUrl ? '<p class="done-split"><a href="' + esc(state.done.receiptUrl) + '" target="_blank" rel="noopener">' + esc(t().feeReceipt) + " ↗</a></p>" : "") +
       '<p class="done-split">' + esc(t().childLater) + "</p>" +
       '<button class="btn btn-primary" id="againBtn">' + esc(t().doneAgain) + "</button></div>"
     );
@@ -2365,6 +2403,7 @@
     on("englishName", "input", function (e) { state.englishName = e.target.value; });
     on("teams", "input", function (e) { state.teams = e.target.value; persistWizard(); });
     on("submitBtn", "click", submitOrder);
+    on("backToOrderBtn", "click", function () { state.done = null; state.step = 5; render(); });
     on("againBtn", "click", function () {
       state.done = null; state.cart = {}; state.step = FIRST_STEP;
       state.stage = null; state.mode = null; state.pedagogy = null;
@@ -2481,6 +2520,14 @@
       })
       .then(function (r) {
         state.submitting = false;
+        if (r.ok && r.body && r.body.ok && r.body.checkout) {
+          // 选课费: the cart is held on the server; Stripe's page next. The cart stays (persisted) until the payment is
+          // confirmed on the done page; this tab remembers which submission and email are being paid for.
+          try { sessionStorage.setItem("fc-paying", JSON.stringify({ submission: r.body.submission, email: email })); } catch (e) {}
+          state.submitting = true; persistWizard();
+          location.href = r.body.checkout;
+          return;
+        }
         if (r.ok && r.body && r.body.ok) {
           // The order is stored before it is announced (api/order): `notified` is
           // false when the confirmation email could not be sent, and the card says so.
@@ -2490,6 +2537,8 @@
           state.formErr = t().errRate;
         } else if (r.body && r.body.error === "blocked_email_domain") {
           state.formErr = t().errEmailDomain;
+        } else if (r.body && r.body.error === "payment_unavailable") {
+          state.formErr = t().errPay;
         } else if (r.body && r.body.error === "notify_failed") {
           state.formErr = t().errNotify;
         } else if (r.body && (r.body.error === "no_snapshot" || r.status === 503)) {
@@ -2604,6 +2653,11 @@
       if (n) n.remove();
       render();
       loadSeats().then(function () { if (Object.keys(state.seats).length) render(); });
+      // is a selection fee charged? (the order page's fee line and button)
+      fetch("/api/order/status", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        state.fee = j && j.fee ? j.fee : null; state.feeTest = !!(j && j.test);
+        if (state.fee && state.step === 5 && !state.done) render();
+      }).catch(function () {});
     })
     .catch(function () {
       app.innerHTML = '<div class="notice">' + esc(t().loadErr) + "</div>";

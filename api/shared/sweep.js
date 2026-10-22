@@ -122,8 +122,31 @@ async function run(opts) {
       out.childReminded.push(o.orderId);
     } catch (err) { fail("child", o, err); }
   }
-  if (!dry && (out.expired.length || out.seated.length)) seats.forget();
-  out.total = out.expired.length + out.reminded.length + out.nudged.length + out.seated.length + out.childReminded.length;
+  // 6. the selection fee (v3 第二批, 2026-10-22): submissions whose hold ran out — or whose finalizing stopped half way — are
+  //    checked against Stripe: paid → the orders are made now (a lost webhook); otherwise abandoned and the seats freed.
+  out.payments = [];
+  {
+    const submissions = require("./submissions"), stripe = require("./stripe");
+    const open = await submissions.openList().catch(() => ({}));
+    for (const [id, x] of Object.entries(open)) {
+      if (x && Date.parse(x.holdUntil) > now) continue;
+      try {
+        const sub = await submissions.read(id);
+        if (!sub || !["held", "finalizing"].includes(sub.status)) { if (!dry) await submissions.close(id); continue; }
+        const session = sub.stripe && sub.stripe.sessionId && stripe.configured() ? await stripe.getSession(sub.stripe.sessionId).catch(() => null) : null;
+        const paid = session && session.status === "complete" && (session.payment_status === "paid" || session.payment_status === "no_payment_required");
+        if (paid) { if (!dry) { const r = await require("../order").finalizeSubmission({ log: Object.assign((m) => log(m), { warn: log, error: log }) }, id, session); if (!r.ok) throw new Error(r.code); } out.payments.push({ submission: id, action: "finalized" }); continue; }
+        if (!dry) {
+          if (session && session.status === "open") await stripe.expireSession(session.id).catch(() => {});
+          await submissions.update(id, (d) => { if (!["held", "finalizing"].includes(d.status) || d.built) return false; d.status = "abandoned"; submissions.pushHistory(d, { by: "sweep", action: "abandoned" }); });
+          await submissions.close(id);
+        }
+        out.payments.push({ submission: id, action: "abandoned" });
+      } catch (err) { fail("payment", { orderId: id }, err); }
+    }
+  }
+  if (!dry && (out.expired.length || out.seated.length || out.payments.length)) seats.forget();
+  out.total = out.expired.length + out.reminded.length + out.nudged.length + out.seated.length + out.childReminded.length + out.payments.length;
   return out;
 }
 

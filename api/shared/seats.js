@@ -64,7 +64,9 @@ const CACHE_MS = 60 * 1000;
 async function publicSeats(courses, force) {
   const now = Date.now();
   if (!force && cache.data && now - cache.at < CACHE_MS) return cache.data;
-  const counts = countOrders(await crm.listOrders());
+  // the submissions being paid for (selection fee) hold their seats while Stripe's page is open
+  const held = await require("./submissions").heldAsOrders().catch(() => []);
+  const counts = countOrders((await crm.listOrders()).concat(held));
   cache = { at: now, data: seatsFor(counts, courses) };
   return cache.data;
 }

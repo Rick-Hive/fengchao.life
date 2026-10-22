@@ -292,6 +292,8 @@
     var notifyLine = notify.pending ? '<span class="tag">' + t("通知发送中", "Notifying…") + "</span>" : notify.ok ? '<span class="tag ok">' + t("已通知", "Notified") + "</span> " + esc(when(notify.at)) : '<span class="tag bad">' + t("通知失败", "Notification failed") + "</span> " + esc(notify.error || "") + " · " + t("请手动联系家长和蜂巢。", "Contact the parent and the hive by hand.");
     pb.innerHTML =
       '<div class="kv"><span class="k">' + t("提交时间", "Submitted") + "</span><span>" + esc(when(o.submittedAt)) + "</span>" +
+        // 选课费 (v3 第二批): Hive's own — not shown to a course provider's leader
+        (o.fee && o.fee.amount && !isProviderOnly() ? '<span class="k">' + t("选课费", "Selection fee") + "</span><span>" + esc((o.fee.currency || "usd").toUpperCase() + " " + (o.fee.amount / 100).toFixed(2) + " · " + ({ unpaid: t("未付", "unpaid"), paid: t("已付", "paid"), waived: t("优惠码免收", "waived by a code"), refunded: t("已退", "refunded"), partially_refunded: t("部分退款", "partly refunded") }[o.fee.status] || o.fee.status) + (o.fee.coupon ? " · " + o.fee.coupon : "") + (o.fee.test ? " · " + t("测试", "test") : "")) + (o.fee.receiptUrl ? ' · <a href="' + esc(o.fee.receiptUrl) + '" target="_blank" rel="noopener">' + t("收据", "receipt") + "</a>" : "") + "</span>" : "") +
         (o.submission && o.submission !== o.orderId ? '<span class="k">' + t("同次提交", "Submission") + "</span><span>" + esc(o.submission) + ' <span class="faint">' + t("（跨机构的选课按机构拆单）", "(a selection across institutions is split per institution)") + "</span></span>" : "") +
         '<span class="k">' + t("下单人", "Email") + "</span><span>" + esc(o.email || "—") + "</span>" +
         (o.account ? '<span class="k">' + t("账号", "Account") + "</span><span>" + esc(o.account) + "</span>" : "") +

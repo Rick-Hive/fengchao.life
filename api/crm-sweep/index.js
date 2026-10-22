@@ -19,7 +19,7 @@ module.exports = async function (context, req) {
   }
   try {
     const r = await sweep.run({ dryRun: !!(req.body && req.body.dryRun), log: (m) => context.log(m) });
-    if (!r.dryRun && r.total) await audit(context, { actor: "scheduler", action: "crm.sweep", expired: r.expired.length, reminded: r.reminded.length, nudged: r.nudged.length, seated: r.seated.length, errors: r.errors.length });
+    if (!r.dryRun && r.total) await audit(context, { actor: "scheduler", action: "crm.sweep", expired: r.expired.length, reminded: r.reminded.length, nudged: r.nudged.length, seated: r.seated.length, payments: (r.payments || []).length, errors: r.errors.length });
     context.res = { status: 200, headers: { "Cache-Control": "no-store" }, body: Object.assign({ done: true }, r) };
   } catch (err) {
     context.log.error(`crm-sweep: ${(err && err.stack) || err}`);

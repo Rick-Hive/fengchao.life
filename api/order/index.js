@@ -17,6 +17,9 @@ const seats = require("../shared/seats");
 const { getPrincipal } = require("../shared/auth");
 const { userRoles, isSchoolAccount } = require("../shared/roles");
 const fee = require("../shared/fee");
+const stripe = require("../shared/stripe");
+const submissions = require("../shared/submissions");
+const SITE = () => String(process.env.SITE_ORIGIN || "https://www.fengchao.life").replace(/\/+$/, "");
 
 // The signed-in account, when the family ordered from the management centre or while signed in on the website: Static
 // Web Apps puts the verified principal on every API call that carries its cookie, so this is the platform's word, never
@@ -315,7 +318,9 @@ module.exports = async function (context, req) {
     // Seats are checked here, against the orders as they are now (no cache): a full course is refused unless the
     // family asked for the waitlist; a course with room is never put on the waitlist, whatever was asked.
     {
-      const live = seats.seatsFor(seats.countOrders(allOrders), snapshot.courses || []);
+      // the submissions being paid for right now hold their seats too (selection fee, 2026-10-22)
+      const held = await submissions.heldAsOrders().catch(() => []);
+      const live = seats.seatsFor(seats.countOrders(allOrders.concat(held)), snapshot.courses || []);
       const full = [];
       for (const it of items) {
         const st = live[it.code];
@@ -341,91 +346,22 @@ module.exports = async function (context, req) {
     // One submission, one order per hive (design 2026-10-20: 「一张跨机构的订单在提交时按机构拆单」): each hive settles
     // payment and enrolment with the family on its own, so each gets its own order id, record and status; the orders
     // share the submission id, and the family receives one confirmation listing them all.
-    const submission = makeSubmissionId(), submittedAt = new Date().toISOString(), account = accountOf(req);
-    const feeRec = fee.feeRecord(fee.selectionFee());
-    const routing = (snapshot.private && snapshot.private.schoolRouting) || {};
-    const templates = snapshot.messageTemplates;
-    const groups = groupByHive(items);
-    const orders = [];
-    for (const g of groups) {
-      const order = {
-        orderId: await makeOrderId(g.items, (m) => context.log.warn(m)),
-        submission,
-        submittedAt,
-        email,
-        account,
-        contact,
-        fee: feeRec,
-        // The trigger schema types these as strings; sending null or omitting `name`
-        // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
-        teamsAccount: teamsAccount || "",
-        track: trackWire,
-        itemCount: g.itemCount,
-        totalPrice: g.subtotal,
-        currency: "CNY",
-        items: g.items,
-        snapshotGeneratedAt: snapshot.generatedAt,
-        lang,
-      };
-      // Per-hive delivery: the hive's Teams channel id and notification address come from snapshot.private (never
-      // served to browsers), filled in on the Schools table. A hive with neither still produces a route, with empty
-      // destinations — the flow posts those to the default channel so an order can never silently vanish.
-      const dest = routing[g.key] || {};
-      const m = buildMessages(order, templates, lang);
-      const ownChannel = dest.teamsChannelId || "";
-      const channelId = ownChannel || cfg.defaultTeamsChannelId || "";
-      const usedDefaultChannel = !ownChannel && !!channelId;
-      if (!ownChannel) {
-        context.log.warn(
-          `Hive "${dest.name || g.schoolName || g.key}" has no Teams Channel ID; ` +
-            (channelId ? "posting to the default channel instead." : "no DEFAULT_TEAMS_CHANNEL_ID is configured either, so this post will fail.")
-        );
-      }
-      const notice =
-        lang === "en"
-          ? `<div><b>⚠️ Misrouted:</b> "${escapeHtml(dest.name || g.schoolName || g.key)}" has no Teams channel configured, so this landed here.</div><br>`
-          : `<div><b>⚠️ 投递错位：</b>「${escapeHtml(dest.name || g.schoolName || g.key)}」未配置 Teams 频道，因此这条通知落在了这里。</div><br>`;
-      order.routes = [{
-        hiveKey: g.key,
-        schoolName: dest.name || g.schoolName,
-        schoolAbbr: dest.abbr || g.schoolAbbr,
-        teamsChannelId: channelId,
-        usedDefaultChannel,
-        notifyEmail: dest.notifyEmail || "",
-        itemCount: g.itemCount,
-        subtotal: g.subtotal,
-        currency: order.currency,
-        notifyText: m.notifyText,
-        notifySubject: m.notifySubject,
-        notifyHtml: usedDefaultChannel ? notice + m.notifyHtml : m.notifyHtml,
-      }];
-      order.routeCount = 1;
-      orders.push(order);
+    const submission = makeSubmissionId(), account = accountOf(req);
+    const base = { items, email, account, contact, teamsAccount: teamsAccount || "", track: trackWire, lang, submission };
+
+    // 选课费 (v3 第二批, 2026-10-22): with the fee active the cart is HELD and the family goes to Stripe Checkout; the
+    // orders are built when the fee is paid (api/stripe-webhook → finalizeSubmission). Without it: as always.
+    const feeOn = fee.activeFee();
+    if (feeOn) {
+      const r = await holdForPayment(context, base, feeOn);
+      context.res = r.ok ? { status: 200, body: { ok: true, checkout: r.url, submission, fee: { amount: feeOn.amount, currency: feeOn.currency, label: feeOn.label }, holdUntil: r.holdUntil } } : { status: 502, body: { error: "payment_unavailable", message: r.error } };
+      return;
     }
 
-    // What the flow receives: one call per submission, shaped like an order (the trigger's schema), carrying every
-    // hive's route and ONE family email that lists every order. `name` etc. stay as they always were.
+    const { orders, wire } = await buildOrders(context, snapshot, base, new Date().toISOString(), null);
     const first = orders[0];
-    const wire = Object.assign({}, first, {
-      orderId: orders.map((o) => o.orderId).join(" / "),
-      orderIds: orders.map((o) => o.orderId),
-      orders: orders.map((o) => ({ orderId: o.orderId, schoolName: o.routes[0].schoolName, schoolAbbr: o.routes[0].schoolAbbr, items: o.items, itemCount: o.itemCount, totalPrice: o.totalPrice })),
-      itemCount: items.length,
-      totalPrice: items.reduce((sum, i) => sum + (typeof i.price === "number" ? i.price : 0), 0),
-      items,
-      routes: orders.map((o) => o.routes[0]),
-      routeCount: orders.length,
-    });
-    // Power Automate receives finished text, not fields to assemble. See the header comment in api/shared/messages.js.
-    const msg = buildMessages(wire, templates, lang);
-    wire.notifyText = msg.notifyText;
-    wire.emailTo = email;
-    wire.emailSubject = msg.emailSubject;
-    wire.emailHtml = msg.emailHtml;
-    wire.emailBodyText = msg.emailBodyText;
 
-    // The orders are final: stored, then announced. With a selection fee (stage 3) the records are stored as
-    // pending_fee here instead, and finalize() runs from the Stripe webhook once the fee is paid.
+    // The orders are final: stored, then announced.
     const result = await finalize(context, orders, wire, flowUrl);
     if (!result.ok) { context.res = { status: 503, body: { error: "store_failed", message: "Order could not be recorded; please try again." } }; return; }
     context.res = {
@@ -438,14 +374,105 @@ module.exports = async function (context, req) {
   }
 };
 
+// The hive orders of one submission and the one message to the flow: numbered here (makeOrderId), so a held
+// submission spends no number until its fee is paid. `b` = { items, email, account, contact, teamsAccount, track,
+// lang, submission }; `feeRec` = the order's fee part (null without a fee).
+async function buildOrders(context, snapshot, b, submittedAt, feeRec) {
+  const { items, email, account, contact, teamsAccount, lang, submission } = b, trackWire = b.track;
+  const routing = (snapshot.private && snapshot.private.schoolRouting) || {};
+  const templates = snapshot.messageTemplates;
+  const groups = groupByHive(items);
+  const orders = [];
+  for (const g of groups) {
+    const order = {
+      orderId: await makeOrderId(g.items, (m) => context.log.warn(m)),
+      submission,
+      submittedAt,
+      email,
+      account,
+      contact,
+      fee: feeRec,
+      // The trigger schema types these as strings; sending null or omitting `name`
+      // fails schema validation (HTTP 400, no flow run). Use "" for "not provided".
+      teamsAccount: teamsAccount || "",
+      track: trackWire,
+      itemCount: g.itemCount,
+      totalPrice: g.subtotal,
+      currency: "CNY",
+      items: g.items,
+      snapshotGeneratedAt: snapshot.generatedAt,
+      lang,
+    };
+    // Per-hive delivery: the hive's Teams channel id and notification address come from snapshot.private (never
+    // served to browsers), filled in on the Schools table. A hive with neither still produces a route, with empty
+    // destinations — the flow posts those to the default channel so an order can never silently vanish.
+    const dest = routing[g.key] || {};
+    const m = buildMessages(order, templates, lang);
+    const ownChannel = dest.teamsChannelId || "";
+    const channelId = ownChannel || cfg.defaultTeamsChannelId || "";
+    const usedDefaultChannel = !ownChannel && !!channelId;
+    if (!ownChannel) {
+      context.log.warn(
+        `Hive "${dest.name || g.schoolName || g.key}" has no Teams Channel ID; ` +
+          (channelId ? "posting to the default channel instead." : "no DEFAULT_TEAMS_CHANNEL_ID is configured either, so this post will fail.")
+      );
+    }
+    const notice =
+      lang === "en"
+        ? `<div><b>⚠️ Misrouted:</b> "${escapeHtml(dest.name || g.schoolName || g.key)}" has no Teams channel configured, so this landed here.</div><br>`
+        : `<div><b>⚠️ 投递错位：</b>「${escapeHtml(dest.name || g.schoolName || g.key)}」未配置 Teams 频道，因此这条通知落在了这里。</div><br>`;
+    order.routes = [{
+      hiveKey: g.key,
+      schoolName: dest.name || g.schoolName,
+      schoolAbbr: dest.abbr || g.schoolAbbr,
+      teamsChannelId: channelId,
+      usedDefaultChannel,
+      notifyEmail: dest.notifyEmail || "",
+      itemCount: g.itemCount,
+      subtotal: g.subtotal,
+      currency: order.currency,
+      notifyText: m.notifyText,
+      notifySubject: m.notifySubject,
+      notifyHtml: usedDefaultChannel ? notice + m.notifyHtml : m.notifyHtml,
+    }];
+    order.routeCount = 1;
+    orders.push(order);
+  }
+
+  // What the flow receives: one call per submission, shaped like an order (the trigger's schema), carrying every
+  // hive's route and ONE family email that lists every order. `name` etc. stay as they always were.
+  const first = orders[0];
+  const wire = Object.assign({}, first, {
+    orderId: orders.map((o) => o.orderId).join(" / "),
+    orderIds: orders.map((o) => o.orderId),
+    orders: orders.map((o) => ({ orderId: o.orderId, schoolName: o.routes[0].schoolName, schoolAbbr: o.routes[0].schoolAbbr, items: o.items, itemCount: o.itemCount, totalPrice: o.totalPrice })),
+    itemCount: items.length,
+    totalPrice: items.reduce((sum, i) => sum + (typeof i.price === "number" ? i.price : 0), 0),
+    items,
+    routes: orders.map((o) => o.routes[0]),
+    routeCount: orders.length,
+  });
+  // Power Automate receives finished text, not fields to assemble. See the header comment in api/shared/messages.js.
+  const msg = buildMessages(wire, templates, lang);
+  wire.notifyText = msg.notifyText;
+  wire.emailTo = email;
+  wire.emailSubject = msg.emailSubject;
+  wire.emailHtml = msg.emailHtml;
+  wire.emailBodyText = msg.emailBodyText;
+
+  return { orders, wire };
+}
+
 // Store the record and send the notifications (Teams per hive + the family's email, via the flow). The step after
 // the family's part is done — today straight from the submission, later from the paid-fee webhook.
-async function finalize(context, orders, wire, flowUrl) {
+async function finalize(context, orders, wire, flowUrl, opts) {
   // 1. The records, one per hive order. If even this fails the submission is refused — nothing would
-  //    remember it — and the family is asked to try again.
+  //    remember it — and the family is asked to try again. From a paid submission (opts.again) a record that is
+  //    already there is left as it is: the webhook may run twice.
   for (const order of orders) {
     const record = crm.orderRecord(order, { ok: false, at: order.submittedAt, pending: true });
     try {
+      if (opts && opts.again && (await crm.readOrder(order.orderId))) continue;
       await crm.writeOrder(record);
     } catch (err) {
       context.log.error(`order ${order.orderId} could not be stored: ${String(err && err.message || err)}`);
@@ -454,7 +481,8 @@ async function finalize(context, orders, wire, flowUrl) {
   }
   const order = wire;
 
-  // 2. The notifications.
+  // 2. The notifications — once per submission (opts.claim answers false when another run already sent them).
+  if (opts && opts.claim && !(await opts.claim())) return { ok: true, notify: { ok: true, at: new Date().toISOString(), skipped: true } };
   const headers = { "Content-Type": "application/json" };
   if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;
   let notify;
@@ -483,4 +511,67 @@ async function finalize(context, orders, wire, flowUrl) {
   }
   return { ok: true, notify };
 }
+// ---- the selection fee: hold, pay, finalize ---------------------------------------------------------------------
+
+// Hold the priced cart as a submission and open a Stripe Checkout session for the fee. { ok, url, holdUntil } or
+// { ok: false, error } — then nothing is held (the submission is closed as abandoned).
+async function holdForPayment(context, base, feeOn) {
+  const created = Date.now(), expiresAt = created + 31 * 60 * 1000; // Stripe's minimum session life is 30 minutes
+  const holdUntil = new Date(Math.max(expiresAt + 5 * 60 * 1000, created + submissions.holdMinutes() * 60 * 1000)).toISOString();
+  const doc = Object.assign({}, base, {
+    status: "held", createdAt: new Date(created).toISOString(), holdUntil,
+    fee: { amount: feeOn.amount, currency: feeOn.currency, status: "unpaid" },
+    stripe: null, orderIds: [], history: [{ at: new Date(created).toISOString(), by: base.account || base.email, action: "held" }],
+  });
+  await submissions.create(doc);
+  try {
+    const en = base.lang === "en", q = encodeURIComponent(base.submission);
+    const session = await stripe.createCheckout({
+      submission: base.submission, fee: feeOn, email: base.email, lang: base.lang, expiresAt,
+      successUrl: `${SITE()}/done?submission=${q}`,
+      cancelUrl: `${SITE()}/order?payment=cancelled&submission=${q}`,
+      description: en ? "Hive selection fee (incl. payment processing)" : "蜂巢选课费（含支付手续费）",
+    });
+    await submissions.update(base.submission, (d) => { d.stripe = { sessionId: session.id, url: session.url, expiresAt: new Date(expiresAt).toISOString(), livemode: !!session.livemode }; });
+    return { ok: true, url: session.url, holdUntil };
+  } catch (err) {
+    context.log.error(`submission ${base.submission}: Stripe checkout failed: ${String(err && err.message || err)}`);
+    await submissions.update(base.submission, (d) => { d.status = "abandoned"; submissions.pushHistory(d, { by: "system", action: "checkout_failed", note: String(err && err.message || err).slice(0, 200) }); }).catch(() => {});
+    await submissions.close(base.submission).catch(() => {});
+    return { ok: false, error: String(err && err.message || err).slice(0, 200) };
+  }
+}
+
+// The fee is paid (or a promotion code covered it): build, number, store and announce the orders, once. Safe to call
+// again (the webhook retries, the done page and the nightly reconcile may get there too). `session` = Stripe's
+// Checkout session, paid. → { ok, orderIds, already? }
+async function finalizeSubmission(context, id, session) {
+  let sub = await submissions.read(id);
+  if (!sub) return { ok: false, code: "not_found" };
+  if (sub.status === "paid") return { ok: true, already: true, orderIds: sub.orderIds || [] };
+  const flowUrl = process.env.POWER_AUTOMATE_URL || "";
+  const feeDone = stripe.feeFromSession(session, sub.fee);
+  if (!sub.built) {
+    const snapshot = await readSnapshot();
+    if (!snapshot) return { ok: false, code: "no_snapshot" };
+    const built = await buildOrders(context, snapshot, sub, new Date().toISOString(), feeDone);
+    sub = await submissions.update(id, (d) => {
+      if (d.built) return false; // another run numbered them first: use those
+      d.built = built; d.status = "finalizing"; d.fee = Object.assign({}, d.fee, feeDone);
+      submissions.pushHistory(d, { by: "stripe", action: feeDone.status === "paid" ? "fee_paid" : "fee_waived", note: feeDone.coupon || "" });
+    });
+  }
+  const { orders, wire } = sub.built;
+  const claim = async () => { let mine = false; await submissions.update(id, (d) => { mine = false; if (d.notifyClaimed) return false; d.notifyClaimed = new Date().toISOString(); mine = true; }); return mine; };
+  const result = await finalize(context, orders, wire, flowUrl, { again: true, claim });
+  if (!result.ok) return { ok: false, code: "store_failed" };
+  const orderIds = orders.map((o) => o.orderId);
+  await submissions.update(id, (d) => { d.status = "paid"; d.orderIds = orderIds; d.finalizedAt = new Date().toISOString(); submissions.pushHistory(d, { by: "system", action: "orders", note: orderIds.join(", ") }); });
+  await submissions.close(id).catch(() => {});
+  seats.forget();
+  return { ok: true, orderIds };
+}
+
 module.exports.accountOf = accountOf;
+module.exports.finalizeSubmission = finalizeSubmission;
+module.exports.buildOrders = buildOrders;
