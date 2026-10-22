@@ -229,7 +229,7 @@
   function renderRelTab() {
     var d = ptState.rel, rel = d.relationship, el = $("rpBody"); if (!el) return;
     var tab = ptState.tab;
-    if (tab === "overview") el.innerHTML = ptOverviewHtml(d);
+    if (tab === "overview") { el.innerHTML = ptOverviewHtml(d); ptOnboardStatus(rel); }
     else if (tab === "projects") el.innerHTML = ptProjectsHtml(d);
     else if (tab === "log") el.innerHTML = ptLogHtml(rel.log, d.canEdit, "rel");
     else if (tab === "contacts") el.innerHTML = ptContactsHtml(d);
@@ -252,10 +252,25 @@
       ptKv(t("下一步", "Next step"), nx.action ? esc(nx.action) + (nx.due ? ' <span class="' + (nx.due < today() ? "bad" : "muted") + '">' + esc(nx.due) + "</span>" : "") + (nx.owner ? ' <span class="muted">' + esc(ptWho(nx.owner)) + "</span>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
       ptKv(t("协议", "Agreement"), ag.signedAt || ag.endAt ? esc([ag.kind, ag.signedAt ? t("签于 ", "signed ") + ag.signedAt : "", ag.startAt || ag.endAt ? (ag.startAt || "?") + " → " + (ag.endAt || "?") : "", ag.renewal === "auto" ? t("自动续约", "auto-renews") : ""].filter(Boolean).join(" · ")) + (ag.fileRef ? ' · <a href="' + esc(ag.fileRef) + '" target="_blank" rel="noopener">' + t("文件 ↗", "file ↗") + "</a>" : "") : '<span class="muted">' + t("未填", "none") + "</span>") +
       (terms ? ptKv(t("条款", "Terms"), terms) : "") +
+      // 开通 (2026-10-22): a course provider's channel, Schools row and leader — filled in by ptOnboardStatus
+      (rel.type === "course" && rel.party && rel.party.kind === "org" && !rel.closed ? ptKv(t("开通", "Onboarding"), '<span id="ptOb" class="muted">…</span>') : "") +
       ptKv(t("来源", "Source"), esc(rel.source) + (rel.confirmed === false ? ' <span class="tag">' + t("待确认", "to confirm") + "</span>" : "") + ' · <span class="muted">' + esc(day(rel.createdAt)) + "</span>") +
       (rel.closed ? ptKv(t("已关闭", "Closed"), esc(rel.closed.reason + " · " + day(rel.closed.at) + (rel.closed.note ? " · " + rel.closed.note : ""))) : "") + "</div>" +
       (canEdit ? '<div class="actions">' + (rel.closed ? '<button type="button" class="btn sm secondary" data-act="reopen">' + t("重新打开", "Reopen") + "</button>" : '<button type="button" class="btn sm" data-act="move">' + t("推进阶段…", "Move stage…") + '</button><button type="button" class="btn sm secondary" data-act="edit">' + t("编辑…", "Edit…") + '</button><button type="button" class="btn sm secondary" data-act="close">' + t("关闭关系…", "Close…") + "</button>") + '</div><div id="rpForm"></div>' : "") +
       '<p class="hint">' + t("阶段只由人推进；数字只作为度量显示，不改变阶段。", "Stages move only by hand; numbers are shown as metrics and never set the stage.") + "</p>";
+  }
+  // The course provider's onboarding, read from 机构 (its row: onboarded, leader); the system administrator gets the button.
+  // 课程设计与上架 is the stage to do it: the line says so while it is not done.
+  function ptOnboardStatus(rel) {
+    var el = $("ptOb"); if (!el) return;
+    loadInstitutionsCrm(false).then(function () {
+      var r = instRows().filter(function (x) { return (x.key || x.domain) === rel.party.key; })[0]; if (!$("ptOb")) return;
+      if (!r) { $("ptOb").textContent = t("（不是机构）", "(not an institution)"); return; }
+      var ob = r.onboarded && r.onboarded.channel;
+      $("ptOb").outerHTML = '<span id="ptOb">' + (ob ? '<span class="tag ok">' + t("已开通", "Onboarded") + "</span> " + esc(r.onboarded.key) : '<span class="tag ' + (rel.stage === "design" ? "warn" : "muted") + '">' + t("未开通", "Not yet") + "</span>" + (rel.stage === "design" ? ' <span class="muted">' + t("下一步：开通为课程提供方", "Next: onboard as a course provider") + "</span>" : "")) +
+        (isAdmin() ? ' <button type="button" class="btn xs' + (ob ? " secondary" : "") + '" id="ptObGo">' + (ob ? t("开通设置…", "Setup…") : t("开通…", "Onboard…")) + "</button>" : "") + "</span>";
+      if ($("ptObGo")) $("ptObGo").addEventListener("click", function () { openOnboardPanel(r); });
+    }).catch(function () { if ($("ptOb")) $("ptOb").textContent = "—"; });
   }
   function ptProjectsHtml(d) {
     var rel = d.relationship, kinds = d.kinds || {};
@@ -415,33 +430,53 @@
   // empty field, our staff from roles.json); choosing one fills the account — the
   // Teams UPN, else the email, else the CRM id, which the API resolves — and a
   // person the hub does not know can be created in place. Free text still works.
+  // Smart search on a person / account field (Rick 2026-10-22: 「所有 site 上输入都应该支持」): type two letters of a name,
+  // email, Teams account or CRM id; ↑ ↓ Enter pick. opts: staff (our accounts listed first), source (the search
+  // endpoint: crm/people-search, or courses/people for a provider's own people), accountsOnly (only people with a
+  // Teams account; the value is the account), noNew (no 「新建人员」), onPick(person).
   function ptPeopleAuto(input, opts) {
     if (!input || input._pauto) return; input._pauto = true; opts = opts || {};
     var wrap = input.closest("label") || input.parentNode; wrap.classList.add("pfield");
     var res = document.createElement("div"); res.className = "pres pauto"; res.hidden = true; wrap.appendChild(res);
-    var staff = opts.staff || [];
-    function row(p) { var acct = p.upn || (p.email && p.email.indexOf("…") !== 0 ? p.email : "") || p.crmId; return '<button type="button" class="pr" data-v="' + esc(acct) + '" data-name="' + esc(p.name) + '"><b>' + esc(p.name) + '</b><span class="sub">' + esc([p.upn || p.email, p.identity, p.org, p.crmId].filter(Boolean).join(" · ")) + "</span></button>"; }
-    function show(html) { res.innerHTML = html; res.hidden = !html; }
+    var staff = opts.staff || [], src = opts.source || "crm/people-search", found = [], cur = -1;
+    input.setAttribute("autocomplete", "off");
+    function row(p, i) { var acct = opts.accountsOnly ? p.upn : p.upn || (p.email && p.email.indexOf("…") !== 0 ? p.email : "") || p.crmId; return '<button type="button" class="pr" data-i="' + i + '" data-v="' + esc(acct) + '" data-name="' + esc(p.name) + '"><b>' + esc(p.name) + '</b><span class="sub">' + esc([p.upn || p.email, p.identity, p.org, p.crmId].filter(Boolean).join(" · ")) + "</span></button>"; }
+    function show(html) { res.innerHTML = html; res.hidden = !html; cur = -1; }
+    function mark() { var bs = res.querySelectorAll(".pr"); bs.forEach(function (b, i) { b.classList.toggle("on", i === cur); }); if (bs[cur]) bs[cur].scrollIntoView({ block: "nearest" }); }
+    // multi: a comma-separated list — the search is the last item, a pick replaces it
+    var term = function () { return opts.multi ? input.value.split(/[,，]/).pop().trim() : input.value.trim(); };
     var search = debounce(function () {
-      var q = input.value.trim();
-      if (q.length < 2) { show(staff.length && !q ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + staff.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(ptWho(o)) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : ""); return; }
-      api("crm/people-search?q=" + encodeURIComponent(q)).then(function (r) {
-        if (!r.ok || input.value.trim() !== q) return;
-        var ps = r.body.people || [], mine = staff.filter(function (o) { return o.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+      var q = term();
+      if (q.length < 2) { found = []; show(staff.length && !q ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + staff.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(ptWho(o)) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : ""); return; }
+      api(src + "?q=" + encodeURIComponent(q)).then(function (r) {
+        if (!r.ok || term() !== q) return;
+        var ps = (r.body.people || []).filter(function (p) { return !opts.accountsOnly || p.upn; }), mine = staff.filter(function (o) { return o.toLowerCase().indexOf(q.toLowerCase()) >= 0; });
+        found = ps;
         show((mine.length ? '<div class="phead">' + t("我方员工", "Our staff") + "</div>" + mine.map(function (o) { return '<button type="button" class="pr" data-v="' + esc(o) + '"><b>' + esc(ptWho(o)) + '</b><span class="sub">' + esc(o) + "</span></button>"; }).join("") : "") +
-          (ps.length ? '<div class="phead">' + t("人员库", "People hub") + "</div>" + ps.map(row).join("") : "") +
-          '<button type="button" class="pr new" data-new="1">+ ' + t("新建人员", "New person") + " “" + esc(q) + "”</button>");
+          (ps.length ? '<div class="phead">' + (opts.accountsOnly ? t("账号", "Accounts") : t("人员库", "People hub")) + "</div>" + ps.map(row).join("") : (opts.noNew ? '<div class="phead">' + t("没有找到", "Nothing found") + "</div>" : "")) +
+          (opts.noNew ? "" : '<button type="button" class="pr new" data-new="1">+ ' + t("新建人员", "New person") + " “" + esc(q) + "”</button>"));
       });
     }, 180);
+    function pick(b) {
+      if (b.getAttribute("data-new")) { res.hidden = true; ptNewPersonInline(wrap, input.value.trim(), opts, function (person) { input.value = person.upn || person.email || person.crmId; input.setAttribute("data-name", person.name); }); return; }
+      if (opts.multi) { var parts = input.value.split(/[,，]/).map(function (x) { return x.trim(); }); parts.pop(); parts = parts.filter(Boolean); parts.push(b.getAttribute("data-v")); input.value = parts.join(", "); }
+      else input.value = b.getAttribute("data-v");
+      input.setAttribute("data-name", b.getAttribute("data-name") || ""); res.hidden = true;
+      var p = b.hasAttribute("data-i") ? found[Number(b.getAttribute("data-i"))] : null;
+      if (opts.onPick) opts.onPick(p || { upn: input.value, name: b.getAttribute("data-name") || "" });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
     input.addEventListener("input", search); input.addEventListener("focus", search);
     input.addEventListener("blur", function () { setTimeout(function () { if (!res.contains(document.activeElement)) res.hidden = true; }, 150); });
-    input.addEventListener("keydown", function (e) { if (e.key === "Escape") res.hidden = true; });
-    res.addEventListener("mousedown", function (e) { e.preventDefault(); });
-    res.addEventListener("click", function (e) {
-      var b = e.target.closest(".pr"); if (!b) return;
-      if (b.getAttribute("data-new")) { res.hidden = true; ptNewPersonInline(wrap, input.value.trim(), opts, function (person) { input.value = person.upn || person.email || person.crmId; input.setAttribute("data-name", person.name); }); return; }
-      input.value = b.getAttribute("data-v"); input.setAttribute("data-name", b.getAttribute("data-name") || ""); res.hidden = true; input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { res.hidden = true; return; }
+      var bs = res.querySelectorAll(".pr"); if (res.hidden || !bs.length) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); cur = Math.min(bs.length - 1, cur + 1); mark(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); cur = Math.max(0, cur - 1); mark(); }
+      else if (e.key === "Enter" && cur >= 0) { e.preventDefault(); pick(bs[cur]); }
     });
+    res.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    res.addEventListener("click", function (e) { var b = e.target.closest(".pr"); if (b) pick(b); });
   }
   function ptNewPersonInline(after, seed, opts, onCreated) {
     var old = after.parentNode.querySelector(".pnew.inline"); if (old) old.remove();

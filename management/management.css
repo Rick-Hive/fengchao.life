@@ -857,7 +857,7 @@ svg.tline .ms.late { fill: #fff; stroke: var(--bad); stroke-width: 2; }
 .pform .f.pfield, label.f.pfield { position: relative; }
 .pres.pauto { position: absolute; left: 0; right: 0; top: 100%; z-index: 6; background: var(--card); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: 0 10px 24px -12px rgba(15, 32, 60, 0.35); max-height: 260px; overflow: auto; font-weight: 400; }
 .pres.pauto .pr { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
-.pres.pauto .pr:hover { background: var(--accent-soft); }
+.pres.pauto .pr:hover, .pres.pauto .pr.on { background: var(--accent-soft); }
 .pres.pauto .pr .sub { display: block; font-size: 11.5px; color: var(--faint); }
 .pres.pauto .pr.new { color: var(--accent-dark); font-weight: 600; }
 .pres.pauto .phead { font-size: 11px; color: var(--faint); padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1462,3 +1462,7 @@ button.lnk.inum:hover { text-decoration-style: solid; }
 /* the second panel beside a wide one (教师资料) */
 .panel.wide.open ~ .panel.second.open { right: min(680px, 100vw); }
 @media (max-width: 960px) { .panel.wide.open ~ .panel.second.open { right: 0; } }
+/* 机构: the 开通 line under a 课程提供方 partnership; the profile block (2026-10-22) */
+.olist .obline { background: var(--bg-soft, #f7f9fc); padding-top: 6px; padding-bottom: 6px; }
+.olist .obline .sub { font-size: 12.5px; }
+#ipProf .muted { font-size: 12.5px; }

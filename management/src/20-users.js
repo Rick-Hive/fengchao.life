@@ -500,6 +500,7 @@
           '<div class="actions"><button class="btn" type="submit" id="psave">' + t("保存", "Save") + '</button></div><div id="pmsg"></div></form>'
         : '<div class="kv"><span class="k">' + t("身份", "Identity") + "</span><span>" + esc(u.identity ? vl(u.identity) : "—") + '</span><span class="k">' + t("关联账号", "Linked") + "</span><span>" + esc(u.linked.join(", ") || "—") + "</span>" + (u.note ? '<span class="k">' + t("备注", "Note") + "</span><span>" + esc(u.note) + "</span>" : "") + '</div><div class="note">' + t("身份和关联由本校的 IT 管理员或蜂巢员工维护。", "Identity and links are maintained by the school's IT administrator or Hive staff.") + "</div>") +
       "</div>", where);
+    if ($("plink")) ptPeopleAuto($("plink"), { accountsOnly: true, noNew: true, multi: true }); // smart search, several accounts
     if ($("pform")) $("pform").addEventListener("submit", function (ev) {
       ev.preventDefault(); savingButton($("psave"));
       post("domain/person", "PATCH", { domain: currentDomain, user: u.upn, identity: $("pid").value, linked: $("plink").value, note: $("pnote").value }).then(function (r) {

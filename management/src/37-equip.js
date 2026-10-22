@@ -69,6 +69,7 @@
       box.classList.remove("hidden");
     }, 120));
     $("enHits").addEventListener("click", function (e) { var b = e.target.closest("button[data-pick]"); if (!b) return; picked = { recId: b.getAttribute("data-pick"), name: b.getAttribute("data-name") }; $("enPicked").innerHTML = esc(t("已选客户：", "Customer: ") + picked.name); $("enPicked").classList.remove("hidden"); $("enHits").classList.add("hidden"); $("enQ").value = picked.name; $("enNew").checked = false; $("enNewF").classList.add("hidden"); });
+    ptPeopleAuto($("enTeams"), { accountsOnly: true, noNew: true }); // the customer's Teams account, searched
     $("enNew").addEventListener("change", function () { $("enNewF").classList.toggle("hidden", !this.checked); if (this.checked) { picked = null; $("enPicked").classList.add("hidden"); } });
     var lines = 0;
     function addLine() {

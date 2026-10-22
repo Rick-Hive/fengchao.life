@@ -45,6 +45,8 @@
   var TE_LANGS = [["zh", "中文", "Chinese"], ["en", "English", "English"]];
   function teKey(k, lang) { return lang === "zh" ? k + "Zh" : k; }
   function teFieldLabel(k) { var zh = /Zh$/.test(k), base = k.replace(/Zh$/, ""), f = TE_TEXTS.filter(function (x) { return x[0] === base; })[0]; return f ? t(f[1], f[2]) + (zh ? t("（中文）", " (Chinese)") : t("（英文）", " (English)")) : k; }
+  // the Teams account field: smart search among the institution's own accounts (courses/people: approvers, a provider's leader)
+  function teAccountSearch(root) { var ta = root.querySelector('input[data-fact="teamsAccount"]'); if (ta && !ta.readOnly) ptPeopleAuto(ta, { source: "courses/people", accountsOnly: true, noNew: true }); }
   function teFactFields(p, lockAccount) {
     p = p || {};
     var ph = { teamsAccount: "name@domain", languages: t("如：中文", "e.g. English") };
@@ -102,6 +104,7 @@
           teTextsHtml({}, true) +
           '<div class="actions"><button type="submit" class="btn" id="tnSave">' + t("保存并发布", "Save and publish") + '</button><small class="faint">' + t("写入教师表并发布，网站随后更新", "Written to the Teachers table and published; the website follows") + '</small></div><div id="tnMsg"></div></form></div>', null, { wide: true });
       var form = $("teNew");
+      teAccountSearch(form);
       form.querySelectorAll("button[data-tr]").forEach(function (b) { b.addEventListener("click", function () { teTranslate(b, form, b.getAttribute("data-tr")); }); });
       $("tePhotoBtn").addEventListener("click", function () { $("tePhotoFile").click(); });
       $("tePhotoFile").addEventListener("change", function () {
@@ -193,6 +196,7 @@
         '<span class="faint" id="teSaved"></span></div>' +
       (d.history && d.history.length ? "<h4>" + t("修改记录", "History") + '</h4><div class="hist">' + d.history.slice(0, 8).map(function (h) { return '<div class="hrow"><span class="hat">' + esc(when(h.at)) + '<span class="hwho">' + esc(h.by || "") + "</span></span><span>" + esc(histLabel(h)) + "</span></div>"; }).join("") + "</div>" : "");
     if (can) {
+      teAccountSearch(host);
       host.querySelectorAll("input[data-fact]").forEach(function (inp) {
         inp.addEventListener("change", function () {
           var k = inp.getAttribute("data-fact"), v = inp.value.trim(), body = { id: d.recId }; body[k] = v;

@@ -331,6 +331,33 @@ async function handler(context, req) {
       if (!canEdit) { fail(context, 403, "no_access"); return; }
       const body = req.body && typeof req.body === "object" ? req.body : {};
       const rawKey = String(body.key || body.domain || "").trim();
+      // 机构资料 (Rick 2026-10-22: 「机构无法编辑所有必须字段，比如地区，负责人等信息」): kept on the ORG record and shown
+      // over what the directory / Airtable say — region, type, country, city, website, and the institution's own 负责人
+      if (body.profile && typeof body.profile === "object") {
+        // a tenant domain with no synced accounts yet has no hub row: its key is the domain itself
+        const row = ((h && h.institutions) || []).find((i) => (i.key || i.domain) === rawKey) || (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(rawKey) ? { key: rawKey, domain: rawKey, name: "", nameEn: "" } : null);
+        if (!row) { fail(context, 404, "not_found"); return; }
+        const pf = body.profile, s = (v, n) => String(v == null ? "" : v).trim().slice(0, n);
+        if (pf.region && !P.REGIONS.includes(pf.region)) { fail(context, 400, "bad_region"); return; }
+        const site = s(pf.website, 200);
+        if (site && !/^(https?:\/\/)?[^\s/]+\.[^\s]+$/i.test(site)) { fail(context, 400, "bad_website"); return; }
+        const L = pf.leader && typeof pf.leader === "object" ? pf.leader : null;
+        const leaderAcct = L ? s(L.upn || L.email, 200).toLowerCase() : "";
+        if (leaderAcct && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(leaderAcct)) { fail(context, 400, "bad_leader"); return; }
+        const { doc } = await P.updateOrgs((o) => {
+          const id = P.orgIdFor(o, rawKey, { name: row.name || row.nameEn || "", nameEn: row.nameEn || "" }), org = o.orgs[id];
+          if (pf.region !== undefined) org.region = pf.region || "";
+          if (pf.type !== undefined) org.orgType = s(pf.type, 60);
+          if (pf.country !== undefined) org.country = s(pf.country, 60);
+          if (pf.city !== undefined) org.city = s(pf.city, 60);
+          if (pf.website !== undefined) org.website = site;
+          if (pf.leader !== undefined) org.leader = leaderAcct ? { upn: /@/.test(leaderAcct) ? leaderAcct : "", name: s(L.name, 120), crmId: s(L.crmId, 20) } : null;
+          org.updatedAt = new Date().toISOString(); org.updatedBy = normUser(user);
+        });
+        await audit(context, { action: "crm.institution.profile", by: normUser(user), key: rawKey, fields: Object.keys(pf) });
+        ok(context, { ok: true, org: doc.orgs[doc.byKey[rawKey]] });
+        return;
+      }
       // 开通为课程提供方 (Rick 2026-10-22): the Hive Orders channel, the Airtable Schools row, the partnership, the
       // leader's role, the sync — one action, the system administrator's (api/shared/onboard.js). dryRun previews.
       if (body.onboard && typeof body.onboard === "object") {
@@ -375,6 +402,8 @@ async function handler(context, req) {
       if (o.commission && typeof o.commission.amount === "number" && (st === "paid" || st === "started")) commissionIn.set(keys[0], (commissionIn.get(keys[0]) || 0) + o.commission.amount);
     }
     const { hiveKey } = require("../shared/hive");
+    // 开通状态: the hives the website routes orders to (the snapshot's Schools rows), and whether each has its channel
+    const routing = (((await readSnapshot().catch(() => null)) || {}).private || {}).schoolRouting || {};
     // The lists behind an institution's numbers (Rick 2026-10-22: 「数字能否可点击显示具体订单或客户列表」):
     // GET crm/institutions?key=<row key>&list=customers | orders (this school year's Equip orders) | courses | courseorders
     const listKind = String((req.query && req.query.list) || "");
@@ -417,7 +446,7 @@ async function handler(context, req) {
       const fySum = (i.customerIds || []).reduce((a, id) => a + (fySales.get(id) || 0), 0), fyN = (i.customerIds || []).reduce((a, id) => a + (fyOrders.get(id) || 0), 0);
       const orgId = orgsDoc.byKey[key] || null, org = orgId ? orgsDoc.orgs[orgId] : null;
       const rels = Object.values(relsDoc.items || {}).filter((r) => r.party && r.party.kind === "org" && (r.party.key === key || (orgId && r.party.id === orgId)) && P.TYPES[r.type]).map((r) => ({ id: r.id, type: r.type, stage: r.stage, closed: !!r.closed, owner: r.owner || "" }));
-      return { key, domain: i.domain || "", kind: i.kind || "tenant", name: n.name || i.name || "", nameEn: n.nameEn || i.nameEn || "", abbr: i.abbr || "", type: i.type || "", region: i.region || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, partner: pt, orgId, internal: !!(org && org.internal), rels, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null, courseValue: hk && seeMoney ? (courseValue.get(hk) || 0) : null, commission: hk && seeMoney ? (commissionIn.get(hk) || 0) : null, provider: !!hk && ((i.courses || 0) > 0 || courseValue.has(hk)) };
+      return { key, domain: i.domain || "", kind: i.kind || "tenant", name: n.name || i.name || "", nameEn: n.nameEn || i.nameEn || "", abbr: i.abbr || "", type: (org && org.orgType) || i.type || "", region: i.region || "", regionCode: (org && org.region) || P.regionOf(Object.assign({}, i, { country: (org && org.country) || i.country })), country: (org && org.country) || i.country || "", city: (org && org.city) || i.city || "", website: (org && org.website) || i.website || "", leader: (org && org.leader) || null, onboarded: hk && routing[hk] ? { key: hk, channel: !!routing[hk].teamsChannelId } : null, courses: i.courses || 0, partner: pt, orgId, internal: !!(org && org.internal), rels, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null, courseValue: hk && seeMoney ? (courseValue.get(hk) || 0) : null, commission: hk && seeMoney ? (commissionIn.get(hk) || 0) : null, provider: !!hk && ((i.courses || 0) > 0 || courseValue.has(hk)) };
     });
     ok(context, { rows, fy, canEdit, stages: hub.PARTNER_STAGES, types: P.TYPES, stageLabels: Object.fromEntries(Object.entries(P.STAGES).map(([t, st]) => [t, Object.fromEntries(st.map((x) => [x.k, [x.zh, x.en]]))])), generatedAt: h && h.generatedAt, hiveRows: rows.filter((r) => r.kind !== "tenant").length, rebuilt: !!(wantRebuild || stale), access: acc });
     return;
