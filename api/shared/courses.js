@@ -34,6 +34,11 @@ const INDEX_BLOB = "crm/course-work/_index.json"; // { items: { <id>: { code, st
 const EMPTY_ASSIGN = () => ({ items: {}, updatedAt: null });
 const GRADE_ORDER = ["Pre-K", "K1", "K2", "K3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12", "Associate of Arts Degree"];
 const ID_RE = /^rec[A-Za-z0-9]{14}$/;
+// 新建课程 (Rick 2026-10-22: 「应该可以从管理中心新建课程，批准发布后写回 airtable」): a course made here lives as a
+// working record under a draft id until it is published; the publish creates the Airtable row and the record moves to
+// that row's id (the draft id keeps a pointer, `movedTo`).
+const NEW_RE = /^new[A-Za-z0-9]{14}$/;
+const WORK_RE = /^(rec|new)[A-Za-z0-9]{14}$/;
 const providerMod = require("./provider");
 const APPROVERS = ["curriculum", "ceo"];
 const VIEWERS = ["community"];
@@ -51,6 +56,8 @@ function isViewer(roles) { return isApprover(roles) || staffFunctions(roles).som
 // `pair` ties the two languages of one text; `lang` says which side a key is.
 const cf = cfg.courseFields;
 const FIELDS = {
+  // 课程编号: set by the approver (a new course needs one before it is published; an existing one keeps Airtable's)
+  code: { kind: "text", spec: cf.code, teacher: false, max: 40 },
   nameEn: { kind: "text", spec: cf.nameEn, teacher: true, pair: "name", lang: "en", max: LIMITS.name, required: true },
   nameZh: { kind: "text", spec: cf.nameZh, teacher: true, pair: "name", lang: "zh", max: LIMITS.name, required: true },
   descriptionEn: { kind: "long", spec: cf.descriptionEn, teacher: true, pair: "description", lang: "en", max: LIMITS.long, required: true },
@@ -213,7 +220,12 @@ const readWork = (id) => store.read(workBlob(id), () => null);
 // A small index of every working record, so the list page reads one blob instead of one per course.
 async function indexPut(d) {
   if (!d) return;
-  await store.update(INDEX_BLOB, () => ({ items: {} }), (x) => { x.items[d.courseId] = { code: d.code, status: d.status, updatedAt: d.updatedAt, submittedAt: d.submitted ? d.submitted.at : null, publishedAt: d.published ? d.published.at : null, returnedAt: d.returned && d.status === "returned" ? d.returned.at : null, by: d.draft.by || "" }; x.updatedAt = now(); });
+  await store.update(INDEX_BLOB, () => ({ items: {} }), (x) => {
+    x.items[d.courseId] = { code: d.code, status: d.status, updatedAt: d.updatedAt, submittedAt: d.submitted ? d.submitted.at : null, publishedAt: d.published ? d.published.at : null, returnedAt: d.returned && d.status === "returned" ? d.returned.at : null, by: d.draft.by || "" };
+    // a course made here: enough to list it before the website has it (name, provider, who owns it)
+    if (d.isNew || d.createdFrom) Object.assign(x.items[d.courseId], { isNew: true, nameEn: d.draft.fields.nameEn || "", nameZh: d.draft.fields.nameZh || "", schoolId: (d.draft.fields.school || [])[0] || "", ownerHive: d.ownerHive || "", createdBy: d.createdBy || "" });
+    x.updatedAt = now();
+  });
 }
 const readIndex = () => store.read(INDEX_BLOB, () => ({ items: {} }));
 function pushHistory(d, entry) { d.history.push(Object.assign({ at: now() }, entry)); if (d.history.length > HISTORY_MAX) d.history.splice(0, d.history.length - HISTORY_MAX); }
@@ -227,8 +239,10 @@ async function milestone(d, kind, by, note) {
 // Open a course for the editor: the working record, created from the Airtable row when there is none.
 // An approver opening a submitted course moves it to reviewing (the teacher sees someone is looking).
 async function open(id, who) {
-  if (!ID_RE.test(String(id || ""))) throw bad("no such course");
+  if (!WORK_RE.test(String(id || ""))) throw bad("no such course");
   let doc = await readWork(id);
+  if (doc && doc.movedTo) doc = (await readWork(doc.movedTo)) || doc; // a new course since published: its row's record
+  if (!doc && NEW_RE.test(id)) throw Object.assign(new Error("no such course"), { status: 404 });
   if (!doc) {
     const base = baseFor.read();
     const record = await base.get(cfg.tables.courses.id, id).catch((err) => { throw Object.assign(new Error(`course not read from Airtable: ${err.message}`), { status: 502 }); });
@@ -266,6 +280,7 @@ async function saveField(id, key, value, who) {
     const before = d.draft.fields[key];
     if (JSON.stringify(before) === JSON.stringify(v)) return false;
     d.draft.fields[key] = v; d.draft.at = now(); d.draft.by = who.user;
+    if (key === "code") d.code = v;
     const m = d.draft.meta = d.draft.meta || { machine: {}, translatedFrom: {} };
     if (f.lang) {
       const wasMachine = !!m.machine[key];
@@ -448,11 +463,16 @@ function translationNeeds(doc) {
 // ---- publish ---------------------------------------------------------------------------------
 // Write the draft into the Airtable row (only what differs from the baseline), archive it, mark published.
 async function publish(id, who, opts) {
-  const doc = await readWork(id);
+  let doc = await readWork(id);
+  if (doc && doc.movedTo) { id = doc.movedTo; doc = await readWork(id); }
   if (!doc) throw bad("open the course first");
   const have = await lookups();
   const v = validate(doc.draft.fields, have);
+  const isNew = NEW_RE.test(id);
+  if (isNew && !String(doc.draft.fields.code || "").trim()) v.problems.push("code: a new course needs its 课程编号 before it is published");
+  if (isNew && !(doc.draft.fields.school || []).length) v.problems.push("school: choose the course provider");
   if (v.problems.length) throw bad("the course is not complete", { problems: v.problems });
+  if (isNew) opts = Object.assign({}, opts, { all: true }); // the row is new: every field is written
   const base = baseFor.write();
   const table = await base.table([cfg.tables.courses.id]);
   const changes = {}, written = [], skipped = [];
@@ -460,6 +480,7 @@ async function publish(id, who, opts) {
     if (have.fields[key] === false) continue;
     const val = doc.draft.fields[key], was = doc.draft.baseline[key];
     if (!(opts && opts.all) && JSON.stringify(val) === JSON.stringify(was)) continue;
+    if (isNew && (val == null || val === "" || (Array.isArray(val) && !val.length) || (f.kind === "pair" && !(val.en || val.zh)))) continue; // a new row: nothing to clear
     if (f.kind === "pair") {
       const fe = AirtableBase.field(table, f.specEn), fz = AirtableBase.field(table, f.specZh);
       if (!fe || !fz) { skipped.push(key); continue; }
@@ -481,7 +502,15 @@ async function publish(id, who, opts) {
   }
   const at = now();
   let airtable = null, syllabusNow = null;
-  if (Object.keys(changes).length) {
+  const draftId = id;
+  if (isNew) {
+    // 新建课程: the Airtable row is created now; the working record moves to its id below
+    try { airtable = await base.create(cfg.tables.courses.id, changes, { typecast: false }); }
+    catch (err) { throw Object.assign(new Error(`Airtable refused the new course: ${err.message}`), { status: 502, code: "airtable" }); }
+    if (!airtable || !ID_RE.test(String(airtable.id || ""))) throw Object.assign(new Error("Airtable did not return the new course's id"), { status: 502, code: "airtable" });
+    id = airtable.id;
+    if (written.includes("syllabus") && airtable.fields) syllabusNow = fieldsFromRecord(airtable).syllabus;
+  } else if (Object.keys(changes).length) {
     try { airtable = await base.update(cfg.tables.courses.id, id, changes, { typecast: false }); }
     catch (err) { throw Object.assign(new Error(`Airtable refused the write: ${err.message}`), { status: 502, code: "airtable" }); }
     // Airtable fetched the uploaded syllabus and now holds its own copy with its own id: the draft keeps
@@ -490,6 +519,14 @@ async function publish(id, who, opts) {
   }
   const archive = { at, by: who.user, fields: doc.draft.fields, meta: doc.draft.meta, written, skipped, changes };
   await store.write(pubBlob(id, at), archive);
+  if (isNew) {
+    // the record moves to the row's id; the draft id points there (links and open tabs keep working)
+    const moved = Object.assign(JSON.parse(JSON.stringify(doc)), { courseId: id, isNew: false, createdFrom: draftId });
+    await store.write(workBlob(id), moved);
+    await store.update(workBlob(draftId), () => null, (d) => { if (!d) return false; d.movedTo = id; d.status = "published"; d.updatedAt = at; });
+    await store.update(INDEX_BLOB, () => ({ items: {} }), (x) => { delete x.items[draftId]; x.updatedAt = now(); });
+    await store.update(ASSIGN_BLOB, EMPTY_ASSIGN, (d) => { if (!d.items[draftId]) return false; d.items[id] = Object.assign({}, d.items[draftId], { code: moved.code }); delete d.items[draftId]; d.updatedAt = at; });
+  }
   const { doc: after } = await store.update(workBlob(id), () => null, (d) => {
     if (syllabusNow) d.draft.fields.syllabus = syllabusNow;
     d.status = "published"; d.published = { at, by: who.user, fields: d.draft.fields, written };
@@ -499,7 +536,38 @@ async function publish(id, who, opts) {
   });
   await indexPut(after);
   await store.update(SYNC_BLOB, () => ({ lastAt: null, pending: false }), (s) => { s.pending = true; s.pendingSince = s.pendingSince || at; });
-  return { doc: after, written, skipped, at, airtable: !!airtable };
+  return { doc: after, written, skipped, at, airtable: !!airtable, movedFrom: isNew ? draftId : undefined };
+}
+
+// ---- 新建课程 / 复制课程 (2026-10-22) ------------------------------------------------------------
+// A new working record under a draft id: empty, or a copy of another course (its fields, without the code, the
+// syllabus files or the teachers' assignments). `hive` = the provider's own hive key (its leader creates for it only);
+// `schoolId` = the Schools row an approver picks. The course reaches Airtable when an approver publishes it.
+function emptyFields() {
+  const out = {};
+  for (const [k, f] of Object.entries(FIELDS)) out[k] = f.kind === "pair" ? { en: "", zh: "" } : f.kind === "links" || f.kind === "multi" || f.kind === "files" ? [] : f.kind === "number" ? null : f.kind === "check" ? false : "";
+  return out;
+}
+async function create(who, opts) {
+  opts = opts || {};
+  const id = "new" + crypto.randomBytes(16).toString("base64").replace(/[^A-Za-z0-9]/g, "").slice(0, 14).padEnd(14, "0");
+  let fields = emptyFields(), copiedFrom = null, sourceLang = "";
+  if (opts.from) {
+    const src = await open(String(opts.from), who);
+    fields = Object.assign(emptyFields(), JSON.parse(JSON.stringify(src.draft.fields)));
+    fields.code = ""; fields.syllabus = [];
+    if (fields.nameZh) fields.nameZh += "（副本）"; if (fields.nameEn) fields.nameEn += " (copy)";
+    copiedFrom = { id: src.courseId, code: src.code || "" }; sourceLang = (src.draft.meta && src.draft.meta.sourceLang) || "";
+  }
+  if (opts.schoolId) fields.school = [String(opts.schoolId)];
+  const d = emptyWork(id, "");
+  Object.assign(d, { isNew: true, ownerHive: opts.hive || "", createdBy: who.user, copiedFrom });
+  d.draft.fields = fields; d.draft.baseline = emptyFields(); d.draft.at = now(); d.draft.by = who.user; d.draft.meta.sourceLang = sourceLang;
+  d.updatedAt = d.draft.at;
+  pushHistory(d, { by: who.user, action: "create", note: copiedFrom ? `copy of ${copiedFrom.code || copiedFrom.id}` : "" });
+  await store.write(workBlob(id), d);
+  await indexPut(d);
+  return d;
 }
 
 // Refresh the website after publishes, at most once every two minutes; a call inside the gap leaves
@@ -548,7 +616,7 @@ async function restore(id, ref, who) {
 // ---- assignments -----------------------------------------------------------------------------
 const readAssignments = () => store.read(ASSIGN_BLOB, EMPTY_ASSIGN);
 async function assign(courseId, code, person, who) {
-  if (!ID_RE.test(courseId)) throw bad("no such course");
+  if (!WORK_RE.test(courseId)) throw bad("no such course");
   const p = { crmId: String(person.crmId || ""), upn: String(person.upn || "").toLowerCase(), name: String(person.name || "").slice(0, 120), at: now(), by: who.user };
   if (!p.upn && !p.crmId) throw bad("a person needs a Teams account or a people-hub id");
   const { doc } = await store.update(ASSIGN_BLOB, EMPTY_ASSIGN, (d) => {
@@ -615,10 +683,22 @@ async function list(who) {
       status: w ? w.status : "", updatedAt: w ? w.updatedAt : null, submittedAt: w ? w.submittedAt : null, publishedAt: w ? w.publishedAt : null, returnedAt: w ? w.returnedAt : null,
       assigned: ((a.items[c.id] || {}).people || []).map((p) => ({ name: p.name, upn: p.upn, crmId: p.crmId })), owned: owned || undefined });
   }
-  // courses that have a working record but left the snapshot (unavailable, or new) still show for approvers
+  // courses made here (新建课程) that the website does not have yet — drafts, and published ones before the next sync:
+  // for approvers and viewers, the provider that owns them, their author and the people assigned
+  const seen = new Set(rows.map((r) => r.id));
+  const have = await lookups().catch(() => null);
+  const schoolName = (sid) => { const x = ((have && have.schools) || []).find((s) => s.id === sid); return x ? x.abbr || x.name : ""; };
+  for (const [id, w] of Object.entries(idx)) {
+    if (!w || !w.isNew || seen.has(id)) continue;
+    const ok = who.approver || who.viewer || (w.ownerHive && keys.includes(w.ownerHive)) || w.createdBy === who.user || (mine && mine.has(id));
+    if (!ok) continue;
+    rows.push({ id, code: w.code || "", nameEn: w.nameEn || "", nameZh: w.nameZh || "", school: schoolName(w.schoolId), teachers: [], subjects: [], available: false, isNew: true,
+      status: w.status || "draft", updatedAt: w.updatedAt || null, submittedAt: w.submittedAt || null, publishedAt: w.publishedAt || null, returnedAt: w.returnedAt || null,
+      assigned: ((a.items[id] || {}).people || []).map((p) => ({ name: p.name, upn: p.upn, crmId: p.crmId })), owned: (w.ownerHive && keys.includes(w.ownerHive)) || undefined });
+  }
   return { courses: rows, generatedAt: snap && snap.generatedAt, assignments: who.approver ? a.items : undefined };
 }
 
-module.exports = { writeBase, baseWrite: () => baseFor.write(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
+module.exports = { NEW_RE, WORK_RE, create, emptyFields, writeBase, baseWrite: () => baseFor.write(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
   translateCourse, translationState, translationNeeds, publish, syncWebsite, syncStatus, versions, versionContent, restore, readAssignments, assign, unassign, syncTeacherAssignments, assignedTo, list, readWork,
   _test: { baseFor: (b) => { baseFor = Object.assign({}, baseFor, b); }, resetLookups: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; return store.write(LOOKUP_BLOB, null).catch(() => {}); }, coldInstance: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; }, building: () => lookupBuilding || Promise.resolve(null), hash } };

@@ -24,9 +24,9 @@
     { id: "pre", zh: "前置课程", en: "Prerequisites", keys: ["prerequisite"] },
     { id: "files", zh: "教材与大纲", en: "Textbooks & syllabus", keys: ["syllabus", "textbooks"] },
     { id: "who", zh: "授课老师", en: "Teachers", keys: ["teachers"] },
-    { id: "ops", zh: "经营字段", en: "Business fields", keys: ["school", "price", "available", "tracks", "comments"] },
+    { id: "ops", zh: "经营字段", en: "Business fields", keys: ["code", "school", "price", "available", "tracks", "comments"] },
   ];
-  var CO_LABEL = { name: ["课程名称", "Course name"], subjects: ["学科", "Subject"], grades: ["年级", "Grades"], classType: ["课程类型", "Class type"], language: ["授课语言", "Teaching language"], creditHours: ["学分", "Credit hours"],
+  var CO_LABEL = { code: ["课程编号", "Course code"], name: ["课程名称", "Course name"], subjects: ["学科", "Subject"], grades: ["年级", "Grades"], classType: ["课程类型", "Class type"], language: ["授课语言", "Teaching language"], creditHours: ["学分", "Credit hours"],
     academic: ["学术课程", "Academic course"], classical: ["古典课程", "Classical course"], description: ["课程描述", "Description"], numClasses: ["课时数", "Number of classes"], minSize: ["最小开班人数", "Minimum class size"], maxSize: ["最大人数", "Maximum class size"], days: ["上课星期", "Days of week"], classTime: ["上课时间", "Class time"],
     prerequisite: ["前置课程", "Prerequisite"], syllabus: ["课程大纲", "Syllabus"], textbooks: ["教材", "Textbooks"], teachers: ["授课老师", "Teachers"], school: ["课程提供方", "Course deliverer"], price: ["价格", "Price"], available: ["可用", "Available"], tracks: ["毕业路径", "Graduation tracks"], comments: ["备注", "Comments"] };
   var CO_HINT = { minSize: ["报名未达到这个人数时课程不开班；家长在网站上看到「还差 N 人开班」。留空 = 1 人即开。", "Below this number the course does not run; parents see “N more to run” on the website. Blank = runs with one."], maxSize: ["达到这个人数后显示「已满 · 可候补」，之后的报名进入候补。留空 = 不限。", "At this number the website shows “Full · waitlist” and later sign-ups join the waitlist. Blank = no limit."], classTime: ["选星期和起止时间（北京时间），点「添加时段」；一门课可以有几个时段。网站按这里的顺序显示。", "Pick the weekdays and the start / end time (Beijing time) and press Add; a course may have several slots. The website shows them in this order."], creditHours: ["按 G.P.A. 计算器的定义：每周 5 节、上一学期 = 0.5 学分，全年 = 1 学分；即 课时数 ÷ 180，保留一位小数（每周 4 节一学期 = 0.4）。点「按课时数算」自动填入。", "As the G.P.A. calculator defines it: 5 periods a week for one semester = 0.5 credit, a full year = 1 credit — classes ÷ 180, one decimal (4 periods a week for a semester = 0.4). Click “from classes” to fill it in."], syllabus: ["PDF，最大 10 MB；发布后 Airtable 保存一份", "PDF up to 10 MB; Airtable keeps a copy after publishing"], academic: ["计入 GPA 的学术课", "Counts toward the GPA"], classical: ["古典教育的课程（网站的教育理念筛选）", "A classical-pedagogy course (the website's pedagogy filter)"], school: ["订单按它路由到对应的蜂巢", "Orders are routed to this hive"], available: ["不可用的课程不在网站上显示", "An unavailable course is not shown on the website"] };
@@ -51,7 +51,7 @@
   // ================================================================================
   function viewCourses() {
     document.body.classList.remove("cofocus"); document.body.classList.remove("coedit");
-    var h = location.hash, m = /^#\/courses\/(rec[A-Za-z0-9]{14})/.exec(h);
+    var h = location.hash, m = /^#\/courses\/((?:rec|new)[A-Za-z0-9]{14})/.exec(h);
     if (m) return viewCourseEditor(m[1]);
     if (!coHasCourses()) { location.hash = "#/account"; return; }
     var manage = coIsApprover() || coIsViewer() || coIsProvider(), prov = coIsProvider();
@@ -129,11 +129,13 @@
       '<div class="toolbar sticky" id="cotabs">' + FILTERS.map(function (f) { return '<button type="button" class="chip" data-tab="' + f[0] + '" aria-pressed="' + (co.tab === f[0]) + '">' + esc(f[1]) + ' <span class="cnt' + (f[0] === "pending" && f[2].length ? " cobadge" : "") + '">' + f[2].length + "</span></button>"; }).join("") +
         '<div class="tabsRight">' + (schoolKeys.length > 1 ? '<select id="coSchool" aria-label="' + esc(t("按课程提供方筛选", "Filter by provider")) + '"><option value="">' + esc(t("全部机构", "All providers")) + "</option>" + schoolKeys.map(function (k) { return '<option value="' + esc(k) + '"' + (co.school === k ? " selected" : "") + ">" + esc(k || t("（未填机构）", "(no provider)")) + " · " + schools[k] + "</option>"; }).join("") + "</select>" : "") +
         '<input type="search" id="coq" placeholder="' + esc(t("搜索课程、老师", "Search courses, teachers")) + '" value="' + esc(co.q) + '" />' +
-        (sync && sync.pending && coIsApprover() ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") + "</div>" + pagerTile("courses", cpg) + "</div>" +
+        (sync && sync.pending && coIsApprover() ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") +
+        // 新建课程 (Rick 2026-10-22): approvers and a provider's leader; it reaches Airtable when it is published
+        (coIsApprover() || coIsProvider() ? '<button class="btn sm" id="coNew">' + t("＋ 新建课程", "+ New course") + "</button>" : "") + "</div>" + pagerTile("courses", cpg) + "</div>" +
       '<div class="tbl-wrap"><table class="data" id="cotable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学科", "Subject") + "</th><th>" + t("学校", "School") + "</th><th>" + t("老师", "Teachers") + "</th><th>" + t("进度", "Progress") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (c) {
         var waiting = c.status === "submitted" || c.status === "reviewing" ? (Date.now() - new Date(c.submittedAt).getTime()) / 86400000 : 0;
-        return '<tr class="pick" data-id="' + esc(c.id) + '"><td><span class="dn">' + esc(coName(c)) + '</span><span class="sub">' + esc(c.code || "") + "</span></td>" +
+        return '<tr class="pick" data-id="' + esc(c.id) + '"><td><span class="dn">' + esc(coName(c)) + (c.isNew ? ' <span class="tag accent">' + t("新课程", "new") + "</span>" : "") + '</span><span class="sub">' + esc(c.code || (c.isNew ? t("编号待定", "code to be set") : "")) + "</span>" + (coIsApprover() || coIsProvider() ? ' <button type="button" class="linkbtn cocopy" data-copy="' + esc(c.id) + '">' + t("复制", "Copy") + "</button>" : "") + "</td>" +
           "<td>" + (c.subjects || []).map(function (s) { return esc(t(s.nameZh || s.nameEn, s.nameEn || s.nameZh)); }).join(", ") + "</td><td>" + esc(c.school || "") + "</td>" +
           '<td class="coassigned">' + ((c.assigned || []).length ? (c.assigned || []).map(function (p) { return '<span class="tag">' + esc(p.name || p.upn) + "</span>"; }).join(" ") : '<span class="faint">' + ((c.teachers || []).join(", ") || "—") + "</span>") + (coIsApprover() ? ' <button type="button" class="linkbtn" data-assign="' + esc(c.id) + '">' + t("分配", "Assign") + "</button>" : c.owned ? ' <button type="button" class="linkbtn" data-teachers="' + esc(c.id) + '">' + t("授课老师…", "Teachers…") + "</button>" : "") + "</td>" +
           "<td>" + coMiniSteps(c.status) + coStatusTag(c.status) + (waiting >= 1 ? ' <span class="' + (waiting > 7 ? "tag warn" : "faint") + '">' + t("等待 ", "waiting ") + Math.floor(waiting) + t(" 天", " d") + "</span>" : "") + "</td>" +
@@ -145,9 +147,11 @@
     $("cotable").addEventListener("click", function (e) {
       var b = e.target.closest("[data-assign]"); if (b) { e.stopPropagation(); coAssignPanel(b.getAttribute("data-assign")); return; }
       var tb = e.target.closest("[data-teachers]"); if (tb) { e.stopPropagation(); coTeachersPanel(tb.getAttribute("data-teachers")); return; }
+      var cp = e.target.closest("button[data-copy]"); if (cp) { e.stopPropagation(); coNewPanel(cp.getAttribute("data-copy")); return; }
       var tr = e.target.closest("tr[data-id]"); if (tr) location.hash = "#/courses/" + tr.getAttribute("data-id");
     });
     if ($("coSyncNow")) $("coSyncNow").addEventListener("click", function () { coSyncWebsite($("coSyncNow")); });
+    if ($("coNew")) $("coNew").addEventListener("click", function () { coNewPanel(""); });
   }
 
   // ---- assigning teachers (approvers): the people picker in a side panel --------------------
@@ -218,6 +222,30 @@
   // ================================================================================
   // the editor
   // ================================================================================
+  // 新建课程 / 复制课程: an approver picks the provider; a provider's leader creates for its own institution. `from` = the
+  // course to copy (its fields without the code and the syllabus files). The new course opens in the editor at once.
+  function coNewPanel(from) {
+    var appr = coIsApprover(), src = from ? (co.list || []).filter(function (x) { return x.id === from; })[0] : null;
+    var need = co.lookups ? Promise.resolve() : api("courses/lookups").then(function (r) { if (r.ok) co.lookups = r.body; });
+    need.then(function () {
+      var schools = (co.lookups && co.lookups.schools) || [];
+      panelOpen('<div class="ph"><span class="avatar">📘</span><h3>' + (src ? t("复制课程", "Copy a course") : t("新建课程", "New course")) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><form id="coNewF">' +
+        (src ? '<div class="kv"><span class="k">' + t("复制自", "Copy of") + "</span><span>" + esc((src.code ? src.code + " " : "") + coName(src)) + "</span></div>" : "") +
+        (appr ? '<label class="f">' + t("课程提供方", "Course provider") + ' <span class="req">*</span><select id="coNewSchool"><option value="">' + t("请选择…", "Choose…") + "</option>" + schools.map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(x.name + (x.abbr ? " · " + x.abbr : "")) + "</option>"; }).join("") + "</select></label>" : "") +
+        '<p class="sub">' + esc(appr ? t("新课程先在蜂巢里编辑，批准发布时才在 Airtable 课程表建立；课程编号在发布前由审批人填写。", "A new course is edited in Hive first; it is created in the Airtable Course table when it is published. The approver sets its course code before publishing.") : t("新课程先在蜂巢里编辑，填好后提交审批；课程总监批准发布后上网站。课程编号由课程总监填写。", "A new course is edited in Hive, then submitted; once the curriculum director publishes it, it goes on the website. The curriculum director sets its course code.")) + "</p>" +
+        '<div class="actions"><button type="submit" class="btn" id="coNewGo">' + (src ? t("复制并编辑", "Copy and edit") : t("新建并编辑", "Create and edit")) + '</button></div><div id="coNewMsg"></div></form></div>');
+      $("coNewF").addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var body = { from: from || "" };
+        if (appr) { body.schoolId = $("coNewSchool").value; if (!body.schoolId && !src) { $("coNewMsg").innerHTML = '<div class="msg err">' + t("请选择课程提供方。", "Choose the course provider.") + "</div>"; return; } }
+        var b = $("coNewGo"); savingButton(b);
+        post("courses/create", "POST", body).then(function (r) {
+          if (!r.ok) { restoreButton(b); $("coNewMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          panelClose(); location.hash = "#/courses/" + r.body.id;
+        });
+      });
+    });
+  }
   function viewCourseEditor(id) {
     document.body.classList.add("coedit"); // the sidebar follows the site-wide collapse only (Rick, 2026-10-20: the editor's own toggle and ← were redundant)   // the focus layout, unless this person keeps the sidebar
     co.id = id; co.course = null; co.pending = {}; co.timers = {}; co.saving = 0; co.failed = false;
@@ -227,6 +255,7 @@
     Promise.all([api("courses/course?id=" + encodeURIComponent(id)), need]).then(function (rs) {
       var r = rs[0];
       if (!r.ok) { $("coed").innerHTML = '<div class="msg err">' + esc(errText(r)) + '</div><p><a href="#/courses">← ' + t("返回", "Back") + "</a></p>"; return; }
+      if (r.body.movedTo) { co.id = r.body.movedTo; history.replaceState(null, "", "#/courses/" + r.body.movedTo); } // a new course since published
       coTake(r.body);
       if (!co.lookups) { $("coed").innerHTML = '<div class="msg err">' + t("无法读取 Airtable 的选项列表。", "The Airtable pick lists could not be read.") + "</div>"; return; }
       co.lang = co.course.meta && co.course.meta.sourceLang === "en" ? "en" : (co.course.meta && co.course.meta.sourceLang === "zh" ? "zh" : LANG);
@@ -321,6 +350,8 @@
     var body = "";
     switch (k) {
       case "name": body = '<input type="text" class="cof" data-k="' + pairKey + '" value="' + esc(f[pairKey] || "") + '" maxlength="120"' + (can ? "" : " readonly") + ' placeholder="' + esc(co.lang === "en" ? "Course name" : "课程名称") + '" />'; break;
+      // 课程编号: the approver's (a new course gets it before publishing; an existing one is Airtable's)
+      case "code": body = '<input type="text" class="cof" data-k="code" value="' + esc(f.code || "") + '" maxlength="40"' + (can ? "" : " readonly") + ' placeholder="' + esc(t("如 MTH-HS-101", "e.g. MTH-HS-101")) + '" />'; break;
       case "prerequisite": body = coPrereqHTML(f.prerequisite || "", can); break;
       case "classTime": body = coSlotsHTML(f.classTime || "", f.days || [], can); break;
       case "description": case "comments": {
@@ -792,6 +823,7 @@
       savingButton($("coGo"), t("发布中…", "Publishing…")); $("coPubOut").innerHTML = '<p class="costep">⏳ ' + t("写入 Airtable…", "Writing to Airtable…") + "</p>";
       post("courses/op", "POST", { id: co.id, op: "publish" }).then(function (r) {
         if (!r.ok) { restoreButton($("coGo")); $("coPubOut").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+        if (r.body.movedTo) { co.id = r.body.movedTo; history.replaceState(null, "", "#/courses/" + r.body.movedTo); } // 新建课程: now an Airtable row
         coTake(r.body); coRefreshBar();
         $("coPubOut").innerHTML = '<p class="costep ok">✓ ' + t("已写入 Airtable", "Written to Airtable") + (r.body.skipped && r.body.skipped.length ? ' <small class="faint">' + t("（跳过：", "(skipped: ") + r.body.skipped.map(coLabel).join(", ") + "）</small>" : "") + '</p><p class="costep" id="coSyncStep">⏳ ' + t("更新网站…", "Refreshing the website…") + "</p>";
         $("coGo").hidden = true;

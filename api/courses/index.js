@@ -12,6 +12,8 @@
 //   GET  courses/versions?id=              the timeline;  GET courses/version?id=&ref=v:…|p:…  one version's content
 //   POST courses/sync                      refresh the website after publishes (coalesced, every 2 minutes at most)
 //   GET  courses/people?q=                 the people picker for assignments (approvers)
+//   POST courses/create {from?, schoolId?}  新建课程 / 复制课程: a draft (id new…) until an approver publishes it, which
+//                                          creates the Airtable row and moves the record to its id
 //   GET  courses/roster?id=rec…            班级名单: the students enrolled (and waitlisted) from the live orders —
 //                                          name, grade, standing; no contact details (teachers, approvers, viewers)
 //
@@ -30,7 +32,7 @@ const { readSnapshot } = require("../shared/blob");
 const { hiveKey } = require("../shared/hive");
 
 const reply = (context, status, body) => { context.res = { status, headers: { "Cache-Control": "no-store" }, body }; };
-const ID_RE = /^rec[A-Za-z0-9]{14}$/;
+const ID_RE = C.WORK_RE; // an Airtable row, or a course made here and not yet published (新建课程, 2026-10-22)
 
 module.exports = async function (context, req) {
   const method = String(req.method || "GET").toUpperCase();
@@ -51,7 +53,9 @@ module.exports = async function (context, req) {
       who.provider = hives.map((h) => h.key);
     }
     const owns = (cid) => who.provider.length > 0 && providerMod.ownsCourse(who.provider, ((snap && snap.courses) || []).find((c) => c.id === cid));
-    const mayOpen = async (id) => who.approver || who.viewer || owns(id) || (await C.assignedTo(user)).includes(id);
+    // a course made here: its provider (ownerHive), its author, the people assigned
+    const madeHere = async (id) => { const w = await C.readWork(id).catch(() => null); return !!(w && (w.isNew || w.createdFrom) && ((w.ownerHive && who.provider.includes(w.ownerHive)) || w.createdBy === user)); };
+    const mayOpen = async (id) => who.approver || who.viewer || owns(id) || (await C.assignedTo(user)).includes(id) || (await madeHere(id));
     // the provider's own people: an account in one of its hives' domains, or a Teachers row of that organization
     const ownPerson = (p) => {
       const upn = String((p && p.upn) || "").toLowerCase(), dom = upn.split("@")[1] || "";
@@ -68,7 +72,9 @@ module.exports = async function (context, req) {
       const all = T.teachersOf(snap, await T.readIndex());
       who.ownTeacherIds = all.filter((t) => (t.orgKey && orgKeys.includes(t.orgKey)) || (t.organization && orgKeys.includes(hiveKey(t.organization))) || (t.domain && hives.some((h) => h.domain && h.domain === t.domain))).map((t) => t.id);
     }
-    const id = String(body.id || q.id || "");
+    let id = String(body.id || q.id || "");
+    // a course made here and since published lives under its Airtable id: follow the pointer (an open tab, a link)
+    if (C.NEW_RE.test(id) && action !== "course") { const w = await C.readWork(id).catch(() => null); if (w && w.movedTo) id = w.movedTo; }
 
     if (method === "GET" && action === "list") {
       const assigned = who.approver || who.viewer ? null : await C.assignedTo(user);
@@ -83,10 +89,30 @@ module.exports = async function (context, req) {
       const out = Object.assign({}, l, { teachers: l.teachers.filter((t) => !own || own.has(t.id)).map((t) => who.approver ? t : { id: t.id, name: t.name }) });
       return done(200, out);
     }
+    // 新建课程 / 复制课程 (Rick 2026-10-22): {from?: a course to copy, schoolId?: the provider (approvers)} — a provider's
+    // leader creates for its own hive only; the course reaches Airtable when an approver publishes it
+    if (method === "POST" && action === "create") {
+      if (!who.approver && !who.provider.length) return done(403, { error: "the curriculum director, the CEO, the system administrator or a course provider's leader creates courses" });
+      const from = String(body.from || "");
+      if (from && (!ID_RE.test(from) || !(await mayOpen(from)))) return done(403, { error: "you cannot copy that course" });
+      let hive = "", schoolId = "";
+      const l = await C.lookups().catch(() => null), schools = (l && l.schools) || [];
+      if (who.approver) { schoolId = String(body.schoolId || ""); if (schoolId && !schools.some((x) => x.id === schoolId)) return done(400, { error: "no such provider", code: "school" }); const sc = schools.find((x) => x.id === schoolId); hive = sc ? hiveKey(sc.abbr || sc.name) : ""; }
+      else {
+        hive = who.provider.includes(String(body.hive || "").toUpperCase()) ? String(body.hive).toUpperCase() : who.provider[0];
+        const sc = schools.find((x) => hiveKey(x.abbr || x.name) === hive || hiveKey(x.name) === hive);
+        if (!sc) return done(409, { error: "your institution is not in the Schools table yet — ask Hive to add it", code: "no_school" });
+        schoolId = sc.id;
+      }
+      const doc = await C.create(who, { from, hive, schoolId });
+      await audit(context, { actor: user, action: "course.create", target: doc.courseId, from: from || undefined, hive });
+      return done(200, { ok: true, id: doc.courseId, course: view(doc, who) });
+    }
     if (method === "GET" && action === "course") {
       if (!ID_RE.test(id)) return done(400, { error: "id missing" });
       if (!(await mayOpen(id))) return done(403, { error: "this course is not assigned to you" });
       const doc = await C.open(id, who);
+      if (doc.courseId !== id) return done(200, { movedTo: doc.courseId, course: view(doc, who), editable: editable(who), translation: C.translationState(doc), needs: C.translationNeeds(doc), assigned: ((await C.readAssignments()).items[doc.courseId] || { people: [] }).people });
       const a = (await C.readAssignments()).items[id] || { people: [] };
       return done(200, { course: view(doc, who), assigned: a.people, editable: editable(who), translation: C.translationState(doc), needs: C.translationNeeds(doc) });
     }
@@ -140,8 +166,8 @@ module.exports = async function (context, req) {
         const r = await C.publish(id, who, { all: body.all === true });
         // the syllabus files uploaded here now belong to the course; ones it let go are marked for cleanup
         try { await FILES.settle("course:" + id, ((before && before.published && before.published.fields.syllabus) || []).filter((a) => !a.airtable), (r.doc.draft.fields.syllabus || []).filter((a) => !a.airtable)); } catch { /* best effort */ }
-        await audit(context, { actor: user, action: "course.publish", target: id, code: r.doc.code, fields: r.written, skipped: r.skipped });
-        return done(200, { ok: true, course: view(r.doc, who), written: r.written, skipped: r.skipped, at: r.at });
+        await audit(context, { actor: user, action: "course.publish", target: r.doc.courseId, code: r.doc.code, fields: r.written, skipped: r.skipped, created: r.movedFrom ? true : undefined });
+        return done(200, { ok: true, course: view(r.doc, who), written: r.written, skipped: r.skipped, at: r.at, movedTo: r.movedFrom ? r.doc.courseId : undefined });
       }
       return done(400, { error: `unknown op ${JSON.stringify(op)}` });
     }

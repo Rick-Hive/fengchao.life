@@ -156,6 +156,7 @@ function mkOrder(i, status, agoDays, notifyOk) {
   for (const s of chain) { cur = s === "confirmed" ? Object.assign({}, cur, { status: "confirmed", history: cur.history.concat([{ at: new Date(Date.now() - Math.max(step--, 0) * dayMs).toISOString(), by: "om@fengchao.life", from: "submitted", to: "confirmed", note: "" }]) }) : crm.transition(cur, s, s === "parent_paid" ? "parent@gmail.com" : "om@fengchao.life", s === "paid" ? "已收到转账" : "", ["staff:sales"], new Date(Date.now() - Math.max(step--, 0) * dayMs)); }
   return cur;
 }
+const coCreates = [];
 const teCreates = [], teFacts = [], instPuts = [], teTranslates = [], instLists = [];
 const PT_NAMES = { "mei.wang@bes.qiaoliang.online": "Mei Wang" }; // the directory's display names for 项目经理 (2026-10-21)
 const seated = [], extended = [], termCancels = [], idBulk = [], createdUsers = [], merges = [], tPatches = [], tPhotos = [], tApproved = [];
@@ -387,6 +388,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
         const editable = {}; for (const k of Object.keys(CO_DOC.fields)) editable[k] = appr || (provider && k === "teachers") || !["textbooks", "teachers", "school", "tracks", "price", "available", "comments"].includes(k);
         if (act === "list") body = { courses: [Object.assign(coListRow(), provider ? { owned: true } : {})].concat(appr || viewer ? [{ id: "recCOURSE00000002", code: "IEW-W-1", nameEn: "Writing 1", nameZh: "写作 1", school: "IEW", teachers: [], subjects: [], available: true, status: "published", updatedAt: "2026-10-01T00:00:00Z", assigned: [] }] : []), me: { approver: appr, viewer, provider: provider ? PROVIDER_KEYS : [] }, sync: { pending: false } };
         else if (act === "lookups") body = Object.assign({}, CO_LOOK, { teachers: CO_LOOK.teachers.map(t => appr ? t : { id: t.id, name: t.name }) });
+        else if (act === "create" && m === "POST") { const b = JSON.parse(r.request().postData()); coCreates.push(b); body = { ok: true, id: "newAbCdEfGhIjKlMn", course: view() }; }
         else if (act === "course") body = { course: view(), assigned: CO_ASSIGNED, editable, translation: coTranslation(), needs: coNeeds() };
         else if (act === "field" && m === "PATCH") { const b = JSON.parse(r.request().postData()); coPatches.push(b); if (!editable[b.key]) { status = 403; body = { error: "read only" }; } else { CO_DOC.fields[b.key] = b.value; if (/(En|Zh)$/.test(b.key)) CO_DOC.meta.machine[b.key] = false; CO_DOC.draftAt = new Date().toISOString(); if (CO_DOC.status === "published" || CO_DOC.status === "returned") CO_DOC.status = "draft"; body = { savedAt: CO_DOC.draftAt, status: CO_DOC.status, meta: CO_DOC.meta, translation: coTranslation(), needs: coNeeds() }; } }
         else if (act === "op") { const b = JSON.parse(r.request().postData()); coOps.push(b); const at = new Date().toISOString();
@@ -2377,6 +2379,19 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
       assert.ok(Math.max(...ys) - Math.min(...ys) <= 4, "chips, provider and search on one line (2026-10-21): " + ys); }
     await p.screenshot({ path: OUT + "/courses-toolbar.png", clip: { x: 240, y: 40, width: 1040, height: 120 } });
     assert.strictEqual((await p.$$("#cotable tr[data-id]")).length, 2);
+    // 新建课程 (2026-10-22): the approver names the provider; the draft opens in the editor
+    await p.click("#coNew"); await p.waitForSelector("#panel.open #coNewSchool");
+    await p.click("#coNewGo"); await p.waitForTimeout(150);
+    assert.ok(/请选择课程提供方/.test(await p.$eval("#coNewMsg", e => e.innerText)) && !coCreates.length, "a provider is required");
+    await p.selectOption("#coNewSchool", "recSCHOOL00000001"); await p.click("#coNewGo"); await p.waitForFunction(() => /^#\/courses\/new/.test(location.hash)); await p.waitForSelector("#coed .cobar");
+    assert.deepStrictEqual(coCreates[0], { from: "", schoolId: "recSCHOOL00000001" }, "created for that provider");
+    assert.ok(await p.$('.cof[data-k="code"]'), "the course code field (the approver's)");
+    await p.evaluate(() => { location.hash = "#/courses"; }); await p.waitForSelector("#cotable tr[data-id]");
+    await p.click('#cotable [data-copy="' + CO_ID + '"]'); await p.waitForSelector("#panel.open #coNewGo");
+    assert.ok(/复制自/.test(await p.$eval("#panel", e => e.innerText)), "复制: the source named");
+    await p.click("#coNewGo"); await p.waitForFunction(() => /^#\/courses\/new/.test(location.hash));
+    assert.strictEqual(coCreates[1].from, CO_ID, "a copy of that course");
+    await p.evaluate(() => { location.hash = "#/courses"; }); await p.waitForSelector("#cotable tr[data-id]"); await p.waitForTimeout(200);
     await p.selectOption("#coSchool", "IEW"); await p.waitForTimeout(200);
     assert.deepStrictEqual(await p.$$eval("#cotable tr[data-id]", es => es.map(e => e.getAttribute("data-id"))), ["recCOURSE00000002"], "IEW's course only");
     assert.ok(/全部 1/.test(await p.$eval("#cotabs", e => e.innerText).then(x => x.replace(/\s+/g, " "))), "the chip counts follow the provider: " + await p.$eval("#cotabs", e => e.innerText));

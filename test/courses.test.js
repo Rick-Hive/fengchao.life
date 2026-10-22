@@ -48,10 +48,12 @@ const lists = {
   [T.textbooks.id]: [], [T.teachers.id]: [{ id: "recTEACH000000001", fields: { "Name / 姓名": "Zhang", "Teams Account/Teams账号": "zhang@a.edu" } }, { id: "recTEACH000000002", fields: { "Name / 姓名": "Zz Tutor", "Teams Account/Teams账号": "tutor@gmc.edu" } }],
   [T.schools.id]: [{ id: "recSCHOOL00000001", fields: { "Name/名称": "Kexuechong", "简称/Abbreviation": "KXC" } }], [T.tracks.id]: [],
 };
+const creates = [];
 class FakeBase {
   constructor(baseId, pat) { this.pat = pat; }
   async list(tableId) { return copy(lists[tableId] || []); }
   async table() { return courseTable; }
+  async create(tableId, fields, opts) { assert.strictEqual(this.pat, "pat-write"); assert.strictEqual(opts && opts.typecast, false); creates.push({ tableId, fields }); return { id: "recNEWCOURSE00001", fields: copy(fields) }; }
   async get(tableId, id) { if (id === courseRow.id) return copy(courseRow); const e = new Error("NOT_FOUND"); throw e; }
   async update(tableId, id, fields, opts) { assert.strictEqual(this.pat, "pat-write", "writes use the write token"); assert.strictEqual(opts && opts.typecast, false, "no typecast"); writes.push({ tableId, id, fields }); Object.assign(courseRow.fields, fields); return { id, fields }; }
 }
@@ -255,6 +257,34 @@ const CD = "cd@fengchao.life", TEACHER = "zhang@a.edu", CM = "cm@fengchao.life",
     blobs["crm/course-lookups.json"].at = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(); C._test.coldInstance(); listCalls.length = 0;
     await C.lookups(); assert.strictEqual(listCalls.length, 7, "older than a day: built before the reply");
     FakeBase.prototype.list = origList;
+  }
+  // 新建课程 (Rick 2026-10-22): made in Hive as a draft (id new…), written to Airtable as a new row when published
+  {
+    r = await call(TEACHER, "POST", "create", { body: {} }); assert.strictEqual(r.status, 403, "a teacher does not create courses");
+    r = await call("lead@kxc.edu", "POST", "create", { body: {} });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body)); const nid = r.body.id;
+    assert.ok(C.NEW_RE.test(nid), "a draft id: " + nid);
+    assert.deepStrictEqual(r.body.course.fields.school, ["recSCHOOL00000001"], "the provider's own institution, from the Schools table");
+    r = await call("lead@kxc.edu", "GET", "list"); assert.ok(r.body.courses.some((x) => x.id === nid && x.isNew && x.school === "KXC"), "listed before Airtable has it");
+    r = await call("other@x.edu", "GET", "course", { q: { id: nid } }); assert.strictEqual(r.status, 403, "not someone else's");
+    r = await call("lead@kxc.edu", "PATCH", "field", { body: { id: nid, key: "code", value: "KXC-SCI-HS-201" } }); assert.strictEqual(r.status, 403, "the code is the approver's");
+    for (const [k, v] of [["nameEn", "Chemistry"], ["nameZh", "化学"], ["descriptionEn", "Labs."], ["descriptionZh", "实验。"], ["subjects", ["recSUBJ0000000001"]], ["grades", ["recGRADE000000009"]]]) { r = await call("lead@kxc.edu", "PATCH", "field", { body: { id: nid, key: k, value: v } }); assert.strictEqual(r.status, 200, k + ": " + JSON.stringify(r.body)); }
+    r = await call("lead@kxc.edu", "POST", "op", { body: { id: nid, op: "submit" } }); assert.strictEqual(r.status, 200, "submitted without a code: " + JSON.stringify(r.body));
+    r = await call(CD, "POST", "op", { body: { id: nid, op: "publish" } }); assert.ok(r.status === 400 && /code/.test(JSON.stringify(r.body.problems)), "no code, no publish");
+    r = await call(CD, "PATCH", "field", { body: { id: nid, key: "code", value: "KXC-SCI-HS-201" } }); assert.strictEqual(r.status, 200);
+    r = await call(CD, "POST", "op", { body: { id: nid, op: "publish" } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    assert.strictEqual(r.body.movedTo, "recNEWCOURSE00001", "the Airtable row's id");
+    const cr = creates[creates.length - 1].fields;
+    assert.ok(cr["Course ID/课程编号"] === "KXC-SCI-HS-201" && cr["Course Name"] === "Chemistry" && cr["课程名称"] === "化学" && JSON.stringify(cr["Course Deliverer/课程提供方"]) === JSON.stringify(["recSCHOOL00000001"]), "the row: " + JSON.stringify(cr));
+    assert.ok(!Object.keys(cr).some((k) => cr[k] === null || (Array.isArray(cr[k]) && !cr[k].length) || cr[k] === ""), "nothing empty is sent to a new row");
+    r = await call(CD, "GET", "course", { q: { id: nid } }); assert.ok(r.status === 200 && r.body.movedTo === "recNEWCOURSE00001" && r.body.course.status === "published", "the draft id leads to the row's record");
+    r = await call(CD, "GET", "list"); assert.ok(!r.body.courses.some((x) => x.id === nid) && r.body.courses.some((x) => x.id === "recNEWCOURSE00001" && x.isNew), "listed under its row id until the website has it");
+    // 复制课程: the fields of another course, without its code and syllabus; an approver names the provider
+    r = await call(CD, "POST", "create", { body: { from: ID, schoolId: "recSCHOOL00000001" } });
+    assert.strictEqual(r.status, 200); const cf2 = r.body.course.fields;
+    assert.ok(cf2.code === "" && /（副本）$/.test(cf2.nameZh) && !cf2.syllabus.length && cf2.grades.length, "a copy: " + JSON.stringify([cf2.code, cf2.nameZh]));
+    r = await call(CD, "POST", "create", { body: { schoolId: "recNOPE0000000001" } }); assert.strictEqual(r.status, 400, "an unknown provider");
   }
   console.log("courses: all checks passed");
 })().catch((e) => { console.error(e); process.exit(1); });
