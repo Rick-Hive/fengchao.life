@@ -117,7 +117,7 @@
       // editors work on the draft; everyone else reads what is published (nothing published = the system defaults)
       plState.draft = plFromBlob(r.body.plan && (plState.canEdit ? r.body.plan.draft : r.body.plan.published)); plState.dirty = false;
       plStatus(); renderPlan();
-      plLoadCatalog().then(function () { if (plState.tab === "map") renderPlan(); });
+      plLoadCatalog().then(function () { renderPlan(); });
     });
   }
   // No status line in the bar (Rick, 2026-10-19: 「delete this … move the second line above」): the card tags say
@@ -197,7 +197,7 @@
       // read-only: the system figures, or the school's over them
       var o = ov || { credits: {}, notes: {} };
       var armC = plState.canEdit && !ov ? ' plarm" title="' + esc(t("点击修改（打开本校自定义）", "Click to change (turns on the school's own)")) + '"' : '"';
-      var rowsR = PL_CREDITS.map(function (c) { var dv = tr.credits ? tr.credits[c[0]] : null, has = Object.prototype.hasOwnProperty.call(o.credits, c[0]), v = has ? o.credits[c[0]] : dv; return v == null ? "" : "<tr><td>" + esc(t(c[1], c[2])) + '</td><td class="num' + armC + ' data-credit="' + c[0] + '">' + esc(String(v)) + (has && dv != null && v !== dv ? ' <small class="muted">(' + t("系统 ", "system ") + esc(String(dv)) + ")</small>" : "") + "</td></tr>"; }).join("");
+      var rowsR = PL_CREDITS.map(function (c) { var dv = tr.credits ? tr.credits[c[0]] : null, has = Object.prototype.hasOwnProperty.call(o.credits, c[0]), v = has ? o.credits[c[0]] : dv; return v == null ? "" : plReqRowHtml(t(c[1], c[2]), c[0], esc(String(v)) + (has && dv != null && v !== dv ? ' <small class="muted">(' + t("系统 ", "system ") + esc(String(dv)) + ")</small>" : ""), armC, plState.track); }).join("");
       var total = ov && ov.totalCredits != null ? ov.totalCredits : tr.totalCredits, hours = ov && ov.serviceHours != null ? ov.serviceHours : tr.serviceHours;
       var note = ov && (o.notes.zh || o.notes.en) ? pickName(o.notes.zh, o.notes.en) : pickName(tr.commentsZh, tr.commentsEn);
       return head + '<table class="data"><thead><tr><th>' + t("科目", "Subject") + '</th><th class="num">' + unit + "</th></tr></thead><tbody>" + rowsR +
@@ -362,6 +362,10 @@
       var c, dfl = (plState.data && plState.data.defaults) || {};
       if (e.target.closest("#plAddRow")) { var m = plState.draft.map[plState.stage], st0 = plState.stage; m.rows.push({ id: "n-" + Date.now().toString(36), subjects: dfl.subjects && dfl.subjects[0] ? [Object.assign({}, dfl.subjects[0])] : [], trackIds: st0 === "rhetoric" && !plState.allRows ? plTracksOfSchool().map(Number) : [], pedagogy: st0 === "dialectic" && !plState.allRows ? plSettings().pedagogy : null, spanAll: false, cells: {} }); plDirty(); renderPlan(); return; }
       if (e.target.closest("#plCopyDefault")) { if (!window.confirm(t("用系统默认地图覆盖这个阶段现在的行？", "Replace this stage's rows with the system default curriculum map?"))) return; plState.draft.map[plState.stage] = { rows: plRowsFromDefault(plState.stage) }; plDirty(); renderPlan(); return; }
+      var rq = e.target.closest("button[data-req]");
+      if (rq) { var rk = plState.track + ":" + rq.getAttribute("data-req"); plReqOpen[rk] = !plReqOpen[rk]; renderPlan(); return; }
+      var rc = e.target.closest("button[data-reqc]");
+      if (rc) { plCourseDetail(rc.getAttribute("data-reqc"), "first"); return; }
       var av = e.target.closest("button[data-avail-i]");
       if (av) { plCellPanel(Number(av.getAttribute("data-avail-i")), av.getAttribute("data-avail-g") || ""); return; }
       var sub = e.target.closest(".plsub[data-stage],.plsub[data-track]");
@@ -478,6 +482,34 @@
   }
   function plOtherCourses(rows, st) { return plStageCourses(st || plState.stage).filter(function (c) { return !rows.some(function (r) { return plSubjectFits(c, r); }); }); }
   function plAvailBtn(n, i, g) { return n ? '<button type="button" class="plavail" data-avail-i="' + i + '" data-avail-g="' + esc(g || "") + '" title="' + esc(t("点击查看并选课", "See and select the courses")) + '">● ' + esc(EN ? n + (n === 1 ? " course" : " courses") : n + " 门可选") + "</button>" : ""; }
+  // ---- 高中毕业要求: the courses under each requirement row, as on the website (Rick 2026-10-21: 「普通用户应该可以像网站
+  // 一样看到可用的课程」). Same matching as assets/app.js reqCourses(): the high-school courses of the track, by the
+  // subject names / filter buckets of window.REQ_SUBJECTS (assets/i18n.js).
+  var plReqOpen = {};
+  function plNormSubj(v) { return String(v == null ? "" : v).toLowerCase().replace(/[\s　]+/g, "").replace(/／/g, "/"); }
+  function plReqCourses(key, trackId) {
+    var spec = (window.REQ_SUBJECTS || {})[key]; if (!spec || !plCat) return [];
+    var names = spec.subjects || spec, buckets = spec.buckets || [], wantName = {}, wantBucket = {};
+    (names || []).forEach(function (n) { wantName[plNormSubj(n)] = true; }); buckets.forEach(function (n) { wantBucket[plNormSubj(n)] = true; });
+    if (!Object.keys(wantName).length && !Object.keys(wantBucket).length) return [];
+    return plCat.courses.filter(function (c) {
+      if (c.available === false || !plCourseInStage(c, "rhetoric") || !(c.trackIds || []).some(function (id) { return String(id) === String(trackId); })) return false;
+      return (c.subjects || []).some(function (x) { return x && (wantName[plNormSubj(x.nameEn)] || wantName[plNormSubj(x.nameZh)] || wantBucket[plNormSubj(x.filterNameEn || x.filterKey)] || wantBucket[plNormSubj(x.filterNameZh)]); });
+    }).sort(function (a, b) { return String(a.code || "").localeCompare(String(b.code || "")); });
+  }
+  function plCreditsUnit(v) { if (v == null || v === "") return "—"; return v + " " + (EN ? (Number(v) === 1 ? "credit" : "credits") : "学分"); }
+  // a requirement row: plain when nothing is available; otherwise a disclosure with the course chips under it
+  function plReqRowHtml(label, key, valueHtml, armAttr, trackId) {
+    var cs = plReqCourses(key, trackId);
+    if (!cs.length) return "<tr><td>" + esc(label) + '</td><td class="num' + armAttr + ' data-credit="' + key + '">' + valueHtml + "</td></tr>";
+    var open = !!plReqOpen[trackId + ":" + key];
+    return '<tr class="plreq-row' + (open ? " open" : "") + '"><td><button type="button" class="plreq-toggle" data-req="' + esc(key) + '" aria-expanded="' + open + '"><span class="plreq-caret" aria-hidden="true"><svg viewBox="0 0 20 20" width="14" height="14"><path d="M7 4l7 6-7 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' + esc(label) + ' <span class="plreq-count">' + esc(EN ? cs.length + " available" : cs.length + " 门可选") + "</span></button></td>" +
+      '<td class="num' + armAttr + ' data-credit="' + key + '">' + valueHtml + "</td></tr>" +
+      (open ? '<tr class="plreq-courses"><td colspan="2"><div class="plreq-chips">' + cs.map(function (c) {
+        var on = plCartHas(c.id);
+        return '<button type="button" class="plreq-chip' + (on ? " in-cart" : "") + '" data-reqc="' + esc(c.id) + '">' + (c.code ? '<span class="plreq-code">' + esc(c.code) + "</span>" : "") + esc(plCourseName(c)) + (typeof c.creditHours === "number" ? ' <span class="plreq-cr">' + esc(plCreditsUnit(c.creditHours)) + "</span>" : "") + (on ? ' <span class="plreq-tick" aria-hidden="true">✓</span>' : "") + "</button>";
+      }).join("") + "</div></td></tr>" : "");
+  }
   // ---- the website's cart ----
   function plCartRead() { try { var w = JSON.parse(localStorage.getItem(PL_WIZARD_KEY) || "null"); return w && typeof w === "object" ? w : {}; } catch (e) { return {}; } }
   function plCartIds() { var w = plCartRead(); return Object.keys(w.cart && typeof w.cart === "object" ? w.cart : {}); }
@@ -487,7 +519,7 @@
     if (w.cart[id]) delete w.cart[id]; else w.cart[id] = true;
     w.cartAt = Date.now(); w.done = null;
     // what the website's order page needs to open at all: a pedagogy and a stage (and a direction for the rhetoric stage)
-    var st = plSettings(); w.pedagogy = st.pedagogy; w.stage = plState.stage; if (!w.mode) w.mode = st.directions[0] || "international";
+    var st = plSettings(); w.pedagogy = st.pedagogy; w.stage = plState.tab === "credits" ? "rhetoric" : plState.stage; if (plState.tab === "credits" && plDirectionOfTrack(plState.track)) w.mode = plDirectionOfTrack(plState.track); if (!w.mode) w.mode = st.directions[0] || "international";
     try { localStorage.setItem(PL_WIZARD_KEY, JSON.stringify(w)); } catch (e) { flash(esc(t("浏览器不允许保存选课，请在网站上选课。", "The browser does not allow saving the selection; please select on the website.")), 4000); return false; }
     plCartBtn(); return !!w.cart[id];
   }
@@ -521,7 +553,7 @@
       (row ? "<h4>" + t("学校计划", "Planned") + " · " + items.length + "</h4>" + (items.length ? "<ol class=\"plplanned\">" + items.map(function (x) { return "<li>" + esc(plChipLabel(x)) + "</li>"; }).join("") + "</ol>" : '<p class="sub">—</p>') : '<p class="sub">' + t("学科不在课程地图里的课程。", "Courses whose subject is not on the map.") + "</p>") +
       '<p class="sub">' + (plSchoolAccount() ? t("学校管理账号只能查看；家长用自己的账号下单。学校批量购买（团购）另行安排。", "A school administration account only looks; parents order with their own account. School bulk purchases are arranged separately.") : t("「选择」加入网站购物车；下单在网站完成，订单记入你的账号。", "Select adds to the website cart; the order is placed on the website and filed under your account.")) + "</p></div>");
   }
-  function plCourseDetail(id) {
+  function plCourseDetail(id, where) {
     var c = (plCat ? plCat.courses : []).filter(function (x) { return x.id === id; })[0]; if (!c) return;
     var row = function (z, e, v, wide) { return v ? '<div class="pvrow' + (wide ? " wide" : "") + '"><div class="pvlab">' + esc(t(z, e)) + '</div><div class="pvval">' + v + "</div></div>" : ""; };
     var desc = pickName(c.descriptionZh, c.descriptionEn), days = (c.days || []).map(function (d) { return EN ? d : DAY_ZH[d] || d; }).join(EN ? ", " : "、"), sched = (c.schedule || []).map(function (p) { return p.range || p.start || ""; }).filter(Boolean).join("; ");
@@ -537,11 +569,11 @@
       row("上课安排", "Schedule", esc([days, sched].filter(Boolean).join(" ")), true) + row("授课老师", "Teachers", (c.teachers || []).map(function (n) { return '<span class="pvchip">' + esc(n) + "</span>"; }).join(""), true) +
       row("课程提供方", "Course deliverer", c.school ? esc(c.school.name || "") + (c.school.abbr ? ' <span class="muted">(' + esc(c.school.abbr) + ")</span>" : "") : "") +
       row("前置课程", "Prerequisite", c.prerequisite && !/^n\/?a$/i.test(c.prerequisite) ? esc(c.prerequisite) : "", true) + row("教材", "Textbooks", books.map(function (x) { return "<div>" + esc(x) + "</div>"; }).join(""), true) + row("课程大纲", "Syllabus", syl, true) + row("备注", "Comments", c.comments ? esc(c.comments) : "", true) +
-      '</div><div class="pvfoot"><span class="pvprice">' + esc(plPrice(c)) + "</span>" + plSelBtn(c.id) + "</div></div></div>", "second");
+      '</div><div class="pvfoot"><span class="pvprice">' + esc(plPrice(c)) + "</span>" + plSelBtn(c.id) + "</div></div></div>", where === "first" ? undefined : "second");
   }
   document.addEventListener("click", function (e) {
     var sel = e.target.closest("button[data-sel]");
-    if (sel && e.target.closest("#panel, #panel2")) { var on = plCartToggle(sel.getAttribute("data-sel")); plRefreshSel(); if (on) flashOk(t("已加入选课。右上「去下单」到网站完成订单。", "Added. “Place the order” (top right) opens the website to finish."), 3000); return; }
+    if (sel && e.target.closest("#panel, #panel2")) { var on = plCartToggle(sel.getAttribute("data-sel")); plRefreshSel(); if (plState.tab === "credits") renderPlan(); if (on) flashOk(t("已加入选课。右上「去下单」到网站完成订单。", "Added. “Place the order” (top right) opens the website to finish."), 3000); return; }
     var cd = e.target.closest("button[data-course]");
     if (cd && e.target.closest("#panel")) { plCourseDetail(cd.getAttribute("data-course")); return; }
   });

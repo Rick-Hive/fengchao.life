@@ -358,14 +358,28 @@ async function handler(context, req) {
     const custPerson = new Map(); for (const p of (h && h.people) || []) for (const c of p.facets.customers || []) custPerson.set(c.recId, p.crmId);
     const fySales = new Map(), fyOrders = new Map();
     for (const o of (data && data.orders) || []) { if (String(o.date || "").slice(0, 7) < fyStart) continue; const id = custPerson.get(o.customerRec); if (!id) continue; fySales.set(id, (fySales.get(id) || 0) + (o.amount || 0)); fyOrders.set(id, (fyOrders.get(id) || 0) + 1); }
+    // 蜂巢课程 this school year, on the PROVIDER side (Rick 2026-10-21: 本学年销售 is Equip only; 「可以叫"蜂巢佣金收入"」):
+    // the list value of the live and paid orders the institution delivers, and Hive's commission written at 已收款.
+    // Kept apart from the textbook sales, never added to them — the course fee goes to the provider, not to Hive.
+    const fyStartIso = fy + "-08-01", courseValue = new Map(), commissionIn = new Map();
+    for (const o of await crm.listOrders().catch(() => [])) {
+      if (String(o.submittedAt || "") < fyStartIso) continue;
+      const st = crm.statusOf(crm.withExpiry(o));
+      if (st === "cancelled" || st === "expired") continue;
+      const keys = (o.hives || []).map((x) => x.key).filter(Boolean);
+      for (const k of keys) courseValue.set(k, (courseValue.get(k) || 0) + (keys.length === 1 ? (o.totalPrice || 0) : ((o.hives.find((x) => x.key === k) || {}).subtotal || 0)));
+      if (o.commission && typeof o.commission.amount === "number" && (st === "paid" || st === "started")) commissionIn.set(keys[0], (commissionIn.get(keys[0]) || 0) + o.commission.amount);
+    }
+    const { hiveKey } = require("../shared/hive");
     // A row's key is its tenant domain, or "hive:<abbr>" for a Hive-workspace institution without one.
     const rows = ((h && h.institutions) || []).map((i) => {
+      const hk = i.abbr || (i.kind && i.kind !== "tenant") ? hiveKey(i.abbr || i.name || "") : "";
       const key = i.key || i.domain;
       const n = (i.domain && inst.institutions[i.domain]) || {}, pt = partners.partners[key] || null;
       const fySum = (i.customerIds || []).reduce((a, id) => a + (fySales.get(id) || 0), 0), fyN = (i.customerIds || []).reduce((a, id) => a + (fyOrders.get(id) || 0), 0);
       const orgId = orgsDoc.byKey[key] || null, org = orgId ? orgsDoc.orgs[orgId] : null;
       const rels = Object.values(relsDoc.items || {}).filter((r) => r.party && r.party.kind === "org" && (r.party.key === key || (orgId && r.party.id === orgId)) && P.TYPES[r.type]).map((r) => ({ id: r.id, type: r.type, stage: r.stage, closed: !!r.closed, owner: r.owner || "" }));
-      return { key, domain: i.domain || "", kind: i.kind || "tenant", name: n.name || i.name || "", nameEn: n.nameEn || i.nameEn || "", abbr: i.abbr || "", type: i.type || "", region: i.region || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, partner: pt, orgId, internal: !!(org && org.internal), rels, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null };
+      return { key, domain: i.domain || "", kind: i.kind || "tenant", name: n.name || i.name || "", nameEn: n.nameEn || i.nameEn || "", abbr: i.abbr || "", type: i.type || "", region: i.region || "", country: i.country || "", city: i.city || "", website: i.website || "", courses: i.courses || 0, partner: pt, orgId, internal: !!(org && org.internal), rels, accounts: i.accounts, active: i.active, people: i.people, customers: i.customers, buyers: i.buyers, leads: i.leads, families: i.families, orders: i.orders, hiveOrders: i.hiveOrders, spend: seeMoney ? i.spend : null, fyOrders: fyN, fySales: seeMoney ? fySum : null, courseValue: hk && seeMoney ? (courseValue.get(hk) || 0) : null, commission: hk && seeMoney ? (commissionIn.get(hk) || 0) : null, provider: !!hk && ((i.courses || 0) > 0 || courseValue.has(hk)) };
     });
     ok(context, { rows, fy, canEdit, stages: hub.PARTNER_STAGES, types: P.TYPES, stageLabels: Object.fromEntries(Object.entries(P.STAGES).map(([t, st]) => [t, Object.fromEntries(st.map((x) => [x.k, [x.zh, x.en]]))])), generatedAt: h && h.generatedAt, hiveRows: rows.filter((r) => r.kind !== "tenant").length, rebuilt: !!(wantRebuild || stale), access: acc });
     return;
