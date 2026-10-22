@@ -699,6 +699,6 @@ async function list(who) {
   return { courses: rows, generatedAt: snap && snap.generatedAt, assignments: who.approver ? a.items : undefined };
 }
 
-module.exports = { NEW_RE, WORK_RE, create, emptyFields, writeBase, baseWrite: () => baseFor.write(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
+module.exports = { NEW_RE, WORK_RE, create, emptyFields, writeBase, baseWrite: () => baseFor.write(), baseRead: () => baseFor.read(), SYNC_BLOB, FIELDS, PAIR_VALUES, DAYS, TRANSLATABLE, LIMITS, isApprover, isViewer, lookups, fieldsFromRecord, open, saveField, clean, validate, submit, withdraw, giveBack, saveVersion,
   translateCourse, translationState, translationNeeds, publish, syncWebsite, syncStatus, versions, versionContent, restore, readAssignments, assign, unassign, syncTeacherAssignments, assignedTo, list, readWork,
   _test: { baseFor: (b) => { baseFor = Object.assign({}, baseFor, b); }, resetLookups: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; return store.write(LOOKUP_BLOB, null).catch(() => {}); }, coldInstance: () => { lookupCache = { at: 0, data: null }; lookupBuilding = null; }, building: () => lookupBuilding || Promise.resolve(null), hash } };

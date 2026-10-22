@@ -331,6 +331,17 @@ async function handler(context, req) {
       if (!canEdit) { fail(context, 403, "no_access"); return; }
       const body = req.body && typeof req.body === "object" ? req.body : {};
       const rawKey = String(body.key || body.domain || "").trim();
+      // 开通为课程提供方 (Rick 2026-10-22): the Hive Orders channel, the Airtable Schools row, the partnership, the
+      // leader's role, the sync — one action, the system administrator's (api/shared/onboard.js). dryRun previews.
+      if (body.onboard && typeof body.onboard === "object") {
+        if (!isAdmin(roles)) { fail(context, 403, "no_access", { hint: "the system administrator onboards a course provider" }); return; }
+        let r;
+        try { r = await require("../shared/onboard").run(Object.assign({}, body.onboard, { key: rawKey || body.onboard.key }), { dryRun: !!body.dryRun, by: normUser(user), log: (m) => context.log(m) }); }
+        catch (err) { if (err.status === 400) { fail(context, 400, "incomplete", { problems: err.problems }); return; } throw err; }
+        if (!r.dryRun) await audit(context, { action: "crm.institution.onboard", by: normUser(user), key: rawKey, hive: r.hive, steps: r.steps.map((x) => x.step + ":" + x.status).join(",") });
+        ok(context, r);
+        return;
+      }
       // 内部 (design v2 §13): our own entities never become partners; the flag lives on the ORG record.
       if (typeof body.internal === "boolean") {
         const k = /^hive:/i.test(rawKey) ? "hive:" + rawKey.slice(5).toUpperCase() : rawKey.toLowerCase();

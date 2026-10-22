@@ -14,6 +14,8 @@
 // administrator grants them in Entra › App registrations › API permissions):
 // Team.Create (create the team), Group.ReadWrite.All (owners, members, reading
 // the group). Without them the page's calls answer 403 and say which is missing.
+// Needed from 2026-10-22 for 开通为课程提供方 (api/shared/onboard.js): Channel.Create (the provider's orders
+// channel in the Hive Orders team; Group.ReadWrite.All also allows it).
 const GRAPH = "https://graph.microsoft.com/v1.0";
 
 let cached = { token: "", exp: 0 };

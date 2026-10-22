@@ -141,6 +141,38 @@
       });
     });
   }
+  // 开通为课程提供方: the values come from the institution; preview first (dryRun), then run. Each step is idempotent,
+  // so running it again fills in what is missing (a channel the app could not create, a leader added later).
+  var OB_STEP = { channel: ["Hive Orders 频道", "Hive Orders channel"], school: ["Airtable 学校表", "Airtable Schools row"], partnership: ["课程提供方合作关系", "Course-provider partnership"], leader: ["蜂巢课程负责人", "Hive Course Leader"], sync: ["网站与选项同步", "Website and pick lists"] };
+  var OB_STATUS = { todo: ["将执行", "to do", "accent"], done: ["已完成", "done", "ok"], exists: ["已存在", "already there", "muted"], skipped: ["跳过", "skipped", "muted"], failed: ["失败", "failed", "warn"] };
+  function openOnboardPanel(r) {
+    var f = function (id, zh, en, val, ph, req) { return '<label class="f">' + t(zh, en) + (req ? ' <span class="req">*</span>' : "") + '<input type="text" id="' + id + '" value="' + esc(val || "") + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : "") + " /></label>"; };
+    panelOpen('<div class="ph"><h3>' + esc(instName(r)) + " · " + t("开通为课程提供方", "Onboard as course provider") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><form id="obF" autocomplete="off"><div class="grid2">' +
+      f("obAbbr", "简称", "Short name", r.abbr || "", "JCA", true) + f("obName", "名称", "Name", r.name || r.nameEn || "", "", true) +
+      f("obNameEn", "英文名称", "English name", r.nameEn || "", "") + f("obDomain", "域名", "Domain", r.domain || "", "jca.example.org") +
+      f("obLeader", "负责人账号", "Leader's account", "", "eve.zhou@…") + f("obEmail", "通知邮箱", "Notify email", "", t("默认用负责人账号", "the leader's, by default")) +
+      f("obChannel", "订单频道名称", "Orders channel name", (r.abbr ? r.abbr + " 订单" : ""), t("默认：简称 + 订单", "default: short name + 订单")) +
+      "</div>" + '<p class="sub">' + t("会依次：在 Hive Orders 团队建订单频道 → 建或补全 Airtable 学校表这一行（已有的值不改）→ 建课程提供方合作关系 → 设负责人为蜂巢课程负责人 → 同步网站。可以重复执行，只补缺的部分。", "In order: an orders channel in the Hive Orders team → the Airtable Schools row created or completed (existing values kept) → a course-provider partnership → the leader made Hive Course Leader → the website synced. Safe to run again: only what is missing is done.") + "</p>" +
+      '<div class="actions"><button type="button" class="btn secondary" id="obPreview">' + t("预览", "Preview") + '</button><button type="button" class="btn" id="obRun">' + t("执行", "Run") + '</button></div><div id="obOut"></div></form></div>', "second");
+    var body = function () { return { key: r.key || r.domain, onboard: { abbr: $("obAbbr").value, name: $("obName").value, nameEn: $("obNameEn").value, domain: $("obDomain").value, leader: $("obLeader").value, notifyEmail: $("obEmail").value, channelName: $("obChannel").value, country: r.country || "", city: r.city || "", website: r.website || "" } }; };
+    $("obAbbr").addEventListener("input", function () { var c = $("obChannel"); if (!c.dataset.touched) c.value = this.value.trim() ? this.value.trim() + " 订单" : ""; });
+    $("obChannel").addEventListener("input", function () { this.dataset.touched = "1"; });
+    var go = function (dry, b) {
+      savingButton(b, dry ? t("预览中…", "Previewing…") : t("执行中…", "Running…"));
+      post("crm/institutions", "POST", Object.assign(body(), { dryRun: dry })).then(function (res) {
+        restoreButton(b);
+        if (!res.ok) { $("obOut").innerHTML = '<div class="msg err">' + esc(errText(res)) + "</div>"; return; }
+        var x = res.body;
+        $("obOut").innerHTML = "<h4>" + (dry ? t("预览", "Preview") : t("结果", "Result")) + " · " + esc(x.hive) + '</h4><div class="olist obsteps">' + x.steps.map(function (s) {
+          var L = OB_STEP[s.step] || [s.step, s.step], S = OB_STATUS[s.status] || [s.status, s.status, ""];
+          return '<div class="orow"><div class="omain"><b>' + esc(t(L[0], L[1])) + '</b><span class="sub">' + esc(s.detail || "") + ((s.missing || []).length ? esc(t(" · 学校表缺列：", " · columns missing: ") + s.missing.join(", ")) : "") + '</span></div><span class="tag ' + S[2] + '">' + esc(t(S[0], S[1])) + "</span></div>";
+        }).join("") + "</div>" + (!dry && x.ok ? '<div class="msg ok">' + t("已开通。负责人重新登录管理中心后，左侧会出现「蜂巢课程」。", "Onboarded. The leader sees 「Hive Courses」 in the sidebar after signing in again.") + "</div>" : "");
+        if (!dry) { instState.data = null; loadInstitutionsCrm(true).then(function () { renderInstitutionsCrm(); }).catch(function () {}); }
+      });
+    };
+    $("obPreview").addEventListener("click", function () { go(true, this); });
+    $("obRun").addEventListener("click", function () { if (!$("obLeader").value.trim() && !window.confirm(t("没有填负责人账号：先不设负责人，继续？", "No leader's account: go on without a leader?"))) return; go(false, this); });
+  }
   function openInstitutionPanel(key) {
     var d = instState.data, r = d && instRows().filter(function (x) { return (x.key || x.domain) === key; })[0]; if (!r) return;
     var domain = key;
@@ -159,8 +191,11 @@
         (r.provider && seeMoney ? '<span class="k">' + t("蜂巢课程（提供方）", "Hive courses (provider)") + "</span><span>" + t("课程订单额 ", "course orders ") + instNum(r.courseValue || 0, "courseorders", fmtMoney(r.courseValue || 0)) + t(" · 蜂巢佣金收入 ", " · Hive commission ") + fmtMoney(r.commission || 0) + "</span>" : "") + "</div>" +
       "<h4>" + t("合作关系", "Partnerships") + " · " + (r.rels || []).length + '</h4><div class="olist">' + ((r.rels || []).length ? r.rels.map(function (x) { var ty = d.types && d.types[x.type], st = d.stageLabels && d.stageLabels[x.type] && d.stageLabels[x.type][x.stage]; return '<a class="orow link" href="#/ops/partners/' + x.type + "/" + x.id + '"><div class="omain"><b>' + esc(ty ? t(ty.zh, ty.en) : x.type) + '</b><span class="sub">' + esc(x.id + (x.owner ? " · " + x.owner.split("@")[0] : "")) + '</span></div><span class="tag ' + (x.closed ? "muted" : "ok") + '">' + esc(st ? t(st[0], st[1]) : x.stage) + "</span></a>"; }).join("") : '<div class="orow muted">' + (r.internal ? t("内部机构，不建合作关系。", "Internal — no partnerships.") : t("还没有合作关系。", "No partnerships yet.")) + "</div>") + "</div>" +
       (d.canEdit ? '<div class="actions">' + (r.internal ? "" : '<select id="ipNewType" class="sm">' + Object.keys(d.types || {}).filter(function (k) { return k !== "developer"; }).map(function (k) { var dflt = r.type && /大学|university|college/i.test(r.type) ? "university" : (r.provider || r.kind !== "tenant") ? "course" : "it"; return '<option value="' + k + '"' + (k === dflt ? " selected" : "") + ">" + esc(t(d.types[k].zh, d.types[k].en)) + "</option>"; }).join("") + '</select> <button type="button" class="btn sm" id="ipNewRel">' + t("新建合作关系", "New partnership") + "</button>") + '<label class="inline"><input type="checkbox" id="ipInternal"' + (r.internal ? " checked" : "") + " /> " + t("内部机构（我们自己，不生成合作关系）", "Internal (ourselves; never a partner)") + "</label></div>" : "") +
+      // 开通为课程提供方 (2026-10-22): the system administrator's one action — channel, Schools row, partnership, leader, sync
+      (isAdmin() && !r.internal ? '<div class="actions"><button type="button" class="btn secondary sm" id="ipOnboard">' + (r.provider ? t("课程提供方设置…", "Course provider setup…") : t("开通为课程提供方…", "Onboard as course provider…")) + "</button></div>" : "") +
       '<p class="hint">' + t("账号与活跃来自目录缓存；客户与销售来自人员库里挂在这个域名账号上的人。", "Accounts and activity from the directory cache; customers and sales from the people whose Teams account is in this domain.") + "</p></div>");
     $("panel").querySelector(".pb").addEventListener("click", function (e) { var b = e.target.closest("button[data-ilist]"); if (b) openInstList(r, b.getAttribute("data-ilist")); });
+    if ($("ipOnboard")) $("ipOnboard").addEventListener("click", function () { openOnboardPanel(r); });
     if ($("ipNewRel")) $("ipNewRel").addEventListener("click", function () { ptState.newFor = { key: r.key || r.domain, name: instName(r) }; panelClose(); location.hash = "#/ops/partners/" + $("ipNewType").value; });
     var nf = $("ipName");
     if (nf) nf.addEventListener("submit", function (ev) {
