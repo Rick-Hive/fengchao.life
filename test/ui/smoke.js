@@ -1932,6 +1932,13 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/教师资料/.test(await p.$eval("#nav .nav-group:nth-of-type(2), #nav", e => e.innerText)), "教师资料 in the sidebar");
     const txt = await p.$eval("#tetable", e => e.innerText);
     assert.ok(/Zhang Lao/.test(txt) && /Mr Lee/.test(txt) && /待审批/.test(await p.$eval("#tebar", e => e.innerText)), "both teachers, a pending count: " + txt.slice(0, 200));
+    // 课程提供方 filter (2026-10-22)
+    const provOpts = await p.$$eval("#teScope option", os => os.map(o => o.textContent));
+    assert.ok(provOpts.some(o => /^北京某某学校 · 1$/.test(o)) && provOpts.some(o => /^Kids X Center · \d$/.test(o)), "the providers, counted: " + provOpts.join(" | "));
+    await p.selectOption("#teScope", "北京某某学校"); await p.waitForTimeout(150);
+    assert.deepStrictEqual(await p.$$eval("#tetable tr[data-id]", es => es.map(e => e.getAttribute("data-id"))), ["recTEACH000000001"], "one provider's teachers");
+    assert.ok(/课程提供方/.test(await p.$eval("#tetable thead", e => e.innerText)), "the column says 课程提供方");
+    await p.selectOption("#teScope", ""); await p.waitForTimeout(150);
     await p.click('#tebar .chip[data-f="pending"]'); await p.waitForTimeout(150);
     assert.deepStrictEqual(await p.$$eval("#tetable tr[data-id]", es => es.map(e => e.getAttribute("data-id"))), ["recTEACH000000001", "recTEACH000000003"].slice(0, teCreates.length ? 2 : 1), "the pending filter keeps the submitted ones (the teacher added with a profile is submitted too)");
     await p.click('#tetable tr[data-id="recTEACH000000001"]'); await p.waitForSelector("#panel.open #teApprove");

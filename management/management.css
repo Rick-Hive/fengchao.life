@@ -1442,3 +1442,6 @@ button.lnk.inum { color: var(--accent-dark); text-decoration: underline; text-de
 button.lnk.inum:hover { text-decoration-style: solid; }
 #ilist button.orow { width: 100%; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 #ilist button.orow:hover { background: var(--hover, rgba(0,0,0,0.03)); }
+/* 教师资料: the 课程提供方 filter on the chips' row (2026-10-22) */
+#tebar .tabsRight { margin-left: auto; }
+#tebar #teScope { width: auto; max-width: 260px; height: 32px; padding: 0 28px 0 10px; font-size: 13px; margin: 0; }

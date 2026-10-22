@@ -136,22 +136,27 @@
     };
     if (me0.approver) api("teachers/hives").then(function (r) { draw(r.ok ? r.body.hives || [] : []); }); else draw(hives);
   }
+  function teProv(x) { return (x.organization || "").trim() || (x.domain ? dname(x.domain) : "") || "-"; }
   function teRenderList() {
-    var list = teState.list || [], domains = {};
-    list.forEach(function (x) { if (x.domain) domains[x.domain] = (domains[x.domain] || 0) + 1; });
-    var scopes = Object.keys(domains).sort();
-    var rows = list.filter(function (x) { return !teState.scope || x.domain === teState.scope; }).filter(function (x) {
+    // 课程提供方 (Rick 2026-10-22: 「教师资料应该可以按照课程提供方 filter」): the teacher's institution (the Teachers row's
+    // Organization), else the school of its Teams account's domain; "-" = neither
+    var all = teState.list || [], provs = {};
+    all.forEach(function (x) { var k = teProv(x); provs[k] = (provs[k] || 0) + 1; });
+    var provKeys = Object.keys(provs).sort(function (a, b) { return a === "-" ? 1 : b === "-" ? -1 : a.localeCompare(b, "zh"); });
+    if (teState.scope && !provs[teState.scope]) teState.scope = "";
+    var list = all.filter(function (x) { return !teState.scope || teProv(x) === teState.scope; });
+    var rows = list.filter(function (x) {
       return teState.filter === "pending" ? x.status === "submitted" : teState.filter === "missing" ? !(x.photoUrl && x.hasBio && x.hasExpertise) : true;
     });
     var pending = list.filter(function (x) { return x.status === "submitted"; }).length, missing = list.filter(function (x) { return !(x.photoUrl && x.hasBio && x.hasExpertise); }).length;
     var chip = function (k, label, n) { return '<button type="button" class="chip" data-f="' + k + '" aria-pressed="' + (teState.filter === k) + '">' + esc(label) + ' <span class="cnt' + (k === "pending" && n ? " cobadge" : "") + '">' + n + "</span></button>"; };
     $("content").innerHTML =
       '<div class="toolbar" id="tebar">' + chip("all", t("全部", "All"), list.length) + chip("pending", t("待审批", "Pending approval"), pending) + chip("missing", t("资料不全", "Incomplete"), missing) +
-        (scopes.length > 1 ? '<div class="tabsRight"><select id="teScope"><option value="">' + t("所有学校", "All schools") + "</option>" + scopes.map(function (d) { return '<option value="' + esc(d) + '"' + (teState.scope === d ? " selected" : "") + ">" + esc(dname(d)) + " · " + domains[d] + "</option>"; }).join("") + "</select></div>" : "") + "</div>" +
-      '<div class="tbl-wrap"><table class="data" id="tetable"><thead><tr><th>' + t("老师", "Teacher") + "</th><th>" + t("学校", "School") + "</th><th>" + t("照片", "Photo") + "</th><th>" + t("个人简介", "Biography") + "</th><th>" + t("专业能力", "Expertise") + "</th><th>" + t("状态", "Status") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
+        (provKeys.length > 1 ? '<div class="tabsRight"><select id="teScope" aria-label="' + esc(t("课程提供方", "Course provider")) + '"><option value="">' + t("所有课程提供方", "All course providers") + " · " + all.length + "</option>" + provKeys.map(function (k) { return '<option value="' + esc(k) + '"' + (teState.scope === k ? " selected" : "") + ">" + esc(k === "-" ? t("未指定", "Not set") : k) + " · " + provs[k] + "</option>"; }).join("") + "</select></div>" : "") + "</div>" +
+      '<div class="tbl-wrap"><table class="data" id="tetable"><thead><tr><th>' + t("老师", "Teacher") + "</th><th>" + t("课程提供方", "Course provider") + "</th><th>" + t("照片", "Photo") + "</th><th>" + t("个人简介", "Biography") + "</th><th>" + t("专业能力", "Expertise") + "</th><th>" + t("状态", "Status") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (x) {
         var ok = function (v) { return v ? '<span class="tag ok">✓</span>' : '<span class="tag warn">' + t("缺", "missing") + "</span>"; };
-        return '<tr class="pick" data-id="' + esc(x.id) + '"><td><span class="dn">' + esc(x.name) + (x.mine ? ' <span class="tag muted">' + t("我", "me") + "</span>" : "") + '</span><span class="sub">' + esc(x.teamsAccount || x.email || "") + "</span>" + (x.created ? ' <span class="tag muted">' + t("新", "new") + "</span>" : "") + "</td><td>" + esc(x.domain ? dname(x.domain) : x.organization || "—") + "</td><td>" + ok(x.photoUrl) + "</td><td>" + ok(x.hasBio) + "</td><td>" + ok(x.hasExpertise) + "</td><td>" + teStatusTag(x.status) + '</td><td class="faint">' + esc(x.updatedAt ? when(x.updatedAt) : "") + "</td></tr>";
+        return '<tr class="pick" data-id="' + esc(x.id) + '"><td><span class="dn">' + esc(x.name) + (x.mine ? ' <span class="tag muted">' + t("我", "me") + "</span>" : "") + '</span><span class="sub">' + esc(x.teamsAccount || x.email || "") + "</span>" + (x.created ? ' <span class="tag muted">' + t("新", "new") + "</span>" : "") + "</td><td>" + esc(teProv(x) === "-" ? "—" : teProv(x)) + "</td><td>" + ok(x.photoUrl) + "</td><td>" + ok(x.hasBio) + "</td><td>" + ok(x.hasExpertise) + "</td><td>" + teStatusTag(x.status) + '</td><td class="faint">' + esc(x.updatedAt ? when(x.updatedAt) : "") + "</td></tr>";
       }).join("") : '<tr><td colspan="7" class="faint">' + t("没有符合的老师。", "No teacher matches.") + "</td></tr>") + "</tbody></table></div>";
     $("tebar").addEventListener("click", function (e) { var c = e.target.closest(".chip[data-f]"); if (!c) return; teState.filter = c.getAttribute("data-f"); teRenderList(); });
     var sc = $("teScope"); if (sc) sc.addEventListener("change", function () { teState.scope = sc.value; teRenderList(); });
