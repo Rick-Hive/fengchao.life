@@ -211,10 +211,13 @@ module.exports = {
     id: /^Teacher ID/i,
     name: /^Name/i,
     photo: /^Photo/i,          // attachment -> mirrored to blob storage
-    bio: /^Biography/i,
-    expertise: /^Expertise/i,
+    // English in Biography / Expertise, Chinese in 自我介绍 / 专业特长 (Rick 2026-10-22: 「应该有一键双语转换」; the columns as renamed that day)
+    bio: /^Biography(?!\s*ZH)/i,
+    bioZh: /^(自我介绍|个人简介|中文简介|Biography\s*ZH)/i,
+    expertise: /^Expertise(?!\s*ZH)/i,
+    expertiseZh: /^(专业特长|专业能力|中文专长|Expertise\s*ZH)/i,
     subjects: /^Subject\(s\)/i,
-    languages: /^Language\(s\)/i,
+    languages: /^(Mother\s*Language|母语|Language\(s\))/i, // the teacher's mother language (renamed 2026-10-22; either column name works)
     courseTypes: /^Course Type/i,
     gradeLevels: /^Grade Level/i,
     organization: /^Organization/i,

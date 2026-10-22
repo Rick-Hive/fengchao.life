@@ -448,8 +448,9 @@
     var key = b.closest("[data-pager]").getAttribute("data-pager"); if (!pageRender[key]) return;
     e.stopPropagation(); pageState[key] = Number(b.getAttribute("data-offset")); pageRender[key]();
   }, true);
-  function panelOpen(html, which) {
+  function panelOpen(html, which, opts) {
     var p = $(which === "second" ? "panel2" : "panel"); p.innerHTML = html; p.classList.add("open"); p.setAttribute("aria-hidden", "false");
+    p.classList.toggle("wide", !!(opts && opts.wide)); // a wider panel for two-column forms (教师资料: 中文 | English)
     // The second panel (a person opened from a group) gets a ← back to the group
     // (Rick, 2026-10-05: 「进入右边的 teams 群组，点击用户，应该可以回去」).
     if (which === "second") { var ph = p.querySelector(".ph"); if (ph && !ph.querySelector(".back")) { var b = document.createElement("button"); b.type = "button"; b.className = "back"; b.setAttribute("aria-label", t("返回群组", "Back to the group")); b.title = t("返回群组", "Back to the group"); b.innerHTML = "←"; ph.insertBefore(b, ph.firstChild); } }

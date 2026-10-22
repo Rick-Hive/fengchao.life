@@ -34,7 +34,9 @@ const { hiveKey } = require("./hive");
 const INDEX_BLOB = "crm/teacher-work/_index.json";
 const workBlob = (recId) => `crm/teacher-work/${recId}.json`;
 const REC_RE = /^rec[A-Za-z0-9]{14}$/;
-const LIMITS = { bio: 4000, expertise: 1000 };
+// 简介 and 专长 in both languages (Rick 2026-10-22): English in bio / expertise, Chinese in bioZh / expertiseZh
+const LIMITS = { bio: 4000, expertise: 1000, bioZh: 4000, expertiseZh: 1000 };
+const TEXT_KEYS = Object.keys(LIMITS);
 const SITE = process.env.SITE_ORIGIN || "https://www.fengchao.life";
 const now = () => new Date().toISOString();
 
@@ -44,7 +46,9 @@ function domainOf(upn) { const m = /@(.+)$/.exec(String(upn || "").toLowerCase()
 
 // The snapshot's teacher records: public profile + private contact, joined by record id — plus, from the index, the
 // facts written since the last sync and the rows created here that the snapshot has not seen yet.
-const FACT_KEYS = ["name", "email", "teamsAccount", "subjects", "languages", "gradeLevels", "courseTypes"];
+// the teacher's own facts (Rick 2026-10-22: subjects, grade levels and course types belong to the course, not the
+// teacher; languages = the teacher's mother language)
+const FACT_KEYS = ["name", "email", "teamsAccount", "languages"];
 function teachersOf(snap, idx) {
   const pub = new Map(((snap && snap.teacherProfiles) || []).map((p) => [p.id, p]));
   const items = (idx && idx.items) || {};
@@ -60,7 +64,7 @@ function teachersOf(snap, idx) {
   for (const [id, it] of Object.entries(items)) {
     if (!it.created || seen.has(id)) continue;
     const fx = it.facts || {};
-    out.push(Object.assign({ id, name: it.name || "", bio: "", expertise: "", photoUrl: null, subjects: "", languages: "", gradeLevels: "", courseTypes: "", organization: it.organization || "", orgKey: it.orgKey || "" }, fx, { teamsAccount: String(fx.teamsAccount || "").toLowerCase(), email: String(fx.email || "").toLowerCase(), domain: domainOf(fx.teamsAccount), created: it.created }));
+    out.push(Object.assign({ id, name: it.name || "", bio: "", expertise: "", bioZh: "", expertiseZh: "", photoUrl: null, subjects: "", languages: "", gradeLevels: "", courseTypes: "", organization: it.organization || "", orgKey: it.orgKey || "" }, fx, { teamsAccount: String(fx.teamsAccount || "").toLowerCase(), email: String(fx.email || "").toLowerCase(), domain: domainOf(fx.teamsAccount), created: it.created }));
   }
   return out;
 }
@@ -93,12 +97,21 @@ function visible(who) {
   return out;
 }
 
+function texts(rec) { const o = {}; for (const k of TEXT_KEYS) o[k] = rec[k] || ""; return o; }
 function empty(rec) {
-  return { recId: rec.id, name: rec.name || "", status: "", draft: { bio: rec.bio || "", expertise: rec.expertise || "", photo: null }, baseline: { bio: rec.bio || "", expertise: rec.expertise || "", photoUrl: rec.photoUrl || null }, submitted: null, published: null, returned: null, history: [], updatedAt: null };
+  return { recId: rec.id, name: rec.name || "", status: "", draft: Object.assign(texts(rec), { photo: null }), baseline: Object.assign(texts(rec), { photoUrl: rec.photoUrl || null }), submitted: null, published: null, returned: null, history: [], updatedAt: null };
 }
-async function readWork(rec) { return store.read(workBlob(rec.id), () => empty(rec)); }
+async function readWork(rec) {
+  const d = await store.read(workBlob(rec.id), () => empty(rec));
+  for (const k of TEXT_KEYS) { if (d.draft[k] === undefined) d.draft[k] = rec[k] || ""; if (d.baseline && d.baseline[k] === undefined) d.baseline[k] = rec[k] || ""; }
+  return d;
+}
 async function indexPut(d, domain) {
-  await store.update(INDEX_BLOB, () => ({ items: {} }), (x) => { x.items[d.recId] = { name: d.name, status: d.status, updatedAt: d.updatedAt, submittedAt: d.submitted ? d.submitted.at : null, domain: domain || "" }; });
+  await store.update(INDEX_BLOB, () => ({ items: {} }), (x) => {
+    // merged, not replaced: the item also carries the facts and, for a row created here, created / orgKey (2026-10-22)
+    const it = x.items[d.recId] || {};
+    x.items[d.recId] = Object.assign(it, { name: d.name || it.name || "", status: d.status, updatedAt: d.updatedAt, submittedAt: d.submitted ? d.submitted.at : null, domain: domain || it.domain || "" });
+  });
 }
 const readIndex = () => store.read(INDEX_BLOB, () => ({ items: {} }));
 
@@ -107,13 +120,13 @@ async function list(who) {
   const idx = await readIndex();
   return visible(who).map((t) => {
     const w = idx.items[t.id] || {};
-    return { id: t.id, name: t.name || "", teamsAccount: t.teamsAccount, email: t.email || "", domain: t.domain, organization: t.organization || "", photoUrl: t.photoUrl || null, hasBio: !!(t.bio && t.bio.trim()), hasExpertise: !!(t.expertise && t.expertise.trim()), status: w.status || "", updatedAt: w.updatedAt || null, submittedAt: w.submittedAt || null, mine: !!(who.mine && who.mine.id === t.id), created: t.created || null };
+    return { id: t.id, name: t.name || "", teamsAccount: t.teamsAccount, email: t.email || "", domain: t.domain, organization: t.organization || "", photoUrl: t.photoUrl || null, hasBio: !!((t.bio || "").trim() || (t.bioZh || "").trim()), hasExpertise: !!((t.expertise || "").trim() || (t.expertiseZh || "").trim()), status: w.status || "", updatedAt: w.updatedAt || null, submittedAt: w.submittedAt || null, mine: !!(who.mine && who.mine.id === t.id), created: t.created || null };
   });
 }
 
 async function open(rec, who) {
   const d = await readWork(rec);
-  return Object.assign({}, d, { profile: { id: rec.id, name: rec.name || "", teamsAccount: rec.teamsAccount, email: rec.email || "", domain: rec.domain, organization: rec.organization || "", subjects: rec.subjects || "", languages: rec.languages || "", courseTypes: rec.courseTypes || "", gradeLevels: rec.gradeLevels || "", photoUrl: rec.photoUrl || null, created: rec.created || null }, canEdit: mayEdit(who, rec), canEditAccount: mayEditAccount(who, rec), canApprove: who.approver });
+  return Object.assign({}, d, { profile: { id: rec.id, name: rec.name || "", teamsAccount: rec.teamsAccount, email: rec.email || "", domain: rec.domain, organization: rec.organization || "", subjects: rec.subjects || "", languages: rec.languages || "", courseTypes: rec.courseTypes || "", gradeLevels: rec.gradeLevels || "", photoUrl: rec.photoUrl || null, created: rec.created || null }, canEdit: mayEdit(who, rec), canEditAccount: mayEditAccount(who, rec), canApprove: who.approver, canTranslate: require("./translate").configured() });
 }
 // The Teams account is what makes a record someone's own: the leader or an approver sets it, never the teacher
 function mayEditAccount(who, rec) {
@@ -123,7 +136,7 @@ function mayEditAccount(who, rec) {
 }
 
 // ---- the facts: written to Airtable at once ---------------------------------------------------------------------
-const FACT_LIMITS = { name: 80, email: 200, teamsAccount: 200, subjects: 200, languages: 200, gradeLevels: 200, courseTypes: 200 };
+const FACT_LIMITS = { name: 80, email: 200, teamsAccount: 200, languages: 200 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function cleanFacts(input) {
   const out = {}, problems = [];
@@ -168,7 +181,7 @@ async function saveFacts(rec, input, by, log) {
 }
 // A new teacher of an institution: the Airtable row is created now; until the sync brings it back the index is the
 // record. `org` = { key, name, abbr, recId? } — the hive the row belongs to (the leader's own, or the approver's pick).
-async function create(input, org, by, log) {
+async function create(input, org, by, log, opts) {
   const facts = cleanFacts(Object.assign({ name: "" }, input || {}));
   const base = C.baseWrite();
   const table = await base.table([cfg.tables.teachers.id]);
@@ -193,7 +206,18 @@ async function create(input, org, by, log) {
     x.items[id] = { name: facts.name, status: "", updatedAt: null, submittedAt: null, domain: domainOf(facts.teamsAccount), organization: (org && (org.name || org.abbr)) || "", orgKey: (org && org.key) || "", created: at, by, facts: Object.assign({}, facts, { at, by }) };
   });
   if (log) log(`teacher ${id}: created by ${by} (${facts.name}) for ${org && org.key}, wrote ${written.join(",")}${skipped.length ? ", skipped " + skipped.join(",") : ""}`);
-  return { id, written, skipped, facts };
+  // the rest of the profile in the same step (Rick 2026-10-22: 「添加老师」is the whole profile at once): the texts and the
+  // photo as the draft, then submitted — or, for an approver, approved and written to Airtable at once
+  const rec2 = { id, name: facts.name, domain: domainOf(facts.teamsAccount) };
+  let profile = null;
+  const txt = (input && input.profile) || {};
+  const hasText = TEXT_KEYS.some((k) => String(txt[k] || "").trim());
+  if (hasText || (input && input.photo)) {
+    for (const k of TEXT_KEYS) if (String(txt[k] || "").trim()) await saveField(rec2, k, txt[k], by);
+    if (input.photo) await savePhoto(rec2, input.photo, by);
+    profile = (opts && opts.approve) ? await approve(rec2, by, log) : { doc: await submit(rec2, by) };
+  }
+  return { id, written, skipped, facts, profile: profile ? { status: profile.doc.status, written: profile.written || [], skipped: profile.skipped || [] } : null };
 }
 
 function pushHistory(d, h) { d.history = [Object.assign({ at: now() }, h)].concat(d.history || []).slice(0, 100); }
@@ -245,15 +269,16 @@ async function approve(rec, by, log) {
   const table = await base.table([cfg.tables.teachers.id]);
   const tef = cfg.teacherFields, changes = {}, written = [], skipped = [];
   const put = (spec, key, val) => { const fld = AirtableBase.field(table, spec); if (!fld || !AirtableBase.isWritable(fld)) { skipped.push(key); return; } changes[fld.name] = val; written.push(key); };
-  if (d0.draft.bio !== d0.baseline.bio) put(tef.bio, "bio", d0.draft.bio);
-  if (d0.draft.expertise !== d0.baseline.expertise) put(tef.expertise, "expertise", d0.draft.expertise);
+  for (const k of TEXT_KEYS) if ((d0.draft[k] || "") !== (d0.baseline[k] || "")) put(tef[k], k, d0.draft[k] || "");
   if (d0.draft.photo && d0.draft.photo.key) put(tef.photo, "photo", [{ url: SITE + blob.assetUrl(d0.draft.photo.key), filename: `${rec.id}.jpg` }]);
   let airtable = null;
   if (written.length) airtable = await base.update(cfg.tables.teachers.id, rec.id, changes, { typecast: false });
   const at = now();
   const d = await store.update(workBlob(rec.id), () => empty(rec), (x) => {
     x.status = "published"; x.published = { at, by, written, skipped }; x.submitted = null; x.returned = null;
-    x.baseline = { bio: x.draft.bio, expertise: x.draft.expertise, photoUrl: x.draft.photo ? x.draft.photo.url : x.baseline.photoUrl };
+    // only what was written moves into the baseline: a text whose column the table lacks stays pending for the next approval
+    const nb = Object.assign({}, x.baseline); for (const k of TEXT_KEYS) if (written.includes(k)) nb[k] = x.draft[k] || "";
+    x.baseline = Object.assign(nb, { photoUrl: x.draft.photo ? x.draft.photo.url : x.baseline.photoUrl });
     x.draft.photo = null; // written; the baseline keeps the URL until the next sync brings Airtable's copy
     x.updatedAt = at; pushHistory(x, { by, action: "approve", fields: written, skipped });
   });
@@ -263,4 +288,14 @@ async function approve(rec, by, log) {
   return { doc: d.doc || d, written, skipped, airtable: !!airtable };
 }
 
-module.exports = { REC_RE, LIMITS, FACT_KEYS, INDEX_BLOB, workBlob, whoIs, mayEdit, mayEditAccount, visible, teachersOf, list, open, saveField, saveFacts, create, savePhoto, submit, giveBack, approve, readIndex };
+// 一键翻译 (Rick 2026-10-22): the texts given ({bio, expertise} on one side) into the other language
+async function translateTexts(texts, from) {
+  const tr = require("./translate");
+  const keys = Object.keys(texts || {}).filter((k) => String(texts[k] || "").trim());
+  if (!keys.length) return {};
+  const to = from === "zh" ? "en" : "zh";
+  const out = await tr.translate(keys.map((k) => texts[k]), to, from, { maxLen: 4000 });
+  const r = {}; keys.forEach((k, i) => { r[k] = out[i] || ""; }); return r;
+}
+
+module.exports = { REC_RE, LIMITS, TEXT_KEYS, translateTexts, FACT_KEYS, INDEX_BLOB, workBlob, whoIs, mayEdit, mayEditAccount, visible, teachersOf, list, open, saveField, saveFacts, create, savePhoto, submit, giveBack, approve, readIndex };

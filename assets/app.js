@@ -789,7 +789,7 @@
   }
   function normalizeTeacher(p) {
     if (!p) return p;
-    ["bio", "expertise", "subjects", "languages", "courseTypes", "gradeLevels", "organization"]
+    ["bio", "bioZh", "expertise", "expertiseZh", "subjects", "languages", "courseTypes", "gradeLevels", "organization"]
       .forEach(function (k) { p[k] = plainTeacherText(p[k]); });
     return p;
   }
@@ -1908,6 +1908,8 @@
   }
 
   function teacherModalHtml(p) {
+    // 个人简介 / 专业能力 in the site's language, the other one when that side is empty (Rick 2026-10-22)
+    var bio = pickLang(p.bio, p.bioZh), expertise = pickLang(p.expertise, p.expertiseZh);
     var photo = p.photo
       ? '<img class="t-photo" src="' + esc(p.photoUrl || "/api/asset?key=" + encodeURIComponent(p.photo)) + '" alt="' + esc(p.name) + '" loading="lazy" />'
       : '<div class="t-photo t-photo-fallback">' + esc((p.name || "?").charAt(0)) + "</div>";
@@ -1917,13 +1919,11 @@
       '<div><div class="t-kicker">' + esc(t().tTeacher) + "</div><h3>" + esc(p.name) + "</h3>" +
       (p.organization ? '<div class="t-org">' + esc(p.organization) + "</div>" : "") + "</div></div>" +
       '<div class="modal-body">' +
-      (p.bio ? '<p class="t-bio">' + esc(p.bio) + "</p>" : "") +
-      (p.expertise ? '<div class="t-expertise"><div class="d-label">' + esc(t().tExpertise) + "</div><p>" + esc(p.expertise) + "</p></div>" : "") +
+      (bio ? '<p class="t-bio">' + esc(bio) + "</p>" : "") +
+      (expertise ? '<div class="t-expertise"><div class="d-label">' + esc(t().tExpertise) + "</div><p>" + esc(expertise) + "</p></div>" : "") +
+      // subjects, grade levels and course types belong to the course (Rick 2026-10-22); the teacher shows the mother language
       '<div class="t-attrs">' +
-      attrRow(t().tSubjects, p.subjects) +
       attrRow(t().tLanguages, p.languages) +
-      attrRow(t().tCourseTypes, p.courseTypes) +
-      attrRow(t().tGrades, p.gradeLevels) +
       "</div></div>"
     );
   }

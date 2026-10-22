@@ -364,6 +364,40 @@ async function handler(context, req) {
       if (o.commission && typeof o.commission.amount === "number" && (st === "paid" || st === "started")) commissionIn.set(keys[0], (commissionIn.get(keys[0]) || 0) + o.commission.amount);
     }
     const { hiveKey } = require("../shared/hive");
+    // The lists behind an institution's numbers (Rick 2026-10-22: 「数字能否可点击显示具体订单或客户列表」):
+    // GET crm/institutions?key=<row key>&list=customers | orders (this school year's Equip orders) | courses | courseorders
+    const listKind = String((req.query && req.query.list) || "");
+    if (method === "GET" && listKind) {
+      const k = String((req.query && req.query.key) || "").trim();
+      const i = ((h && h.institutions) || []).find((x) => (x.key || x.domain) === k);
+      if (!i) { fail(context, 404, "not_found"); return; }
+      const hk = i.abbr || (i.kind && i.kind !== "tenant") ? hiveKey(i.abbr || i.name || "") : "";
+      const ids = new Set(i.customerIds || []);
+      const seeOrders = ["masked", "read", "rw"].includes(acc.orders);
+      let items = [];
+      if (listKind === "customers") {
+        items = ((h && h.people) || []).filter((p) => ids.has(p.crmId)).map((p) => hub.maskPerson(p, acc)).map((p) => ({ crmId: p.crmId, name: p.name || "", email: p.primaryEmail || "", orders: p.orders || 0, spend: seeMoney ? p.spend || 0 : null, familyId: p.familyId || "" }))
+          .sort((a, b) => b.orders - a.orders || a.name.localeCompare(b.name));
+      } else if (listKind === "orders") {
+        if (!seeOrders) { fail(context, 403, "no_access"); return; }
+        items = ((data && data.orders) || []).filter((o) => String(o.date || "").slice(0, 7) >= fyStart && ids.has(custPerson.get(o.customerRec)))
+          .map((o) => ({ orderId: o.orderId, date: o.date, crmId: custPerson.get(o.customerRec), name: o.name || "", amount: seeMoney ? o.amount || 0 : null, items: (o.items || []).slice(0, 6).map((x) => x.name || x.title || x.sku || "").filter(Boolean), itemCount: o.itemCount || 0 }))
+          .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      } else if (listKind === "courses") {
+        const snap = await readSnapshot().catch(() => null);
+        items = hk ? ((snap && snap.courses) || []).filter((c) => providerMod.courseKey(c) === hk).map((c) => ({ id: c.id, code: c.code || "", nameZh: c.nameZh || "", nameEn: c.nameEn || "", available: c.available !== false })).sort((a, b) => a.code.localeCompare(b.code)) : [];
+      } else if (listKind === "courseorders") {
+        if (!seeOrders || !hk) { fail(context, !hk ? 404 : 403, !hk ? "not_found" : "no_access"); return; }
+        for (const o0 of await crm.listOrders().catch(() => [])) {
+          if (String(o0.submittedAt || "") < fyStartIso || !(o0.hives || []).some((x) => x.key === hk)) continue;
+          const o = crm.withExpiry(o0), st = crm.statusOf(o), part = (o.hives || []).find((x) => x.key === hk) || {}, mo = crm.mask(o, acc);
+          items.push({ orderId: o.orderId, status: st, submittedAt: o.submittedAt, email: mo.email || "", value: seeMoney ? ((o.hives || []).length === 1 ? o.totalPrice || 0 : part.subtotal || 0) : null, commission: seeMoney && o.commission && typeof o.commission.amount === "number" ? o.commission.amount : null, items: (o.items || []).filter((it) => it && !it.cancelled && ((o.hives || []).length === 1 || hiveKey(it.schoolAbbr || it.schoolName || "") === hk)).map((it) => ({ code: it.code || "", nameZh: it.nameZh || "", nameEn: it.nameEn || "" })) });
+        }
+        items.sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+      } else { fail(context, 400, "bad_list"); return; }
+      ok(context, { key: k, list: listKind, fy, items, seeMoney });
+      return;
+    }
     // A row's key is its tenant domain, or "hive:<abbr>" for a Hive-workspace institution without one.
     const rows = ((h && h.institutions) || []).map((i) => {
       const hk = i.abbr || (i.kind && i.kind !== "tenant") ? hiveKey(i.abbr || i.name || "") : "";

@@ -79,18 +79,38 @@ const snap = {
   // the facts (2026-10-21): written to Airtable at once — selects as arrays, the private columns included; the index
   // carries them until the next sync; a created row is a teacher of its institution before the sync sees it
   writes.length = 0;
-  let fr = await T.saveFacts(t2, { email: "Lee@KXC.edu", subjects: "Science, Biology", gradeLevels: "G9-12", name: "Mr Lee" }, "lead@kxc.edu");
-  assert.deepStrictEqual(fr.written.sort(), ["email", "name", "subjects"], "columns the table has: " + JSON.stringify(fr)); assert.deepStrictEqual(fr.skipped, ["gradeLevels"], "no such column → skipped, not an error");
-  assert.deepStrictEqual(writes[0].fields, { Email: "lee@kxc.edu", "Subject(s)": ["Science", "Biology"], Name: "Mr Lee" }, "email lower-cased, the select as an array");
+  let fr = await T.saveFacts(t2, { email: "Lee@KXC.edu", languages: "English, Chinese", subjects: "Science", name: "Mr Lee" }, "lead@kxc.edu");
+  assert.deepStrictEqual(fr.written.sort(), ["email", "languages", "name"], "the teacher's own facts: " + JSON.stringify(fr)); assert.deepStrictEqual(fr.skipped, [], "subjects belong to the course (2026-10-22): not a teacher fact, ignored");
+  assert.deepStrictEqual(writes[0].fields, { Email: "lee@kxc.edu", "Language(s)": ["English", "Chinese"], Name: "Mr Lee" }, "email lower-cased, the select as an array");
   await assert.rejects(T.saveFacts(t2, { teamsAccount: "not-an-address" }, "x"), /name@domain/);
   await assert.rejects(T.saveFacts(t2, { name: "" }, "x"), /name is required/);
   const idx1 = await T.readIndex();
   assert.strictEqual(idx1.items.recT2.facts.email, "lee@kxc.edu", "the index remembers the fact");
   const fresh = T.teachersOf(Object.assign({}, snap, { generatedAt: "2026-10-01T00:00:00Z" }), idx1).find((t) => t.id === "recT2");
-  assert.strictEqual(fresh.email, "lee@kxc.edu", "a snapshot older than the fact reads the index"); assert.strictEqual(fresh.subjects, "Science, Biology");
-  const cr = await T.create({ name: "New Teacher", email: "new@gmail.com", teamsAccount: "", subjects: "Art" }, { key: "KXC", name: "Kids X Center", abbr: "KXC", recId: "recSCHOOL00000001" }, "lead@kxc.edu");
+  assert.strictEqual(fresh.email, "lee@kxc.edu", "a snapshot older than the fact reads the index"); assert.strictEqual(fresh.languages, "English, Chinese");
+  // 添加老师 = the whole profile at once (2026-10-22): the row, then the photo and both languages' texts as a submitted draft
+  const cr = await T.create({ name: "New Teacher", email: "new@gmail.com", teamsAccount: "", subjects: "Art", profile: { bio: "Ten years of art.", bioZh: "教美术十年。", expertise: "", junk: "x" }, photo: jpeg }, { key: "KXC", name: "Kids X Center", abbr: "KXC", recId: "recSCHOOL00000001" }, "lead@kxc.edu");
   assert.strictEqual(cr.id, "recNEW0000000001");
-  assert.deepStrictEqual(creates[0].fields, { Name: "New Teacher", Email: "new@gmail.com", "Subject(s)": ["Art"], Organization: ["recSCHOOL00000001"] }, "the row: facts given, the Organization link to the school");
+  assert.deepStrictEqual(creates[0].fields, { Name: "New Teacher", Email: "new@gmail.com", Organization: ["recSCHOOL00000001"] }, "the row: the facts given, the Organization link to the school");
+  assert.strictEqual(cr.profile.status, "submitted", "a leader's new teacher: submitted for approval");
+  const nw = blobs[T.workBlob("recNEW0000000001")];
+  assert.ok(nw.draft.bio === "Ten years of art." && nw.draft.bioZh === "教美术十年。" && nw.draft.photo && nw.draft.photo.key === "teachers/work/recNEW0000000001.jpg" && nw.draft.junk === undefined, "the texts and the photo in the draft");
+  // approve: the table has no 自我介绍 column yet → that text is skipped and stays pending; once the column exists it is written
+  writes.length = 0;
+  const ap = await T.approve({ id: "recNEW0000000001", name: "New Teacher", domain: "" }, "cd@fengchao.life");
+  assert.deepStrictEqual(ap.written.sort(), ["bio", "photo"]); assert.deepStrictEqual(ap.skipped, ["bioZh"], "no column → skipped");
+  assert.strictEqual(ap.doc.baseline.bioZh, "", "the skipped text is not in the baseline: the next approval tries again");
+  teacherTable.fields.push(Object.assign(fieldDef("自我介绍", "multilineText"), { id: "fldBIOZH" }), Object.assign(fieldDef("专业特长", "multilineText"), { id: "fldEXPZH" }));
+  const ap2 = await T.approve({ id: "recNEW0000000001", name: "New Teacher", domain: "" }, "cd@fengchao.life");
+  assert.deepStrictEqual(ap2.written, ["bioZh"]); assert.deepStrictEqual(writes[1].fields, { "自我介绍": "教美术十年。" }, "the Chinese column (自我介绍), by its name");
+  assert.ok(cfg.teacherFields.bio.test("Biography") && !cfg.teacherFields.bio.test("Biography ZH") && cfg.teacherFields.bioZh.test("自我介绍") && cfg.teacherFields.expertiseZh.test("专业特长") && !cfg.teacherFields.bio.test("自我介绍") && !cfg.teacherFields.expertise.test("专业特长") && cfg.teacherFields.languages.test("Mother Language/母语") && cfg.teacherFields.languages.test("Mother Language") && cfg.teacherFields.languages.test("母语"), "the column names");
+  // 一键翻译: the given side into the other, empty texts left out
+  process.env.AZURE_TRANSLATOR_KEY = "k"; const calls = [];
+  global.fetch = async (url, o) => { calls.push({ url, body: JSON.parse(o.body) }); return { ok: true, json: async () => JSON.parse(o.body).map((x) => ({ translations: [{ text: "EN:" + x.Text }] })) }; };
+  assert.deepStrictEqual(await T.translateTexts({ bio: "教数学", expertise: " " }, "zh"), { bio: "EN:教数学" });
+  assert.ok(/to=en&from=zh-Hans/.test(calls[0].url) && calls[0].body.length === 1, "zh → en, one text");
+  assert.deepStrictEqual(await T.translateTexts({ bio: "", expertise: "" }, "en"), {}, "nothing to translate: no call");
+  assert.strictEqual(calls.length, 1);
   const lead2 = T.whoIs("lead@kxc.edu", ["provider:KXC"], snap, await T.readIndex());
   assert.deepStrictEqual(T.visible(lead2).map((t) => t.id), ["recT2", "recNEW0000000001"], "the new row is the institution's at once (orgKey), the sync not yet run");
   const nt = lead2.all.find((t) => t.id === "recNEW0000000001");

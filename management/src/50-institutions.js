@@ -115,6 +115,32 @@
     if (!rs.length) return '<span class="muted">—</span>';
     return '<div class="tags">' + rs.map(function (x) { var ty = d.types && d.types[x.type], st = d.stageLabels && d.stageLabels[x.type] && d.stageLabels[x.type][x.stage]; return '<a class="tag accent" data-relgo="1" href="#/ops/partners/' + x.type + "/" + x.id + '">' + esc((ty ? t(ty.zh, ty.en) : x.type) + " · " + (st ? t(st[0], st[1]) : x.stage)) + "</a>"; }).join("") + "</div>";
   }
+  // The numbers in the panel open the list behind them, beside it (Rick 2026-10-22: 「数字能否可点击显示具体订单或客户列表」)
+  function instNum(n, kind, label) { var txt = label != null ? label : fmtNum(n); return n ? '<button type="button" class="lnk inum" data-ilist="' + kind + '">' + esc(txt) + "</button>" : esc(txt); }
+  var INST_LISTS = { customers: ["客户", "Customers"], orders: ["本学年 Equip 订单", "Equip orders this school year"], courses: ["蜂巢课程", "Hive courses"], courseorders: ["本学年蜂巢课程订单", "Hive course orders this school year"] };
+  function openInstList(r, kind) {
+    var L = INST_LISTS[kind] || [kind, kind];
+    panelOpen('<div class="ph"><h3>' + esc(instName(r)) + ' · ' + esc(t(L[0], L[1])) + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb" id="ilist"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>", "second");
+    api("crm/institutions?key=" + encodeURIComponent(r.key || r.domain) + "&list=" + kind).then(function (res) {
+      var box = $("ilist"); if (!box) return;
+      if (!res.ok) { box.innerHTML = '<div class="msg err">' + esc(errText(res)) + "</div>"; return; }
+      var items = res.body.items || [], money = res.body.seeMoney;
+      var nm = function (x) { return EN ? x.nameEn || x.nameZh : x.nameZh || x.nameEn; };
+      var row = {
+        customers: function (x) { return '<button type="button" class="orow link" data-crm="' + esc(x.crmId) + '"><div class="omain"><b>' + esc(x.name || x.crmId) + '</b><span class="sub">' + esc([x.email, x.crmId].filter(Boolean).join(" · ")) + '</span></div><span class="sub">' + (x.orders ? fmtNum(x.orders) + t(" 单", " orders") + (money && x.spend != null ? " · " + fmtMoney(x.spend) : "") : t("未购买", "no orders")) + "</span></button>"; },
+        orders: function (x) { return '<button type="button" class="orow link" data-crm="' + esc(x.crmId || "") + '"><div class="omain"><b>' + esc(x.orderId) + '</b><span class="sub">' + esc(day(x.date) + " · " + (x.name || "")) + (x.items && x.items.length ? '</span><span class="sub">' + esc(x.items.join("、") + (x.itemCount > x.items.length ? " …" : "")) : "") + "</span></div>" + (money && x.amount != null ? '<span class="sub">' + fmtMoney(x.amount) + "</span>" : "") + "</button>"; },
+        courses: function (x) { return '<button type="button" class="orow link" data-course="' + esc(x.id) + '"><div class="omain"><b>' + esc(nm(x)) + '</b><span class="sub">' + esc(x.code) + "</span></div>" + (x.available ? "" : '<span class="tag muted">' + t("下架", "unlisted") + "</span>") + "</button>"; },
+        courseorders: function (x) { return '<button type="button" class="orow link" data-order="' + esc(x.orderId) + '"><div class="omain"><b>' + esc(x.orderId) + "</b> " + stTag(x.status) + '<span class="sub">' + esc(day(x.submittedAt) + (x.email ? " · " + x.email : "")) + '</span><span class="sub">' + esc((x.items || []).map(nm).join("、")) + "</span></div>" + (money && x.value != null ? '<span class="sub">' + fmtMoney(x.value) + (x.commission != null ? t(" · 佣金 ", " · commission ") + fmtMoney(x.commission) : "") + "</span>" : "") + "</button>"; }
+      }[kind];
+      box.innerHTML = '<p class="sub">' + esc(fmtNum(items.length) + t(" 条", " items")) + (kind === "orders" || kind === "courseorders" ? esc(" · " + fyLabel(res.body.fy)) : "") + '</p><div class="olist">' + (items.length ? items.map(row).join("") : '<div class="orow muted">' + t("没有记录。", "Nothing here.") + "</div>") + "</div>";
+      box.addEventListener("click", function (e) {
+        var b = e.target.closest("button.orow"); if (!b) return;
+        if (b.getAttribute("data-crm")) { panel2Close(); openPersonPanel(b.getAttribute("data-crm")); }
+        else if (b.getAttribute("data-order")) { panel2Close(); openOrderPanel(b.getAttribute("data-order")); }
+        else if (b.getAttribute("data-course")) { var cid = b.getAttribute("data-course"); Promise.resolve(plLoadCatalog()).then(function () { plCourseDetail(cid, "second"); }); }
+      });
+    });
+  }
   function openInstitutionPanel(key) {
     var d = instState.data, r = d && instRows().filter(function (x) { return (x.key || x.domain) === key; })[0]; if (!r) return;
     var domain = key;
@@ -125,15 +151,16 @@
         : r.kind === "hive" ? '<p class="hint">' + t("名称来自 Airtable 学校表。", "The name comes from the Airtable Schools table.") + "</p>" : "") +
       (r.bare ? '<p class="hint">' + t("这个域名还没有同步过账号，所以没有统计数字。", "No accounts of this domain have been synced yet, so there are no figures.") + "</p>" : "") +
       '<div class="kv">' + (r.domain ? '<span class="k">' + t("域名", "Domain") + "</span><span>" + esc(r.domain) + "</span>" : "") +
-        (r.kind !== "tenant" ? '<span class="k">' + t("蜂巢工作区", "Hive workspace") + "</span><span>" + esc([r.abbr, r.type, [r.city, r.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || t("已登记", "listed")) + (r.website ? ' · <a href="' + esc(/^https?:/.test(r.website) ? r.website : "https://" + r.website) + '" target="_blank" rel="noopener">' + t("网站 ↗", "website ↗") + "</a>" : "") + (r.courses ? " · " + fmtNum(r.courses) + t(" 门课程", " courses") : "") + "</span>" : "") +
+        (r.kind !== "tenant" ? '<span class="k">' + t("蜂巢工作区", "Hive workspace") + "</span><span>" + esc([r.abbr, r.type, [r.city, r.country].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || t("已登记", "listed")) + (r.website ? ' · <a href="' + esc(/^https?:/.test(r.website) ? r.website : "https://" + r.website) + '" target="_blank" rel="noopener">' + t("网站 ↗", "website ↗") + "</a>" : "") + (r.courses ? " · " + instNum(r.courses, "courses") + t(" 门课程", " courses") : "") + "</span>" : "") +
         '<span class="k">' + t("账号", "Accounts") + "</span><span>" + fmtNum(r.accounts) + t(" · 活跃 ", " · active ") + fmtNum(r.active) + "</span>" +
-        '<span class="k">' + t("客户", "Customers") + "</span><span>" + fmtNum(r.customers) + t(" · 买过 ", " · bought ") + fmtNum(r.buyers) + t(" · 家庭 ", " · families ") + fmtNum(r.families) + "</span>" +
-        '<span class="k">' + fyLabel(d.fy) + "</span><span>" + fmtNum(r.fyOrders) + t(" 单", " orders") + (seeMoney ? " · " + fmtMoney(r.fySales || 0) : "") + "</span>" +
+        '<span class="k">' + t("客户", "Customers") + "</span><span>" + instNum(r.customers, "customers") + t(" · 买过 ", " · bought ") + fmtNum(r.buyers) + t(" · 家庭 ", " · families ") + fmtNum(r.families) + "</span>" +
+        '<span class="k">' + fyLabel(d.fy) + "</span><span>" + instNum(r.fyOrders, "orders") + t(" 单", " orders") + (seeMoney ? " · " + fmtMoney(r.fySales || 0) : "") + "</span>" +
         (seeMoney ? '<span class="k">' + t("累计销售", "All-time sales") + "</span><span>" + fmtMoney(r.spend || 0) + "</span>" : "") +
-        (r.provider && seeMoney ? '<span class="k">' + t("蜂巢课程（提供方）", "Hive courses (provider)") + "</span><span>" + t("课程订单额 ", "course orders ") + fmtMoney(r.courseValue || 0) + t(" · 蜂巢佣金收入 ", " · Hive commission ") + fmtMoney(r.commission || 0) + "</span>" : "") + "</div>" +
+        (r.provider && seeMoney ? '<span class="k">' + t("蜂巢课程（提供方）", "Hive courses (provider)") + "</span><span>" + t("课程订单额 ", "course orders ") + instNum(r.courseValue || 0, "courseorders", fmtMoney(r.courseValue || 0)) + t(" · 蜂巢佣金收入 ", " · Hive commission ") + fmtMoney(r.commission || 0) + "</span>" : "") + "</div>" +
       "<h4>" + t("合作关系", "Partnerships") + " · " + (r.rels || []).length + '</h4><div class="olist">' + ((r.rels || []).length ? r.rels.map(function (x) { var ty = d.types && d.types[x.type], st = d.stageLabels && d.stageLabels[x.type] && d.stageLabels[x.type][x.stage]; return '<a class="orow link" href="#/ops/partners/' + x.type + "/" + x.id + '"><div class="omain"><b>' + esc(ty ? t(ty.zh, ty.en) : x.type) + '</b><span class="sub">' + esc(x.id + (x.owner ? " · " + x.owner.split("@")[0] : "")) + '</span></div><span class="tag ' + (x.closed ? "muted" : "ok") + '">' + esc(st ? t(st[0], st[1]) : x.stage) + "</span></a>"; }).join("") : '<div class="orow muted">' + (r.internal ? t("内部机构，不建合作关系。", "Internal — no partnerships.") : t("还没有合作关系。", "No partnerships yet.")) + "</div>") + "</div>" +
       (d.canEdit ? '<div class="actions">' + (r.internal ? "" : '<select id="ipNewType" class="sm">' + Object.keys(d.types || {}).filter(function (k) { return k !== "developer"; }).map(function (k) { var dflt = r.type && /大学|university|college/i.test(r.type) ? "university" : (r.provider || r.kind !== "tenant") ? "course" : "it"; return '<option value="' + k + '"' + (k === dflt ? " selected" : "") + ">" + esc(t(d.types[k].zh, d.types[k].en)) + "</option>"; }).join("") + '</select> <button type="button" class="btn sm" id="ipNewRel">' + t("新建合作关系", "New partnership") + "</button>") + '<label class="inline"><input type="checkbox" id="ipInternal"' + (r.internal ? " checked" : "") + " /> " + t("内部机构（我们自己，不生成合作关系）", "Internal (ourselves; never a partner)") + "</label></div>" : "") +
       '<p class="hint">' + t("账号与活跃来自目录缓存；客户与销售来自人员库里挂在这个域名账号上的人。", "Accounts and activity from the directory cache; customers and sales from the people whose Teams account is in this domain.") + "</p></div>");
+    $("panel").querySelector(".pb").addEventListener("click", function (e) { var b = e.target.closest("button[data-ilist]"); if (b) openInstList(r, b.getAttribute("data-ilist")); });
     if ($("ipNewRel")) $("ipNewRel").addEventListener("click", function () { ptState.newFor = { key: r.key || r.domain, name: instName(r) }; panelClose(); location.hash = "#/ops/partners/" + $("ipNewType").value; });
     var nf = $("ipName");
     if (nf) nf.addEventListener("submit", function (ev) {

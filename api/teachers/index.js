@@ -1,15 +1,17 @@
 // /api/teachers — 教师资料 (api/shared/teachers.js). Signed-in accounts only (staticwebapp.config.json).
 //   GET   teachers/list                 the teachers this account may see: own record, own school's (leader), all (approver)
 //   GET   teachers/one?id=              the profile (snapshot) + the working record
-//   PATCH teachers/field {id, key, value}   autosave bio / expertise into the draft
+//   PATCH teachers/field {id, key, value}   autosave bio / bioZh / expertise / expertiseZh into the draft
 //   POST  teachers/photo {id, data}     the draft photo (JPEG data URL the browser cropped)
 //   POST  teachers/submit {id}          hand the draft to the approvers
 //   POST  teachers/return {id, comment} an approver gives it back
 //   POST  teachers/approve {id}         write Airtable (Biography, Expertise, Photo) and ask for the website sync
-//   POST  teachers/facts {id, name?, email?, teamsAccount?, subjects?, languages?, gradeLevels?, courseTypes?}
+//   POST  teachers/facts {id, name?, email?, teamsAccount?, languages?}   (languages = 母语 / mother language)
 //                                       the record's facts, written to Airtable at once (whoever may edit the record)
-//   POST  teachers/create {name, …facts, hive?}  a new teacher of the leader's institution (an approver names the hive)
+//   POST  teachers/create {name, …facts, hive?, profile?:{bio,bioZh,expertise,expertiseZh}, photo?}  a new teacher of the
+//                                       leader's institution, the whole profile at once (submitted; an approver's is approved)
 //   GET   teachers/hives                the hives an approver may create for (key, name, abbr)
+//   POST  teachers/translate {from, texts:{bio?, expertise?}}  一键翻译: the other language's 简介 / 专长
 //   POST  teachers/sync                 refresh the snapshot after facts / create (coalesced, like courses/sync)
 const T = require("../shared/teachers");
 const { readSnapshot } = require("../shared/blob");
@@ -51,9 +53,19 @@ module.exports = async function (context, req) {
       // the Schools row behind the hive, for a link-type Organization column
       const lk = await C.lookups().catch(() => null);
       const sch = ((lk && lk.schools) || []).find((s) => hiveKey(s.abbr || s.name) === org.key || hiveKey(s.name) === org.key) || null;
-      const r = await T.create(body, Object.assign({}, org, { recId: sch ? sch.id : "" }), user, (m) => context.log(m));
-      await audit(context, { actor: user, action: "teacher.create", target: r.id, name: r.facts.name, hive: org.key, written: r.written, skipped: r.skipped });
-      return done(200, { ok: true, id: r.id, written: r.written, skipped: r.skipped });
+      const r = await T.create(body, Object.assign({}, org, { recId: sch ? sch.id : "" }), user, (m) => context.log(m), { approve: who.approver });
+      await audit(context, { actor: user, action: "teacher.create", target: r.id, name: r.facts.name, hive: org.key, written: r.written, skipped: r.skipped, profile: r.profile });
+      return done(200, { ok: true, id: r.id, written: r.written, skipped: r.skipped, profile: r.profile });
+    }
+    // 一键翻译 (Rick 2026-10-22): {from: "zh"|"en", texts: {bio?, expertise?}} → the other language's texts
+    if (method === "POST" && action === "translate") {
+      if (!canCreate && !who.mine) return done(403, { error: "teachers, leaders and approvers only" });
+      const from = body.from === "en" ? "en" : "zh";
+      const src = body.texts || {}, texts = {};
+      for (const k of ["bio", "expertise"]) if (String(src[k] || "").trim()) texts[k] = String(src[k]).slice(0, T.LIMITS[k]);
+      if (!Object.keys(texts).length) return done(400, { error: "nothing to translate" });
+      try { return done(200, { ok: true, from, to: from === "zh" ? "en" : "zh", texts: await T.translateTexts(texts, from) }); }
+      catch (e) { if (e.code === "no_translator") return done(503, { error: e.message, code: "no_translator" }); throw e; }
     }
     if (method === "POST" && action === "sync") {
       if (!canCreate) return done(403, { error: "leaders and approvers only" });

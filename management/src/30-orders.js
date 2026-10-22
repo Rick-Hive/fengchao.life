@@ -263,8 +263,8 @@
     var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "hive-orders-" + new Date().toISOString().slice(0, 10) + ".csv"; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
   }
   function openOrderPanel(id) {
-    var o = (ordersState.list || []).filter(function (x) { return x.orderId === id; })[0];
-    if (!o) return;
+    // opened from elsewhere too (机构 › 课程订单, 2026-10-22): the order need not be on the orders page's list
+    var o = (ordersState.list || []).filter(function (x) { return x.orderId === id; })[0] || { orderId: id, status: "" };
     var rw = ordersRw();
     panelOpen('<div class="ph"><h3>' + esc(o.orderId) + "</h3>" + stTag(o.status) + '<button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="loading">' + t("载入中…", "Loading…") + "</div></div>");
     api("crm/order?id=" + encodeURIComponent(id)).then(function (r) {
@@ -275,7 +275,7 @@
   // the order as the panel and the table should now show it (the server's reply after a change)
   function orderChanged(upd, next) {
     ordersState.list = (ordersState.list || []).map(function (x) { return x.orderId === upd.orderId ? upd : x; });
-    loadOrders(true).then(renderOrders);
+    loadOrders(true).then(function () { if ($("obar")) renderOrders(); });
     drawOrderPanel(upd, next || []);
   }
   function drawOrderPanel(o, next) {

@@ -467,6 +467,8 @@ async function handler(context, req, internal) {
         photoUrl: assetUrl(photo), // where the browser loads it (blob storage directly, or /api/asset)
         bio: plainText(f(fields, tef.bio)),
         expertise: plainText(f(fields, tef.expertise)),
+        bioZh: plainText(f(fields, tef.bioZh)),
+        expertiseZh: plainText(f(fields, tef.expertiseZh)),
         subjects: plainText(f(fields, tef.subjects)),
         languages: plainText(f(fields, tef.languages)),
         courseTypes: plainText(f(fields, tef.courseTypes)),
