@@ -899,3 +899,30 @@ body.page-gpa .wrap { max-width: 1200px; }
 .pay-note { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: #fff4e0; color: #7a4a00; font-size: 0.86rem; }
 .done-card .spinner { width: 44px; height: 44px; margin: 4px auto 16px; border-radius: 50%; border: 4px solid var(--accent-soft); border-top-color: var(--accent); animation: fc-spin 0.9s linear infinite; }
 @keyframes fc-spin { to { transform: rotate(360deg); } }
+
+/* 我要教课 / I want to teach (/teach, 2026-10-22) */
+.teach-steps { list-style: none; margin: 0 0 22px; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; counter-reset: none; }
+.teach-steps li { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.teach-steps li .n { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-dark); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; }
+.teach-steps li b { font-size: 0.95rem; }
+.teach-steps li span:last-child { color: var(--muted); line-height: 1.45; }
+@media (max-width: 780px) { .teach-steps { grid-template-columns: 1fr 1fr; } .teach-steps li:last-child { grid-column: 1 / -1; } }
+.teach-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0 0 22px; }
+@media (max-width: 680px) { .teach-two { grid-template-columns: 1fr; } }
+.teach-box { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; background: var(--card); }
+.teach-box h3 { margin: 0 0 6px; font-size: 0.98rem; }
+.teach-box ul { margin: 0; padding-left: 1.2em; color: var(--ink); font-size: 0.9rem; line-height: 1.7; }
+.teach-form { max-width: 760px; }
+.teach-form textarea, .teach-form select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 0.95rem; background: #fff; color: var(--ink); }
+.teach-form textarea { resize: vertical; line-height: 1.55; }
+.teach-form textarea:focus, .teach-form select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+.teach-form .req { color: var(--err); }
+.teach-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.teach-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 600px) { .teach-grid, .teach-grid.three { grid-template-columns: 1fr; } }
+.teach-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
+.form-card .teach-kinds label.kind { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-weight: 500; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 0.9rem; }
+.form-card .teach-kinds label.kind.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+.form-card .teach-kinds input, .form-card .teach-agree input { width: auto; margin: 0; }
+.form-card label.teach-agree { display: flex; gap: 8px; align-items: flex-start; font-weight: 500; font-size: 0.88rem; margin-top: 18px; }
+.teach-done .btn { text-decoration: none; display: inline-block; }

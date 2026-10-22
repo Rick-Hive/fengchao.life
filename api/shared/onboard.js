@@ -120,10 +120,17 @@ async function run(input, opts) {
     const orgId = orgs.byKey[key] || null;
     const open = Object.values(rels.items || {}).find((r) => r && r.type === "course" && !r.closed && r.party && (r.party.key === key || (orgId && r.party.id === orgId)));
     const stageName = (k) => { const x = P.stageOf("course", k); return x ? x.zh : k; };
+    // The institution row the Schools table makes is keyed hive:<KEY> (or the domain); a partner that came in through
+    // 我要教课 is keyed apply:<email>. Both names point at one ORG, so the row and the application are one partner.
+    const aliases = [v.hive && "hive:" + v.hive, v.domain].filter((k) => k && k !== key);
+    const partyId = orgId || (open && open.party && open.party.id) || null;
+    if (!dry && partyId && aliases.some((k) => !orgs.byKey[k])) {
+      await P.updateOrgs((o) => { const org = o.orgs[partyId]; if (!org) return; for (const k of aliases) if (!o.byKey[k]) { o.byKey[k] = partyId; if (!(org.keys || []).includes(k)) (org.keys = org.keys || []).push(k); } });
+    }
     if (open) step("partnership", "exists", `${open.id} · ${stageName(open.stage)}`, { relId: open.id });
     else if (dry) step("partnership", "todo", "课程提供方 · 课程设计与上架");
     else {
-      const { doc: od } = await P.updateOrgs((o) => { P.orgIdFor(o, key, { name: v.name, nameEn: v.nameEn }); });
+      const { doc: od } = await P.updateOrgs((o) => { const id = P.orgIdFor(o, key, { name: v.name, nameEn: v.nameEn }), org = o.orgs[id]; for (const k of aliases) if (!o.byKey[k]) { o.byKey[k] = id; if (org && !(org.keys || []).includes(k)) (org.keys = org.keys || []).push(k); } });
       const party = { id: od.byKey[key], key, name: v.name };
       let created = null;
       await P.updateRels((d) => { const id = P.pad(d.next++); created = P.newRelationship({ type: "course", party, stage: "design", owner: by, note: "开通为课程提供方" }, by, id); d.items[id] = created; });

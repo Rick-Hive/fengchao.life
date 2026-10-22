@@ -205,7 +205,7 @@ function newRelationship(body, by, id) {
     id, type, party, region, currency: ["CNY", "USD"].includes(body.currency) ? body.currency : currencyOf(region), lang: ["zh", "en"].includes(body.lang) ? body.lang : langOf(region),
     stage, stageAt: now, stageBy: by, owner: String(body.owner || "").slice(0, 120), sponsor: String(body.sponsor || "").slice(0, 120),
     next: cleanNext(body.next), agreement: cleanAgreement(body.agreement), terms: cleanTerms(body.terms), contacts: cleanContacts(body.contacts),
-    source: ["manual", "lead", "seed:tenant", "seed:hive", "seed:equip", "seed:teacher"].includes(body.source) ? body.source : "manual", confirmed: body.source && body.source !== "manual" ? false : true,
+    source: ["manual", "lead", "application", "seed:tenant", "seed:hive", "seed:equip", "seed:teacher"].includes(body.source) ? body.source : "manual", confirmed: body.source && body.source !== "manual" ? false : true,
     createdAt: now, createdBy: by, updatedAt: now, closed: null,
     log: [logEntry(by, "created", body.note || "", { to: stage })],
   };

@@ -1468,3 +1468,4 @@ button.lnk.inum:hover { text-decoration-style: solid; }
 #ipProf .muted { font-size: 12.5px; }
 /* 开通 results: the whole message, not cut off (2026-10-22) */
 .obsteps .omain .sub { white-space: normal; overflow: visible; word-break: break-word; }
+.kv .pre { white-space: pre-wrap; }

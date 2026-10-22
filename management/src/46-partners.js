@@ -37,7 +37,23 @@
     host.scrollIntoView({ block: "nearest" });
     $("owAcct").focus();
   }
-  function ptPartyLink(rel) { return '<b>' + esc(rel.partyName || (rel.party && rel.party.name) || "") + "</b>" + (rel.party && rel.party.kind === "person" ? ' <span class="tag">' + t("个人", "person") + "</span>" : ""); }
+  function ptPartyLink(rel) { return '<b>' + esc(rel.partyName || (rel.party && rel.party.name) || "") + "</b>" + (rel.party && rel.party.kind === "person" ? ' <span class="tag">' + t("个人", "person") + "</span>" : "") + (rel.source === "application" ? ' <span class="tag accent">' + t("网站申请", "applied") + "</span>" : ""); }
+  // 我要教课 (2026-10-22): what the applicant wrote on the website, on the relationship it opened
+  var PT_APP_KIND = { individual: ["个人老师", "Individual teacher"], team: ["教学团队", "Teaching team"], school: ["学校 / 机构", "School / organisation"] };
+  var PT_APP_LANG = { zh: ["中文", "Chinese"], en: ["英文", "English"], both: ["中英双语", "Chinese and English"] };
+  function ptApplicationHtml(a) {
+    if (!a) return "";
+    var L = function (m, k) { return m[k] ? t(m[k][0], m[k][1]) : ""; };
+    var link = function (u) { var h = /^https?:\/\//i.test(u) ? u : "https://" + u; return /^https?:\/\/[^\s<>"]+$/i.test(h) ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + esc(u) + " ↗</a>" : esc(u); };
+    return '<h4>' + t("网站申请", "Website application") + ' <small class="faint">' + esc(day(a.at)) + (a.firstAt && a.firstAt !== a.at ? t("（首次 ", " (first ") + esc(day(a.firstAt)) + t("）", ")") : "") + "</small></h4>" +
+      '<div class="kv app-kv">' + ptKv(t("申请人", "Applicant"), esc(a.name) + " · " + esc(a.email) + (a.phone ? " · " + esc(a.phone) : "") + (a.account ? ' · <span class="muted">' + t("登录账号 ", "signed in as ") + esc(a.account) + "</span>" : "")) +
+      ptKv(t("类型", "Type"), esc(L(PT_APP_KIND, a.kind)) + (a.teachers ? " · " + esc(a.teachers) + t(" 位老师", " teachers") : "")) +
+      ptKv(t("名称", "Name"), esc(a.org) + (a.abbr ? " · " + esc(a.abbr) : "") + (a.domain ? " · " + esc(a.domain) : "") + (a.website ? " · " + link(a.website) : "")) +
+      ((a.city || a.country) ? ptKv(t("地区", "Where"), esc([a.city, a.country].filter(Boolean).join(", "))) : "") +
+      ptKv(t("课程", "Courses"), esc(a.subjects) + (a.grades ? " · " + esc(a.grades) : "") + (a.language ? " · " + esc(L(PT_APP_LANG, a.language)) : "")) +
+      ptKv(t("介绍", "About"), '<span class="pre">' + esc(a.intro) + "</span>") +
+      (a.sample ? ptKv(t("样课", "Sample"), /^\S+$/.test(a.sample) ? link(a.sample) : '<span class="pre">' + esc(a.sample) + "</span>") : "") + "</div>";
+  }
 
   function viewPartners() {
     var m = /^#\/ops\/partners\/?([a-z_]*)\/?(REL-\d{6})?/.exec(location.hash) || [];
@@ -254,9 +270,10 @@
       (terms ? ptKv(t("条款", "Terms"), terms) : "") +
       // 开通 (2026-10-22): a course provider's channel, Schools row and leader — filled in by ptOnboardStatus
       (rel.type === "course" && rel.party && rel.party.kind === "org" && !rel.closed ? ptKv(t("开通", "Onboarding"), '<span id="ptOb" class="muted">…</span>') : "") +
-      ptKv(t("来源", "Source"), esc(rel.source) + (rel.confirmed === false ? ' <span class="tag">' + t("待确认", "to confirm") + "</span>" : "") + ' · <span class="muted">' + esc(day(rel.createdAt)) + "</span>") +
+      ptKv(t("来源", "Source"), esc(rel.source === "application" ? t("网站「我要教课」", "website: I want to teach") : rel.source) + (rel.confirmed === false ? ' <span class="tag">' + t("待确认", "to confirm") + "</span>" : "") + ' · <span class="muted">' + esc(day(rel.createdAt)) + "</span>") +
       (rel.closed ? ptKv(t("已关闭", "Closed"), esc(rel.closed.reason + " · " + day(rel.closed.at) + (rel.closed.note ? " · " + rel.closed.note : ""))) : "") + "</div>" +
       (canEdit ? '<div class="actions">' + (rel.closed ? '<button type="button" class="btn sm secondary" data-act="reopen">' + t("重新打开", "Reopen") + "</button>" : '<button type="button" class="btn sm" data-act="move">' + t("推进阶段…", "Move stage…") + '</button><button type="button" class="btn sm secondary" data-act="edit">' + t("编辑…", "Edit…") + '</button><button type="button" class="btn sm secondary" data-act="close">' + t("关闭关系…", "Close…") + "</button>") + '</div><div id="rpForm"></div>' : "") +
+      ptApplicationHtml(rel.application) +
       '<p class="hint">' + t("阶段只由人推进；数字只作为度量显示，不改变阶段。", "Stages move only by hand; numbers are shown as metrics and never set the stage.") + "</p>";
   }
   // The course provider's onboarding, read from 机构 (its row: onboarded, leader); the system administrator gets the button.
@@ -264,7 +281,10 @@
   function ptOnboardStatus(rel) {
     var el = $("ptOb"); if (!el) return;
     loadInstitutionsCrm(false).then(function () {
-      var r = instRows().filter(function (x) { return (x.key || x.domain) === rel.party.key; })[0]; if (!$("ptOb")) return;
+      var r = instRows().filter(function (x) { return (x.key || x.domain) === rel.party.key; })[0] || instRows().filter(function (x) { return x.orgId && x.orgId === rel.party.id; })[0]; if (!$("ptOb")) return;
+      // an applicant from 我要教课 has no institution row until 开通 makes its Schools row: onboard from the application
+      var a = rel.application;
+      if (!r && a) r = { key: rel.party.key, name: a.org, nameEn: "", abbr: a.abbr || "", domain: a.domain || "", leader: a.account ? { upn: a.account } : null, notifyEmail: a.email, country: a.country || "", city: a.city || "", website: a.website || "", fromApplication: true };
       if (!r) { $("ptOb").textContent = t("（不是机构）", "(not an institution)"); return; }
       var ob = r.onboarded && r.onboarded.channel;
       $("ptOb").outerHTML = '<span id="ptOb">' + (ob ? '<span class="tag ok">' + t("已开通", "Onboarded") + "</span> " + esc(r.onboarded.key) : '<span class="tag ' + (rel.stage === "design" ? "warn" : "muted") + '">' + t("未开通", "Not yet") + "</span>" + (rel.stage === "design" ? ' <span class="muted">' + t("下一步：开通为课程提供方", "Next: onboard as a course provider") + "</span>" : "")) +

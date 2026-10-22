@@ -2040,6 +2040,20 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     await p.click("#obRun"); await p.waitForSelector("#obOut .msg.ok");
     assert.ok(onboards[1] && !onboards[1].dryRun, "then run");
     await p.keyboard.press("Escape"); await p.keyboard.press("Escape");
+    // 我要教课 (2026-10-22): a website application is a 课程提供方 partnership at 申请 / 推荐, read on its overview and
+    // onboarded from it (no institution row yet: the values come from the application)
+    { const key = "apply:eve@example.org"; ptMod.orgIdFor(ORGS, key, { name: "心桥中文" }); const id = ptMod.pad(REL.next++);
+      REL.items[id] = ptMod.newRelationship({ type: "course", party: { id: ORGS.byKey[key], key, name: "心桥中文" }, stage: "apply", source: "application", note: "网站「我要教课」申请" }, "eve@example.org", id);
+      REL.items[id].application = { kind: "team", name: "周老师", email: "eve@example.org", phone: "wechat eve", org: "心桥中文", abbr: "XQC", website: "xq.example.org", domain: "", country: "美国", city: "Dallas", subjects: "中文阅读", grades: "G1–G6", language: "zh", teachers: 3, intro: "我们是一个教中文阅读的老师团队。\n已有五年经验。", sample: "", lang: "zh", account: "", at: new Date().toISOString(), firstAt: new Date().toISOString() };
+      await p.goto(p.url().replace(/#.*$/, "") + "#/ops/partners/course/" + id); await p.waitForSelector("#panel.open .app-kv");
+      const ov = await p.$eval("#panel .pb", e => e.innerText);
+      assert.ok(/网站申请/.test(ov) && /周老师/.test(ov) && /中文阅读/.test(ov) && /网站「我要教课」/.test(ov), "the application on the overview: " + ov.slice(0, 400));
+      await p.waitForSelector("#ptObGo"); await p.click("#ptObGo"); await p.waitForSelector("#panel2.open #obAbbr");
+      assert.deepStrictEqual(await p.$$eval("#obAbbr, #obName, #obEmail, #obChannel", es => es.map(e => e.value)), ["XQC", "心桥中文", "eve@example.org", "XQC Orders"], "onboarding values from the application");
+      await p.click("#obPreview"); await p.waitForSelector("#obOut .obsteps .orow");
+      assert.strictEqual(onboards[onboards.length - 1].key, key, "the partnership's own key, so the open relationship is found");
+      await p.screenshot({ path: OUT + "/partner-application-onboard.png" });
+      await p.keyboard.press("Escape"); await p.keyboard.press("Escape"); await p.goto(p.url().replace(/#.*$/, "") + "#/system/institutions"); await p.waitForSelector("#itable tbody tr[data-key]"); }
     // the panel's numbers open the lists behind them (2026-10-22)
     const withCust = await p.$$eval("#itable tbody tr[data-key]", trs => trs.map(tr => tr.getAttribute("data-key")));
     let opened = null;

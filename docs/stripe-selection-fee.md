@@ -1,6 +1,6 @@
 # 选课费 · Stripe 接入（订单流程 v3 第二批，2026-10-22 建成）
 
-承接 `fengchao-order-flow-review-v2.md`「第二批 提交记录与 Stripe」。本次已建：提交记录 + 占座、Stripe Checkout、webhook、完成页轮询、未付返回即释放、夜间核对、选课费退款记账。**未建**：付费时自动建 @fengchao.life 账号 / 取消或过期时删账号（下一小批，需 Graph 建用户与 SSPR）。
+承接 `fengchao-order-flow-review-v2.md`「第二批 提交记录与 Stripe」。本次已建：提交记录 + 占座、Stripe Checkout、webhook、完成页轮询、未付返回即释放、夜间核对、选课费退款记账。**不做**：付费时自动建 @fengchao.life 账号——Rick 2026-10-22 决定：许可证有限，且账号应由课程提供方在收到课程费后用自己的域名为学生开设（没有域名的由蜂巢协助）；下单页提醒家长填写真实姓名，提供方据订单上的姓名建账号。
 
 ## 开关：不设密钥就完全不影响现有流程
 

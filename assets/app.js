@@ -182,7 +182,7 @@
   var STEP_HASHES = ["level", "track", "pedagogy", "requirements", "courses", "order", "map"];
   var COURSES_STEP = STEP_HASHES.indexOf("courses");
   var MAP_STEP = STEP_HASHES.indexOf("map");
-  var PAGES = ["gpa"];
+  var PAGES = ["gpa", "teach"];
   // Tracks which step the last render() actually painted, so render() can
   // tell a fresh arrival at the course list (from any direction — forward,
   // back, a stepper jump, or browser Back/Forward) apart from a re-render
@@ -1706,6 +1706,9 @@
       (state.account ? '<p class="signed-in' + (state.account.schoolAccount ? " warn" : "") + '">' + esc(state.account.schoolAccount ? fill(t().schoolAccount, { who: state.account.upn }) : fill(t().signedInAs, { who: state.account.name ? state.account.name + " · " + state.account.upn : state.account.upn })) + "</p>" : "") +
       (state.account ? "" : '<div class="name-row"><label for="familyName">' + esc(t().nameFamily) + '</label><input id="familyName" type="text" maxlength="40" value="' + esc(state.familyName || "") + '" autocomplete="family-name" />' +
         '<label for="givenName">' + esc(t().nameGiven) + '</label><input id="givenName" type="text" maxlength="40" value="' + esc(state.givenName || "") + '" autocomplete="given-name" /></div>' +
+        // no account is made for the family at ordering (Rick 2026-10-22): the provider opens it on its own domain after
+        // the fee is paid, from these names — so the names must be the real ones
+        '<p class="field-note name-note">' + esc(t().nameNote) + "</p>" +
         '<label for="englishName">' + esc(t().nameEnglish) + '</label><input id="englishName" type="text" maxlength="40" value="' + esc(state.englishName || "") + '" autocomplete="off" />') +
       '<label for="email">' + esc(t().emailLabel) + '</label>' +
       '<input id="email" type="email" placeholder="' + esc(t().emailPh) + '" value="' + esc(state.email) + '" autocomplete="email" />' +
@@ -1808,6 +1811,85 @@
       if (go) { closeAllModals(); state.page = null; state.step = 5; render(); return; }
       var name = e.target.closest("[data-course]");
       if (name) openCourseModal(name.getAttribute("data-course"));
+    });
+  }
+
+  /* ---------- 我要教课 / I want to teach (/teach) ---------- */
+  // The application to become a course provider (Rick 2026-10-22). It lands on the partner pipeline as a 课程提供方
+  // relationship at 申请 / 推荐 (api/shared/applications.js); review and 开通 happen in the management centre.
+  // What is typed lives in state.teach, so a language toggle or a failed submission keeps it.
+  var TEACH_FIELDS = ["name", "email", "phone", "org", "abbr", "website", "domain", "country", "city", "subjects", "grades", "teachers", "intro", "sample"];
+  function teachState() {
+    if (!state.teach) state.teach = { f: { kind: "", language: "zh", agree: false }, err: "", errField: "", sending: false, done: null };
+    var f = state.teach.f;
+    if (state.account) { if (!f.email && state.email) f.email = state.email; if (!f.name && state.account.name) f.name = state.account.name; }
+    return state.teach;
+  }
+  function renderTeach() {
+    var T = t().teach, st = teachState(), f = st.f;
+    if (st.done) {
+      return '<div class="done-card teach-done">' +
+        '<svg class="mark" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        "<h2>" + esc(T.doneTitle) + "</h2><p>" + esc(fill(T.doneDesc, { email: st.done.email })) + "</p>" +
+        '<div class="order-id">' + esc(st.done.id) + "</div><br/>" +
+        (st.done.again ? '<p class="done-split">' + esc(T.doneAgain) + "</p>" : "") +
+        '<a class="btn btn-primary" href="/" id="teachHome">' + esc(T.doneBack) + "</a></div>";
+    }
+    var inp = function (k, label, opts) {
+      opts = opts || {};
+      return '<label for="te_' + k + '">' + esc(label) + (opts.req ? ' <span class="req">*</span>' : "") + "</label>" +
+        (opts.area ? '<textarea id="te_' + k + '" data-tf="' + k + '" rows="' + (opts.rows || 5) + '" maxlength="' + (opts.max || 3000) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ">" + esc(f[k] || "") + "</textarea>"
+          : '<input id="te_' + k + '" data-tf="' + k + '" type="' + (opts.type || "text") + '" maxlength="' + (opts.max || 120) + '" value="' + esc(f[k] == null ? "" : f[k]) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + (opts.ac ? ' autocomplete="' + opts.ac + '"' : "") + " />") +
+        (opts.note ? '<p class="field-note">' + esc(opts.note) + "</p>" : "");
+    };
+    var individual = f.kind === "individual";
+    return '<section class="panel teach-page"><h2>' + esc(T.title) + '</h2><p class="hint">' + esc(T.lead) + "</p>" +
+      '<ol class="teach-steps">' + T.steps.map(function (s, i) { return '<li><span class="n">' + (i + 1) + "</span><b>" + esc(s[0]) + "</b><span>" + esc(s[1]) + "</span></li>"; }).join("") + "</ol>" +
+      '<div class="teach-two"><div class="teach-box"><h3>' + esc(T.getTitle) + "</h3><ul>" + T.get.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + '</ul></div><div class="teach-box"><h3>' + esc(T.doTitle) + "</h3><ul>" + T["do"].map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div></div>" +
+      '<form class="form-card teach-form" id="teachForm" novalidate><h3>' + esc(T.formTitle) + "</h3>" +
+      (state.account ? '<p class="signed-in">' + esc(fill(T.signedIn, { who: state.account.upn })) + "</p>" : "") +
+      '<label>' + esc(T.kind) + ' <span class="req">*</span></label><div class="teach-kinds" role="radiogroup">' + ["individual", "team", "school"].map(function (k) { return '<label class="kind' + (f.kind === k ? " on" : "") + '"><input type="radio" name="te_kind" value="' + k + '"' + (f.kind === k ? " checked" : "") + " /> " + esc(T.kinds[k]) + "</label>"; }).join("") + "</div>" +
+      '<div class="teach-grid"><div>' + inp("name", T.name, { req: true, max: 80, ac: "name" }) + "</div><div>" + inp("email", T.email, { req: true, type: "email", max: 200, ac: "email" }) + "</div>" +
+      "<div>" + inp("phone", T.phone, { max: 60, ac: "tel" }) + "</div><div>" + inp("org", individual ? T.orgIndividual : T.org, { req: !individual, max: 120, ac: "off" }) + "</div>" +
+      "<div>" + inp("abbr", T.abbr, { max: 12, ac: "off" }) + "</div><div>" + inp("website", T.website, { max: 200, ac: "url" }) + "</div>" +
+      "<div>" + inp("country", T.country, { max: 60, ac: "country-name" }) + "</div><div>" + inp("city", T.city, { max: 60, ac: "address-level2" }) + "</div></div>" +
+      inp("domain", T.domain, { max: 120, ac: "off", note: T.domainNote }) +
+      inp("subjects", T.subjects, { req: true, max: 300, ph: T.subjectsPh }) +
+      '<div class="teach-grid three"><div>' + inp("grades", T.grades, { max: 120, ph: T.gradesPh }) + '</div><div><label for="te_language">' + esc(T.language) + '</label><select id="te_language" data-tf="language">' + ["zh", "en", "both"].map(function (k) { return '<option value="' + k + '"' + (f.language === k ? " selected" : "") + ">" + esc(T.languages[k]) + "</option>"; }).join("") + "</select></div><div>" + inp("teachers", T.teachers, { type: "number", max: 3 }) + "</div></div>" +
+      inp("intro", T.intro, { req: true, area: true, rows: 6, ph: T.introPh }) +
+      inp("sample", T.sample, { area: true, rows: 2, max: 1000 }) +
+      '<div class="hp" aria-hidden="true"><input id="teHp" name="fc_hp_field" type="text" tabindex="-1" autocomplete="off" /></div>' +
+      '<label class="teach-agree"><input type="checkbox" id="te_agree"' + (f.agree ? " checked" : "") + " /> " + esc(T.agree) + "</label>" +
+      '<p class="form-err" id="teachErr">' + esc(st.err) + "</p>" +
+      '<button class="btn btn-primary" id="teachSubmit" type="submit" style="width:100%;margin-top:8px"' + (st.sending ? " disabled" : "") + ">" + esc(st.sending ? T.sending : T.submit) + "</button></form></section>";
+  }
+  function bindTeach() {
+    var st = teachState(), f = st.f, form = document.getElementById("teachForm");
+    if (!form) { var h = document.getElementById("teachHome"); if (h) h.addEventListener("click", function (e) { e.preventDefault(); state.teach = null; navigate("/"); }); return; }
+    form.addEventListener("input", function (e) { var k = e.target.getAttribute("data-tf"); if (k) f[k] = e.target.value; });
+    form.addEventListener("change", function (e) {
+      if (e.target.name === "te_kind") { f.kind = e.target.value; render(); var r = document.querySelector('input[name="te_kind"][value="' + f.kind + '"]'); if (r) r.focus(); return; }
+      if (e.target.id === "te_agree") f.agree = e.target.checked;
+      var k = e.target.getAttribute("data-tf"); if (k) f[k] = e.target.value;
+    });
+    if (st.errField) { var bad = document.getElementById("te_" + st.errField) || document.querySelector('input[name="te_kind"]'); if (bad && bad.focus) bad.focus(); st.errField = ""; }
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var T = t().teach, need = function (k) { return String(f[k] || "").trim(); };
+      var miss = !f.kind ? "kind" : !need("name") ? "name" : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(need("email")) ? "email" : (f.kind !== "individual" && !need("org")) ? "org" : !need("subjects") ? "subjects" : need("intro").length < 20 ? "intro" : !f.agree ? "agree" : "";
+      if (miss) { st.err = T.err[miss]; st.errField = miss; render(); return; }
+      var body = { kind: f.kind, language: f.language, agree: true, lang: state.lang === "en" ? "en" : "zh", fc_hp_field: (document.getElementById("teHp") || {}).value || "" };
+      TEACH_FIELDS.forEach(function (k) { body[k] = need(k); });
+      st.err = ""; st.sending = true; render();
+      fetch("/api/teach", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) })
+        .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
+        .then(function (r) {
+          st.sending = false;
+          if (r.status === 200 && r.body && r.body.ok) { st.done = { id: r.body.id, again: !!r.body.again, email: body.email }; window.scrollTo({ top: 0 }); render(); return; }
+          var p = r.body && r.body.problems && r.body.problems[0];
+          st.err = r.status === 429 ? T.err.rate : p && T.err[p] ? T.err[p] : T.err.generic; st.errField = p || ""; render();
+        })
+        .catch(function () { st.sending = false; st.err = t().teach.err.generic; render(); });
     });
   }
 
@@ -2163,6 +2245,11 @@
     // the wizard (see body.page-gpa in app.css).
     document.body.classList.toggle("page-gpa", state.page === "gpa");
     // Standalone pages need no snapshot, so they paint before /api/data lands.
+    if (state.page === "teach") {
+      app.innerHTML = renderTeach(); bindTeach();
+      renderCartBar();
+      return;
+    }
     if (state.page === "gpa") {
       gpaTool().render(app, state.sub);
       renderCartBar();
