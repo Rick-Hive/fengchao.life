@@ -14,8 +14,11 @@
 //
 // Who may edit a profile (Rick: 「教师库有时候会是校长维护，统一填写」): the teacher (the account the Teachers table names
 // as Teams Account), the education leader of that account's school (domain_leader:<domain>), the curriculum director,
-// the CEO, the system administrator. Who approves: the approvers of the course editor (curriculum director, CEO,
-// system administrator). Approval is independent of any course's approval.
+// the CEO, the system administrator. Who approves (批准并发布 / 退回): the approvers of the course editor (curriculum
+// director, CEO, system administrator) for every record, and — Rick 2026-10-22: 「蜂巢课程提供方的leader有权发布老师资料」 —
+// the institution's own leader (蜂巢课程负责人 of its hive, or the school's education leader) for its own teachers.
+// Every publication records who and when (the index's publishedAt / publishedBy), so the curriculum director sees
+// what was published and can still edit and republish. Approval is independent of any course's approval.
 //
 // Storage (site-data container):
 //   crm/teacher-work/<recId>.json   { recId, name, status, draft: { bio, expertise, photo }, baseline, submitted,
@@ -110,7 +113,7 @@ async function indexPut(d, domain) {
   await store.update(INDEX_BLOB, () => ({ items: {} }), (x) => {
     // merged, not replaced: the item also carries the facts and, for a row created here, created / orgKey (2026-10-22)
     const it = x.items[d.recId] || {};
-    x.items[d.recId] = Object.assign(it, { name: d.name || it.name || "", status: d.status, updatedAt: d.updatedAt, submittedAt: d.submitted ? d.submitted.at : null, domain: domain || it.domain || "" });
+    x.items[d.recId] = Object.assign(it, { name: d.name || it.name || "", status: d.status, updatedAt: d.updatedAt, submittedAt: d.submitted ? d.submitted.at : null, domain: domain || it.domain || "", publishedAt: d.published ? d.published.at : it.publishedAt || null, publishedBy: d.published ? d.published.by : it.publishedBy || "" });
   });
 }
 const readIndex = () => store.read(INDEX_BLOB, () => ({ items: {} }));
@@ -120,20 +123,23 @@ async function list(who) {
   const idx = await readIndex();
   return visible(who).map((t) => {
     const w = idx.items[t.id] || {};
-    return { id: t.id, name: t.name || "", teamsAccount: t.teamsAccount, email: t.email || "", domain: t.domain, organization: t.organization || "", photoUrl: t.photoUrl || null, hasBio: !!((t.bio || "").trim() || (t.bioZh || "").trim()), hasExpertise: !!((t.expertise || "").trim() || (t.expertiseZh || "").trim()), status: w.status || "", updatedAt: w.updatedAt || null, submittedAt: w.submittedAt || null, mine: !!(who.mine && who.mine.id === t.id), created: t.created || null };
+    return { id: t.id, name: t.name || "", teamsAccount: t.teamsAccount, email: t.email || "", domain: t.domain, organization: t.organization || "", photoUrl: t.photoUrl || null, hasBio: !!((t.bio || "").trim() || (t.bioZh || "").trim()), hasExpertise: !!((t.expertise || "").trim() || (t.expertiseZh || "").trim()), status: w.status || "", updatedAt: w.updatedAt || null, submittedAt: w.submittedAt || null, publishedAt: w.publishedAt || null, publishedBy: w.publishedBy || "", mine: !!(who.mine && who.mine.id === t.id), created: t.created || null };
   });
 }
 
 async function open(rec, who) {
   const d = await readWork(rec);
-  return Object.assign({}, d, { profile: { id: rec.id, name: rec.name || "", teamsAccount: rec.teamsAccount, email: rec.email || "", domain: rec.domain, organization: rec.organization || "", subjects: rec.subjects || "", languages: rec.languages || "", courseTypes: rec.courseTypes || "", gradeLevels: rec.gradeLevels || "", photoUrl: rec.photoUrl || null, created: rec.created || null }, canEdit: mayEdit(who, rec), canEditAccount: mayEditAccount(who, rec), canApprove: who.approver, canTranslate: require("./translate").configured() });
+  return Object.assign({}, d, { profile: { id: rec.id, name: rec.name || "", teamsAccount: rec.teamsAccount, email: rec.email || "", domain: rec.domain, organization: rec.organization || "", subjects: rec.subjects || "", languages: rec.languages || "", courseTypes: rec.courseTypes || "", gradeLevels: rec.gradeLevels || "", photoUrl: rec.photoUrl || null, created: rec.created || null }, canEdit: mayEdit(who, rec), canEditAccount: mayEditAccount(who, rec), canApprove: mayApprove(who, rec), canTranslate: require("./translate").configured() });
 }
-// The Teams account is what makes a record someone's own: the leader or an approver sets it, never the teacher
-function mayEditAccount(who, rec) {
-  if (!mayEdit(who, rec)) return false;
+// The institution's leader (or an approver): sets the Teams account — what makes a record someone's own, never the
+// teacher's to change — and approves and publishes the profile (2026-10-22)
+function leads(who, rec) {
+  if (!rec) return false;
   if (who.approver) return true;
   return !!(who.domains && rec.domain && who.domains.includes(rec.domain)) || ofHive(who, rec);
 }
+const mayEditAccount = leads;
+const mayApprove = leads;
 
 // ---- the facts: written to Airtable at once ---------------------------------------------------------------------
 const FACT_LIMITS = { name: 80, email: 200, teamsAccount: 200, languages: 200 };
@@ -298,4 +304,4 @@ async function translateTexts(texts, from) {
   const r = {}; keys.forEach((k, i) => { r[k] = out[i] || ""; }); return r;
 }
 
-module.exports = { REC_RE, LIMITS, TEXT_KEYS, translateTexts, FACT_KEYS, INDEX_BLOB, workBlob, whoIs, mayEdit, mayEditAccount, visible, teachersOf, list, open, saveField, saveFacts, create, savePhoto, submit, giveBack, approve, readIndex };
+module.exports = { mayApprove, REC_RE, LIMITS, TEXT_KEYS, translateTexts, FACT_KEYS, INDEX_BLOB, workBlob, whoIs, mayEdit, mayEditAccount, visible, teachersOf, list, open, saveField, saveFacts, create, savePhoto, submit, giveBack, approve, readIndex };

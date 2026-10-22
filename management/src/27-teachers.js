@@ -16,7 +16,7 @@
 
   // ---- 我的账号 › 教师资料: the signed-in teacher's own record, edited on the page itself -------------------
   function viewTeacherMine() {
-    setTitle(t("我的账号", "My account"), t("教师资料", "Teacher profile"), "", { info: t("网站老师页上显示的照片、个人简介和专业能力。改动先存为草稿，提交后由课程总监批准并发布到网站。", "The photo, biography and expertise shown on the website. Changes are a draft until the curriculum director approves and publishes them.") });
+    setTitle(t("我的账号", "My account"), t("教师资料", "Teacher profile"), "", { info: t("网站老师页上显示的照片、个人简介和专业能力。改动先存为草稿，提交后由机构负责人或课程总监批准并发布到网站。", "The photo, biography and expertise shown on the website. Changes are a draft until your institution's leader or the curriculum director approves and publishes them.") });
     $("content").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     teLoadList().then(function (r) {
       if (!r.ok) { $("content").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
@@ -29,7 +29,7 @@
   // ---- 学校管理 › 教师资料: the school's (or every) teacher, a panel per row ----------------------------------
   function viewTeachers() {
     var provOnly = providerHives().length > 0 && !isAdmin() && !coIsApprover() && !teIsLeader();
-    setTitle(provOnly ? t("蜂巢课程", "Hive Courses") : domainGroupTitle(), provOnly ? t("老师", "Teachers") : t("教师资料", "Teacher profiles"), '<button class="btn sm" id="teAdd" hidden>' + t("＋ 添加老师", "+ Add a teacher") + "</button>", { info: provOnly ? t("本机构在蜂巢授课的老师（教师表）。在这里添加老师、维护姓名、邮箱、Teams 账号、母语（立即写入教师表；邮箱和账号只在管理中心可见，不上网站）；照片、个人简介、专业能力以草稿提交，由课程总监批准后发布到网站。", "Your institution's Hive course teachers (the Teachers table). Add teachers and keep their name, email, Teams account and mother language here (written to the table at once; email and account never reach the website); photo, biography and expertise are submitted as a draft and published once the curriculum director approves.") : t("本校在蜂巢授课的老师：照片、个人简介、专业能力是否齐全，谁的资料待批准。点一行即可填写或批准；姓名、邮箱、母语等直接写入教师表。", "The school's Hive course teachers: whether the photo, biography and expertise are there, and whose changes await approval. Click a row to fill in or approve; name, email, mother language and the like are written to the table at once.") });
+    setTitle(provOnly ? t("蜂巢课程", "Hive Courses") : domainGroupTitle(), provOnly ? t("老师", "Teachers") : t("教师资料", "Teacher profiles"), '<button class="btn sm" id="teAdd" hidden>' + t("＋ 添加老师", "+ Add a teacher") + "</button>", { info: provOnly ? t("本机构在蜂巢授课的老师（教师表）。在这里添加老师、维护姓名、邮箱、Teams 账号、母语（立即写入教师表；邮箱和账号只在管理中心可见，不上网站）；照片、个人简介、专业能力由您批准并发布到网站（老师自己提交的草稿也由您批准）。", "Your institution's Hive course teachers (the Teachers table). Add teachers and keep their name, email, Teams account and mother language here (written to the table at once; email and account never reach the website); you approve and publish the photo, biography and expertise — your teachers' own drafts too.") : t("本校在蜂巢授课的老师：照片、个人简介、专业能力是否齐全，谁的资料待批准。点一行即可填写或批准；姓名、邮箱、母语等直接写入教师表。", "The school's Hive course teachers: whether the photo, biography and expertise are there, and whose changes await approval. Click a row to fill in or approve; name, email, mother language and the like are written to the table at once.") });
     $("content").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     teLoadList().then(function (r) {
       if (!r.ok) { $("content").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
@@ -84,7 +84,7 @@
       if (!r.ok) { flash(esc(r.body && r.body.code === "no_translator" ? t("翻译服务未配置（AZURE_TRANSLATOR_KEY）。", "The translator is not configured (AZURE_TRANSLATOR_KEY).") : errText(r)), 6000); return; }
       Object.keys(r.body.texts || {}).forEach(function (k) {
         var key = teKey(k, to), ta = host.querySelector('textarea[data-k="' + key + '"]'); if (!ta) return;
-        ta.value = r.body.texts[k]; coAutosize(ta); if (fill) fill(key, ta.value);
+        ta.value = r.body.texts[k]; if (fill) fill(key, ta.value);
       });
       flashOk(t("已翻译，请核对后保存。", "Translated; please check it."), 3000);
     });
@@ -100,9 +100,8 @@
           (list.length > 1 || me0.approver ? '<label class="f">' + t("所属机构", "Institution") + '<select id="tnHive">' + list.map(function (h) { return '<option value="' + esc(h.key) + '">' + esc(EN ? (h.abbr || h.name || h.key) : (h.name || h.abbr || h.key)) + "</option>"; }).join("") + "</select></label>" : '<div class="kv"><span class="k">' + t("所属机构", "Institution") + "</span><span>" + esc(list.length ? (EN ? (list[0].abbr || list[0].name) : (list[0].name || list[0].abbr)) : "") + "</span></div>") +
           '<div class="tehead">' + tePhotoBox(null, true) + '<div class="tefacts">' + teFactFields({}, false) + '<p class="sub">' + t("邮箱和 Teams 账号只在管理中心可见，不上网站。", "Email and Teams account stay in the management centre; never on the website.") + "</p></div></div>" +
           teTextsHtml({}, true) +
-          '<div class="actions"><button type="submit" class="btn" id="tnSave">' + (me0.approver ? t("保存并发布", "Save and publish") : t("保存并提交审批", "Save and submit for approval")) + '</button><small class="faint">' + (me0.approver ? t("写入教师表，网站随后更新", "Written to the Teachers table; the website follows") : t("姓名、邮箱等立即写入教师表；照片、个人简介、专业能力由课程总监批准后上网站", "Name, email and the like go to the Teachers table now; photo and texts reach the website once approved")) + '</small></div><div id="tnMsg"></div></form></div>', null, { wide: true });
+          '<div class="actions"><button type="submit" class="btn" id="tnSave">' + t("保存并发布", "Save and publish") + '</button><small class="faint">' + t("写入教师表并发布，网站随后更新", "Written to the Teachers table and published; the website follows") + '</small></div><div id="tnMsg"></div></form></div>', null, { wide: true });
       var form = $("teNew");
-      form.querySelectorAll("textarea[data-k]").forEach(coAutosize);
       form.querySelectorAll("button[data-tr]").forEach(function (b) { b.addEventListener("click", function () { teTranslate(b, form, b.getAttribute("data-tr")); }); });
       $("tePhotoBtn").addEventListener("click", function () { $("tePhotoFile").click(); });
       $("tePhotoFile").addEventListener("change", function () {
@@ -136,6 +135,8 @@
     };
     if (me0.approver) api("teachers/hives").then(function (r) { draw(r.ok ? r.body.hives || [] : []); }); else draw(hives);
   }
+  // 近 14 天发布 (2026-10-22): leaders publish their own teachers; the approvers see what went out
+  function teRecent(x) { return x.status === "published" && x.publishedAt && Date.now() - new Date(x.publishedAt).getTime() < 14 * 86400000; }
   function teProv(x) { return (x.organization || "").trim() || (x.domain ? dname(x.domain) : "") || "-"; }
   function teRenderList() {
     // 课程提供方 (Rick 2026-10-22: 「教师资料应该可以按照课程提供方 filter」): the teacher's institution (the Teachers row's
@@ -146,17 +147,18 @@
     if (teState.scope && !provs[teState.scope]) teState.scope = "";
     var list = all.filter(function (x) { return !teState.scope || teProv(x) === teState.scope; });
     var rows = list.filter(function (x) {
-      return teState.filter === "pending" ? x.status === "submitted" : teState.filter === "missing" ? !(x.photoUrl && x.hasBio && x.hasExpertise) : true;
+      return teState.filter === "pending" ? x.status === "submitted" : teState.filter === "missing" ? !(x.photoUrl && x.hasBio && x.hasExpertise) : teState.filter === "recent" ? teRecent(x) : true;
     });
+    var recent = list.filter(teRecent).length, showRecent = teState.me && teState.me.approver;
     var pending = list.filter(function (x) { return x.status === "submitted"; }).length, missing = list.filter(function (x) { return !(x.photoUrl && x.hasBio && x.hasExpertise); }).length;
     var chip = function (k, label, n) { return '<button type="button" class="chip" data-f="' + k + '" aria-pressed="' + (teState.filter === k) + '">' + esc(label) + ' <span class="cnt' + (k === "pending" && n ? " cobadge" : "") + '">' + n + "</span></button>"; };
     $("content").innerHTML =
-      '<div class="toolbar" id="tebar">' + chip("all", t("全部", "All"), list.length) + chip("pending", t("待审批", "Pending approval"), pending) + chip("missing", t("资料不全", "Incomplete"), missing) +
+      '<div class="toolbar" id="tebar">' + chip("all", t("全部", "All"), list.length) + chip("pending", t("待审批", "Pending approval"), pending) + chip("missing", t("资料不全", "Incomplete"), missing) + (showRecent ? chip("recent", t("近 14 天发布", "Published, last 14 days"), recent) : "") +
         (provKeys.length > 1 ? '<div class="tabsRight"><select id="teScope" aria-label="' + esc(t("课程提供方", "Course provider")) + '"><option value="">' + t("所有课程提供方", "All course providers") + " · " + all.length + "</option>" + provKeys.map(function (k) { return '<option value="' + esc(k) + '"' + (teState.scope === k ? " selected" : "") + ">" + esc(k === "-" ? t("未指定", "Not set") : k) + " · " + provs[k] + "</option>"; }).join("") + "</select></div>" : "") + "</div>" +
       '<div class="tbl-wrap"><table class="data" id="tetable"><thead><tr><th>' + t("老师", "Teacher") + "</th><th>" + t("课程提供方", "Course provider") + "</th><th>" + t("照片", "Photo") + "</th><th>" + t("个人简介", "Biography") + "</th><th>" + t("专业能力", "Expertise") + "</th><th>" + t("状态", "Status") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (x) {
         var ok = function (v) { return v ? '<span class="tag ok">✓</span>' : '<span class="tag warn">' + t("缺", "missing") + "</span>"; };
-        return '<tr class="pick" data-id="' + esc(x.id) + '"><td><span class="dn">' + esc(x.name) + (x.mine ? ' <span class="tag muted">' + t("我", "me") + "</span>" : "") + '</span><span class="sub">' + esc(x.teamsAccount || x.email || "") + "</span>" + (x.created ? ' <span class="tag muted">' + t("新", "new") + "</span>" : "") + "</td><td>" + esc(teProv(x) === "-" ? "—" : teProv(x)) + "</td><td>" + ok(x.photoUrl) + "</td><td>" + ok(x.hasBio) + "</td><td>" + ok(x.hasExpertise) + "</td><td>" + teStatusTag(x.status) + '</td><td class="faint">' + esc(x.updatedAt ? when(x.updatedAt) : "") + "</td></tr>";
+        return '<tr class="pick" data-id="' + esc(x.id) + '"><td><span class="dn">' + esc(x.name) + (x.mine ? ' <span class="tag muted">' + t("我", "me") + "</span>" : "") + '</span><span class="sub">' + esc(x.teamsAccount || x.email || "") + "</span>" + (x.created ? ' <span class="tag muted">' + t("新", "new") + "</span>" : "") + "</td><td>" + esc(teProv(x) === "-" ? "—" : teProv(x)) + "</td><td>" + ok(x.photoUrl) + "</td><td>" + ok(x.hasBio) + "</td><td>" + ok(x.hasExpertise) + "</td><td>" + teStatusTag(x.status) + (x.status === "published" && x.publishedBy ? '<span class="sub">' + esc(x.publishedBy.split("@")[0] + " · " + day(x.publishedAt)) + "</span>" : "") + '</td><td class="faint">' + esc(x.updatedAt ? when(x.updatedAt) : "") + "</td></tr>";
       }).join("") : '<tr><td colspan="7" class="faint">' + t("没有符合的老师。", "No teacher matches.") + "</td></tr>") + "</tbody></table></div>";
     $("tebar").addEventListener("click", function (e) { var c = e.target.closest(".chip[data-f]"); if (!c) return; teState.filter = c.getAttribute("data-f"); teRenderList(); });
     var sc = $("teScope"); if (sc) sc.addEventListener("change", function () { teState.scope = sc.value; teRenderList(); });
@@ -172,7 +174,7 @@
   }
   function teRenderForm(host) {
     var d = teState.doc, p = d.profile, can = d.canEdit, photo = (d.draft.photo && d.draft.photo.url) || p.photoUrl;
-    var status = d.status === "submitted" ? t("已提交，等待课程总监批准。", "Submitted; waiting for the curriculum director.") : d.status === "published" ? t("已发布到网站（" + day(d.published.at) + "）。再改动会成为新的草稿。", "Published to the website (" + day(d.published.at) + "). A further change starts a new draft.") : d.returned ? t("已退回：", "Returned: ") + esc(d.returned.comment || "") : d.status === "draft" ? t("草稿已自动保存，提交后由课程总监批准。", "Draft saved; submit it for the curriculum director's approval.") : t("网站上的现有资料。改动会自动保存为草稿。", "What the website shows now. Changes save as a draft.");
+    var status = d.status === "submitted" ? t("已提交，等待机构负责人或课程总监批准。", "Submitted; waiting for the institution's leader or the curriculum director.") : d.status === "published" ? t("已发布到网站（" + day(d.published.at) + "）。再改动会成为新的草稿。", "Published to the website (" + day(d.published.at) + "). A further change starts a new draft.") : d.returned ? t("已退回：", "Returned: ") + esc(d.returned.comment || "") : d.status === "draft" ? (d.canApprove ? t("草稿已自动保存。点「批准并发布」即上网站。", "Draft saved. 「Approve and publish」 puts it on the website.") : t("草稿已自动保存，提交后由机构负责人或课程总监批准。", "Draft saved; submit it for approval by the institution's leader or the curriculum director.")) : t("网站上的现有资料。改动会自动保存为草稿。", "What the website shows now. Changes save as a draft.");
     var histLabel = function (h) { return { save: t("修改 ", "changed ") + (h.fields || []).map(teFieldLabel).join("、"), photo: t("更换照片", "changed the photo"), submit: t("提交审批", "submitted"), return: t("退回", "returned") + (h.note ? "：" + h.note : ""), approve: t("批准并发布", "approved and published") }[h.action] || h.action; };
     host.innerHTML =
       '<div class="tehead">' + tePhotoBox(photo, can) +
@@ -185,12 +187,11 @@
       '<div class="msg ' + (d.returned && d.status !== "submitted" ? "err" : "ok") + '" id="teStatus">' + status + "</div>" +
       teTextsHtml(d.draft, can) +
       '<div class="actions" id="teActions">' +
-        (can && d.status === "draft" ? '<button type="button" class="btn" id="teSubmit">' + t("提交审批", "Submit for approval") + "</button>" : "") +
-        (d.canApprove && (d.status === "submitted" || d.status === "draft") ? '<button type="button" class="btn' + (d.status === "submitted" ? "" : " secondary") + '" id="teApprove">' + t("批准并发布", "Approve and publish") + "</button>" : "") +
+        (can && !d.canApprove && d.status === "draft" ? '<button type="button" class="btn" id="teSubmit">' + t("提交审批", "Submit for approval") + "</button>" : "") +
+        (d.canApprove && (d.status === "submitted" || d.status === "draft") ? '<button type="button" class="btn" id="teApprove">' + t("批准并发布", "Approve and publish") + "</button>" : "") +
         (d.canApprove && d.status === "submitted" ? '<button type="button" class="btn secondary" id="teReturn">' + t("退回", "Return") + "</button>" : "") +
         '<span class="faint" id="teSaved"></span></div>' +
       (d.history && d.history.length ? "<h4>" + t("修改记录", "History") + '</h4><div class="hist">' + d.history.slice(0, 8).map(function (h) { return '<div class="hrow"><span class="hat">' + esc(when(h.at)) + '<span class="hwho">' + esc(h.by || "") + "</span></span><span>" + esc(histLabel(h)) + "</span></div>"; }).join("") + "</div>" : "");
-    host.querySelectorAll("textarea[data-k]").forEach(coAutosize);
     if (can) {
       host.querySelectorAll("input[data-fact]").forEach(function (inp) {
         inp.addEventListener("change", function () {
@@ -208,7 +209,7 @@
         });
       });
       host.querySelectorAll("textarea[data-k]").forEach(function (ta) {
-        ta.addEventListener("input", function () { coAutosize(ta); var k = ta.getAttribute("data-k"); clearTimeout(teState.timers[k]); teState.timers[k] = setTimeout(function () { teSave(k, ta.value, host); }, 1500); });
+        ta.addEventListener("input", function () { var k = ta.getAttribute("data-k"); clearTimeout(teState.timers[k]); teState.timers[k] = setTimeout(function () { teSave(k, ta.value, host); }, 1500); });
         ta.addEventListener("blur", function () { var k = ta.getAttribute("data-k"); if (teState.timers[k]) { clearTimeout(teState.timers[k]); teSave(k, ta.value, host); } });
       });
       host.querySelectorAll("button[data-tr]").forEach(function (b) { b.addEventListener("click", function () { teTranslate(b, host, b.getAttribute("data-tr"), function (k, v) { teSave(k, v, host); }); }); });
@@ -220,7 +221,7 @@
           post("teachers/photo", "POST", { id: teState.doc.recId, data: data }).then(function (r) { if (!r.ok) { if (b) restoreButton(b); flash(esc(errText(r)), 5000); return; } flashOk(t("照片已更新（草稿）。", "Photo updated (draft)."), 3000); teReload(host); });
         });
       });
-      if ($("teSubmit")) $("teSubmit").addEventListener("click", function () { var b = this; savingButton(b); teFlush().then(function () { return post("teachers/submit", "POST", { id: d.recId }); }).then(function (r) { if (!r.ok) { restoreButton(b); flash(esc(errText(r)), 5000); return; } flashOk(t("已提交，课程总监批准后发布到网站。", "Submitted; it goes to the website once approved."), 4000); teReload(host); }); });
+      if ($("teSubmit")) $("teSubmit").addEventListener("click", function () { var b = this; savingButton(b); teFlush().then(function () { return post("teachers/submit", "POST", { id: d.recId }); }).then(function (r) { if (!r.ok) { restoreButton(b); flash(esc(errText(r)), 5000); return; } flashOk(t("已提交，批准后发布到网站。", "Submitted; it goes to the website once approved."), 4000); teReload(host); }); });
     }
     if ($("teApprove")) $("teApprove").addEventListener("click", function () { var b = this; if (!window.confirm(t("批准并写入 Airtable，网站随后更新。继续？", "Approve: writes Airtable and refreshes the website. Continue?"))) return; savingButton(b, t("发布中…", "Publishing…")); teFlush().then(function () { return post("teachers/approve", "POST", { id: d.recId }); }).then(function (r) { if (!r.ok) { restoreButton(b); flash(esc(errText(r)), 6000); return; } flashOk(t("已批准并写入 Airtable。", "Approved and written to Airtable.") + (r.body.skipped && r.body.skipped.length ? " " + t("未写入（表里没有这一列）：", "Not written (column missing): ") + r.body.skipped.map(teFieldLabel).join(", ") : ""), 6000); teReload(host); }); });
     if ($("teReturn")) $("teReturn").addEventListener("click", function () { var c = window.prompt(t("退回意见（老师会看到）：", "Comment for the teacher:")); if (c == null) return; var b = this; savingButton(b); post("teachers/return", "POST", { id: d.recId, comment: c }).then(function (r) { if (!r.ok) { restoreButton(b); flash(esc(errText(r)), 5000); return; } flashOk(t("已退回。", "Returned."), 3000); teReload(host); }); });
@@ -233,7 +234,7 @@
     return post("teachers/field", "PATCH", { id: teState.doc.recId, key: k, value: v }).then(function (r) {
       if (!r.ok) { flash(esc(errText(r)), 5000); return; }
       teState.doc.status = r.body.status; var m = $("teSaved"); if (m) { m.textContent = t("已保存", "Saved"); clearTimeout(m._t); m._t = setTimeout(function () { m.textContent = ""; }, 2000); }
-      if (!$("teSubmit") && teState.doc.canEdit) teRenderForm(host); // the submit button appears with the first change
+      if (!$("teSubmit") && !$("teApprove") && teState.doc.canEdit) teRenderForm(host); // the submit / approve button appears with the first change
     });
   }
   function teFlush() { var ps = []; Object.keys(teState.timers).forEach(function (k) { if (teState.timers[k]) { var ta = document.querySelector('textarea[data-k="' + k + '"]'); if (ta) ps.push(teSave(k, ta.value)); } }); return Promise.all(ps); }

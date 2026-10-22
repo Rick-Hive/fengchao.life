@@ -45,7 +45,7 @@ const snap = {
   assert.deepStrictEqual(T.visible(kxcLead).map((t) => t.id), ["recT2"], "KXC's leader: the kxc.edu teacher");
   assert.deepStrictEqual(T.visible(iewLead).map((t) => t.id), ["recT4"], "IEW has no domain: its teachers by organization");
   assert.ok(T.mayEdit(iewLead, teacher.all.find((t) => t.id === "recT4")) && !T.mayEdit(iewLead, t1) && !iewLead.approver, "edits its own, approves nothing");
-  assert.deepStrictEqual((await T.list(leader))[0], { id: "recT1", name: "Zhang Lao", teamsAccount: "zhang@bes.edu", email: "", domain: "bes.edu", organization: "BES", photoUrl: null, hasBio: true, hasExpertise: false, status: "", updatedAt: null, submittedAt: null, mine: false, created: null });
+  assert.deepStrictEqual((await T.list(leader))[0], { id: "recT1", name: "Zhang Lao", teamsAccount: "zhang@bes.edu", email: "", domain: "bes.edu", organization: "BES", photoUrl: null, hasBio: true, hasExpertise: false, status: "", updatedAt: null, submittedAt: null, publishedAt: null, publishedBy: "", mine: false, created: null });
 
   // the draft
   let d = await T.saveField(t1, "bio", "New bio", "zhang@bes.edu");
@@ -118,5 +118,11 @@ const snap = {
   assert.strictEqual((await T.list(lead2)).find((t) => t.id === "recNEW0000000001").created, nt.created, "listed with the created mark");
   assert.ok(!T.mayEditAccount(teacher, t1) && T.mayEdit(teacher, t1), "a teacher edits its own facts but not its Teams account");
   assert.ok(T.mayEditAccount(leader, t1) && T.mayEditAccount(director, t2) && T.mayEditAccount(lead2, nt), "the leader and the approver set it");
+  // 批准并发布 (Rick 2026-10-22: 「蜂巢课程提供方的leader有权发布老师资料」): the institution's own leader and the approvers
+  assert.ok(T.mayApprove(leader, t1) && T.mayApprove(lead2, nt) && T.mayApprove(director, t2), "the leader publishes its own teachers; an approver every one");
+  assert.ok(!T.mayApprove(teacher, t1) && !T.mayApprove(leader, t2) && !T.mayApprove(lead2, t1) && !T.mayApprove(nobody, t1), "not the teacher, not another institution's leader");
+  assert.ok((await T.open(t1, leader)).canApprove && !(await T.open(t1, teacher)).canApprove, "the editor says so");
+  const pub = (await T.list(director)).find((x) => x.id === "recT1");
+  assert.ok(pub.status === "published" && pub.publishedBy === "cd@fengchao.life" && pub.publishedAt, "the list says who published and when: " + JSON.stringify(pub));
   console.log("teachers: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });

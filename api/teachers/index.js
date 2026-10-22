@@ -4,12 +4,12 @@
 //   PATCH teachers/field {id, key, value}   autosave bio / bioZh / expertise / expertiseZh into the draft
 //   POST  teachers/photo {id, data}     the draft photo (JPEG data URL the browser cropped)
 //   POST  teachers/submit {id}          hand the draft to the approvers
-//   POST  teachers/return {id, comment} an approver gives it back
-//   POST  teachers/approve {id}         write Airtable (Biography, Expertise, Photo) and ask for the website sync
+//   POST  teachers/return {id, comment} the institution's leader or an approver gives it back
+//   POST  teachers/approve {id}         (the institution's leader or an approver) write Airtable (Biography, Expertise, Photo) and ask for the website sync
 //   POST  teachers/facts {id, name?, email?, teamsAccount?, languages?}   (languages = 母语 / mother language)
 //                                       the record's facts, written to Airtable at once (whoever may edit the record)
 //   POST  teachers/create {name, …facts, hive?, profile?:{bio,bioZh,expertise,expertiseZh}, photo?}  a new teacher of the
-//                                       leader's institution, the whole profile at once (submitted; an approver's is approved)
+//                                       leader's institution, the whole profile at once, published at once
 //   GET   teachers/hives                the hives an approver may create for (key, name, abbr)
 //   POST  teachers/translate {from, texts:{bio?, expertise?}}  一键翻译: the other language's 简介 / 专长
 //   POST  teachers/sync                 refresh the snapshot after facts / create (coalesced, like courses/sync)
@@ -53,7 +53,7 @@ module.exports = async function (context, req) {
       // the Schools row behind the hive, for a link-type Organization column
       const lk = await C.lookups().catch(() => null);
       const sch = ((lk && lk.schools) || []).find((s) => hiveKey(s.abbr || s.name) === org.key || hiveKey(s.name) === org.key) || null;
-      const r = await T.create(body, Object.assign({}, org, { recId: sch ? sch.id : "" }), user, (m) => context.log(m), { approve: who.approver });
+      const r = await T.create(body, Object.assign({}, org, { recId: sch ? sch.id : "" }), user, (m) => context.log(m), { approve: true }); // the leader's own institution, or an approver's pick: published at once (2026-10-22)
       await audit(context, { actor: user, action: "teacher.create", target: r.id, name: r.facts.name, hive: org.key, written: r.written, skipped: r.skipped, profile: r.profile });
       return done(200, { ok: true, id: r.id, written: r.written, skipped: r.skipped, profile: r.profile });
     }
@@ -81,8 +81,8 @@ module.exports = async function (context, req) {
     if (method === "POST" && action === "facts") { const r = await T.saveFacts(rec, body, user, (m) => context.log(m)); await audit(context, { actor: user, action: "teacher.facts", target: rec.id, fields: r.written, skipped: r.skipped }); return done(200, { ok: true, written: r.written, skipped: r.skipped, facts: r.facts }); }
     if (method === "POST" && action === "photo") { const d = await T.savePhoto(rec, body.data, user); await audit(context, { actor: user, action: "teacher.photo", target: rec.id }); return done(200, { ok: true, photo: d.draft.photo, status: d.status }); }
     if (method === "POST" && action === "submit") { const d = await T.submit(rec, user); await audit(context, { actor: user, action: "teacher.submit", target: rec.id }); return done(200, { ok: true, status: d.status, submitted: d.submitted }); }
-    if (method === "POST" && action === "return") { if (!who.approver) return done(403, { error: "approvers only" }); const d = await T.giveBack(rec, user, body.comment); await audit(context, { actor: user, action: "teacher.return", target: rec.id, note: String(body.comment || "").slice(0, 200) }); return done(200, { ok: true, status: d.status, returned: d.returned }); }
-    if (method === "POST" && action === "approve") { if (!who.approver) return done(403, { error: "approvers only" }); const r = await T.approve(rec, user, (m) => context.log(m)); await audit(context, { actor: user, action: "teacher.approve", target: rec.id, fields: r.written, skipped: r.skipped }); return done(200, { ok: true, status: r.doc.status, written: r.written, skipped: r.skipped, airtable: r.airtable }); }
+    if (method === "POST" && action === "return") { if (!T.mayApprove(who, rec)) return done(403, { error: "the institution's leader or an approver only" }); const d = await T.giveBack(rec, user, body.comment); await audit(context, { actor: user, action: "teacher.return", target: rec.id, note: String(body.comment || "").slice(0, 200) }); return done(200, { ok: true, status: d.status, returned: d.returned }); }
+    if (method === "POST" && action === "approve") { if (!T.mayApprove(who, rec)) return done(403, { error: "the institution's leader or an approver only" }); const r = await T.approve(rec, user, (m) => context.log(m)); await audit(context, { actor: user, action: "teacher.approve", target: rec.id, fields: r.written, skipped: r.skipped }); return done(200, { ok: true, status: r.doc.status, written: r.written, skipped: r.skipped, airtable: r.airtable }); }
     return done(404, { error: "unknown action" });
   } catch (err) {
     const status = err && err.status || 500;

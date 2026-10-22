@@ -41,6 +41,7 @@ async function writeSnapshot(obj) {
   }
 
   const body = JSON.stringify(obj);
+  snapCache = { etag: "", text: null };
   await blob.upload(body, Buffer.byteLength(body), {
     blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" },
   });
@@ -53,18 +54,32 @@ async function restoreSnapshot() {
   if (!(await prev.exists())) return null;
   const buf = await prev.downloadToBuffer();
   const blob = container.getBlockBlobClient(snapshotBlob.name);
+  snapCache = { etag: "", text: null };
   await blob.upload(buf, buf.length, {
     blobHTTPHeaders: { blobContentType: "application/json; charset=utf-8" },
   });
   return JSON.parse(buf.toString("utf8"));
 }
 
+// The snapshot is several MB and some 25 endpoints read it on every request (the curriculum map page alone three
+// times: school-plan, data, seats — Rick 2026-10-22: 「Why loading the curriculum map so slow?」). The function
+// instance keeps the last download's text and asks the blob only for its ETag (a HEAD) while it is unchanged; a
+// sync writes a new ETag, so the next read downloads again. Each caller still gets its own parsed object, so a
+// caller that changes what it read changes nothing for the others.
+let snapCache = { etag: "", text: null };
 async function readSnapshot() {
   const container = getContainerClient();
   const blob = container.getBlockBlobClient(snapshotBlob.name);
-  if (!(await blob.exists())) return null;
-  const buf = await blob.downloadToBuffer();
-  return JSON.parse(buf.toString("utf8"));
+  let props;
+  try { props = await blob.getProperties(); }
+  catch (e) { if (e && (e.statusCode === 404 || e.code === "BlobNotFound")) { snapCache = { etag: "", text: null }; return null; } throw e; }
+  if (snapCache.text && props.etag && snapCache.etag === props.etag) return JSON.parse(snapCache.text);
+  let buf;
+  try { buf = await blob.downloadToBuffer(0, undefined, { conditions: props.etag ? { ifMatch: props.etag } : undefined }); }
+  catch (e) { if (e && e.statusCode === 412) { props = { etag: "" }; buf = await blob.downloadToBuffer(); } else throw e; } // written in between: take the new one, uncached
+  const text = buf.toString("utf8");
+  snapCache = props.etag ? { etag: props.etag, text } : { etag: "", text: null };
+  return JSON.parse(text);
 }
 
 // Hand out the next number in a named counter, atomically.

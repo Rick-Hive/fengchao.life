@@ -111,13 +111,15 @@
   function loadPlan() {
     $("plbody").innerHTML = '<div class="loading">' + t("载入中…", "Loading…") + "</div>";
     var url = plState.canEdit ? "school-plan?domain=" + encodeURIComponent(plState.domain) : "school-plan?view=1";
+    // the course catalog in parallel with the plan, not after it (Rick 2026-10-22: 「Why loading the curriculum map so slow?」)
+    var cat = plLoadCatalog();
     return api(url).then(function (r) {
       if (!r.ok) { $("plbody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
       plState.data = r.body; if (!plState.canEdit) plState.domain = r.body.domain || "";
       // editors work on the draft; everyone else reads what is published (nothing published = the system defaults)
       plState.draft = plFromBlob(r.body.plan && (plState.canEdit ? r.body.plan.draft : r.body.plan.published)); plState.dirty = false;
       plStatus(); renderPlan();
-      plLoadCatalog().then(function () { renderPlan(); });
+      if (!plCat) cat.then(function () { if (plState.data) renderPlan(); });
     });
   }
   // No status line in the bar (Rick, 2026-10-19: 「delete this … move the second line above」): the card tags say
@@ -451,7 +453,8 @@
   function plLoadCatalog() {
     if (plCat) return Promise.resolve(plCat);
     if (plCatLoading) return plCatLoading;
-    plCatLoading = Promise.all([api("data"), api("seats")]).then(function (rs) {
+    // /api/data with the browser's cache (ETag → 304, max-age 5 min): the snapshot is the largest download of the page
+    plCatLoading = Promise.all([api("data", { cache: "default" }), api("seats")]).then(function (rs) {
       plCatLoading = null;
       plCat = { courses: (rs[0].ok && rs[0].body && rs[0].body.courses) || [], teachers: (rs[0].ok && rs[0].body && rs[0].body.teacherProfiles) || [] };
       plSeats = (rs[1].ok && rs[1].body && rs[1].body.seats) || {};

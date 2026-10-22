@@ -1445,3 +1445,12 @@ button.lnk.inum:hover { text-decoration-style: solid; }
 /* 教师资料: the 课程提供方 filter on the chips' row (2026-10-22) */
 #tebar .tabsRight { margin-left: auto; }
 #tebar #teScope { width: auto; max-width: 260px; height: 32px; padding: 0 28px 0 10px; font-size: 13px; margin: 0; }
+/* 个人简介 / 专业能力 (Rick 2026-10-22): all four boxes one size, the text scrolls inside instead of growing the box */
+.tebi textarea[data-k] { height: 168px; min-height: 168px; max-height: 168px; overflow-y: auto; resize: none; }
+/* 高中毕业要求: available courses in green, as on the website (Rick 2026-10-22) */
+.plreq-count, .plreq-row.open .plreq-count { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; color: var(--ok); background: var(--ok-soft); font-weight: 600; font-size: 11.5px; }
+.plreq-chip { border-color: #bfe0c9; background: #f3faf5; color: #14532d; }
+.plreq-chip:hover { border-color: var(--ok); color: var(--ok); }
+.plreq-code, .plreq-cr { color: #3f7a52; }
+.plreq-chip.in-cart { border-color: var(--accent); background: var(--accent-soft, #e8eef7); color: inherit; }
+.plreq-chip.in-cart .plreq-code, .plreq-chip.in-cart .plreq-cr { color: var(--accent); }
