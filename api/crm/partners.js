@@ -21,7 +21,7 @@ const crm = require("../shared/crm");
 const { normUser, isAdmin, staffFunctions } = require("../shared/roles");
 const { audit } = require("../shared/audit");
 
-const ACTIONS = new Set(["partners", "partner", "project", "people-search", "org-search", "contact", "partner-config", "partners-seed"]);
+const ACTIONS = new Set(["application-file", "partners", "partner", "project", "people-search", "org-search", "contact", "partner-config", "partners-seed"]);
 
 function canEditType(roles, type) {
   const f = staffFunctions(roles);
@@ -107,6 +107,18 @@ async function handle(context, req, ctx) {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const q = req.query || {};
 
+  // 我要教课: the applicant's résumé, private in the assets container (api/shared/applications.js uploadFile)
+  if (action === "application-file" && method === "GET") {
+    const rel = ((await P.readRels()).items || {})[String(q.id || "")];
+    const f = rel && rel.application && rel.application.resume;
+    if (!f || !/^applications\/REL-\d{6}\/resume\.(pdf|docx|doc)$/.test(f.key)) { fail(context, 404, "not_found"); return true; }
+    const asset = await require("../shared/blob").readAsset(f.key);
+    if (!asset) { fail(context, 404, "not_found"); return true; }
+    await audit(context, { action: "crm.application.resume", by, id: rel.id });
+    const ext = f.key.split(".").pop();
+    context.res = { status: 200, headers: { "Content-Type": f.type || asset.contentType, "Cache-Control": "private, no-store", "Content-Disposition": `${ext === "pdf" ? "inline" : "attachment"}; filename="${rel.id}-resume.${ext}"` }, body: asset.buffer, isRaw: true };
+    return true;
+  }
   if (action === "partner-config") {
     if (!isAdmin(roles)) { fail(context, 403, "no_access"); return true; }
     if (method === "GET") { ok(context, { config: await P.readConfig(), defaults: { exclude: P.DEFAULT_EXCLUDE, stages: P.STAGES } }); return true; }

@@ -983,3 +983,22 @@ body.page-gpa .wrap { max-width: 1200px; }
 .tdone .btn { text-decoration: none; display: inline-block; margin-top: 14px; }
 .tcheck-tight { margin-top: 10px; font-size: 0.86rem; }
 .tdomain-help { margin: 0; padding: 9px 12px; border-radius: 8px; background: #f6f8fa; color: var(--ink); }
+.tchoices.tinline { flex-direction: row; gap: 28px; border-top: 0; }
+.tchoices.tinline .tchoice { border-bottom: 0; padding: 6px 0; align-items: center; }
+.tchoices.tinline .dot { margin-top: 0; }
+.tlink { background: none; border: 0; padding: 0; font: inherit; color: var(--accent-dark); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.tfind { margin-top: 18px; }
+.tfind-row { display: flex; gap: 8px; margin-top: 8px; max-width: 460px; }
+.tfind-row input { flex: 1; min-width: 0; border: 1px solid #d5dae1; border-radius: 8px; padding: 8px 12px; font: inherit; font-size: 0.92rem; }
+.tfile { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tfile-btn { padding: 7px 14px; font-size: 0.86rem; cursor: pointer; text-decoration: none; min-width: 0 !important; }
+.tfile-name { font-size: 0.86rem; color: var(--ink); background: #f6f8fa; border-radius: 6px; padding: 4px 10px; }
+.tresume { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px 14px; border: 1px dashed var(--line); border-radius: 10px; }
+.tresume .tnote { margin: 0; }
+.tsub-first { margin-top: 0; }
+.tdone-actions { display: flex; justify-content: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.tdone-actions .btn { margin-top: 0; }
+/* the dots inside a field (是 / 不是): not the field's own label and input rules */
+.tf .tchoice { display: flex; margin: 0; font-weight: 400; }
+.tf .tchoice input { width: 1px; height: 1px; padding: 0; border: 0; }
+.tf .tfile-btn { display: inline-flex; align-items: center; margin: 0; font-weight: 500; }

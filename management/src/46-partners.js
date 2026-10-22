@@ -52,6 +52,8 @@
       ((a.city || a.country) ? ptKv(t("地区", "Where"), esc([a.city, a.country].filter(Boolean).join(", "))) : "") +
       (a.subjects ? ptKv(t("课程", "Courses"), esc(a.subjects) + (a.grades ? " · " + esc(a.grades) : "") + (a.language ? " · " + esc(L(PT_APP_LANG, a.language)) : "")) : "") +
       ((a.courses || []).length ? ptKv(t("填写的课程", "Courses entered"), a.courses.map(function (c) { return '<a href="#/courses/' + esc(c.id) + '">' + esc(c.nameZh || c.nameEn || c.id) + "</a>"; }).join(" · ")) : "") +
+      ((a.education || a.years || a.certificates) ? ptKv(t("资历", "Qualifications"), esc([a.education ? t({ below: "本科以下", bachelor: "本科", master: "硕士", doctor: "博士" }[a.education], { below: "Below a bachelor's", bachelor: "Bachelor's", master: "Master's", doctor: "Doctorate" }[a.education]) : "", a.years ? a.years + t(" 年教学", " years teaching") : "", a.certificates || ""].filter(Boolean).join(" · "))) : "") +
+      (a.resume ? ptKv(t("简历", "Résumé"), '<a href="/api/crm/application-file?id=' + esc(ptState.rel && ptState.rel.relationship ? ptState.rel.relationship.id : "") + '" target="_blank" rel="noopener">' + esc(a.resume.name) + " ↗</a>" + (a.resume.size ? ' <span class="muted">' + Math.max(1, Math.round(a.resume.size / 1024)) + " KB</span>" : "")) : "") +
       ptKv(t("介绍", "About"), '<span class="pre">' + esc(a.intro) + "</span>") +
       (a.sample ? ptKv(t("样课", "Sample"), /^\S+$/.test(a.sample) ? link(a.sample) : '<span class="pre">' + esc(a.sample) + "</span>") : "") + "</div>";
   }

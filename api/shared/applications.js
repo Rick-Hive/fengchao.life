@@ -24,6 +24,9 @@ const LANGS = { zh: ["中文", "Chinese"], en: ["英文", "English"], both: ["�
 const PUBLIC_MAIL = /^(gmail|googlemail|outlook|hotmail|live|msn|yahoo|icloud|me|mac|aol|proton|protonmail|qq|vip\.qq|foxmail|163|126|yeah|sina|sohu|aliyun|139|189)\.[a-z.]+$/;
 // enough words to read: 10 characters of Chinese say as much as 20 of English
 const longEnough = (t) => String(t || "").trim().length >= (/[\u3400-\u9fff]/.test(String(t || "")) ? 10 : 20);
+const EDUCATION = ["below", "bachelor", "master", "doctor"];
+const LATIN_NAME = /^[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F .'-]*$/;
+const { blockedEmail } = require("./safe-email");
 const fullName = (a) => (/[\u3400-\u9fff]/.test(a.familyName + a.givenName) ? a.familyName + a.givenName : [a.givenName, a.familyName].filter(Boolean).join(" "));
 
 // The wizard's three pages (Rick 2026-10-22): 团队类型 → 您的资料 → 教学介绍. A team or a school manages its people on
@@ -44,15 +47,22 @@ function clean(body) {
     website: s(b.website, 200), country: s(b.country, 60), city: s(b.city, 60),
     language: LANGS[b.language] ? b.language : "", teachers: group ? Math.max(0, Math.min(999, parseInt(b.teachers, 10) || 0)) : 1,
     intro: long(b.intro, 3000), sample: long(b.sample, 1000),
+    // 资历 (Rick 2026-10-22): the highest degree, years of teaching, certificates; the résumé comes as a file (uploadFile)
+    education: EDUCATION.includes(b.education) ? b.education : "", years: Math.max(0, Math.min(60, parseInt(b.years, 10) || 0)), certificates: s(b.certificates, 300),
+    christian: b.christian === true || b.christian === "yes",
     lang: b.lang === "en" ? "en" : "zh",
   };
   a.name = fullName(a);
   if (!group) a.org = a.name;
   const problems = [];
   if (!a.kind) problems.push("kind");
-  if (!a.familyName) problems.push("familyName");
-  if (!a.givenName) problems.push("givenName");
+  // Hive works with Christian educators (Rick 2026-10-22: 「选择不是，直接跳到感谢界面」 — the page never sends that answer)
+  if (!a.christian) problems.push("christian");
+  // pinyin or an English name: the Teams account is made from it
+  if (!a.familyName || !LATIN_NAME.test(a.familyName)) problems.push("familyName");
+  if (!a.givenName || !LATIN_NAME.test(a.givenName)) problems.push("givenName");
   if (!EMAIL_RE.test(a.email)) problems.push("email");
+  else if (blockedEmail(a.email)) problems.push("emailBlocked");
   if (group && !a.org) problems.push("org");
   if (group && (a.abbr.length < 2 || a.abbr.length > 8)) problems.push("abbr");
   // a team or a school with no domain yet asks Hive to create one (Rick 2026-10-22) — then none is required
@@ -153,7 +163,7 @@ async function openApp(relId, token) {
 // the continue link: who applied and the courses so far — nothing the applicant did not type
 async function peek(relId, token) {
   const a = await openApp(relId, token);
-  return { id: relId, kind: a.kind, name: a.name, org: a.org, email: a.email, lang: a.lang, courses: a.courses || [], max: MAX_COURSES };
+  return { id: relId, kind: a.kind, name: a.name, org: a.org, email: a.email, lang: a.lang, courses: a.courses || [], max: MAX_COURSES, resume: a.resume ? { name: a.resume.name, size: a.resume.size } : null };
 }
 async function addCourse(relId, token, course) {
   const a = await openApp(relId, token);
@@ -161,11 +171,82 @@ async function addCourse(relId, token, course) {
   const lists = await pickLists();
   const { fields, problems } = cleanCourse(course, lists, a.lang);
   if (problems.length) throw Object.assign(new Error("incomplete"), { status: 400, code: "incomplete", problems });
+  // the syllabus, written on Hive's template and uploaded before saving (uploadFile kind "syllabus"): only this
+  // applicant's own files, at most three
+  const want = (Array.isArray(course && course.syllabus) ? course.syllabus : []).slice(0, 3).map((x) => String((x && x.id) || ""));
+  if (want.length) {
+    const FILES = require("./files");
+    const idx = await require("./jsonstore").read(FILES.INDEX_BLOB, { items: {} });
+    fields.syllabus = want.filter((id) => FILES.ID_RE.test(id) && idx.items[id] && !idx.items[id].pending && !idx.items[id].deletedAt && idx.items[id].by === "apply:" + relId)
+      .map((id) => { const it = idx.items[id]; return { id, name: it.name, size: it.size, type: it.type, url: FILES.url(id) }; });
+  }
   const C = require("./courses");
   const d = await C.create({ user: a.email }, { fields, application: relId });
   const row = { id: d.courseId, nameZh: fields.nameZh, nameEn: fields.nameEn, at: new Date().toISOString() };
   await P.updateRels((doc) => { const r = doc.items[relId]; if (!r || !r.application) return false; r.application.courses = (r.application.courses || []).concat([row]); r.log.push(P.logEntry(a.email, "note", `网站申请 · 新课程 / course: ${fields.nameZh || fields.nameEn}`)); r.updatedAt = row.at; });
   return { course: row, count: (a.courses || []).length + 1 };
+}
+
+// ---- files: the résumé (private) and a course's syllabus (Hive's file store, linked from the course) ----------------
+// Chunked like the course editor's uploads (≤ 2 MB a request). The résumé stays private — assets container under
+// applications/<REL>/, which no public route serves — and only staff read it (crm application-file). A syllabus is a
+// course file like any other (files.js, /api/f/<id>), PDF or Word.
+const RESUME_TYPES = { "application/pdf": "pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx", "application/msword": "doc" };
+const RESUME_MAX = 5 * 1024 * 1024;
+async function uploadFile(relId, token, chunk) {
+  const a = await openApp(relId, token);
+  const kind = chunk && chunk.kind === "resume" ? "resume" : "syllabus";
+  if (kind === "syllabus") return require("./files").upload({ id: String(chunk.upload || ""), name: chunk.name, size: chunk.size, index: chunk.index, total: chunk.total, data: chunk.data }, "apply:" + relId, { kind: "syllabus" });
+  const FILES = require("./files"), blob = require("./blob");
+  const index = Number(chunk.index) || 0, total = Math.max(1, Math.min(4, Number(chunk.total) || 1));
+  const buf = Buffer.from(String(chunk.data || ""), "base64");
+  if (!buf.length || buf.length > FILES.CHUNK + 1024) throw Object.assign(new Error("bad chunk"), { status: 400, code: "bad_file" });
+  const size = Number(chunk.size) || 0;
+  if (size > RESUME_MAX) throw Object.assign(new Error("too big"), { status: 400, code: "too_big" });
+  let type = String(chunk.type || "");
+  if (index === 0) { type = FILES.sniff(buf, chunk.name); if (!RESUME_TYPES[type]) throw Object.assign(new Error("PDF or Word only"), { status: 400, code: "bad_type" }); }
+  else if (!RESUME_TYPES[type]) throw Object.assign(new Error("bad chunk"), { status: 400, code: "bad_file" });
+  const key = `applications/${relId}/resume.${RESUME_TYPES[type]}`;
+  await blob.stageAssetBlock(key, Buffer.from(String(index).padStart(6, "0")).toString("base64"), buf);
+  if (index + 1 < total) return { done: false, type };
+  const blocks = []; for (let i = 0; i < total; i++) blocks.push(Buffer.from(String(i).padStart(6, "0")).toString("base64"));
+  await blob.commitAssetBlocks(key, blocks, type, "private, no-store");
+  const file = { key, name: String(chunk.name || "resume").replace(/[\u0000-\u001f\\/:*?"<>|]+/g, " ").trim().slice(0, 120), type, size, at: new Date().toISOString() };
+  await P.updateRels((doc) => { const r = doc.items[relId]; if (!r || !r.application) return false; r.application.resume = file; r.log.push(P.logEntry(a.email, "note", "网站申请 · 简历 / résumé: " + file.name)); r.updatedAt = file.at; });
+  return { done: true, file: { name: file.name, size: file.size, type: file.type } };
+}
+
+// 找回申请 (Rick 2026-10-22: 「如何在此进来找到自己的资料？」): the applicant gives the email; when an open application
+// has it, a fresh key goes to that email (the old one stops working). The answer is the same either way.
+async function resend(email, opts) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!EMAIL_RE.test(e)) return { ok: true };
+  const token = require("crypto").randomBytes(24).toString("base64url");
+  let hit = null;
+  await P.updateRels((doc) => {
+    const r = Object.values(doc.items || {}).find((x) => x && x.type === "course" && !x.closed && x.application && x.application.email === e);
+    if (!r) return false;
+    r.application.tokenHash = tokenHash(token); r.application.tokenAt = new Date().toISOString();
+    r.log.push(P.logEntry(e, "note", "网站申请 · 找回链接已发送 / recovery link sent"));
+    hit = { id: r.id, a: r.application };
+  });
+  if (hit) await sendLink(hit.id, hit.a, token, opts);
+  return { ok: true };
+}
+async function sendLink(id, a, token, opts) {
+  const log = (opts && opts.log) || (() => {});
+  const flowUrl = process.env.POWER_AUTOMATE_URL;
+  if (!flowUrl) return { ok: false };
+  const link = `${SITE}/teach?app=${id}&key=${encodeURIComponent(token)}`;
+  const m = a.lang === "en"
+    ? { subject: `[Hive] Your application ${id}`, body: `Dear ${a.name},\n\nHere is the link to your application ${id} (valid for 7 days; any earlier link no longer works):\n${link}\n\nIf you did not ask for it, you can ignore this email.\n\nHive` }
+    : { subject: `【蜂巢】您的授课申请 ${id}`, body: `${a.name} 您好，\n\n这是您的申请 ${id} 的链接（7 天内有效；之前的链接已失效）：\n${link}\n\n如果不是您本人操作，请忽略这封邮件。\n\n蜂巢` };
+  const html = "<div style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,'PingFang SC','Microsoft YaHei',sans-serif;font-size:15px;line-height:1.7;color:#1f2328;max-width:640px\">" + require("./messages").escapeHtml(m.body).replace(/\r?\n/g, "<br>\n") + "</div>";
+  const payload = { orderId: id, submittedAt: new Date().toISOString(), email: a.email, teamsAccount: "", lang: a.lang, track: null, items: [], itemCount: 0, totalPrice: 0, currency: "CNY", routes: [], routeCount: 0, notifyText: m.body, emailTo: a.email, emailSubject: m.subject, emailHtml: html, emailBodyText: m.body, application: true };
+  const headers = { "Content-Type": "application/json" };
+  if (process.env.ORDER_SHARED_SECRET) headers["X-Order-Secret"] = process.env.ORDER_SHARED_SECRET;
+  try { const res = await fetch(flowUrl, { method: "POST", headers, body: JSON.stringify(payload) }); return { ok: res.ok || res.status === 202 }; }
+  catch (err) { log(`teach resend ${id}: ${err && err.message}`); return { ok: false }; }
 }
 
 const SITE = "https://www.fengchao.life";
@@ -233,4 +314,4 @@ async function notify(id, a, opts) {
   }
 }
 
-module.exports = { clean, submit, notify, texts, keyOf, KINDS, LANGS, pickLists, cleanCourse, addCourse, peek, tokenHash, MAX_COURSES };
+module.exports = { clean, submit, notify, texts, keyOf, KINDS, LANGS, pickLists, cleanCourse, addCourse, peek, uploadFile, resend, RESUME_MAX, EDUCATION, tokenHash, MAX_COURSES };

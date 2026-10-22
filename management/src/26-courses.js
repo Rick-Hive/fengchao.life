@@ -29,7 +29,7 @@
   var CO_LABEL = { code: ["课程编号", "Course code"], name: ["课程名称", "Course name"], subjects: ["学科", "Subject"], grades: ["年级", "Grades"], classType: ["课程类型", "Class type"], language: ["授课语言", "Teaching language"], creditHours: ["学分", "Credit hours"],
     academic: ["学术课程", "Academic course"], classical: ["古典课程", "Classical course"], description: ["课程描述", "Description"], numClasses: ["课时数", "Number of classes"], minSize: ["最小开班人数", "Minimum class size"], maxSize: ["最大人数", "Maximum class size"], days: ["上课星期", "Days of week"], classTime: ["上课时间", "Class time"],
     prerequisite: ["前置课程", "Prerequisite"], syllabus: ["课程大纲", "Syllabus"], textbooks: ["教材", "Textbooks"], teachers: ["授课老师", "Teachers"], school: ["课程提供方", "Course deliverer"], price: ["价格", "Price"], available: ["可用", "Available"], tracks: ["毕业路径", "Graduation tracks"], comments: ["备注", "Comments"] };
-  var CO_HINT = { minSize: ["报名未达到这个人数时课程不开班；家长在网站上看到「还差 N 人开班」。留空 = 1 人即开。", "Below this number the course does not run; parents see “N more to run” on the website. Blank = runs with one."], maxSize: ["达到这个人数后显示「已满 · 可候补」，之后的报名进入候补。留空 = 不限。", "At this number the website shows “Full · waitlist” and later sign-ups join the waitlist. Blank = no limit."], classTime: ["选星期和起止时间（北京时间），点「添加时段」；一门课可以有几个时段。网站按这里的顺序显示。", "Pick the weekdays and the start / end time (Beijing time) and press Add; a course may have several slots. The website shows them in this order."], creditHours: ["按 G.P.A. 计算器的定义：每周 5 节、上一学期 = 0.5 学分，全年 = 1 学分；即 课时数 ÷ 180，保留一位小数（每周 4 节一学期 = 0.4）。点「按课时数算」自动填入。", "As the G.P.A. calculator defines it: 5 periods a week for one semester = 0.5 credit, a full year = 1 credit — classes ÷ 180, one decimal (4 periods a week for a semester = 0.4). Click “from classes” to fill it in."], syllabus: ["PDF，最大 10 MB；发布后 Airtable 保存一份", "PDF up to 10 MB; Airtable keeps a copy after publishing"], academic: ["计入 GPA 的学术课", "Counts toward the GPA"], classical: ["古典教育的课程（网站的教育理念筛选）", "A classical-pedagogy course (the website's pedagogy filter)"], school: ["订单按它路由到对应的蜂巢", "Orders are routed to this hive"], available: ["不可用的课程不在网站上显示", "An unavailable course is not shown on the website"] };
+  var CO_HINT = { minSize: ["报名未达到这个人数时课程不开班；家长在网站上看到「还差 N 人开班」。留空 = 1 人即开。", "Below this number the course does not run; parents see “N more to run” on the website. Blank = runs with one."], maxSize: ["达到这个人数后显示「已满 · 可候补」，之后的报名进入候补。留空 = 不限。", "At this number the website shows “Full · waitlist” and later sign-ups join the waitlist. Blank = no limit."], classTime: ["选星期和起止时间（北京时间），点「添加时段」；一门课可以有几个时段。网站按这里的顺序显示。", "Pick the weekdays and the start / end time (Beijing time) and press Add; a course may have several slots. The website shows them in this order."], creditHours: ["按 G.P.A. 计算器的定义：每周 5 节、上一学期 = 0.5 学分，全年 = 1 学分；即 课时数 ÷ 180，保留一位小数（每周 4 节一学期 = 0.4）。点「按课时数算」自动填入。", "As the G.P.A. calculator defines it: 5 periods a week for one semester = 0.5 credit, a full year = 1 credit — classes ÷ 180, one decimal (4 periods a week for a semester = 0.4). Click “from classes” to fill it in."], syllabus: ["PDF 或 Word，最大 10 MB；请用蜂巢的课程大纲模板。发布后 Airtable 保存一份", "PDF or Word up to 10 MB; please use Hive's syllabus template. Airtable keeps a copy after publishing"], academic: ["计入 GPA 的学术课", "Counts toward the GPA"], classical: ["古典教育的课程（网站的教育理念筛选）", "A classical-pedagogy course (the website's pedagogy filter)"], school: ["订单按它路由到对应的蜂巢", "Orders are routed to this hive"], available: ["不可用的课程不在网站上显示", "An unavailable course is not shown on the website"] };
   var DAY_ZH = { Monday: "周一", Tuesday: "周二", Wednesday: "周三", Thursday: "周四", Friday: "周五", Saturday: "周六", Sunday: "周日" };
   function coLabel(k) { var l = CO_LABEL[k] || [k, k]; return t(l[0], l[1]); }
   function coStatusTag(s) { var d = CO_STATUS[s] || CO_STATUS[""]; return '<span class="tag ' + d[2] + '">' + esc(t(d[0], d[1])) + "</span>"; }
@@ -254,6 +254,7 @@
     var need = co.lookups ? Promise.resolve() : api("courses/lookups").then(function (r) { if (r.ok) co.lookups = r.body; });
     Promise.all([api("courses/course?id=" + encodeURIComponent(id)), need]).then(function (rs) {
       var r = rs[0];
+      if (!$("coed") || co.id !== id && !(r.body && r.body.movedTo)) return; // left the editor (or opened another course) meanwhile
       if (!r.ok) { $("coed").innerHTML = '<div class="msg err">' + esc(errText(r)) + '</div><p><a href="#/courses">← ' + t("返回", "Back") + "</a></p>"; return; }
       if (r.body.movedTo) { co.id = r.body.movedTo; history.replaceState(null, "", "#/courses/" + r.body.movedTo); } // a new course since published
       coTake(r.body);
@@ -267,6 +268,7 @@
 
   function coRenderEditor() {
     var c = co.course;
+    if (!$("coed")) return;
     $("coed").innerHTML = coBarHTML() + '<div id="costeps">' + coStepsHTML() + '</div><div id="coreturned">' + coReturnedHTML() + "</div>" +
       '<div class="coed-main"><div class="coform" id="coform">' + CO_SECTIONS.map(coSectionHTML).join("") + "</div>" +
       '<aside class="coprev" id="coprev"><div class="coprev-h"><span>' + t("家长看到的样子", "As parents see it") + ' <span class="faint">' + (co.lang === "en" ? "English" : "中文") + '</span></span><span class="pvmode" role="group"><button type="button" data-pv="detail"' + (co.pvmode !== "card" ? ' class="on"' : "") + '>' + t("详情", "Detail") + '</button><button type="button" data-pv="card"' + (co.pvmode === "card" ? ' class="on"' : "") + '>' + t("卡片", "Card") + '</button></span></div><div id="coprevbody">' + coPreviewHTML() + "</div></aside></div>";
@@ -450,7 +452,9 @@
   function coFilesHTML(list, can) {
     return '<div class="cofiles" data-k="syllabus">' + list.map(function (a, i) {
       return '<div class="cofile" data-i="' + i + '"><span class="cofile-ic">📄</span><a href="' + esc(a.url || ("/api/f/" + a.id)) + '" target="_blank" rel="noopener">' + esc(a.name || "syllabus.pdf") + '</a><small class="faint">' + (a.size ? coFileSize(a.size) : "") + (a.airtable ? " · Airtable" : "") + (a.progress != null ? " · " + a.progress + "%" : "") + "</small>" + (can ? '<button type="button" class="linkbtn" data-frm="' + i + '">' + t("移除", "Remove") + "</button>" : "") + "</div>";
-    }).join("") + (can && list.length < 3 ? '<label class="cofile-add btn secondary sm">' + t("上传 PDF", "Upload a PDF") + '<input type="file" accept="application/pdf,.pdf" hidden /></label>' : "") + "</div>";
+    }).join("") + (can && list.length < 3 ? '<label class="cofile-add btn secondary sm">' + t("上传 PDF / Word", "Upload PDF / Word") + '<input type="file" accept="application/pdf,.pdf,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" hidden /></label>' : "") +
+      // Hive's template (Rick 2026-10-22: 「Syllabus 蜂巢要提供模版，客户下载后编辑好再上传。课程编辑和创建那边一样要有」)
+      '<a class="cofile-tpl" href="/assets/templates/syllabus-template.docx" download>' + t("下载课程大纲模板 (Word)", "Download the syllabus template (Word)") + "</a></div>";
   }
 
   // ---- the preview: how the course card and detail read on the website --------------------
@@ -724,10 +728,10 @@
   async function coUpload(fileList) {
     var file = fileList && fileList[0]; if (!file) return;
     var list = co.course.fields.syllabus || [];
-    if (!(file.type === "application/pdf" || /\.pdf$/i.test(file.name))) { flash(esc(t("课程大纲只能是 PDF。", "A syllabus must be a PDF."))); return; }
-    if (file.size > CO_PDF_MAX) { flash(esc(t("这个 PDF 超过 10 MB，请压缩后再传。", "This PDF is over 10 MB — please compress it."))); return; }
+    if (!/\.(pdf|docx?)$/i.test(file.name)) { flash(esc(t("课程大纲请用 PDF 或 Word 文件。", "A syllabus must be a PDF or a Word file."))); return; }
+    if (file.size > CO_PDF_MAX) { flash(esc(t("这个文件超过 10 MB，请压缩后再传。", "This file is over 10 MB — please compress it."))); return; }
     if (list.length >= 3) { flash(esc(t("最多 3 个文件。", "At most 3 files."))); return; }
-    var row = { id: "", name: file.name, type: "application/pdf", size: file.size, progress: 0 };
+    var row = { id: "", name: file.name, type: /\.pdf$/i.test(file.name) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: file.size, progress: 0 };
     list.push(row); co.course.fields.syllabus = list; coRepaintField("syllabus");
     try {
       var total = Math.max(1, Math.ceil(file.size / CO_FILE_CHUNK)), id = "", buf = await file.arrayBuffer(), r;

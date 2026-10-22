@@ -1469,3 +1469,4 @@ button.lnk.inum:hover { text-decoration-style: solid; }
 /* 开通 results: the whole message, not cut off (2026-10-22) */
 .obsteps .omain .sub { white-space: normal; overflow: visible; word-break: break-word; }
 .kv .pre { white-space: pre-wrap; }
+.cofiles .cofile-tpl { font-size: 12px; margin-left: 10px; }

@@ -13,7 +13,10 @@ const blob = require("./blob");
 const INDEX_BLOB = "crm/broadcast-files.json";
 const EMPTY_INDEX = () => ({ items: {}, updatedAt: null });
 const ID_RE = /^[a-z0-9]{16}$/;
-const TYPES = { "application/pdf": { ext: "pdf", max: 10 * 1024 * 1024 }, "image/png": { ext: "png", max: 2 * 1024 * 1024 }, "image/jpeg": { ext: "jpg", max: 2 * 1024 * 1024 } };
+const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document", DOC = "application/msword";
+const TYPES = { "application/pdf": { ext: "pdf", max: 10 * 1024 * 1024 }, "image/png": { ext: "png", max: 2 * 1024 * 1024 }, "image/jpeg": { ext: "jpg", max: 2 * 1024 * 1024 }, [DOCX]: { ext: "docx", max: 10 * 1024 * 1024 }, [DOC]: { ext: "doc", max: 10 * 1024 * 1024 } };
+// what each caller accepts: broadcasts PDF and pictures; a syllabus PDF or Word (Hive's template is a .docx, 2026-10-22)
+const ALLOW = { broadcast: ["application/pdf", "image/png", "image/jpeg"], syllabus: ["application/pdf", DOCX, DOC] };
 const CHUNK = 2 * 1024 * 1024;
 const PER_EVENT = 3;
 const KEEP_DELETED_DAYS = 30;
@@ -24,9 +27,12 @@ const url = (id) => `${SITE}/api/f/${id}`;
 function newId() { const a = "abcdefghijklmnopqrstuvwxyz0123456789", b = crypto.randomBytes(16); let s = ""; for (let i = 0; i < 16; i++) s += a[b[i] % a.length]; return s; }
 
 // The real type, from the first bytes — the name and the declared type are not trusted.
-function sniff(buf) {
+function sniff(buf, name) {
   if (!buf || buf.length < 8) return "";
   if (buf.slice(0, 5).toString("latin1") === "%PDF-") return "application/pdf";
+  // Word: a zip (docx) or an OLE compound file (doc), and named so — a zip that is not a .docx stays refused
+  if (buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04 && /\.docx$/i.test(String(name || ""))) return DOCX;
+  if (buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0 && /\.doc$/i.test(String(name || ""))) return DOC;
   if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
   if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
   return "";
@@ -35,7 +41,8 @@ const cleanName = (s) => String(s || "").replace(/[\u0000-\u001f\\/:*?"<>|]+/g, 
 
 // One chunk of an upload. chunk = { id?, replace?, name, size, index, total, data (base64) }. The first chunk
 // decides the type and the id; the last one commits the blob and records the file. Returns { id, done, file? }.
-async function upload(chunk, by) {
+async function upload(chunk, by, opts) {
+  const allow = ALLOW[(opts && opts.kind) || "broadcast"] || ALLOW.broadcast;
   const index = Number(chunk.index) || 0, total = Math.max(1, Number(chunk.total) || 1);
   const buf = Buffer.from(String(chunk.data || ""), "base64");
   if (!buf.length) throw bad("the chunk is empty");
@@ -45,8 +52,8 @@ async function upload(chunk, by) {
   const doc = await store.read(INDEX_BLOB, EMPTY_INDEX);
   let type;
   if (index === 0) {
-    type = sniff(buf);
-    if (!TYPES[type]) throw bad("only PDF, PNG and JPG files can be attached");
+    type = sniff(buf, chunk.name);
+    if (!TYPES[type] || !allow.includes(type)) throw bad(allow.includes(DOCX) ? "only PDF and Word files can be uploaded" : "only PDF, PNG and JPG files can be attached");
     if (size > TYPES[type].max) throw bad(`a ${TYPES[type].ext.toUpperCase()} is at most ${TYPES[type].max / 1024 / 1024} MB`);
     if (chunk.replace) { if (!ID_RE.test(id) || !doc.items[id] || doc.items[id].deletedAt) throw bad("no such file to replace"); }
     else id = newId();
@@ -135,4 +142,4 @@ async function info(ids) {
 
 const bad = (m) => Object.assign(new Error(m), { status: 400 });
 
-module.exports = { ID_RE, TYPES, CHUNK, PER_EVENT, KEEP_DELETED_DAYS, INDEX_BLOB, url, sniff, upload, attach, settle, serve, opened, cleanup, info };
+module.exports = { DOCX, DOC, ALLOW, ID_RE, TYPES, CHUNK, PER_EVENT, KEEP_DELETED_DAYS, INDEX_BLOB, url, sniff, upload, attach, settle, serve, opened, cleanup, info };

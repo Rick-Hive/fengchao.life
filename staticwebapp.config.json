@@ -190,6 +190,9 @@
       "redirect": "/.auth/login/aad?post_login_redirect_uri=.referrer"
     }
   },
+  "mimeTypes": {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  },
   "globalHeaders": {
     "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://login.microsoftonline.com; object-src 'none'",
     "X-Content-Type-Options": "nosniff",

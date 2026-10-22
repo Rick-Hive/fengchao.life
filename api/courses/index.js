@@ -177,7 +177,7 @@ module.exports = async function (context, req) {
       if (!ID_RE.test(courseId)) return done(400, { error: "course missing" });
       if (who.viewer && !who.approver) return done(403, { error: "read only" });
       if (!(await mayOpen(courseId))) return done(403, { error: "this course is not assigned to you" });
-      const r = await FILES.upload(body, user);
+      const r = await FILES.upload(body, user, { kind: "syllabus" });
       return done(200, Object.assign({ ok: true }, r));
     }
     if (method === "GET" && action === "versions") {

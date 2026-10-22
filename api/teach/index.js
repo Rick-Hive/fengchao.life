@@ -4,6 +4,8 @@
 //   GET  /api/teach/lists           the course pick lists (subjects, grades, class types, languages)
 //   GET  /api/teach/app?id=&key=    the application's courses so far (the continue link from the email)
 //   POST /api/teach/course          { id, key, course } → a new course draft on the application
+//   POST /api/teach/file            { id, key, kind: resume|syllabus, name, size, index, total, data } — chunked upload
+//   POST /api/teach/resend          { email } → a fresh link to that email's open application (same answer either way)
 const A = require("../shared/applications");
 const { getPrincipal } = require("../shared/auth");
 
@@ -33,6 +35,14 @@ module.exports = async function (context, req) {
     if (method === "GET" && action === "app") {
       if (tooMany("app:" + ip, 60)) return reply(context, 429, { error: "rate_limited" });
       return reply(context, 200, await A.peek(String(q.id || ""), String(q.key || "")));
+    }
+    if (method === "POST" && action === "file") {
+      if (tooMany("file:" + ip, 60)) return reply(context, 429, { error: "rate_limited" });
+      return reply(context, 200, Object.assign({ ok: true }, await A.uploadFile(String(body.id || ""), String(body.key || ""), body)));
+    }
+    if (method === "POST" && action === "resend") {
+      if (tooMany("resend:" + ip, 3) || tooMany("resend:" + String(body.email || "").toLowerCase(), 2)) return reply(context, 429, { error: "rate_limited" });
+      return reply(context, 200, await A.resend(body.email, { log }));
     }
     if (method === "POST" && action === "course") {
       if (tooMany("course:" + ip, 40)) return reply(context, 429, { error: "rate_limited" });

@@ -19,20 +19,24 @@ const A = require(R("api", "shared", "applications.js"));
 const O = require(R("api", "shared", "onboard.js"));
 
 (async () => {
-  const form = { kind: "team", familyName: "周", givenName: "老师", email: "Eve@Gmail.com", phone: "wechat eve", org: "心桥中文", abbr: "xq-c", teachers: "3", intro: "我们是一个教中文阅读的老师团队，已有五年教学经验。", agree: true, domain: "https://www.XQ-Chinese.org/about", country: "美国" };
-  // what is required: a team gives its name, short name and own domain; a one-person team none of them
+  const form = { kind: "team", christian: true, familyName: "Zhou", givenName: "Eve", email: "Eve@Gmail.com", phone: "wechat eve", org: "心桥中文", abbr: "xq-c", teachers: "3", intro: "我们是一个教中文阅读的老师团队，已有五年教学经验。", agree: true, domain: "https://www.XQ-Chinese.org/about", country: "美国", education: "master", years: "6", certificates: "TESOL" };
+  const base = { christian: true, familyName: "Wang", givenName: "Ming", email: "w@x.org", intro: "x".repeat(20), agree: 1 };
+  // what is required: a Christian (the page never sends "no"), names in Latin letters, an international email
   let c = A.clean({});
-  assert.deepStrictEqual(c.problems, ["kind", "familyName", "givenName", "email", "intro", "agree"]);
-  c = A.clean({ kind: "team", familyName: "王", givenName: "明", email: "w@x.org", intro: "x".repeat(20), agree: 1, domain: "gmail.com" });
+  assert.deepStrictEqual(c.problems, ["kind", "christian", "familyName", "givenName", "email", "intro", "agree"]);
+  assert.deepStrictEqual(A.clean(Object.assign({}, base, { kind: "solo", familyName: "王", givenName: "明" })).problems, ["familyName", "givenName"], "pinyin or English, not 汉字");
+  assert.deepStrictEqual(A.clean(Object.assign({}, base, { kind: "solo", email: "w@qq.com" })).problems, ["emailBlocked"], "QQ / 163 refused like the order page");
+  assert.deepStrictEqual(A.clean(Object.assign({}, base, { kind: "solo", christian: false })).problems, ["christian"]);
+  // a team gives its name, short name and own domain; a one-person team none of them
+  c = A.clean(Object.assign({}, base, { kind: "team", domain: "gmail.com" }));
   assert.deepStrictEqual(c.problems, ["org", "abbr", "domain"], "a team without its name, short name or own domain (a mail service is not one)");
-  c = A.clean({ kind: "school", familyName: "王", givenName: "明", email: "w@x.org", org: "某学校", abbr: "MX", intro: "我们学校想开设几门古典课程。", agree: 1, needDomain: true, domain: "ignored.org" });
+  c = A.clean(Object.assign({}, base, { kind: "school", org: "某学校", abbr: "MX", intro: "我们学校想开设几门古典课程。", needDomain: true, domain: "ignored.org" }));
   assert.deepStrictEqual([c.problems, c.app.needDomain, c.app.domain], [[], true, ""], "no domain yet: Hive creates one, none required");
-  c = A.clean({ kind: "individual", familyName: "王", givenName: "明", email: "w@x.org", intro: "x".repeat(20), agree: 1, org: "Ignored", abbr: "IGN", domain: "ign.org" });
-  assert.strictEqual(c.problems.length, 0); assert.deepStrictEqual([c.app.kind, c.app.org, c.app.abbr, c.app.domain, c.app.name], ["solo", "王明", "", "", "王明"], "a one-person team: its name is the person's; no short name, no domain");
-  assert.strictEqual(A.clean({ kind: "solo", familyName: "Smith", givenName: "Anna", email: "a@x.org", intro: "x".repeat(20), agree: 1 }).app.name, "Anna Smith");
+  c = A.clean(Object.assign({}, base, { kind: "individual", org: "Ignored", abbr: "IGN", domain: "ign.org" }));
+  assert.strictEqual(c.problems.length, 0); assert.deepStrictEqual([c.app.kind, c.app.org, c.app.abbr, c.app.domain, c.app.name], ["solo", "Ming Wang", "", "", "Ming Wang"], "a one-person team: its name is the person's; no short name, no domain");
   c = A.clean(form);
   assert.strictEqual(c.problems.length, 0, c.problems.join());
-  assert.strictEqual(c.app.email, "eve@gmail.com"); assert.strictEqual(c.app.abbr, "XQC"); assert.strictEqual(c.app.domain, "xq-chinese.org"); assert.strictEqual(c.app.teachers, 3); assert.ok(!("phone" in c.app), "no phone or WeChat");
+  assert.deepStrictEqual([c.app.email, c.app.abbr, c.app.domain, c.app.teachers, c.app.education, c.app.years, c.app.certificates, c.app.christian, "phone" in c.app], ["eve@gmail.com", "XQC", "xq-chinese.org", 3, "master", 6, "TESOL", true, false], "the qualifications kept; no phone or WeChat");
   // the first application: a course relationship at 申请 / 推荐, party apply:<email>
   let r = await A.submit(c.app, { account: "" });
   assert.ok(r.token && r.token.length > 20); const token = r.token; delete r.token;
@@ -79,6 +83,36 @@ const O = require(R("api", "shared", "onboard.js"));
   rels.items["REL-000050"].application.tokenAt = new Date().toISOString();
   assert.ok(/Thank you/.test(A.texts("X", Object.assign({}, c.app, { lang: "en" })).ack.body));
 
+  // the résumé: private (applications/<REL>/…), PDF or Word, sniffed — a renamed picture is refused
+  const B = require(R("api", "shared", "blob.js")), staged = {}, committed = {};
+  B.stageAssetBlock = async (k, id, buf) => { (staged[k] = staged[k] || []).push(buf); };
+  B.commitAssetBlocks = async (k, ids, type, cache) => { committed[k] = { type, cache, size: (staged[k] || []).reduce((n, b) => n + b.length, 0) }; };
+  const pdf = Buffer.concat([Buffer.from("%PDF-1.7\n"), Buffer.alloc(3000, 65)]);
+  await assert.rejects(A.uploadFile("REL-000050", token2, { kind: "resume", name: "cv.pdf", size: 9, index: 0, total: 1, data: Buffer.from("\x89PNG\r\n\x1a\n....").toString("base64") }), (e) => e.code === "bad_type");
+  await assert.rejects(A.uploadFile("REL-000050", "nope", { kind: "resume", name: "cv.pdf", size: pdf.length, index: 0, total: 1, data: pdf.toString("base64") }), (e) => e.status === 404, "the key is needed");
+  r = await A.uploadFile("REL-000050", token2, { kind: "resume", name: "Eve CV.pdf", size: pdf.length, index: 0, total: 1, data: pdf.toString("base64") });
+  assert.deepStrictEqual([r.done, r.file.name, committed["applications/REL-000050/resume.pdf"].cache], [true, "Eve CV.pdf", "private, no-store"]);
+  assert.strictEqual(rels.items["REL-000050"].application.resume.key, "applications/REL-000050/resume.pdf", "on the application, for staff to read");
+  // a syllabus: the file store's upload, as this application; only its own files reach the course
+  const FILES = require(R("api", "shared", "files.js")), up = [];
+  FILES.upload = async (chunk, by, opts) => { up.push([chunk.id, by, opts.kind]); return { id: "abcdefghij012345", done: true, file: { id: "abcdefghij012345", name: chunk.name } }; };
+  r = await A.uploadFile("REL-000050", token2, { kind: "syllabus", name: "大纲.docx", size: 10, index: 0, total: 1, data: "UEsDBA==", upload: "" });
+  assert.deepStrictEqual(up[0], ["", "apply:REL-000050", "syllabus"], "as the application, Word allowed");
+  const J = require(R("api", "shared", "jsonstore.js")); const jread = J.read;
+  J.read = async (n, fb) => (n === FILES.INDEX_BLOB ? { items: { abcdefghij012345: { name: "大纲.docx", size: 10, type: FILES.DOCX, by: "apply:REL-000050" }, zzzzzzzzzzzzzzzz: { name: "x.pdf", by: "someone@else" } } } : jread(n, fb));
+  r = await A.addCourse("REL-000050", token2, Object.assign({}, good, { nameZh: "中文阅读二", syllabus: [{ id: "abcdefghij012345" }, { id: "zzzzzzzzzzzzzzzz" }] }));
+  assert.deepStrictEqual(made[1].draft.fields.syllabus.map((x) => [x.id, x.name]), [["abcdefghij012345", "大纲.docx"]], "the syllabus on the course; a stranger's file left out");
+  J.read = jread;
+  // 找回申请: a fresh key by email, the old one stops working; the same answer for an unknown email
+  const flows = []; global.fetch = async (u, o) => { flows.push(JSON.parse(o.body)); return { ok: true, status: 202 }; }; process.env.POWER_AUTOMATE_URL = "https://flow.example/x";
+  assert.deepStrictEqual(await A.resend("nobody@example.org"), { ok: true }); assert.strictEqual(flows.length, 0);
+  assert.deepStrictEqual(await A.resend("EVE@gmail.com"), { ok: true });
+  assert.strictEqual(flows.length, 1); assert.strictEqual(flows[0].emailTo, "eve@gmail.com");
+  const k3 = /key=([^\s&]+)/.exec(flows[0].emailBodyText)[1];
+  await assert.rejects(A.peek("REL-000050", token2), (e) => e.status === 404, "the old link no longer works");
+  assert.strictEqual((await A.peek("REL-000050", decodeURIComponent(k3))).id, "REL-000050", "the new one does");
+  delete process.env.POWER_AUTOMATE_URL;
+
   const adopted = [];
   // 开通 from the application: the open relationship is found by its party key, and hive:XQC now names the same partner
   O._deps({
@@ -93,7 +127,7 @@ const O = require(R("api", "shared", "onboard.js"));
   assert.strictEqual(orgs.byKey["hive:XQC"], "ORG-000009", "the Schools row's key names the applicant's partner");
   assert.ok(orgs.orgs["ORG-000009"].keys.includes("hive:XQC"));
   assert.strictEqual(Object.values(rels.items).filter((x) => x.party.id === "ORG-000009").length, 1, "no second relationship");
-  assert.deepStrictEqual(adopted, [[[d0.courseId], "XQC", "recXQC"]], "the courses entered on the website become the provider's");
+  assert.deepStrictEqual(adopted, [[[d0.courseId, made[1].courseId], "XQC", "recXQC"]], "the courses entered on the website become the provider's");
   assert.strictEqual(res.steps.find((x) => x.step === "courses").status, "done");
   console.log("teach: all assertions passed");
 })().catch((e) => { console.error(e); process.exit(1); });
