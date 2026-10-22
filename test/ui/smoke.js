@@ -2029,7 +2029,7 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/未开通|订单频道未设/.test(await p.$eval("#panel .obline", e => e.innerText)), "the line says the channel is missing");
     await p.click("#panel button[data-onboard]"); await p.waitForSelector("#panel2.open #obAbbr");
     assert.strictEqual(await p.$eval("#obDomain", e => e.value), "kxc.edu", "the domain from the institution");
-    await p.fill("#obAbbr", "KXC"); assert.strictEqual(await p.$eval("#obChannel", e => e.value), "KXC 订单", "the channel name follows the short name");
+    await p.fill("#obAbbr", "KXC"); assert.strictEqual(await p.$eval("#obChannel", e => e.value), "KXC Orders", "the channel name follows the short name");
     await p.fill("#obLeader", "mei"); await p.waitForSelector("#obF .pres.pauto .pr"); await p.click("#obF .pres.pauto .pr");
     assert.ok(/@/.test(await p.$eval("#obLeader", e => e.value)), "the leader's account by smart search");
     await p.click("#obPreview"); await p.waitForSelector("#obOut .obsteps .orow");

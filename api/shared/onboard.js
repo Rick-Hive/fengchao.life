@@ -2,7 +2,7 @@
 // Orders 中创建 JCA 的频道，将其写入 Airtable，其它字段可以直接使用机构的值写入」).
 //
 // One action from the 机构 panel, five steps, each idempotent (run it again and it fills in what is missing):
-//   1. channel      a standard channel "<ABBR> 订单" in the Hive Orders team (Graph, Channel.Create) — or the one
+//   1. channel      a standard channel "<ABBR> Orders" in the Hive Orders team (Graph, Channel.Create) — or the one
 //                   already there by that name; its id is where the provider's order notifications go
 //   2. school       the Airtable Schools row: created, or the existing one (same abbreviation, domain or name)
 //                   completed — name, abbreviation, domain, Teams channel, notify email, country, city, website;
@@ -44,7 +44,7 @@ function clean(input) {
   if (out.domain && !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(out.domain)) problems.push("domain: not a domain");
   if (problems.length) throw Object.assign(new Error("incomplete"), { status: 400, problems });
   out.hive = hiveKey(out.abbr);
-  out.channelName = (out.channelName || `${out.abbr} 订单`).replace(/[~#%&*{}+/\\:<>?|'"]/g, " ").replace(/\s+/g, " ").trim().slice(0, 50);
+  out.channelName = (out.channelName || `${out.abbr} Orders`).replace(/[~#%&*{}+/\\:<>?|'"]/g, " ").replace(/\s+/g, " ").trim().slice(0, 50);
   if (!out.notifyEmail && out.leader) out.notifyEmail = out.leader;
   return out;
 }
@@ -77,7 +77,9 @@ async function run(input, opts) {
     else if (dry) step("channel", "todo", `${team.name} › ${v.channelName}`);
     else {
       const ch = await deps.graph("POST", `/teams/${team.id}/channels`, { displayName: v.channelName, description: `${v.name} — 蜂巢课程订单 / Hive course orders`, membershipType: "standard" });
-      channelId = ch.id; step("channel", "done", `${team.name} › ${ch.displayName || v.channelName}`, { channelId });
+      // Teams hides a channel someone else created until it is shown; Graph cannot set that for an existing team, so
+      // the result says where the owner ticks 「为成员显示」 (Rick 2026-10-22: 「频道自动放在 hidden channels 中了」)
+      channelId = ch.id; step("channel", "done", `${team.name} › ${ch.displayName || v.channelName} — 在 Teams 里：团队「${team.name}」› … › 管理团队 › 频道，勾选这个频道的「为成员显示」，大家的频道列表里才看得到。 / In Teams: Manage team › Channels › tick "Show for members".`, { channelId, hidden: true });
     }
   } catch (err) {
     step("channel", "failed", channelError(err, v.channelName), { code: err && err.status === 403 || err && err.status === 401 ? "app_permission" : (err && err.code) || "", httpStatus: (err && err.status) || 0, raw: String((err && err.message) || err).slice(0, 500) });

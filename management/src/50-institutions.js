@@ -196,12 +196,12 @@
       f("obAbbr", "简称", "Short name", r.abbr || "", "JCA", true) + f("obName", "名称", "Name", r.name || r.nameEn || "", "", true) +
       f("obNameEn", "英文名称", "English name", r.nameEn || "", "") + f("obDomain", "域名", "Domain", r.domain || "", "jca.example.org") +
       f("obLeader", "负责人账号", "Leader's account", (r.leader && r.leader.upn) || "", t("输入姓名或账号搜索", "Type a name or account to search")) + f("obEmail", "通知邮箱", "Notify email", "", t("默认用负责人账号", "the leader's, by default")) +
-      f("obChannel", "订单频道名称", "Orders channel name", (r.abbr ? r.abbr + " 订单" : ""), t("默认：简称 + 订单", "default: short name + 订单")) +
+      f("obChannel", "订单频道名称", "Orders channel name", (r.abbr ? r.abbr + " Orders" : ""), t("默认：简称 + Orders", "default: short name + Orders")) +
       "</div>" + '<p class="sub">' + t("会依次：在 Hive Orders 团队建订单频道 → 建或补全 Airtable 学校表这一行（已有的值不改）→ 建课程提供方合作关系 → 设负责人为蜂巢课程负责人 → 同步网站。可以重复执行，只补缺的部分。", "In order: an orders channel in the Hive Orders team → the Airtable Schools row created or completed (existing values kept) → a course-provider partnership → the leader made Hive Course Leader → the website synced. Safe to run again: only what is missing is done.") + "</p>" +
       '<div class="actions"><button type="button" class="btn secondary" id="obPreview">' + t("预览", "Preview") + '</button><button type="button" class="btn" id="obRun">' + t("执行", "Run") + '</button></div><div id="obOut"></div></form></div>', "second");
     var body = function () { return { key: r.key || r.domain, onboard: { abbr: $("obAbbr").value, name: $("obName").value, nameEn: $("obNameEn").value, domain: $("obDomain").value, leader: $("obLeader").value, notifyEmail: $("obEmail").value, channelName: $("obChannel").value, country: r.country || "", city: r.city || "", website: r.website || "" } }; };
     ptPeopleAuto($("obLeader"), { accountsOnly: true, noNew: true }); ptPeopleAuto($("obEmail"), { noNew: true });
-    $("obAbbr").addEventListener("input", function () { var c = $("obChannel"); if (!c.dataset.touched) c.value = this.value.trim() ? this.value.trim() + " 订单" : ""; });
+    $("obAbbr").addEventListener("input", function () { var c = $("obChannel"); if (!c.dataset.touched) c.value = this.value.trim() ? this.value.trim() + " Orders" : ""; });
     $("obChannel").addEventListener("input", function () { this.dataset.touched = "1"; });
     var go = function (dry, b) {
       savingButton(b, dry ? t("预览中…", "Previewing…") : t("执行中…", "Running…"));

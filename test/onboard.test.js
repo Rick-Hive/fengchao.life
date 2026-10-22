@@ -41,11 +41,11 @@ O._deps({
   let r = await O.run(input, { dryRun: true, by: "rick@fengchao.life" });
   assert.deepStrictEqual(r.steps.map((s) => [s.step, s.status]), [["channel", "todo"], ["school", "todo"], ["partnership", "todo"], ["leader", "todo"], ["sync", "todo"]]);
   assert.ok(!graphCalls.length && !writes.length && !Object.keys(rels.items).length && !roles.entries.length && !synced, "a preview writes nothing");
-  assert.strictEqual(r.steps[0].detail, "Hive Orders › JCA 订单", "the channel's name");
+  assert.strictEqual(r.steps[0].detail, "Hive Orders › JCA Orders", "the channel's name");
   // run
   r = await O.run(input, { by: "rick@fengchao.life" });
   assert.ok(r.ok, JSON.stringify(r.steps));
-  assert.deepStrictEqual(graphCalls[0], { m: "POST", p: "/teams/team1/channels", body: { displayName: "JCA 订单", description: "嘉恩学院 — 蜂巢课程订单 / Hive course orders", membershipType: "standard" } });
+  assert.deepStrictEqual(graphCalls[0], { m: "POST", p: "/teams/team1/channels", body: { displayName: "JCA Orders", description: "嘉恩学院 — 蜂巢课程订单 / Hive course orders", membershipType: "standard" } });
   assert.deepStrictEqual(writes[0], { op: "create", fields: { "Name/名称": "嘉恩学院", "简称/Abbreviation": "JCA", Domain: "jca.example.org", "Teams Channel ID": "19:jca1", "Notify Email": "eve.zhou@jca.example.org", "Country/国家": "中国" } }, "the Schools row with the channel; the leader as notify email");
   const rel = Object.values(rels.items)[0];
   assert.ok(rel && rel.type === "course" && rel.stage === "design" && rel.party.key === "jca.example.org", "the partnership");
