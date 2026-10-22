@@ -953,6 +953,15 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const seeded = seeds[0]; if (!seeded || !seeded.created.some(c => c.type === "it") || !seeded.created.some(c => c.type === "university") || !seeded.created.some(c => c.type === "publisher")) throw new Error("seed result: " + JSON.stringify(seeded));
     const xq = await p.$eval('#itable tbody tr[data-key="xqzw.edu"]', e => e.innerText); if (!/IT 服务 · 方案/.test(xq)) throw new Error("the old 试用 stage folds into the IT relationship: " + xq);
     const gcu = await p.$eval('#itable tbody tr[data-key="hive:GCU"]', e => e.innerText); if (!/大学 · 线索/.test(gcu)) throw new Error("university relationship badge: " + gcu);
+    // filters (2026-10-22): partnership type, none, source, internal
+    await p.screenshot({ path: OUT + "/institutions-filters.png", clip: { x: 240, y: 40, width: 1040, height: 200 } });
+    await p.selectOption("#iPtype", "university"); await p.waitForTimeout(150);
+    assert.deepStrictEqual(await p.$$eval("#itable tbody tr[data-key]", es => es.map(e => e.getAttribute("data-key"))), ["hive:GCU"], "university partnerships only");
+    await p.selectOption("#iPtype", "-"); await p.waitForTimeout(150);
+    assert.ok(!(await p.$('#itable tbody tr[data-key="hive:GCU"]')) && !(await p.$('#itable tbody tr[data-key="xqzw.edu"]')), "no partnership: the partnered rows go");
+    await p.selectOption("#iPtype", ""); await p.selectOption("#iKind", "hive"); await p.waitForTimeout(150);
+    assert.ok(await p.$('#itable tbody tr[data-key="hive:GCU"]') && !(await p.$('#itable tbody tr[data-key="xqzw.edu"]')), "Hive workspace rows only");
+    await p.selectOption("#iKind", ""); await p.waitForTimeout(150);
     const xqRel = Object.values(REL.items).find(x => x.party.key === "xqzw.edu" && x.type === "it"); if (!xqRel || !xqRel.contacts.length || xqRel.contacts[0].role !== "学校/机构代表") throw new Error("domain admin seeded as the contact: " + JSON.stringify(xqRel && xqRel.contacts));
     if (!xqRel.log.some(l => l.migrated)) throw new Error("the old note was not carried into the log");
     // the button comes back after the run (Rick, 2026-10-09: 点击后就冻住了 — a shadowed `var b`)
@@ -968,7 +977,10 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.ok(/#\/ops\/partners\/course/.test(await p.evaluate(() => location.hash)) && !(await p.$eval("#nrOch", e => e.hidden)) && /xqzw\.edu/.test(await p.$eval("#nrOch", e => e.innerText)), "the institution is preset: " + await p.$eval("#nrOch", e => e.innerText));
     await p.keyboard.press("Escape"); await p.waitForTimeout(150);
     // and back: a relationship's 机构档案 opens the institution's panel
-    await p.goto(p.url().replace(/#.*$/, "") + "#/ops/partners/it/" + xqRel.id); await p.waitForSelector('#panel.open a[href^="#/ops/institutions/"]');
+    await p.goto(p.url().replace(/#.*$/, "") + "#/ops/partners/it/" + xqRel.id); await p.waitForSelector('#panel.open a[href^="#/ops/institutions/"]'); await p.waitForTimeout(300);
+    await p.screenshot({ path: OUT + "/partnership-panel.png" });
+    const trackTop = await p.$eval("#panel .rtop", e => e.getBoundingClientRect().top);
+    assert.ok(trackTop < 260, "the stage track sits right under the profile link — no blank page (2026-10-22): " + trackTop);
     await p.click('#panel a[href^="#/ops/institutions/"]'); await p.waitForSelector("#panel.open #ipNewRel"); await p.waitForTimeout(200);
     assert.ok(/xqzw\.edu/.test(await p.$eval("#panel", e => e.innerText)), "the institution profile from the relationship");
     await p.keyboard.press("Escape");
