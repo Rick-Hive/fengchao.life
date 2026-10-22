@@ -733,11 +733,11 @@
     if (domain) currentDomain = domain;
     var dom = currentDomain;
     var saved = currentDomain;
-    Promise.all([loadDomainData("groups"), loadDomainData("users").catch(function () { return null; })]).then(function () {
+    loadDomainData("groups").then(function () {
       currentDomain = saved;
       var g = ((state.domainGroups[dom] || {}).groups || []).filter(function (x) { return x.id === id; })[0];
       if (!g) { panelOpen('<div class="ph"><h3>' + t("群组", "Group") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div class="empty">' + t("缓存里没有这个群组，请先同步。", "This group is not in the cache yet — sync first.") + "</div></div>"); return; }
-      var people = {}; ((state.domainUsers[dom] || {}).users || []).forEach(function (u) { people[u.upn] = u; });
+      var people = groupPeople(dom);
       var k = GKIND[g.kind] || GKIND.other;
       var membersHtml = "<h4>" + t("成员", "Members") + "</h4>" +
           ((g.members || []).length ? g.members.map(function (upn) {
@@ -862,9 +862,16 @@
   }
   function ensureGroups(domain, force) {
     var saved = currentDomain; currentDomain = domain;
-    return Promise.all([loadDomainData("groups", force), loadDomainData("users", force).catch(function () { return null; })]).then(function () { renderGroupLeaf(domain); }).catch(function (e) {
+    return loadDomainData("groups", force).then(function () { renderGroupLeaf(domain); }).catch(function (e) {
       var det = $("gtree") && $("gtree").querySelector('details[data-domain="' + domain + '"]'); if (det) det.querySelector(".leaf").innerHTML = '<div class="msg err">' + esc(e.message || e) + "</div>";
     }).then(function () { currentDomain = saved; });
+  }
+  // The members' names and 身份: sent with the groups since 2026-10-22 (no users view needed); the users view, when
+  // the page has it anyway, fills in the rest
+  function groupPeople(dom) {
+    var out = {}; ((state.domainUsers[dom] || {}).users || []).forEach(function (u) { out[u.upn] = u; });
+    var g = state.domainGroups[dom]; if (g && g.people) Object.keys(g.people).forEach(function (k) { if (!out[k]) out[k] = g.people[k]; });
+    return out;
   }
   function renderGroupLeaf(domain) {
     var det = $("gtree") && $("gtree").querySelector('details[data-domain="' + domain + '"]'); if (!det) return;
@@ -876,7 +883,7 @@
     // (Rick, 2026-10-09: 仅按所有者显示本校的 teams group).
     var elsewhere = (d.elsewhere || []).length;
     var n = $("gn-" + domain.replace(/\W/g, "_")); if (n) n.textContent = d.groups.length + t(" 个本校群组", " own groups") + (q ? " · " + rows.length + t(" 个匹配", " match") : "") + (elsewhere ? " · " + t("另有 ", "plus ") + elsewhere + t(" 个本校成员参加的其它学校团队（不在此列）", " of other schools' teams with members from here (not listed)") : "") + " · " + syncLine(d.sync);
-    var people = {}; ((state.domainUsers[domain] || {}).users || []).forEach(function (u) { people[u.upn] = u; });
+    var people = groupPeople(domain);
     var manage = (function () { var di = ((domainsInfo && domainsInfo.domains) || []).filter(function (x) { return x.domain === domain; })[0]; return !!(di && di.can && di.can.groups); })();
     det.querySelector(".leaf").innerHTML = groupScopeSwitch(domain) + (rows.length ? rows.map(function (g) {
       var k = GKIND[g.kind] || GKIND.other;

@@ -255,9 +255,14 @@ async function handler(context, req) {
       return;
     }
     if (method === "GET" && action === "groups") {
-      const [doc, names] = await Promise.all([dir.readDomain(domain), people.readGroupNames()]);
+      const [doc, names, pdoc] = await Promise.all([dir.readDomain(domain), people.readGroupNames(), readPeople().catch(() => ({ people: {} }))]);
       const own = dir.groupsOf(doc.users, doc.groupOwners, domain, doc.groupArchived);
-      context.res = { status: 200, body: { domain, groups: await people.translateGroupNames(own, names, actor), elsewhere: own.elsewhere, ownersKnown: !!doc.groupOwners, sync: dir.status(doc) } };
+      // The members' names and 身份 with the groups (Rick 2026-10-22: 「teams group 加载的也有些慢」): the page used to
+      // load the whole users view (people, roles, snapshot, Hive teachers, translations) only to name the members.
+      const want = new Set(); for (const g of own) { for (const u of g.members || []) want.add(u); for (const u of g.owners || []) want.add(u); }
+      const who = {};
+      for (const r of doc.users) if (want.has(r.upn)) who[r.upn] = { upn: r.upn, displayName: r.displayName || "", identity: identityOf((pdoc.people || {})[r.upn] || null, { department: r.department, jobTitle: r.jobTitle, plan: r.plan || "" }) };
+      context.res = { status: 200, body: { domain, groups: await people.translateGroupNames(own, names, actor), elsewhere: own.elsewhere, people: who, ownersKnown: !!doc.groupOwners, sync: dir.status(doc) } };
       return;
     }
 

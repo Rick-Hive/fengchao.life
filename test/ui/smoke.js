@@ -107,6 +107,7 @@ function mkUser(i) {
 const SYNC = { domain: "bes.qiaoliang.online", done: true, mode: "full", total: 12, remaining: 0, users: 12, syncedAt: "2026-10-01T17:00:00Z", fullAt: "2026-10-01T17:00:00Z", lastRun: null, error: null, added: 0 };
 const users = { domain: "bes.qiaoliang.online", partial: false, sync: SYNC, users: Array.from({ length: 12 }, (_, i) => mkUser(i)) };
 const dgroups = { sync: SYNC, groups: groups.groups.map((g, i) => ({ ...g, nameZh: i === 0 ? "五年级英语" : "", nameEn: i === 0 ? "English Grade 5" : "", mail: g.name.toLowerCase().replace(/ /g, ".") + "@bes.qiaoliang.online", domainMembers: 3, members: users.users.slice(i, i + 3).map(u => u.upn) })) };
+dgroups.people = Object.fromEntries(users.users.map(u => [u.upn, { upn: u.upn, displayName: u.displayName, identity: u.identity || "" }])); // the members' names, with the groups (2026-10-22)
 const roles = { entries: [
   { user: "lei.dong@bes.qiaoliang.online", roles: ["domain_it:bes.qiaoliang.online"], by: "rick.zhang@bes.qiaoliang.online", at: "2026-10-01T02:00:00Z", displayName: "Lei Dong", domain: "bes.qiaoliang.online", lastSignIn: "2026-10-03T01:00:00Z", inDirectory: true },
   { user: "mei.wang@bes.qiaoliang.online", roles: ["domain_it:bes.qiaoliang.online", "staff:community"], by: "rick.zhang@bes.qiaoliang.online", at: "2026-10-02T02:00:00Z", displayName: "Mei Wang", domain: "bes.qiaoliang.online", lastSignIn: "", inDirectory: true },
@@ -692,6 +693,12 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     const txt = await p.$eval("#content", e => e.innerText);
     if (!/English Grade 5/.test(txt)) throw new Error("group list: " + txt.slice(0, 200));
     await p.evaluate(() => { const d = document.querySelector("#gtree details"); if (d) d.open = true; }); await p.waitForTimeout(600);
+    // speed (2026-10-22): the groups bring their members' names; the page no longer loads the users view for them
+    const asked = []; p.on("request", r => { const u = new URL(r.url()); if (u.pathname.startsWith("/api/domain/")) asked.push(u.pathname); });
+    await p.reload(); await p.waitForSelector("#gtree details"); await p.evaluate(() => { const d = document.querySelector("#gtree details"); if (d) d.open = true; }); await p.waitForSelector("#gtree .leaf .mrow", { state: "attached" });
+    assert.ok(asked.includes("/api/domain/groups") && !asked.includes("/api/domain/users"), "groups only: " + asked.join(", "));
+    const mname = await p.$eval("#gtree .leaf .mrow .mname", e => e.textContent);
+    assert.ok(mname && mname.length > 1, "the member's name, from the groups' own payload: " + mname);
   });
   await shot("group-name-editor", 1280, 900, "#/domain/users", "zh", ["admin", "staff:sysadmin"], async p => {
     await p.waitForTimeout(600);
