@@ -959,9 +959,8 @@ const teamCreates = [], memberOps = [], scopePuts = [], teamOps = []; let teamPe
     assert.deepStrictEqual(await p.$$eval("#itable tbody tr[data-key]", es => es.map(e => e.getAttribute("data-key"))), ["hive:GCU"], "university partnerships only");
     await p.selectOption("#iPtype", "-"); await p.waitForTimeout(150);
     assert.ok(!(await p.$('#itable tbody tr[data-key="hive:GCU"]')) && !(await p.$('#itable tbody tr[data-key="xqzw.edu"]')), "no partnership: the partnered rows go");
-    await p.selectOption("#iPtype", ""); await p.selectOption("#iKind", "hive"); await p.waitForTimeout(150);
-    assert.ok(await p.$('#itable tbody tr[data-key="hive:GCU"]') && !(await p.$('#itable tbody tr[data-key="xqzw.edu"]')), "Hive workspace rows only");
-    await p.selectOption("#iKind", ""); await p.waitForTimeout(150);
+    await p.selectOption("#iPtype", ""); await p.waitForTimeout(150);
+    assert.ok(!(await p.$("#iKind")) && !(await p.$("#iInternal")), "no source or internal filter (removed 2026-10-22)");
     const xqRel = Object.values(REL.items).find(x => x.party.key === "xqzw.edu" && x.type === "it"); if (!xqRel || !xqRel.contacts.length || xqRel.contacts[0].role !== "学校/机构代表") throw new Error("domain admin seeded as the contact: " + JSON.stringify(xqRel && xqRel.contacts));
     if (!xqRel.log.some(l => l.migrated)) throw new Error("the old note was not carried into the log");
     // the button comes back after the run (Rick, 2026-10-09: 点击后就冻住了 — a shadowed `var b`)

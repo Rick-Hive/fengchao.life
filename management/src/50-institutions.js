@@ -10,7 +10,7 @@
   // 机构名称 merged in (Rick 2026-10-21: 「机构名称和机构总感觉有些重复……可否合并到同一个页面中管理？」): one page per
   // institution; the system administrator names a tenant domain in its panel (中文 / English), the 名称未填 chip finds the
   // ones still unnamed, and a verified domain with no accounts synced yet is listed too so it can be named.
-  var instState = { data: null, q: "", noname: false, ptype: "", kind: "", country: "", internal: "" };
+  var instState = { data: null, q: "", noname: false, ptype: "", country: "" };
   // the rows plus, for the system administrator, every verified domain the people hub has not seen yet
   function instRows() {
     var d = instState.data, rows = (d && d.rows) || [];
@@ -30,12 +30,12 @@
       { info: t("每所学校 / 蜂巢 / 大学一行：它的合作关系（按类型与阶段，点开进入合作伙伴页）、账号数与活跃、其中的 Equip 客户与本学年购买、家庭数、蜂巢课程的佣金收入。标为「内部」的是我们自己，不会生成合作关系。数字来自人员库，每次同步后更新。在机构面板里可以直接为它新建合作关系。", "One row per school, hive or university: its partnerships (type and stage, opening the partnership), accounts and active ones, the Equip customers among them and this school year's purchases, families, Hive course commission. Rows marked internal are ourselves and never become partners. Numbers come from the people hub after each sync. A new partnership for it starts from its panel.") });
     $("content").innerHTML = pmTabsHtml("inst") + '<div class="toolbar"><div class="search">' + ICON.search + '<input type="search" id="iq" value="' + esc(instState.q) + '" placeholder="' + t("搜索机构、域名…", "Search institution, domain…") + '" /></div></div><div class="kpis strip" id="ikpi"></div><div class="tbl-wrap"><table class="data fixed" id="itable"><colgroup><col style="width:24%"><col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:12%"><col style="width:8%"><col style="width:9%"><col style="width:11%"></colgroup><thead><tr><th>' + t("机构", "Institution") + "</th><th>" + t("合作关系", "Partnerships") + '</th><th class="num">' + t("账号", "Accounts") + '</th><th class="num">' + t("活跃", "Active") + '</th><th class="num">' + t("客户", "Customers") + '</th><th class="num">' + t("本学年销售", "SY sales") + '</th><th class="num">' + t("家庭", "Families") + '</th><th class="num" title="' + esc(t("这个机构的人下的蜂巢课程订单数（买方）", "Hive course orders placed by this institution's people (buyer side)")) + '">' + t("课程订单", "Course orders") + '</th><th class="num" title="' + esc(t("本学年作为课程提供方、已收款订单的蜂巢佣金合计；不计入教材销售", "This school year's Hive commission on paid orders this institution delivers as a provider; never added to textbook sales")) + '">' + t("蜂巢佣金收入", "Hive commission") + '</th></tr></thead><tbody><tr><td colspan="9" class="loading">' + t("载入中…", "Loading…") + '</td></tr></tbody></table></div><p class="muted" id="ifoot" style="font-size:.8rem"></p>';
     $("iq").addEventListener("input", debounce(function () { instState.q = $("iq").value.trim(); renderInstitutionsCrm(); }, 120));
-    // filters (Rick 2026-10-22: 「Institutions should have filters」): partnership type (or none), where the row comes from,
-    // country, internal; the selects are filled once the data is in (instFilters)
+    // filters (Rick 2026-10-22: 「Institutions should have filters」): partnership type (or none) and country; the source
+    // and internal filters were removed the same day (Rick: 「delete these two filters」)
     var tb = $("iq").closest(".toolbar"); if (tb) {
-      tb.insertAdjacentHTML("beforeend", '<select id="iPtype" aria-label="' + esc(t("合作类型", "Partnership type")) + '"></select><select id="iKind" aria-label="' + esc(t("来源", "Source")) + '"></select><select id="iCountry" aria-label="' + esc(t("国家 / 地区", "Country")) + '" hidden></select><select id="iInternal" aria-label="' + esc(t("内部机构", "Internal")) + '"></select><button type="button" class="chip" id="iNoName" aria-pressed="false" hidden>' + t("名称未填", "Unnamed") + ' <span class="cnt">0</span></button>');
+      tb.insertAdjacentHTML("beforeend", '<select id="iPtype" aria-label="' + esc(t("合作类型", "Partnership type")) + '"></select><select id="iCountry" aria-label="' + esc(t("国家 / 地区", "Country")) + '" hidden></select><button type="button" class="chip" id="iNoName" aria-pressed="false" hidden>' + t("名称未填", "Unnamed") + ' <span class="cnt">0</span></button>');
       $("iNoName").addEventListener("click", function () { instState.noname = !instState.noname; renderInstitutionsCrm(); });
-      ["iPtype", "iKind", "iCountry", "iInternal"].forEach(function (id) { $(id).addEventListener("change", function () { instState[{ iPtype: "ptype", iKind: "kind", iCountry: "country", iInternal: "internal" }[id]] = this.value; renderInstitutionsCrm(); }); });
+      ["iPtype", "iCountry"].forEach(function (id) { $(id).addEventListener("change", function () { instState[{ iPtype: "ptype", iCountry: "country" }[id]] = this.value; renderInstitutionsCrm(); }); });
     }
     // 刷新 rebuilds on the server: the tenant's directories + the Hive workspace's Schools table, live (Rick, 2026-10-08).
     $("iReload").addEventListener("click", function () {
@@ -70,22 +70,14 @@
     var types = {}; all.forEach(function (r) { (r.rels || []).forEach(function (x) { if (!x.closed) types[x.type] = (types[x.type] || 0) + 1; }); });
     var none = all.filter(function (r) { return !(r.rels || []).some(function (x) { return !x.closed; }); }).length;
     if ($("iPtype")) $("iPtype").innerHTML = opt("", t("所有合作类型", "All partnership types"), instState.ptype) + Object.keys(types).map(function (k) { var ty = d.types && d.types[k]; return opt(k, (ty ? t(ty.zh, ty.en) : k) + " · " + types[k], instState.ptype); }).join("") + opt("-", t("没有合作", "No partnership") + " · " + none, instState.ptype);
-    var kinds = { tenant: 0, hive: 0 }; all.forEach(function (r) { if (r.kind === "hive") kinds.hive++; else if (r.kind === "both") { kinds.tenant++; kinds.hive++; } else kinds.tenant++; });
-    if ($("iKind")) $("iKind").innerHTML = opt("", t("所有来源", "All sources"), instState.kind) + opt("tenant", t("租户域名", "Tenant domain") + " · " + kinds.tenant, instState.kind) + opt("hive", t("蜂巢工作区", "Hive workspace") + " · " + kinds.hive, instState.kind);
     var cs = {}; all.forEach(function (r) { if (r.country) cs[r.country] = (cs[r.country] || 0) + 1; });
     if ($("iCountry")) { $("iCountry").hidden = Object.keys(cs).length < 2; $("iCountry").innerHTML = opt("", t("所有国家 / 地区", "All countries"), instState.country) + Object.keys(cs).sort().map(function (k) { return opt(k, k + " · " + cs[k], instState.country); }).join(""); }
-    var internal = all.filter(function (r) { return r.internal; }).length;
-    if ($("iInternal")) $("iInternal").innerHTML = opt("", t("含内部机构", "With internal"), instState.internal) + opt("hide", t("不含内部机构", "Without internal") + " · " + (all.length - internal), instState.internal) + opt("only", t("只看内部机构", "Internal only") + " · " + internal, instState.internal);
   }
   function instPasses(r) {
     var f = instState, open = (r.rels || []).filter(function (x) { return !x.closed; });
     if (f.ptype === "-" && open.length) return false;
     if (f.ptype && f.ptype !== "-" && !open.some(function (x) { return x.type === f.ptype; })) return false;
-    if (f.kind === "tenant" && r.kind === "hive") return false;
-    if (f.kind === "hive" && r.kind !== "hive" && r.kind !== "both") return false;
     if (f.country && r.country !== f.country) return false;
-    if (f.internal === "hide" && r.internal) return false;
-    if (f.internal === "only" && !r.internal) return false;
     return true;
   }
   function renderInstitutionsCrm() {

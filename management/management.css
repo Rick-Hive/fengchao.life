@@ -1420,4 +1420,4 @@ body.coedit .content { padding-bottom: 140px; } /* room under the preview on a p
 .plreq-chip.in-cart { border-color: var(--accent); background: var(--accent-soft, #e8eef7); }
 .plreq-tick { color: var(--accent); font-size: 12px; }
 .ptprofile { display: inline-block; margin-bottom: var(--s2); font-size: 13px; }
-#iPtype, #iKind, #iCountry, #iInternal { width: auto; max-width: 200px; height: 32px; padding: 0 28px 0 10px; font-size: 13px; }
+#iPtype, #iCountry { width: auto; max-width: 200px; height: 32px; padding: 0 28px 0 10px; font-size: 13px; }
