@@ -142,7 +142,7 @@ async function up(buf, name, extra) {
   r = await serve(img.body.id); assert.strictEqual(r.status, 404, "and no longer opens");
   assert.ok(assets["broadcast/" + img.body.id], "but is still stored");
   assert.strictEqual(await FILES.cleanup(), 0, "not removed yet");
-  assert.strictEqual(await FILES.cleanup(Date.now() + 31 * 86400000), 1, "removed after 30 days");
+  assert.strictEqual(await FILES.cleanup(Date.now() + 31 * 86400000), 2, "removed after 30 days — and the upload that was never finished goes too (a day old is enough for that)");
   assert.ok(!assets["broadcast/" + img.body.id] && !blobs[FILES.INDEX_BLOB].items[img.body.id], "blob and record gone");
   r = await comm({ op: "delete", id: ev.id }); assert.strictEqual(r.status, 200);
   assert.ok(blobs[FILES.INDEX_BLOB].items[f1.id].deletedAt, "deleting the event lets its files go");

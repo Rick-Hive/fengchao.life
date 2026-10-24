@@ -171,6 +171,20 @@ module.exports = async function (context, req) {
       }
       return done(400, { error: `unknown op ${JSON.stringify(op)}` });
     }
+    // 课程大纲模板 (Rick 2026-10-23: 「蜂巢的模版还没上传，在哪里上传呢？」): the approvers replace Hive's built-in template; the
+    // website and the editor link to /api/asset?key=templates/syllabus-template.docx, which serves it (or the built-in one)
+    if (action === "template") {
+      const KEY = "templates/syllabus-template.docx";
+      if (method === "GET") { const a = await require("../shared/blob").readAsset(KEY).catch(() => null); return done(200, { uploaded: !!a, size: a ? a.buffer.length : 0, url: "/api/asset?key=" + KEY }); }
+      if (!who.approver) return done(403, { error: "the curriculum director, the CEO or the system administrator keeps the template" });
+      const buf = Buffer.from(String(body.data || ""), "base64");
+      const FILES = require("../shared/files");
+      if (!buf.length || buf.length > 4 * 1024 * 1024) return done(400, { error: "a .docx of at most 4 MB" });
+      if (FILES.sniff(buf, body.name || "x.docx") !== FILES.DOCX) return done(400, { error: "the template must be a Word .docx file" });
+      await require("../shared/blob").writeAsset(KEY, buf, FILES.DOCX);
+      await audit(context, { action: "courses.template", by: user, size: buf.length, name: String(body.name || "").slice(0, 120) });
+      return done(200, { ok: true, uploaded: true, size: buf.length, url: "/api/asset?key=" + KEY });
+    }
     if (method === "POST" && action === "upload") {
       // `course` = the course; `id` = the upload id (files.js), set from the second chunk on
       const courseId = String(body.course || "");

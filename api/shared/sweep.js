@@ -145,6 +145,9 @@ async function run(opts) {
       } catch (err) { fail("payment", { orderId: id }, err); }
     }
   }
+  // 7. files nobody kept: an applicant's syllabus upload never put on a course, an upload never finished (files.cleanup)
+  out.filesSwept = 0;
+  if (!dry) { try { out.filesSwept = await require("./files").cleanup(now); } catch (err) { fail("files", {}, err); } }
   if (!dry && (out.expired.length || out.seated.length || out.payments.length)) seats.forget();
   out.total = out.expired.length + out.reminded.length + out.nudged.length + out.seated.length + out.childReminded.length + out.payments.length;
   return out;

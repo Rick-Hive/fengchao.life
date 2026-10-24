@@ -41,6 +41,8 @@
   // 我要教课 (2026-10-22): what the applicant wrote on the website, on the relationship it opened
   var PT_APP_KIND = { solo: ["一人团队", "One-person team"], individual: ["一人团队", "One-person team"], team: ["多人团队", "Teaching team"], school: ["学校 / 机构", "School / organisation"] };
   var PT_APP_LANG = { zh: ["中文", "Chinese"], en: ["英文", "English"], both: ["中英双语", "Chinese and English"] };
+  var PT_FAITH = { worldview: { yes: ["听说过圣经世界观", "has heard of a biblical worldview"], no: ["没听说过圣经世界观", "has not heard of a biblical worldview"] }, frequency: { never: ["教学中从未融入", "never integrates it in teaching"], sometimes: ["偶尔融入教学", "integrates it sometimes"], often: ["经常融入教学", "integrates it often"], always: ["每堂课都融入", "in every lesson"] }, church: { yes: ["有委身的教会生活", "committed church life"], no: ["没有委身的教会生活", "no committed church life"] }, churchKind: { house: ["家庭教会", "house church"], tspm: ["三自教会", "Three-Self church"], online: ["网络教会", "online church"], other: ["其它", "other"] } };
+  function ptFaithLine(a) { var pick = function (m, k) { return m[k] ? t(m[k][0], m[k][1]) : ""; }; return [pick(PT_FAITH.worldview, a.worldview), pick(PT_FAITH.frequency, a.frequency), pick(PT_FAITH.church, a.church), pick(PT_FAITH.churchKind, a.churchKind) + (a.churchKind === "other" && a.churchOther ? "：" + a.churchOther : "")].filter(Boolean).join(" · "); }
   function ptApplicationHtml(a) {
     if (!a) return "";
     var L = function (m, k) { return m[k] ? t(m[k][0], m[k][1]) : ""; };
@@ -53,9 +55,12 @@
       (a.subjects ? ptKv(t("课程", "Courses"), esc(a.subjects) + (a.grades ? " · " + esc(a.grades) : "") + (a.language ? " · " + esc(L(PT_APP_LANG, a.language)) : "")) : "") +
       ((a.courses || []).length ? ptKv(t("填写的课程", "Courses entered"), a.courses.map(function (c) { return '<a href="#/courses/' + esc(c.id) + '">' + esc(c.nameZh || c.nameEn || c.id) + "</a>"; }).join(" · ")) : "") +
       ((a.education || a.years || a.certificates) ? ptKv(t("资历", "Qualifications"), esc([a.education ? t({ below: "本科以下", bachelor: "本科", master: "硕士", doctor: "博士" }[a.education], { below: "Below a bachelor's", bachelor: "Bachelor's", master: "Master's", doctor: "Doctorate" }[a.education]) : "", a.years ? a.years + t(" 年教学", " years teaching") : "", a.certificates || ""].filter(Boolean).join(" · "))) : "") +
-      (a.resume ? ptKv(t("简历", "Résumé"), '<a href="/api/crm/application-file?id=' + esc(ptState.rel && ptState.rel.relationship ? ptState.rel.relationship.id : "") + '" target="_blank" rel="noopener">' + esc(a.resume.name) + " ↗</a>" + (a.resume.size ? ' <span class="muted">' + Math.max(1, Math.round(a.resume.size / 1024)) + " KB</span>" : "")) : "") +
-      ptKv(t("介绍", "About"), '<span class="pre">' + esc(a.intro) + "</span>") +
-      (a.sample ? ptKv(t("样课", "Sample"), /^\S+$/.test(a.sample) ? link(a.sample) : '<span class="pre">' + esc(a.sample) + "</span>") : "") + "</div>";
+      ptKv(t("简历", "Résumé"), a.resume ? '<a href="/api/crm/application-file?id=' + esc(ptState.rel && ptState.rel.relationship ? ptState.rel.relationship.id : "") + '" target="_blank" rel="noopener">' + esc(a.resume.name) + " ↗</a>" + (a.resume.size ? ' <span class="muted">' + Math.max(1, Math.round(a.resume.size / 1024)) + " KB</span>" : "") : '<span class="tag warn">' + t("未上传", "missing") + "</span>") +
+      (a.sample ? ptKv(t("示范课与作品集", "Sample class / portfolio"), link(a.sample)) : "") +
+      // 信仰 (2026-10-23): the applicant's own answers, for the community manager's conversation — never a filter
+      (a.worldview && (isAdmin() || hasFn("community") || hasFn("ceo")) ? ptKv(t("信仰", "Faith"), esc(ptFaithLine(a)) + ' <span class="muted">' + t("（仅教育社区经理可见）", "(community manager only)") + "</span>") : "") +
+      (a.intro ? ptKv(t("介绍", "About"), '<span class="pre">' + esc(a.intro) + "</span>") : "") +
+      "</div>";
   }
 
   function viewPartners() {

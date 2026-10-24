@@ -131,6 +131,7 @@
         '<input type="search" id="coq" placeholder="' + esc(t("搜索课程、老师", "Search courses, teachers")) + '" value="' + esc(co.q) + '" />' +
         (sync && sync.pending && coIsApprover() ? '<button class="btn secondary sm" id="coSyncNow">' + t("更新网站", "Refresh website") + "</button>" : "") +
         // 新建课程 (Rick 2026-10-22): approvers and a provider's leader; it reaches Airtable when it is published
+        (coIsApprover() ? '<button class="btn secondary sm" id="coTpl" title="' + esc(t("课程大纲模板：老师和申请人下载、填写后上传的 Word 文件", "The syllabus template teachers and applicants download, fill in and upload")) + '">' + t("大纲模板…", "Template…") + "</button>" : "") +
         (coIsApprover() || coIsProvider() ? '<button class="btn sm" id="coNew">' + t("＋ 新建课程", "+ New course") + "</button>" : "") + "</div>" + pagerTile("courses", cpg) + "</div>" +
       '<div class="tbl-wrap"><table class="data" id="cotable"><thead><tr><th>' + t("课程", "Course") + "</th><th>" + t("学科", "Subject") + "</th><th>" + t("学校", "School") + "</th><th>" + t("老师", "Teachers") + "</th><th>" + t("进度", "Progress") + "</th><th>" + t("更新", "Updated") + "</th></tr></thead><tbody>" +
       (rows.length ? rows.map(function (c) {
@@ -152,6 +153,7 @@
     });
     if ($("coSyncNow")) $("coSyncNow").addEventListener("click", function () { coSyncWebsite($("coSyncNow")); });
     if ($("coNew")) $("coNew").addEventListener("click", function () { coNewPanel(""); });
+    if ($("coTpl")) $("coTpl").addEventListener("click", coTemplatePanel);
   }
 
   // ---- assigning teachers (approvers): the people picker in a side panel --------------------
@@ -224,6 +226,26 @@
   // ================================================================================
   // 新建课程 / 复制课程: an approver picks the provider; a provider's leader creates for its own institution. `from` = the
   // course to copy (its fields without the code and the syllabus files). The new course opens in the editor at once.
+  // 课程大纲模板 (Rick 2026-10-23): the Word file everyone downloads from the website and the editor; Hive's built-in copy
+  // until the curriculum director uploads their own
+  function coTemplatePanel() {
+    panelOpen('<div class="ph"><h3>' + t("课程大纲模板", "Syllabus template") + '</h3><button class="x" type="button" aria-label="close">✕</button></div><div class="pb"><div id="coTplBody" class="loading">' + t("载入中…", "Loading…") + "</div>" +
+      '<p class="hint">' + t("老师在课程编辑器、申请人在网站「我要教课」都从这里下载同一份模板，填好后上传为课程大纲。上传新的 .docx 会替换它（最大 4 MB）。", "Teachers in the course editor and applicants on the website download this same template and upload it, filled in, as the syllabus. Uploading a new .docx replaces it (up to 4 MB).") + "</p></div>");
+    var paint = function (x) {
+      $("coTplBody").className = ""; $("coTplBody").innerHTML = '<div class="kv"><span class="k">' + t("当前", "Current") + "</span><span>" + (x.uploaded ? t("已上传的模板", "Uploaded template") + " · " + coFileSize(x.size) : t("蜂巢内置模板（尚未上传自己的）", "Hive's built-in template (none uploaded yet)")) + ' · <a href="' + esc(x.url) + '">' + t("下载", "Download") + "</a></span></div>" +
+        '<div class="actions"><label class="btn sm">' + t("上传新模板 (.docx)", "Upload a new template (.docx)") + '<input type="file" id="coTplFile" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></label></div><div id="coTplMsg"></div>';
+      $("coTplFile").addEventListener("change", function () {
+        var file = this.files && this.files[0]; if (!file) return;
+        if (file.size > 4 * 1024 * 1024) { $("coTplMsg").innerHTML = '<div class="msg err">' + t("文件超过 4 MB。", "The file is over 4 MB.") + "</div>"; return; }
+        $("coTplMsg").innerHTML = '<div class="msg">' + t("上传中…", "Uploading…") + "</div>";
+        file.arrayBuffer().then(function (buf) { return post("courses/template", "POST", { name: file.name, data: b64chunk(buf) }); }).then(function (r) {
+          if (!r.ok) { $("coTplMsg").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; return; }
+          paint(r.body); $("coTplMsg").innerHTML = '<div class="msg ok">' + t("已替换。", "Replaced.") + "</div>";
+        });
+      });
+    };
+    api("courses/template").then(function (r) { if (r.ok) paint(r.body); else $("coTplBody").innerHTML = '<div class="msg err">' + esc(errText(r)) + "</div>"; });
+  }
   function coNewPanel(from) {
     var appr = coIsApprover(), src = from ? (co.list || []).filter(function (x) { return x.id === from; })[0] : null;
     var need = co.lookups ? Promise.resolve() : api("courses/lookups").then(function (r) { if (r.ok) co.lookups = r.body; });
@@ -454,7 +476,7 @@
       return '<div class="cofile" data-i="' + i + '"><span class="cofile-ic">📄</span><a href="' + esc(a.url || ("/api/f/" + a.id)) + '" target="_blank" rel="noopener">' + esc(a.name || "syllabus.pdf") + '</a><small class="faint">' + (a.size ? coFileSize(a.size) : "") + (a.airtable ? " · Airtable" : "") + (a.progress != null ? " · " + a.progress + "%" : "") + "</small>" + (can ? '<button type="button" class="linkbtn" data-frm="' + i + '">' + t("移除", "Remove") + "</button>" : "") + "</div>";
     }).join("") + (can && list.length < 3 ? '<label class="cofile-add btn secondary sm">' + t("上传 PDF / Word", "Upload PDF / Word") + '<input type="file" accept="application/pdf,.pdf,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" hidden /></label>' : "") +
       // Hive's template (Rick 2026-10-22: 「Syllabus 蜂巢要提供模版，客户下载后编辑好再上传。课程编辑和创建那边一样要有」)
-      '<a class="cofile-tpl" href="/assets/templates/syllabus-template.docx" download>' + t("下载课程大纲模板 (Word)", "Download the syllabus template (Word)") + "</a></div>";
+      '<a class="cofile-tpl" href="/api/asset?key=templates/syllabus-template.docx">' + t("下载课程大纲模板 (Word)", "Download the syllabus template (Word)") + "</a></div>";
   }
 
   // ---- the preview: how the course card and detail read on the website --------------------

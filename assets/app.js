@@ -1826,49 +1826,80 @@
   }
 
   /* ---------- 我要教课 / I want to teach (/teach) ---------- */
-  // A wizard (Rick 2026-10-22: 「做成向导，流程 1-5 要保留，很清晰的整体画面」). The five phases stay in view on top; the
-  // page does the first two: ① 提交申请 in three short steps — 团队类型 → 您的资料 (基督徒? · 姓 名 in pinyin or English ·
-  // an international email · a team's or school's name, short name and own domain, or Hive creates one) → 资历、介绍与提交
-  // (degree, years, certificates, an optional résumé) — then ② 填写课程, each course saved as a draft in the course
-  // editor's store with an optional syllabus on Hive's template (api/shared/applications.js). Nobody is signed in: until
-  // the application is submitted the form is kept in this browser; after, everything is on the server under a 7-day key,
-  // this browser remembers it, the confirmation email links back (?app=&key=), and 「用邮箱找回」 sends a fresh link.
-  // Not a Christian → a thank-you page; nothing is sent.
-  var TEACH_KEY = "fc-teach-v2";
-  var TEACH_FIELDS = ["familyName", "givenName", "email", "org", "abbr", "domain", "teachers", "website", "country", "city", "intro", "sample", "education", "years", "certificates"];
-  var COURSE_FIELDS = ["nameZh", "nameEn", "description", "numClasses", "minSize", "maxSize", "classTime", "prerequisite", "price"];
+  // A wizard under the five phases (Rick 2026-10-22/23). The page does phases ① and ②:
+  //   ① 提交申请 in three steps, shown as a clickable stepper: 教学团队 → 基本信息 (姓 in pinyin, 名 in pinyin or English, an
+  //     international email, a team's or school's name / short name / domain — or Hive creates one) → 教学资质 (the résumé,
+  //     required; a link to a sample class or portfolio, required; faith asked in steps, each answer opening the next and
+  //     none closing the door — the reviewer reads them).
+  //   ② 填写课程: each course saved as a draft in the course editor's store, entered with the editor's own controls — chips
+  //     for subjects, grade pills in the site's language, type and language pills, weekday + time slots, a syllabus on
+  //     Hive's template.
+  // Compact by rule (Rick: 「本站空间节约原则」): notes ride in placeholders or one short line, headings share the step bar.
+  // Nobody is signed in: until submitted the form lives in this browser; after, on the server under a 7-day key that this
+  // browser remembers, the confirmation email links back (?app=&key=), and 「用邮箱找回」 sends a fresh link.
+  var TEACH_KEY = "fc-teach-v3";
+  var TEACH_FIELDS = ["familyName", "givenName", "email", "org", "abbr", "domain", "teachers", "website", "country", "city", "sample", "churchOther"];
+  var TEACH_CHOICES = ["worldview", "frequency", "church", "churchKind"];
+  var COURSE_FIELDS = ["nameZh", "nameEn", "description", "numClasses", "minSize", "maxSize", "prerequisite", "price", "subjectOther"];
   var TEACH_CHUNK = 1536 * 1024;
   var LATIN_NAME = /^[A-Za-zÀ-ɏ][A-Za-zÀ-ɏ .'-]*$/;
+  var DAY_ZH = { Monday: "周一", Tuesday: "周二", Wednesday: "周三", Thursday: "周四", Friday: "周五", Saturday: "周六", Sunday: "周日" };
+  var DAY_EN = { Monday: "Mon", Tuesday: "Tue", Wednesday: "Wed", Thursday: "Thu", Friday: "Fri", Saturday: "Sat", Sunday: "Sun" };
   var teachResumeFile = null; // the résumé chosen before submitting: a File cannot be kept in localStorage
-  function teachBlankCourse() { return { nameZh: "", nameEn: "", subject: "", grades: [], classType: "Live Course", language: state.lang === "en" ? "English" : "Chinese", description: "", numClasses: "", minSize: "", maxSize: "", classTime: "", prerequisite: "", price: "", syllabus: [] }; }
-  function teachFresh() { return { phase: "apply", step: 0, f: { kind: "", agree: false, christian: "" }, app: null, courses: [], resume: null, c: teachBlankCourse(), lists: null, err: "", errField: "", msg: "", sending: false, find: null }; }
+  function teachBlankCourse() { return { nameZh: "", nameEn: "", subjects: [], subjectOther: "", subjectOtherOn: false, grades: [], classType: "Live Course", language: state.lang === "en" ? "English" : "Chinese", description: "", numClasses: "", minSize: "", maxSize: "", days: [], slots: [], prerequisite: "", price: "", syllabus: [] }; }
+  function teachFresh() { return { phase: "apply", step: 0, f: { kind: "", agree: false }, app: null, courses: [], resume: null, c: teachBlankCourse(), adding: false, editing: false, lists: null, err: "", errField: "", msg: "", sending: false, find: null }; }
+  // a slot is kept structured ({ days, from, to }) and worded at render time, so the language toggle rewords it and the
+  // course's weekdays are the union of its slots (review 2026-10-24)
+  function teachSlotText(x) { var en = state.lang === "en"; return (x.days || []).map(function (d) { return en ? DAY_EN[d] : DAY_ZH[d] || d; }).join(en ? ", " : "、") + " " + x.from + "–" + x.to; }
+  function teachSlotDays(c) { var out = []; (c.slots || []).forEach(function (x) { (x.days || []).forEach(function (d) { if (out.indexOf(d) < 0) out.push(d); }); }); return out; }
   function teachLong(x) { x = String(x || "").trim(); return x.length >= (/[㐀-鿿]/.test(x) ? 10 : 20); }
+  // a grade in the site's language, from the Airtable title (K, G1 … G12; anything else as it is)
+  function teachGradeName(name) {
+    name = String(name || "").trim(); var en = state.lang === "en";
+    if (/^(Pre-?K|学前)$/i.test(name)) return en ? "Pre-K" : "学前";
+    var k = /^K(\d)$/i.exec(name); if (k) return en ? "K" + k[1] : "幼儿园 K" + k[1];
+    var m = /^G(\d{1,2})$/i.exec(name); return m ? (en ? "Grade " + m[1] : m[1] + " 年级") : name;
+  }
   function teachState() {
     if (state.teach) return state.teach;
     var saved = null; try { saved = JSON.parse(localStorage.getItem(TEACH_KEY) || "null"); } catch (e) {}
     var st = teachFresh();
-    if (saved && typeof saved === "object") ["phase", "step", "f", "app", "courses", "resume", "c"].forEach(function (k) { if (saved[k] != null) st[k] = saved[k]; });
-    if (st.phase === "thanks") st.phase = "apply";
-    if (!st.c.syllabus) st.c.syllabus = [];
+    // what this browser kept, taken only in the shapes the page writes (review 2026-10-24: a stale or edited entry must not break the page)
+    if (saved && typeof saved === "object") {
+      if (["apply", "courses", "done"].indexOf(saved.phase) >= 0) st.phase = saved.phase;
+      if ([0, 1, 2].indexOf(saved.step) >= 0) st.step = saved.step;
+      if (saved.f && typeof saved.f === "object") st.f = Object.assign(st.f, saved.f);
+      if (saved.app && typeof saved.app === "object" && /^REL-\d{6}$/.test(String(saved.app.id || "")) && saved.app.key) st.app = saved.app;
+      if (Array.isArray(saved.courses)) st.courses = saved.courses.filter(function (x) { return x && typeof x === "object"; });
+      if (saved.resume && typeof saved.resume === "object") st.resume = saved.resume;
+      if (saved.c && typeof saved.c === "object") st.c = Object.assign(teachBlankCourse(), saved.c);
+      st.adding = !!saved.adding;
+    }
+    if (st.phase !== "apply" && !st.app) { st.phase = "apply"; st.step = 0; }
+    var c0 = st.c; ["subjects", "grades", "days", "slots", "syllabus"].forEach(function (k) { if (!Array.isArray(c0[k])) c0[k] = []; });
+    c0.slots = c0.slots.filter(function (x) { return x && typeof x === "object" && Array.isArray(x.days) && x.from && x.to; });
     if (state.account && !st.f.email && state.email) st.f.email = state.email;
     state.teach = st;
-    // the link from the confirmation (or recovery) email
-    var qs = null; try { qs = new URLSearchParams(location.search); } catch (e) {}
+    // the link from the confirmation (or recovery) email: /teach#app=…&key=… — the key rides in the fragment, which no
+    // server or proxy logs, and is exchanged with a POST
+    var qs = null; try { qs = new URLSearchParams((location.hash || "").replace(/^#\/?/, "")); if (!qs.get("app")) qs = new URLSearchParams(location.search); } catch (e) {}
     var appId = qs && qs.get("app"), key = qs && qs.get("key");
     if (appId && key) {
       try { history.replaceState(null, "", location.pathname); } catch (e) {}
-      fetch("/api/teach/app?id=" + encodeURIComponent(appId) + "&key=" + encodeURIComponent(key), { cache: "no-store" })
+      fetch("/api/teach/app", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: appId, key: key }) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
         .then(function (r) {
-          if (r.status !== 200) { st.phase = "apply"; st.step = 0; st.err = t().teach.err.expired; render(); return; }
-          st.app = { id: r.body.id, key: key, email: r.body.email, again: false, kind: r.body.kind }; st.courses = r.body.courses || []; st.resume = r.body.resume || null; st.phase = "courses"; st.err = ""; teachSave(); render();
+          if (r.status !== 200) { st.phase = "apply"; st.step = 0; st.err = t().teach.err.expired; st.find = { open: true }; render(); return; }
+          st.app = { id: r.body.id, key: key, email: r.body.email, again: false, kind: r.body.kind, stage: r.body.stage }; st.courses = r.body.courses || []; st.resume = r.body.resume || null; st.f = Object.assign({ kind: "", agree: true }, r.body.form || {}, { kind: r.body.kind || (r.body.form || {}).kind, email: r.body.email }); st.phase = "courses"; st.adding = false; st.err = ""; teachSave(); render();
         }).catch(function () {});
     }
     return st;
   }
   function teachSave() {
     var st = state.teach; if (!st) return;
-    try { localStorage.setItem(TEACH_KEY, JSON.stringify({ phase: st.phase, step: st.step, f: st.f, app: st.app, courses: st.courses, resume: st.resume, c: st.c })); } catch (e) {}
+    // the faith answers are not kept in this browser once the application is on the server (a shared computer)
+    var f = st.app ? Object.assign({}, st.f, { worldview: undefined, frequency: undefined, church: undefined, churchKind: undefined, churchOther: undefined }) : st.f;
+    try { localStorage.setItem(TEACH_KEY, JSON.stringify({ phase: st.phase, step: st.step, f: f, app: st.app, courses: st.courses, resume: st.resume, c: st.c, adding: st.adding })); } catch (e) {}
   }
   function teachLists() {
     var st = state.teach;
@@ -1878,14 +1909,17 @@
       .catch(function () { st.listsLoading = false; st.lists = { failed: true }; if (state.page === "teach") render(); });
   }
   // a file in chunks with the application's key: kind "resume" (private) or "syllabus" (a course file)
+  function teachBytes(file) {
+    if (file.arrayBuffer) return file.arrayBuffer();
+    return new Promise(function (resolve, reject) { var fr = new FileReader(); fr.onload = function () { resolve(fr.result); }; fr.onerror = function () { reject(fr.error); }; fr.readAsArrayBuffer(file); });
+  }
   function teachUpload(file, kind) {
     var st = state.teach, total = Math.max(1, Math.ceil(file.size / TEACH_CHUNK));
-    return file.arrayBuffer().then(function (buf) {
+    return teachBytes(file).then(function (buf) {
       var i = 0, upId = "", type = "";
       function next() {
         var a = new Uint8Array(buf.slice(i * TEACH_CHUNK, (i + 1) * TEACH_CHUNK)), sbin = "";
         for (var k = 0; k < a.length; k += 0x8000) sbin += String.fromCharCode.apply(null, a.subarray(k, k + 0x8000));
-        // `upload` = the file store's id for the chunks after the first (syllabus); `type` = what the first chunk was (résumé)
         var body = { id: st.app.id, key: st.app.key, kind: kind, name: file.name, size: file.size, index: i, total: total, data: btoa(sbin), upload: upId, type: type };
         return fetch("/api/teach/file", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
           .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
@@ -1906,129 +1940,148 @@
       return '<li class="' + cls + '"' + (i === cur ? ' aria-current="step"' : "") + '><span class="tn">' + (i < cur ? "✓" : i + 1) + '</span><span class="tt"><b>' + esc(p[0]) + "</b><small>" + esc(p[1]) + "</small></span></li>";
     }).join("") + "</ol>";
   }
+  // the three steps of ①, clickable backwards (Rick 2026-10-23: a resumed page looked like the first step)
+  function teachStepperHtml(cur) {
+    var T = t().teach;
+    return '<nav class="tsteps" aria-label="' + esc(T.phases[0][0]) + '">' + T.steps.map(function (name, i) {
+      var cls = i < cur ? "done" : i === cur ? "now" : "";
+      return (i ? '<span class="tsep" aria-hidden="true">›</span>' : "") + (i < cur ? '<button type="button" class="tstep ' + cls + '" data-step="' + i + '">' : '<span class="tstep ' + cls + '"' + (i === cur ? ' aria-current="step"' : "") + ">") + '<i>' + (i + 1) + "</i>" + esc(name) + (i < cur ? "</button>" : "</span>");
+    }).join("") + "</nav>";
+  }
   function teachField(k, label, opts) {
     opts = opts || {};
     var st = state.teach, v = (opts.src || st.f)[k];
     var id = (opts.prefix || "te_") + k, bad = st.errField === k;
-    return '<div class="tf' + (opts.cls ? " " + opts.cls : "") + (bad ? " bad" : "") + '"><label for="' + id + '">' + esc(label) + (opts.req ? ' <span class="req" aria-hidden="true">*</span>' : "") + "</label>" +
-      (opts.area ? '<textarea id="' + id + '" data-tf="' + k + '" rows="' + (opts.rows || 5) + '" maxlength="' + (opts.max || 3000) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ">" + esc(v || "") + "</textarea>"
-        : opts.options ? '<select id="' + id + '" data-tf="' + k + '"><option value="">' + esc(t().teach.choose) + "</option>" + opts.options.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (v === o[0] ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>"
-        : '<input id="' + id + '" data-tf="' + k + '" type="' + (opts.type || "text") + '" maxlength="' + (opts.max || 120) + '" value="' + esc(v == null ? "" : v) + '"' + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ' autocomplete="' + (opts.ac || "off") + '"' + (opts.type === "number" ? ' min="0" max="999" inputmode="numeric"' : "") + " />") +
-      (opts.note ? '<p class="tnote">' + esc(opts.note) + "</p>" : "") + "</div>";
+    var aria = (opts.req ? ' aria-required="true"' : "") + (bad ? ' aria-invalid="true" aria-describedby="teachErr"' : "");
+    return '<div class="tf' + (opts.cls ? " " + opts.cls : "") + (bad ? " bad" : "") + '"><label for="' + id + '">' + esc(label) + (opts.req ? ' <span class="req" aria-hidden="true">*</span>' : "") + (opts.hint ? ' <small class="tlh">' + esc(opts.hint) + "</small>" : "") + "</label>" +
+      (opts.area ? '<textarea id="' + id + '" data-tf="' + k + '" rows="' + (opts.rows || 5) + '" maxlength="' + (opts.max || 3000) + '"' + aria + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ">" + esc(v || "") + "</textarea>"
+        : '<input id="' + id + '" data-tf="' + k + '" type="' + (opts.type || "text") + '" maxlength="' + (opts.max || 120) + '" value="' + esc(v == null ? "" : v) + '"' + aria + (opts.ph ? ' placeholder="' + esc(opts.ph) + '"' : "") + ' autocomplete="' + (opts.ac || "off") + '"' + (opts.type === "number" ? ' min="0" max="999" inputmode="numeric"' : "") + " />") + "</div>";
   }
   function teachDots(name, cur, items) {
-    return '<div class="tchoices tinline" role="radiogroup">' + items.map(function (it) {
-      return '<label class="tchoice' + (cur === it[0] ? " on" : "") + '"><input type="radio" name="' + name + '" value="' + esc(it[0]) + '"' + (cur === it[0] ? " checked" : "") + ' /><span class="dot" aria-hidden="true"></span><span class="tt"><b>' + esc(it[1]) + "</b>" + (it[2] ? "<small>" + esc(it[2]) + "</small>" : "") + "</span></label>";
+    return '<div class="tchoices tinline" role="radiogroup" aria-labelledby="' + name + '_q">' + items.map(function (it) {
+      return '<label class="tchoice' + (cur === it[0] ? " on" : "") + '"><input type="radio" name="' + name + '" value="' + esc(it[0]) + '"' + (cur === it[0] ? " checked" : "") + ' /><span class="dot" aria-hidden="true"></span><span class="tt"><b>' + esc(it[1]) + "</b></span></label>";
     }).join("") + "</div>";
+  }
+  function teachQ(k, label, html) { var st = state.teach; return '<div class="tf tq-row' + (st.errField === k ? " bad" : "") + '"><span class="tlabel" id="te_' + k + '_q">' + esc(label) + ' <span class="req" aria-hidden="true">*</span></span>' + html + "</div>"; }
+  // grades: checkboxes, several at once (Rick 2026-10-24: 「课程适用的年级用 checkbox，多选」)
+  function teachChecks(k, items, cur, labelId) {
+    return '<div class="tchecks" role="group" aria-labelledby="' + labelId + '" data-ck="' + k + '">' + items.map(function (it) { var on = cur.indexOf(it[0]) >= 0; return '<label class="tck' + (on ? " on" : "") + '"><input type="checkbox" value="' + esc(it[0]) + '"' + (on ? " checked" : "") + " /><span>" + esc(it[1]) + "</span></label>"; }).join("") + "</div>";
   }
   function renderTeach() {
     var T = t().teach, st = teachState(), f = st.f;
     var head = '<div class="teach-head"><h2>' + esc(T.title) + '</h2><p class="hint">' + esc(T.lead) + "</p></div>";
-    if (st.phase === "thanks") {
-      return '<section class="teach-page">' + head + '<div class="tcard tdone"><h3>' + esc(T.thanksTitle) + "</h3><p>" + esc(T.thanksBody) + '</p><div class="tdone-actions"><button type="button" class="btn btn-ghost" id="teachThanksBack">' + esc(T.thanksBack) + '</button><a class="btn btn-primary" href="/" id="teachHome">' + esc(T.doneBack) + "</a></div></div></section>";
-    }
     if (st.phase === "done") {
       return '<section class="teach-page">' + head + teachPhasesHtml(2) +
         '<div class="tcard tdone"><svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="30" stroke="currentColor" stroke-width="4"/><path d="M20 33l8 8 16-18" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
         "<h3>" + esc(T.doneTitle) + '</h3><div class="order-id">' + esc(st.app.id) + "</div>" +
         (st.app.again ? '<p class="tnote">' + esc(T.doneAgain) + "</p>" : "") +
-        "<p>" + esc(fill(T.doneCourses, { n: st.courses.length })) + "</p><p>" + esc(fill(T.doneNext, { email: st.app.email || f.email || "" })) + "</p>" +
-        '<div class="tdone-actions"><button type="button" class="btn btn-ghost" id="teachMore">' + esc(T.continueCourses) + '</button><a class="btn btn-primary" href="/" id="teachHome">' + esc(T.doneBack) + '</a></div><p class="tnote"><button type="button" class="tlink" id="teachNew">' + esc(T.newApplication) + "</button></p></div></section>";
+        "<p>" + esc(fill(T.doneCourses, { n: st.courses.length })) + " " + esc(fill(T.doneNext, { email: st.app.email || f.email || "" })) + "</p>" +
+        '<div class="tdone-actions"><button type="button" class="btn btn-ghost" id="teachMore">' + esc(T.continueCourses) + '</button><a class="btn btn-primary" href="/" id="teachHome">' + esc(T.doneBack) + '</a></div><p class="tnote"><button type="button" class="tlink" id="teachEdit">' + esc(T.editApplication) + '</button> · <button type="button" class="tlink" id="teachNew">' + esc(T.newApplication) + "</button></p></div></section>";
     }
     if (st.phase === "courses") return '<section class="teach-page">' + head + teachPhasesHtml(1) + renderTeachCourse() + "</section>";
     var group = f.kind === "team" || f.kind === "school", n = st.step, body = "";
     if (n === 0) {
-      body = '<h3 class="tq">' + esc(T.kindQ) + '</h3><div class="tchoices" role="radiogroup">' + ["solo", "team", "school"].map(function (k) {
+      body = '<div class="tchoices" role="radiogroup" aria-label="' + esc(T.kindQ) + '">' + ["solo", "team", "school"].map(function (k) {
         return '<label class="tchoice' + (f.kind === k ? " on" : "") + '"><input type="radio" name="te_kind" value="' + k + '"' + (f.kind === k ? " checked" : "") + ' /><span class="dot" aria-hidden="true"></span><span class="tt"><b>' + esc(T.kinds[k][0]) + "</b><small>" + esc(T.kinds[k][1]) + "</small></span></label>";
-      }).join("") + "</div>" + (group ? '<p class="tnote">' + esc(T.noDomain) + "</p>" : "") +
+      }).join("") + "</div>" +
         '<div class="tgive"><div><h4>' + esc(T.getTitle) + "</h4><ul>" + T.get.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div><div><h4>" + esc(T.doTitle) + "</h4><ul>" + T["do"].map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div></div>" +
-        // 找回申请: the applicant who has applied already gets a fresh link by email
-        '<div class="tfind">' + (st.find && st.find.open ? '<p class="tnote">' + esc(st.find.sent ? T.findSent : T.findLead) + "</p>" + (st.find.sent ? "" : '<div class="tfind-row"><input type="email" id="te_findEmail" maxlength="200" autocomplete="email" placeholder="you@example.org" /><button type="button" class="btn btn-ghost" id="teachFindSend">' + esc(T.findSend) + "</button></div>")
+        '<div class="tfind">' + (st.find && st.find.open ? '<span class="tnote">' + esc(st.find.sent ? T.findSent : T.findLead) + "</span>" + (st.find.sent ? "" : '<div class="tfind-row"><input type="email" id="te_findEmail" maxlength="200" autocomplete="email" placeholder="you@example.org" /><button type="button" class="btn btn-ghost" id="teachFindSend">' + esc(T.findSend) + "</button></div>")
           : '<span class="tnote">' + esc(T.findQ) + ' <button type="button" class="tlink" id="teachFind">' + esc(T.findLink) + "</button></span>") + "</div>";
     } else if (n === 1) {
-      body = '<h3 class="tq">' + esc(T.profileQ) + "</h3>" +
-        (state.account ? '<p class="signed-in">' + esc(fill(T.signedIn, { who: state.account.upn })) + "</p>" : "") +
-        '<div class="tf' + (st.errField === "christian" ? " bad" : "") + '"><label>' + esc(T.christianQ) + ' <span class="req" aria-hidden="true">*</span></label>' + teachDots("te_christian", f.christian, [["yes", T.yes], ["no", T.no]]) + "</div>" +
-        '<div class="tgrid">' + teachField("familyName", T.familyName, { req: true, max: 40, ac: "family-name", ph: T.familyPh }) + teachField("givenName", T.givenName, { req: true, max: 40, ac: "given-name", ph: T.givenPh }) + "</div>" +
+      body = '<div class="tgrid">' + teachField("familyName", T.familyName, { req: true, max: 40, ac: "family-name", ph: T.familyPh }) + teachField("givenName", T.givenName, { req: true, max: 40, ac: "given-name", ph: T.givenPh }) + "</div>" +
         '<p class="tnote tnote-tight">' + esc(T.nameNote) + "</p>" +
-        teachField("email", T.email, { req: true, type: "email", max: 200, ac: "email", note: T.emailNote }) +
-        (group ? '<h4 class="tsub">' + esc(T.orgHead[f.kind]) + "</h4>" + teachField("org", T.org[f.kind], { req: true, max: 120, ac: "organization" }) +
-          '<div class="tgrid">' + teachField("abbr", T.abbr, { req: true, max: 8, note: T.abbrNote }) + (f.needDomain ? '<div class="tf"><label>' + esc(T.domain) + '</label><p class="tnote tdomain-help">' + esc(T.needDomainNote) + "</p></div>" : teachField("domain", T.domain, { req: true, max: 120, ph: T.domainPh, note: T.domainNote })) + "</div>" +
-          '<label class="tcheck tcheck-tight"><input type="checkbox" id="te_needDomain"' + (f.needDomain ? " checked" : "") + " /><span>" + esc(T.needDomain) + "</span></label>" +
-          '<div class="tgrid">' + teachField("teachers", T.teachers, { type: "number", max: 3 }) + teachField("website", T.website, { max: 200, ac: "url" }) + "</div>" : "") +
+        teachField("email", T.email, { req: true, type: "email", max: 200, ac: "email", ph: T.emailPh }) + '<p class="tnote tnote-tight' + (st.errField === "emailBlocked" ? " bad" : "") + '">' + esc(T.emailNote) + "</p>" +
+        (group ? '<h4 class="tsub">' + esc(T.orgHead[f.kind]) + "</h4>" +
+          '<div class="tgrid">' + teachField("org", T.org[f.kind], { req: true, max: 120, ac: "organization" }) + teachField("abbr", T.abbr, { req: true, max: 8, ph: T.abbrPh }) + "</div>" +
+          '<div class="tgrid">' + (f.needDomain ? '<div class="tf"><label>' + esc(T.domain) + '</label><p class="tnote tdomain-help">' + esc(T.needDomainNote) + "</p></div>" : teachField("domain", T.domain, { req: true, max: 120, ph: T.domainPh })) + teachField("teachers", T.teachers, { type: "number", max: 3 }) + "</div>" +
+          '<label class="tcheck tcheck-tight"><input type="checkbox" id="te_needDomain"' + (f.needDomain ? " checked" : "") + " /><span>" + esc(T.needDomain) + "</span></label>" : "") +
         '<div class="tgrid">' + teachField("country", T.country, { max: 60, ac: "country-name" }) + teachField("city", T.city, { max: 60, ac: "address-level2" }) + "</div>" +
-        (group ? "" : teachField("website", T.website, { max: 200, ac: "url" }));
+        teachField("website", T.website, { max: 200, ac: "url", ph: "https://" });
     } else {
       var rf = teachResumeFile;
-      body = '<h3 class="tq">' + esc(T.introQ) + "</h3>" +
-        '<h4 class="tsub tsub-first">' + esc(T.qualHead) + "</h4>" +
-        '<div class="tgrid">' + teachField("education", T.education, { options: ["below", "bachelor", "master", "doctor"].map(function (k) { return [k, T.educations[k]]; }) }) + teachField("years", T.years, { type: "number", max: 2 }) + "</div>" +
-        teachField("certificates", T.certificates, { max: 300, ph: T.certificatesPh }) +
-        '<div class="tf' + (st.errField === "resume" ? " bad" : "") + '"><label>' + esc(T.resume) + '</label><div class="tfile"><label class="btn btn-ghost tfile-btn">' + esc(rf ? T.resumeChange : T.resumeChoose) + '<input type="file" id="te_resume" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></label>' + (rf ? '<span class="tfile-name">' + esc(rf.name) + "</span>" : "") + '</div><p class="tnote">' + esc(T.resumeNote) + "</p></div>" +
-        '<h4 class="tsub">' + esc(T.introHead) + "</h4>" +
-        teachField("intro", T.intro[f.kind] || T.intro.solo, { req: true, area: true, rows: 6, ph: T.introPh }) +
-        teachField("sample", T.sample, { max: 500 }) +
-        '<label class="tcheck' + (st.errField === "agree" ? " bad" : "") + '"><input type="checkbox" id="te_agree"' + (f.agree ? " checked" : "") + " /><span>" + esc(T.agree) + "</span></label>" +
-        '<p class="tnote">' + esc(T.afterSubmit) + "</p>";
+      // the faith questions: each answer opens the next; no answer ends the application (Rick 2026-10-23)
+      var faith = teachQ("worldview", T.worldviewQ, teachDots("te_worldview", f.worldview, [["yes", T.yes], ["no", T.no]])) +
+        (f.worldview === "yes" ? teachQ("frequency", T.frequencyQ, teachDots("te_frequency", f.frequency, ["never", "sometimes", "often", "always"].map(function (k) { return [k, T.frequencies[k]]; }))) : "") +
+        (f.worldview === "yes" && f.frequency && f.frequency !== "never" ? teachQ("church", T.churchQ, teachDots("te_church", f.church, [["yes", T.yes], ["no", T.no]])) : "") +
+        (f.worldview === "yes" && f.frequency && f.frequency !== "never" && f.church === "yes" ? teachQ("churchKind", T.churchKindQ, teachDots("te_churchKind", f.churchKind, ["house", "tspm", "online", "other"].map(function (k) { return [k, T.churchKinds[k]]; })) + (f.churchKind === "other" ? '<input type="text" class="tother" id="te_churchOther" data-tf="churchOther" maxlength="120" value="' + esc(f.churchOther || "") + '" placeholder="' + esc(T.churchOtherPh) + '" />' : "")) : "");
+      body = '<div class="tf' + (st.errField === "resume" ? " bad" : "") + '"><label for="te_resume">' + esc(T.resume) + ' <span class="req" aria-hidden="true">*</span> <small class="tlh">' + esc(T.resumeNote) + '</small></label><div class="tfile"><label class="btn btn-ghost tfile-btn">' + esc(rf || st.resume ? T.resumeChange : T.resumeChoose) + '<input type="file" id="te_resume" aria-required="true" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></label>' + (rf ? '<span class="tfile-name">' + esc(rf.name) + "</span>" : st.resume ? '<span class="tfile-name">' + esc(st.resume.name) + "</span>" : "") + "</div></div>" +
+        teachField("sample", T.sample, { req: true, max: 500, ac: "url", ph: T.samplePh }) +
+        faith + '<p class="tnote">' + esc(T.faithNote) + "</p>" +
+        '<label class="tcheck' + (st.errField === "agree" ? " bad" : "") + '"><input type="checkbox" id="te_agree"' + (f.agree ? " checked" : "") + " /><span>" + esc(T.agree) + "</span></label>";
     }
     return '<section class="teach-page">' + head + teachPhasesHtml(0) +
-      '<form class="tcard" id="teachForm" novalidate><div class="tbar"><span class="tstep">' + esc(T.phases[0][0]) + " · " + esc(fill(T.stepOf, { n: n + 1, m: 3 })) + '</span><span class="tdots" aria-hidden="true">' + [0, 1, 2].map(function (i) { return '<i class="' + (i <= n ? "on" : "") + '"></i>'; }).join("") + "</span></div>" +
+      '<form class="tcard" id="teachForm" novalidate><div class="tbar">' + teachStepperHtml(n) + (state.account ? '<span class="tbar-r" title="' + esc(state.account.upn) + '">' + esc(fill(T.signedIn, { who: state.account.upn })) + "</span>" : "") + "</div>" +
       body +
       '<div class="hp" aria-hidden="true"><input id="teHp" name="fc_hp_field" type="text" tabindex="-1" autocomplete="off" /></div>' +
       '<p class="form-err" id="teachErr" role="alert">' + esc(st.err) + "</p>" + (st.msg ? '<p class="tmsg">' + esc(st.msg) + "</p>" : "") +
-      '<div class="tnav">' + (n > 0 ? '<button type="button" class="btn btn-ghost" id="teachBack">' + esc(T.back) + "</button>" : '<span class="tkept">' + (f.kind ? esc(T.draftKept) : "") + "</span>") +
-      '<button type="submit" class="btn btn-primary" id="teachNext"' + (st.sending ? " disabled" : "") + ">" + esc(n < 2 ? T.next : st.sending ? (st.msg || T.sending) : T.submit) + "</button></div></form></section>";
+      '<div class="tnav">' + (n > 0 ? '<button type="button" class="btn btn-ghost" id="teachBack">' + esc(T.back) + "</button>" : "<span></span>") +
+      '<span class="tkept">' + (f.kind ? esc(T.draftKept) + ' · <button type="button" class="tlink" id="teachNew">' + esc(T.restart) + "</button>" : "") + "</span>" +
+      '<button type="submit" class="btn btn-primary" id="teachNext"' + (st.sending ? " disabled" : "") + ">" + esc(n < 2 ? T.next : st.sending ? (st.msg || T.sending) : st.editing ? T.saveChanges : T.submit) + "</button></div></form></section>";
   }
+  // ② the courses: the saved list, 「＋ 添加课程」, and the form with the course editor's controls
   function renderTeachCourse() {
-    var T = t().teach, st = state.teach, c = st.c, L = st.lists, max = 10;
+    var T = t().teach, st = state.teach, c = st.c, L = st.lists, max = 10, en = state.lang === "en";
     teachLists();
-    var nm = function (x) { return state.lang === "en" ? (x.nameEn || x.nameZh) : (x.nameZh || x.nameEn); };
+    var nm = function (x) { return en ? (x.nameEn || x.nameZh) : (x.nameZh || x.nameEn); };
     var full = st.courses.length >= max;
-    var list = st.courses.length ? '<div class="tsaved"><h4>' + esc(T.saved) + " · " + st.courses.length + "</h4><ul>" + st.courses.map(function (x) { return '<li><span class="ok">✓</span>' + esc(nm(x) || x.id) + "</li>"; }).join("") + "</ul></div>" : "";
-    var resume = '<div class="tresume"><span class="tnote">' + (st.resume ? esc(fill(T.resumeDone, { name: st.resume.name })) : esc(T.resume)) + '</span><label class="tlink">' + esc(st.resume ? T.resumeChange : T.resumeChoose) + '<input type="file" id="tc_resume" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></label></div>';
-    var cf = function (k, label, opts) { return teachField(k, label, Object.assign({ src: c, prefix: "tc_" }, opts || {})); };
-    var sel = function (k, label, items, req) {
-      return '<div class="tf' + (st.errField === k ? " bad" : "") + '"><label for="tc_' + k + '">' + esc(label) + (req ? ' <span class="req" aria-hidden="true">*</span>' : "") + '</label><select id="tc_' + k + '" data-tc="' + k + '">' + (req ? '<option value="">' + esc(T.choose) + "</option>" : "") + items.map(function (it) { return '<option value="' + esc(it[0]) + '"' + (c[k] === it[0] ? " selected" : "") + ">" + esc(it[1]) + "</option>"; }).join("") + "</select></div>";
-    };
+    if (full) st.adding = false;
+    var list = '<div class="tsaved"><h4>' + esc(T.saved) + " · " + st.courses.length + "</h4>" + (st.courses.length ? "<ul>" + st.courses.map(function (x) { return '<li><span class="ok">✓</span>' + esc(nm(x) || x.id) + "</li>"; }).join("") + "</ul>" : "") +
+      (st.msg ? '<p class="tmsg">' + esc(st.msg) + "</p>" : "") +
+      (!st.adding && !full ? '<button type="button" class="btn btn-primary tadd" id="teachAdd">' + esc(T.addCourse) + "</button>" : full ? '<p class="tnote">' + esc(fill(T.maxReached, { max: max })) + "</p>" : "") + "</div>";
     var form = "";
-    if (full) form = '<p class="tnote">' + esc(fill(T.maxReached, { max: max })) + "</p>";
-    else if (!L) form = '<p class="tnote">' + esc(t().loading) + "</p>";
-    else if (L.failed) form = '<p class="form-err">' + esc(T.listsErr) + "</p>";
-    else {
-      var zh = state.lang !== "en";
-      form = '<h4 class="tsub">' + esc(T.newCourse) + "</h4>" +
-        '<div class="tgrid">' + cf("nameZh", T.nameZh, { max: 120 }) + cf("nameEn", T.nameEn, { max: 120 }) + '</div><p class="tnote tnote-tight' + (st.errField === "courseName" ? " bad" : "") + '">' + esc(T.nameEither) + "</p>" +
-        '<div class="tgrid three">' + sel("subject", T.subject, L.subjects.map(function (x) { return [x.id, zh ? (x.nameZh || x.nameEn) : (x.nameEn || x.nameZh)]; }), true) +
-          sel("classType", T.classType, L.classTypes.map(function (x) { return [x.en, zh ? x.zh : x.en]; })) + sel("language", T.language, L.languages.map(function (x) { return [x.en, zh ? x.zh : x.en]; })) + "</div>" +
-        '<div class="tf' + (st.errField === "grades" ? " bad" : "") + '"><label>' + esc(T.grades) + ' <span class="req" aria-hidden="true">*</span></label><div class="tgrades" role="group" aria-label="' + esc(T.grades) + '">' + L.grades.map(function (g) { var on = c.grades.indexOf(g.id) >= 0; return '<button type="button" class="tg' + (on ? " on" : "") + '" data-grade="' + esc(g.id) + '" aria-pressed="' + on + '">' + esc(g.name) + "</button>"; }).join("") + "</div></div>" +
-        cf("description", T.description, { req: true, area: true, rows: 6, max: 4000, ph: T.descriptionPh }) +
-        '<div class="tgrid three">' + cf("numClasses", T.numClasses, { type: "number", max: 3 }) + cf("minSize", T.minSize, { type: "number", max: 3 }) + cf("maxSize", T.maxSize, { type: "number", max: 3 }) + "</div>" +
-        '<div class="tgrid">' + cf("classTime", T.classTime, { max: 200, ph: T.classTimePh }) + cf("price", T.price, { max: 60, ph: T.pricePh }) + "</div>" +
-        cf("prerequisite", T.prerequisite, { area: true, rows: 2, max: 500 }) +
-        // the syllabus on Hive's template (Rick 2026-10-22)
-        '<div class="tf"><label>' + esc(T.syllabus) + '</label><div class="tfile"><a class="btn btn-ghost tfile-btn" href="/assets/templates/syllabus-template.docx" download>' + esc(T.syllabusTpl) + '</a><label class="btn btn-ghost tfile-btn">' + esc(st.uploading ? T.uploading : T.syllabusUpload) + '<input type="file" id="tc_syllabus" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></label>' +
-          (c.syllabus || []).map(function (x, i) { return '<span class="tfile-name">📄 ' + esc(x.name) + ' <button type="button" class="tlink" data-sylrm="' + i + '" aria-label="remove">×</button></span>'; }).join("") + '</div><p class="tnote">' + esc(T.syllabusNote) + "</p></div>";
+    if (st.adding && !full) {
+      if (!L) form = '<p class="tnote">' + esc(t().loading) + "</p>";
+      else if (L.failed) form = '<p class="form-err">' + esc(T.listsErr) + "</p>";
+      else {
+        var cf = function (k, label, opts) { return teachField(k, label, Object.assign({ src: c, prefix: "tc_" }, opts || {})); };
+        var pills = function (k, items, cur, labelId) { return '<div class="tpills" data-pk="' + k + '" role="group"' + (labelId ? ' aria-labelledby="' + labelId + '"' : "") + '>' + items.map(function (it) { return '<button type="button" class="tpill' + (cur.indexOf(it[0]) >= 0 ? " on" : "") + '" data-v="' + esc(it[0]) + '" aria-pressed="' + (cur.indexOf(it[0]) >= 0) + '">' + esc(it[1]) + "</button>"; }).join("") + "</div>"; };
+        var sName = function (x) { return en ? (x.nameEn || x.nameZh) : (x.nameZh || x.nameEn); };
+        var left = L.subjects.filter(function (x) { return c.subjects.indexOf(x.id) < 0; });
+        form = '<div class="tcourse" id="teachCourseForm"><h4 class="tsub tsub-first">' + esc(T.newCourse) + "</h4>" +
+          '<div class="tgrid">' + cf("nameZh", T.nameZh, { max: 120 }) + cf("nameEn", T.nameEn, { max: 120 }) + '</div><p class="tnote tnote-tight' + (st.errField === "courseName" ? " bad" : "") + '">' + esc(T.nameEither) + "</p>" +
+          // 学科: chips with an add-select, as the editor's; 其它 for one the list has not (Rick 2026-10-23: 「学科是否允许增加呢？」)
+          '<div class="tf' + (st.errField === "subjects" ? " bad" : "") + '"><label>' + esc(T.subject) + ' <span class="req" aria-hidden="true">*</span></label><div class="tchips">' + c.subjects.map(function (id) { var x = L.subjects.filter(function (y) { return y.id === id; })[0]; return '<span class="tchip">' + esc(x ? sName(x) : id) + '<button type="button" class="tchip-x" data-subrm="' + esc(id) + '" aria-label="' + esc(T.remove) + '">×</button></span>'; }).join("") +
+            (c.subjects.length < 3 ? '<select class="tchip-add" id="tc_subjectAdd" aria-label="' + esc(T.subjectAdd) + '"><option value="">' + esc(T.subjectAdd) + "</option>" + left.map(function (x) { return '<option value="' + esc(x.id) + '">' + esc(sName(x)) + "</option>"; }).join("") + '<option value="__other">' + esc(T.subjectOther) + "</option></select>" : "") + "</div>" +
+            (c.subjectOtherOn ? '<input type="text" class="tother" id="tc_subjectOther" data-tf="subjectOther" maxlength="80" value="' + esc(c.subjectOther || "") + '" placeholder="' + esc(T.subjectOther) + '" aria-label="' + esc(T.subjectOther) + '" />' : "") + "</div>" +
+          '<div class="tf' + (st.errField === "grades" ? " bad" : "") + '"><span class="tlabel" id="tc_grades_q">' + esc(T.grades) + ' <span class="req" aria-hidden="true">*</span></span>' + teachChecks("grades", L.grades.map(function (g) { return [g.id, teachGradeName(g.name)]; }), c.grades, "tc_grades_q") + "</div>" +
+          '<div class="tgrid"><div class="tf"><span class="tlabel" id="tc_classType_q">' + esc(T.classType) + "</span>" + pills("classType", L.classTypes.map(function (x) { return [x.en, en ? x.en : x.zh]; }), [c.classType], "tc_classType_q") + '</div><div class="tf"><span class="tlabel" id="tc_language_q">' + esc(T.language) + "</span>" + pills("language", L.languages.map(function (x) { return [x.en, en ? x.en : x.zh]; }), [c.language], "tc_language_q") + "</div></div>" +
+          cf("description", T.description, { req: true, area: true, rows: 5, max: 4000, ph: T.descriptionPh }) +
+          '<div class="tgrid three">' + cf("numClasses", T.numClasses, { type: "number", max: 3 }) + cf("minSize", T.minSize, { type: "number", max: 3 }) + cf("maxSize", T.maxSize, { type: "number", max: 3 }) + "</div>" +
+          // 上课时间: weekday pills + start / end → slots, as the editor keeps them ("周二 19:00–20:00; …")
+          '<div class="tf"><span class="tlabel" id="tc_time_q">' + esc(T.classTime) + ' <small class="tlh">' + esc(T.classTimeNote) + '</small></span><div class="tslots">' + c.slots.map(function (x, i) { return '<span class="tchip">' + esc(teachSlotText(x)) + '<button type="button" class="tchip-x" data-slotrm="' + i + '" aria-label="' + esc(T.remove) + '">×</button></span>'; }).join("") + "</div>" +
+            '<div class="tslot-new">' + pills("days", (L.days || []).map(function (d) { return [d, en ? DAY_EN[d] : DAY_ZH[d] || d]; }), c.days, "tc_time_q") + '<span class="tslot-time"><input type="time" id="tc_from" step="300" aria-label="' + esc(T.from) + '" /><span class="faint">–</span><input type="time" id="tc_to" step="300" aria-label="' + esc(T.to) + '" /><button type="button" class="btn btn-ghost tfile-btn" id="teachSlotAdd">' + esc(T.addSlot) + "</button></span></div></div>" +
+          '<div class="tgrid">' + cf("prerequisite", T.prerequisite, { max: 500 }) + cf("price", T.price, { max: 60, ph: T.pricePh }) + "</div>" +
+          '<div class="tf"><span class="tlabel">' + esc(T.syllabus) + ' <small class="tlh">' + esc(T.syllabusNote) + '</small></span><div class="tfile"><a class="btn btn-ghost tfile-btn" href="/api/asset?key=templates/syllabus-template.docx">' + esc(T.syllabusTpl) + '</a><label class="btn btn-ghost tfile-btn">' + esc(st.uploading ? T.uploading : T.syllabusUpload) + '<input type="file" id="tc_syllabus" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></label>' +
+            (c.syllabus || []).map(function (x, i) { return '<span class="tfile-name">📄 ' + esc(x.name) + ' <button type="button" class="tlink" data-sylrm="' + i + '" aria-label="' + esc(T.remove) + '">×</button></span>'; }).join("") + "</div></div>" +
+          '<p class="form-err" role="alert">' + esc(st.err) + "</p>" +
+          '<div class="tnav"><button type="button" class="btn btn-ghost" id="teachCancelCourse">' + esc(T.cancel) + '</button><span></span><button type="submit" class="btn btn-primary" id="teachSaveCourse"' + (st.sending || st.uploading ? " disabled" : "") + ">" + esc(st.sending ? T.saving : T.saveCourse) + "</button></div></div>";
+      }
     }
-    return '<form class="tcard" id="teachCourse" novalidate><div class="tbar"><span class="tstep">' + esc(T.phases[1][0]) + '</span><span class="tid">' + esc(st.app ? st.app.id : "") + "</span></div>" +
-      '<h3 class="tq">' + esc(T.coursesQ) + '</h3><p class="tlead">' + esc(fill(T.coursesLead, { id: st.app ? st.app.id : "", max: max })) + "</p>" + resume + list +
-      (st.msg ? '<p class="tmsg">' + esc(st.msg) + "</p>" : "") + form +
-      '<p class="form-err" role="alert">' + esc(st.err) + "</p>" +
-      '<div class="tnav">' + (st.courses.length ? '<button type="button" class="btn btn-ghost" id="teachFinish">' + esc(T.finish) + "</button>" : '<span class="tkept">' + esc(T.draftKept) + "</span>") +
-      (full || !L || L.failed ? "" : '<button type="submit" class="btn btn-primary" id="teachSaveCourse"' + (st.sending || st.uploading ? " disabled" : "") + ">" + esc(st.sending ? T.saving : T.saveCourse) + "</button>") + "</div></form>";
+    var stage = st.app && st.app.stage && T.stageNote[st.app.stage];
+    return '<form class="tcard" id="teachCourse" novalidate><div class="tbar"><span class="tstep now"><i>2</i>' + esc(T.coursesQ) + '</span><span class="tbar-r">' + esc(st.app ? st.app.id : "") + (stage ? " · " + esc(stage) : "") + "</span></div>" +
+      '<p class="tlead">' + esc(fill(T.coursesLead, { id: st.app ? st.app.id : "", max: max })) + (st.resume ? " " + esc(fill(T.resumeDone, { name: st.resume.name })) : "") + ' <button type="button" class="tlink" id="teachEdit">' + esc(T.editApplication) + "</button></p>" +
+      // the résumé did not make it (the tab closed, the upload failed): it is still required, so it can be added here
+      (!st.resume ? '<div class="tresume"><span class="tnote">' + esc(T.resumeMissing) + '</span><label class="btn btn-ghost tfile-btn">' + esc(st.uploading ? T.uploading : T.resumeChoose) + '<input type="file" id="tc_resume" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden /></label></div>' : "") + list + form +
+      (!st.adding ? '<p class="form-err" role="alert">' + esc(st.err) + '</p><div class="tnav"><span></span><span></span>' + (st.courses.length ? '<button type="button" class="btn btn-primary" id="teachFinish">' + esc(T.finish) + "</button>" : '<span class="tkept">' + esc(T.draftKept) + "</span>") + "</div>" : "") + "</form>";
   }
   function teachFocus(st) {
     if (!st.errField) return;
-    var el = document.getElementById("te_" + st.errField) || document.getElementById("tc_" + st.errField) || (st.errField === "kind" && document.querySelector('input[name="te_kind"]')) || (st.errField === "christian" && document.querySelector('input[name="te_christian"]')) || (st.errField === "agree" && document.getElementById("te_agree")) || (st.errField === "grades" && document.querySelector(".tg")) || (st.errField === "courseName" && document.getElementById("tc_nameZh")) || (st.errField === "subjects" && document.getElementById("tc_subject")) || (st.errField === "emailBlocked" && document.getElementById("te_email"));
+    var k = st.errField;
+    var el = document.getElementById("te_" + k) || document.getElementById("tc_" + k) || document.querySelector('input[name="te_' + k + '"]') || (k === "kind" && document.querySelector('input[name="te_kind"]')) || (k === "agree" && document.getElementById("te_agree")) || (k === "grades" && document.querySelector('.tpills[data-pk="grades"] .tpill')) || (k === "courseName" && document.getElementById("tc_nameZh")) || (k === "subjects" && document.getElementById("tc_subjectAdd")) || (k === "emailBlocked" && document.getElementById("te_email"));
     if (el && el.focus) el.focus();
     st.errField = "";
   }
   function teachErrText(code) { var E = t().teach.err; return E[code] || E.generic; }
+  // the key no longer opens the application (a fresh link was sent, or a week passed): say so, and offer the way back
+  function teachKeyDead(st) { st.app = null; st.phase = "apply"; st.step = 0; st.courses = []; st.adding = false; st.err = t().teach.err.expired; st.find = { open: true }; teachSave(); render(); }
+  function teachAfterStep() { var h = document.querySelector(".tsteps .tstep.now, .tbar > .tstep"); if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); } window.scrollTo({ top: 0 }); }
   function bindTeach() {
     var st = state.teach, f = st.f, T = t().teach;
     var home = document.getElementById("teachHome");
-    if (home) home.addEventListener("click", function (e) { e.preventDefault(); if (st.phase === "thanks") { state.teach = null; try { localStorage.removeItem(TEACH_KEY); } catch (x) {} } navigate("/"); });
-    on("teachThanksBack", "click", function () { st.phase = "apply"; st.step = 1; f.christian = ""; render(); });
+    if (home) home.addEventListener("click", function (e) { e.preventDefault(); navigate("/"); });
     on("teachMore", "click", function () { st.phase = "courses"; st.msg = ""; st.err = ""; teachSave(); render(); });
+    // 编辑申请: the three steps again, with what was typed; saved with the key (applications.update)
+    on("teachEdit", "click", function () { st.phase = "apply"; st.step = 0; st.editing = true; st.msg = ""; st.err = ""; f.agree = true; teachSave(); render(); });
     on("teachNew", "click", function () { state.teach = teachFresh(); teachResumeFile = null; try { localStorage.removeItem(TEACH_KEY); } catch (x) {} render(); });
     var form = document.getElementById("teachForm");
     var need = function (k) { return String(f[k] == null ? "" : f[k]).trim(); };
@@ -2036,13 +2089,13 @@
       form.addEventListener("input", function (e) { var k = e.target.getAttribute("data-tf"); if (k) { f[k] = e.target.value; teachSave(); } });
       form.addEventListener("change", function (e) {
         if (e.target.name === "te_kind") { f.kind = e.target.value; st.err = ""; teachSave(); render(); var r = document.querySelector('input[name="te_kind"]:checked'); if (r) r.focus(); return; }
-        // not a Christian: thank them and stop here — nothing is sent, nothing kept
-        if (e.target.name === "te_christian") { f.christian = e.target.value; st.err = ""; if (f.christian === "no") { st.phase = "thanks"; try { localStorage.removeItem(TEACH_KEY); } catch (x) {} window.scrollTo({ top: 0 }); render(); return; } teachSave(); render(); return; }
+        var ch = /^te_(worldview|frequency|church|churchKind)$/.exec(e.target.name || "");
+        if (ch) { f[ch[1]] = e.target.value; st.err = ""; teachSave(); render(); var rr = document.querySelector('input[name="' + e.target.name + '"]:checked'); if (rr) rr.focus(); return; }
         if (e.target.id === "te_agree") { f.agree = e.target.checked; teachSave(); }
         if (e.target.id === "te_needDomain") { f.needDomain = e.target.checked; st.err = ""; teachSave(); render(); }
         if (e.target.id === "te_resume") { var file = e.target.files && e.target.files[0]; if (!file) return; if (!/\.(pdf|docx?)$/i.test(file.name)) { st.err = teachErrText("bad_type"); st.errField = "resume"; render(); return; } if (file.size > 5 * 1024 * 1024) { st.err = teachErrText("too_big"); st.errField = "resume"; render(); return; } teachResumeFile = file; st.err = ""; render(); }
-        var k = e.target.getAttribute("data-tf"); if (k && e.target.tagName === "SELECT") { f[k] = e.target.value; teachSave(); }
       });
+      form.addEventListener("click", function (e) { var b = e.target.closest && e.target.closest(".tsteps button[data-step]"); if (b) { st.step = +b.getAttribute("data-step"); st.err = ""; teachSave(); render(); } });
       on("teachBack", "click", function () { st.step = Math.max(0, st.step - 1); st.err = ""; teachSave(); render(); });
       on("teachFind", "click", function () { st.find = { open: true }; render(); var el = document.getElementById("te_findEmail"); if (el) el.focus(); });
       on("teachFindSend", "click", function () {
@@ -2054,21 +2107,32 @@
         e.preventDefault();
         var group = f.kind === "team" || f.kind === "school", miss = "";
         if (st.step === 0) miss = f.kind ? "" : "kind";
-        else if (st.step === 1) miss = f.christian !== "yes" ? "christian" : !LATIN_NAME.test(need("familyName")) ? "familyName" : !LATIN_NAME.test(need("givenName")) ? "givenName" : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(need("email")) ? "email" : isBlockedEmail(need("email")) ? "emailBlocked" : group && !need("org") ? "org" : group && !/^[A-Za-z0-9]{2,8}$/.test(need("abbr")) ? "abbr" : group && !f.needDomain && !/^(https?:\/\/)?(www\.)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,}\/?$/i.test(need("domain")) ? "domain" : "";
-        else miss = !teachLong(need("intro")) ? "intro" : !f.agree ? "agree" : "";
+        else if (st.step === 1) miss = !LATIN_NAME.test(need("familyName")) ? "familyName" : !LATIN_NAME.test(need("givenName")) ? "givenName" : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(need("email")) ? "email" : isBlockedEmail(need("email")) ? "emailBlocked" : group && !need("org") ? "org" : group && !/^[A-Za-z0-9]{2,8}$/.test(need("abbr")) ? "abbr" : group && !f.needDomain && !/^(https?:\/\/)?(www\.)?[a-z0-9][a-z0-9.-]*\.[a-z]{2,}\/?$/i.test(need("domain")) ? "domain" : "";
+        else miss = !(teachResumeFile || st.resume) ? "resume" : !/^(https?:\/\/)?[^\s/]+\.[a-z]{2,}(\/\S*)?$/i.test(need("sample")) ? "sample" : !f.worldview ? "worldview" : f.worldview === "yes" && !f.frequency ? "frequency" : f.worldview === "yes" && f.frequency !== "never" && !f.church ? "church" : f.church === "yes" && f.worldview === "yes" && f.frequency !== "never" && !f.churchKind ? "churchKind" : !f.agree ? "agree" : "";
         if (miss) { st.err = T.err[miss]; st.errField = miss; render(); return; }
         st.err = "";
-        if (st.step < 2) { st.step++; teachSave(); render(); window.scrollTo({ top: 0 }); return; }
-        var body = { kind: f.kind, agree: true, christian: true, needDomain: group && !!f.needDomain, lang: state.lang === "en" ? "en" : "zh", fc_hp_field: (document.getElementById("teHp") || {}).value || "" };
+        if (st.step < 2) { st.step++; teachSave(); render(); teachAfterStep(); return; }
+        var body = { kind: f.kind, agree: true, needDomain: group && !!f.needDomain, lang: state.lang === "en" ? "en" : "zh", fc_hp_field: (document.getElementById("teHp") || {}).value || "" };
         TEACH_FIELDS.forEach(function (k) { body[k] = need(k); });
+        TEACH_CHOICES.forEach(function (k) { body[k] = f[k] || ""; });
         if (!group) { body.org = ""; body.abbr = ""; body.domain = ""; }
         if (body.needDomain) body.domain = "";
         st.sending = true; st.msg = ""; render();
-        fetch("/api/teach", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) })
+        var editing = st.editing && st.app;
+        fetch(editing ? "/api/teach/update" : "/api/teach", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(editing ? { id: st.app.id, key: st.app.key, form: body } : body) })
           .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
           .then(function (r) {
+            if (editing) {
+              st.sending = false;
+              if (r.status === 404 || r.status === 410) return teachKeyDead(st);
+              if (r.status === 200 && r.body && r.body.ok) { st.editing = false; st.phase = "courses"; st.msg = T.savedChanges; teachSave(); render(); teachAfterStep(); if (teachResumeFile) { st.uploading = true; render(); teachUpload(teachResumeFile, "resume").then(function (file) { st.uploading = false; st.resume = file; teachResumeFile = null; teachSave(); render(); }).catch(function (err) { st.uploading = false; st.err = teachErrText(err && err.message); render(); }); } return; }
+              var pe = r.body && r.body.problems && r.body.problems[0];
+              st.err = r.status === 429 ? T.err.rate : pe && T.err[pe] ? T.err[pe] : T.err.generic; st.errField = pe || ""; render(); return;
+            }
+            // a second application with this email or domain: the applicant (if that is you) has a fresh link in the mail
+            if (r.status === 200 && r.body && r.body.ok && r.body.again) { st.sending = false; st.err = ""; st.msg = T.againSent; st.find = { open: true, sent: true }; st.step = 0; render(); return; }
             if (r.status === 200 && r.body && r.body.ok) {
-              st.app = { id: r.body.id, key: r.body.token, again: !!r.body.again, email: body.email, kind: f.kind }; st.courses = []; st.c = teachBlankCourse(); teachSave();
+              st.app = { id: r.body.id, key: r.body.token, again: !!r.body.again, email: body.email, kind: f.kind, stage: "apply" }; st.courses = []; st.c = teachBlankCourse(); st.adding = false; teachSave();
               var go = function () { st.sending = false; st.msg = ""; st.phase = "courses"; teachSave(); window.scrollTo({ top: 0 }); render(); };
               if (!teachResumeFile) return go();
               st.msg = T.resumeUploading; render();
@@ -2077,7 +2141,7 @@
             st.sending = false;
             var p = r.body && r.body.problems && r.body.problems[0];
             st.err = r.status === 429 ? T.err.rate : p && T.err[p] ? T.err[p] : T.err.generic; st.errField = p || "";
-            if (p && ["christian", "familyName", "givenName", "email", "emailBlocked", "org", "abbr", "domain"].indexOf(p) >= 0) st.step = 1; else if (p === "kind") st.step = 0;
+            if (p && ["familyName", "givenName", "email", "emailBlocked", "org", "abbr", "domain"].indexOf(p) >= 0) st.step = 1; else if (p === "kind") st.step = 0;
             render();
           })
           .catch(function () { st.sending = false; st.err = T.err.generic; render(); });
@@ -2088,42 +2152,51 @@
     var cform = document.getElementById("teachCourse");
     if (!cform) return;
     var c = st.c;
+    on("teachAdd", "click", function () { st.adding = true; st.msg = ""; st.err = ""; teachSave(); render(); var el = document.getElementById("tc_nameZh"); if (el) el.focus(); });
+    on("teachCancelCourse", "click", function () { st.adding = false; st.c = teachBlankCourse(); st.err = ""; teachSave(); render(); });
+    on("teachFinish", "click", function () { st.phase = "done"; st.msg = ""; st.err = ""; teachSave(); window.scrollTo({ top: 0 }); render(); });
     cform.addEventListener("input", function (e) { var k = e.target.getAttribute("data-tf"); if (k) { c[k] = e.target.value; teachSave(); } });
     cform.addEventListener("change", function (e) {
-      var k = e.target.getAttribute("data-tc"); if (k) { c[k] = e.target.value; teachSave(); return; }
+      if (e.target.id === "tc_subjectAdd") { var v = e.target.value; if (v === "__other") { c.subjectOtherOn = true; } else if (v && c.subjects.indexOf(v) < 0) c.subjects.push(v); teachSave(); render(); var ad = document.getElementById("tc_subjectOther") || document.getElementById("tc_subjectAdd"); if (ad) ad.focus(); return; }
+      var ck = e.target.closest && e.target.closest(".tchecks"); if (ck && e.target.type === "checkbox") { var arr = c[ck.getAttribute("data-ck")], val = e.target.value, at = arr.indexOf(val); if (e.target.checked && at < 0) arr.push(val); if (!e.target.checked && at >= 0) arr.splice(at, 1); e.target.closest(".tck").classList.toggle("on", e.target.checked); teachSave(); return; }
       var file = e.target.files && e.target.files[0]; if (!file) return;
-      var kind = e.target.id === "tc_resume" ? "resume" : e.target.id === "tc_syllabus" ? "syllabus" : ""; if (!kind) return;
+      var kind = e.target.id === "tc_syllabus" ? "syllabus" : e.target.id === "tc_resume" ? "resume" : ""; if (!kind) return;
       if (!/\.(pdf|docx?)$/i.test(file.name)) { st.err = teachErrText("bad_type"); render(); return; }
       if (file.size > (kind === "resume" ? 5 : 10) * 1024 * 1024) { st.err = teachErrText("too_big"); render(); return; }
       st.uploading = true; st.err = ""; render();
-      teachUpload(file, kind).then(function (got) {
-        st.uploading = false;
-        if (kind === "resume") st.resume = got; else c.syllabus = (c.syllabus || []).concat([{ id: got.id, name: got.name }]).slice(0, 3);
-        teachSave(); render();
-      }).catch(function (err) { st.uploading = false; st.err = teachErrText(err && err.message); render(); });
+      teachUpload(file, kind).then(function (got) { st.uploading = false; if (kind === "resume") st.resume = got; else c.syllabus = (c.syllabus || []).concat([{ id: got.id, name: got.name }]).slice(0, 3); teachSave(); render(); })
+        .catch(function (err) { st.uploading = false; var m = err && err.message; if (m === "not_found" || m === "expired") return teachKeyDead(st); st.err = teachErrText(m); render(); });
     });
     cform.addEventListener("click", function (e) {
-      var rm = e.target.closest && e.target.closest("[data-sylrm]"); if (rm) { c.syllabus.splice(+rm.getAttribute("data-sylrm"), 1); teachSave(); render(); return; }
-      var g = e.target.closest && e.target.closest(".tg"); if (!g) return;
-      var id = g.getAttribute("data-grade"), i = c.grades.indexOf(id);
-      if (i >= 0) c.grades.splice(i, 1); else c.grades.push(id);
-      g.classList.toggle("on", i < 0); g.setAttribute("aria-pressed", String(i < 0)); teachSave();
+      var x;
+      if ((x = e.target.closest && e.target.closest("[data-subrm]"))) { c.subjects.splice(c.subjects.indexOf(x.getAttribute("data-subrm")), 1); teachSave(); render(); return; }
+      if ((x = e.target.closest && e.target.closest("[data-slotrm]"))) { c.slots.splice(+x.getAttribute("data-slotrm"), 1); teachSave(); render(); return; }
+      if ((x = e.target.closest && e.target.closest("[data-sylrm]"))) { c.syllabus.splice(+x.getAttribute("data-sylrm"), 1); teachSave(); render(); return; }
+      if ((x = e.target.closest && e.target.closest("#teachSlotAdd"))) {
+        var from = (document.getElementById("tc_from") || {}).value, to = (document.getElementById("tc_to") || {}).value;
+        if (!c.days.length || !from || !to || to <= from) { st.err = T.slotErr; render(); return; }
+        c.slots.push({ days: c.days.slice(), from: from, to: to }); c.days = []; st.err = ""; teachSave(); render(); return;
+      }
+      var p = e.target.closest && e.target.closest(".tpill"); if (!p) return;
+      var pk = p.closest(".tpills").getAttribute("data-pk"), v = p.getAttribute("data-v");
+      if (pk === "classType" || pk === "language") { c[pk] = v; p.parentNode.querySelectorAll(".tpill").forEach(function (b) { b.classList.toggle("on", b === p); b.setAttribute("aria-pressed", String(b === p)); }); }
+      else { var arr2 = c[pk], i = arr2.indexOf(v); if (i >= 0) arr2.splice(i, 1); else arr2.push(v); p.classList.toggle("on", i < 0); p.setAttribute("aria-pressed", String(i < 0)); }
+      teachSave();
     });
-    // 完成: the application stays remembered in this browser, so coming back shows it and offers more courses
-    on("teachFinish", "click", function () { st.phase = "done"; st.msg = ""; st.err = ""; teachSave(); window.scrollTo({ top: 0 }); render(); });
     cform.addEventListener("submit", function (e) {
       e.preventDefault();
       var v = function (k) { return String(c[k] == null ? "" : c[k]).trim(); };
-      var miss = !v("nameZh") && !v("nameEn") ? "courseName" : !v("subject") ? "subjects" : !c.grades.length ? "grades" : !teachLong(v("description")) ? "description" : v("minSize") && v("maxSize") && +v("minSize") > +v("maxSize") ? "size" : "";
+      var miss = !v("nameZh") && !v("nameEn") ? "courseName" : !c.subjects.length && !v("subjectOther") ? "subjects" : !c.grades.length ? "grades" : !teachLong(v("description")) ? "description" : v("minSize") && v("maxSize") && +v("minSize") > +v("maxSize") ? "size" : "";
       if (miss) { st.err = T.err[miss]; st.errField = miss === "size" ? "minSize" : miss; st.msg = ""; render(); return; }
-      var course = { subjects: [v("subject")], grades: c.grades.slice(), classType: c.classType, language: c.language, syllabus: (c.syllabus || []).map(function (x) { return { id: x.id }; }) };
+      var course = { subjects: c.subjects.slice(), grades: c.grades.slice(), classType: c.classType, language: c.language, days: teachSlotDays(c), classTime: c.slots.map(teachSlotText).join("; "), syllabus: (c.syllabus || []).map(function (x) { return { id: x.id }; }) };
       COURSE_FIELDS.forEach(function (k) { course[k] = v(k); });
       st.err = ""; st.sending = true; render();
       fetch("/api/teach/course", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: st.app.id, key: st.app.key, course: course }) })
         .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j }; }); })
         .then(function (r) {
           st.sending = false;
-          if (r.status === 200 && r.body && r.body.ok) { st.courses.push(r.body.course); st.msg = fill(T.savedMsg, { name: course.nameZh || course.nameEn }); st.c = teachBlankCourse(); teachSave(); render(); var top = document.querySelector(".tsaved"); if (top && top.scrollIntoView) top.scrollIntoView({ block: "center" }); return; }
+          if (r.status === 200 && r.body && r.body.ok) { st.courses.push(r.body.course); st.msg = fill(T.savedMsg, { name: course.nameZh || course.nameEn }); st.c = teachBlankCourse(); st.adding = false; teachSave(); render(); window.scrollTo({ top: 0 }); return; }
+          if (r.status === 404 || r.status === 410) return teachKeyDead(st);
           var p = r.body && (r.body.problems && r.body.problems[0] || r.body.error);
           st.err = r.status === 429 ? T.err.rate : p && T.err[p] ? T.err[p] : T.err.generic; st.errField = r.body && r.body.problems ? r.body.problems[0] : ""; st.msg = ""; render();
         })

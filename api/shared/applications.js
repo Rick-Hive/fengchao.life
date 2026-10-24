@@ -24,7 +24,9 @@ const LANGS = { zh: ["中文", "Chinese"], en: ["英文", "English"], both: ["�
 const PUBLIC_MAIL = /^(gmail|googlemail|outlook|hotmail|live|msn|yahoo|icloud|me|mac|aol|proton|protonmail|qq|vip\.qq|foxmail|163|126|yeah|sina|sohu|aliyun|139|189)\.[a-z.]+$/;
 // enough words to read: 10 characters of Chinese say as much as 20 of English
 const longEnough = (t) => String(t || "").trim().length >= (/[\u3400-\u9fff]/.test(String(t || "")) ? 10 : 20);
-const EDUCATION = ["below", "bachelor", "master", "doctor"];
+const YESNO = (v) => (v === "yes" || v === true ? "yes" : v === "no" || v === false ? "no" : "");
+const FREQUENCY = ["never", "sometimes", "often", "always"];
+const CHURCH = ["house", "tspm", "online", "other"];
 const LATIN_NAME = /^[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F .'-]*$/;
 const { blockedEmail } = require("./safe-email");
 const fullName = (a) => (/[\u3400-\u9fff]/.test(a.familyName + a.givenName) ? a.familyName + a.givenName : [a.givenName, a.familyName].filter(Boolean).join(" "));
@@ -46,18 +48,29 @@ function clean(body) {
     domain: group && !b.needDomain ? s(b.domain, 120).toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/[/?#].*$/, "") : "",
     website: s(b.website, 200), country: s(b.country, 60), city: s(b.city, 60),
     language: LANGS[b.language] ? b.language : "", teachers: group ? Math.max(0, Math.min(999, parseInt(b.teachers, 10) || 0)) : 1,
-    intro: long(b.intro, 3000), sample: long(b.sample, 1000),
-    // 资历 (Rick 2026-10-22): the highest degree, years of teaching, certificates; the résumé comes as a file (uploadFile)
-    education: EDUCATION.includes(b.education) ? b.education : "", years: Math.max(0, Math.min(60, parseInt(b.years, 10) || 0)), certificates: s(b.certificates, 300),
-    christian: b.christian === true || b.christian === "yes",
+    intro: long(b.intro, 3000), sample: s(b.sample, 500),
+    // 教学资质 (Rick 2026-10-23): the résumé (a file, uploadFile) and the sample class / portfolio link say it all —
+    // no degree, years or certificates to type. Faith is asked in steps, each answer opening the next, none closing the
+    // door (Rick: 「出于礼貌和安全最好不是马上拒绝」): the reviewer reads them, nobody is turned away by a form.
+    worldview: YESNO(b.worldview), frequency: FREQUENCY.includes(b.frequency) ? b.frequency : "", church: YESNO(b.church),
+    churchKind: CHURCH.includes(b.churchKind) ? b.churchKind : "", churchOther: s(b.churchOther, 120),
     lang: b.lang === "en" ? "en" : "zh",
   };
+  // only the answers the chain reached are kept
+  if (a.worldview !== "yes") { a.frequency = ""; a.church = ""; a.churchKind = ""; a.churchOther = ""; }
+  else if (!a.frequency || a.frequency === "never") { a.church = ""; a.churchKind = ""; a.churchOther = ""; }
+  else if (a.church !== "yes") { a.churchKind = ""; a.churchOther = ""; }
+  if (a.churchKind !== "other") a.churchOther = "";
   a.name = fullName(a);
   if (!group) a.org = a.name;
   const problems = [];
   if (!a.kind) problems.push("kind");
-  // Hive works with Christian educators (Rick 2026-10-22: 「选择不是，直接跳到感谢界面」 — the page never sends that answer)
-  if (!a.christian) problems.push("christian");
+  if (!a.worldview) problems.push("worldview");
+  else if (a.worldview === "yes" && !a.frequency) problems.push("frequency");
+  else if (a.worldview === "yes" && a.frequency !== "never" && !a.church) problems.push("church");
+  else if (a.church === "yes" && !a.churchKind) problems.push("churchKind");
+  // 示范课与作品集: a link, required (the résumé is required too, but arrives as a file right after)
+  if (!/^(https?:\/\/)?[^\s/]+\.[a-z]{2,}(\/\S*)?$/i.test(a.sample)) problems.push("sample");
   // pinyin or an English name: the Teams account is made from it
   if (!a.familyName || !LATIN_NAME.test(a.familyName)) problems.push("familyName");
   if (!a.givenName || !LATIN_NAME.test(a.givenName)) problems.push("givenName");
@@ -67,50 +80,65 @@ function clean(body) {
   if (group && (a.abbr.length < 2 || a.abbr.length > 8)) problems.push("abbr");
   // a team or a school with no domain yet asks Hive to create one (Rick 2026-10-22) — then none is required
   if (group && !a.needDomain && (!DOMAIN_RE.test(a.domain) || PUBLIC_MAIL.test(a.domain))) problems.push("domain");
-  if (!longEnough(a.intro)) problems.push("intro");
   if (!b.agree) problems.push("agree");
   return { app: a, problems };
 }
 
 // The party key: the organisation's own domain when it gave one, else the applicant's email.
 const keyOf = (a) => a.domain || "apply:" + a.email;
+// what the applicant typed and may edit later (编辑申请); never the key, the courses or the résumé
+const FORM_KEYS = ["kind", "familyName", "givenName", "org", "abbr", "needDomain", "domain", "website", "country", "city", "teachers", "sample", "worldview", "frequency", "church", "churchKind", "churchOther", "intro"];
 
-// Store (or refresh) the application on its 课程提供方 relationship. `account` = the signed-in UPN, the platform's word.
+// Store the application on a new 课程提供方 relationship. `account` = the signed-in UPN, the platform's word.
+//
+// A second form with an email or a domain that already has an open relationship does NOT touch that relationship and
+// gets no key (security review 2026-10-24: a stranger who knows an applicant's email could otherwise take the
+// application over — read it, overwrite the résumé, plant courses — and the applicant's own link would die). The
+// existing applicant gets a fresh link by email instead (as 用邮箱找回), and the caller is told only `again: true`.
+// A domain that is already a provider's (a relationship without an application) is answered the same way, with nothing
+// sent: the provider's people edit courses in the management centre.
 async function submit(a, opts) {
   opts = opts || {};
   const now = new Date().toISOString(), by = opts.account || a.email;
-  // the key to the next page (课程信息): the applicant adds courses to this application with it, for a week
   const token = require("crypto").randomBytes(24).toString("base64url");
-  const application = Object.assign({}, a, { account: opts.account || "", at: now, tokenHash: tokenHash(token), tokenAt: now });
+  const application = Object.assign({}, a, { account: opts.account || "", at: now, firstAt: now, tokenHash: tokenHash(token), tokenAt: now, courses: [] });
   const key = keyOf(a), region = P.regionOf({ country: a.country, city: a.city, domain: a.domain });
   const openIn = (d, orgId) => Object.values(d.items || {}).find((r) => r && r.type === "course" && !r.closed && ((r.party && (r.party.key === key || (orgId && r.party.id === orgId))) || (r.application && r.application.email === a.email)));
-  const refresh = (open) => {
-    const prev = open.application;
-    open.application = Object.assign({}, application, { firstAt: (prev && (prev.firstAt || prev.at)) || now, courses: (prev && prev.courses) || [] });
-    open.log.push(P.logEntry(by, "note", "网站「我要教课」再次提交 / applied again on the website"));
-    open.updatedAt = now;
-  };
   const orgs0 = await P.readOrgs();
   const rels0 = await P.readRels();
-  if (!openIn(rels0, orgs0.byKey[key] || null)) {
-    // a new partner: its ORG id first, then the relationship (re-checked inside, should two forms cross)
-    const { doc: od } = await P.updateOrgs((o) => { P.orgIdFor(o, key, { name: a.org, region, orgType: KINDS[a.kind][0] }); });
-    const party = { id: od.byKey[key], key, name: a.org };
-    let out = null;
-    await P.updateRels((d) => {
-      const open = openIn(d, party.id);
-      if (open) { refresh(open); out = { id: open.id, again: true, key, token }; return; }
-      const id = P.pad(d.next++);
-      const rel = P.newRelationship({ type: "course", party, stage: "apply", source: "application", region, lang: a.lang, note: "网站「我要教课」申请 / applied on the website" }, by, id);
-      rel.confirmed = true;
-      rel.application = Object.assign({}, application, { firstAt: now, courses: [] });
-      d.items[id] = rel; out = { id, again: false, key, token };
-    });
-    return out;
+  const open0 = openIn(rels0, orgs0.byKey[key] || null);
+  if (open0) {
+    if (open0.application && open0.application.email === a.email) await resend(a.email, opts);
+    return { id: open0.id, again: true, key };
   }
+  // a new partner: its ORG id first, then the relationship (re-checked inside, should two forms cross)
+  const { doc: od } = await P.updateOrgs((o) => { P.orgIdFor(o, key, { name: a.org, region, orgType: KINDS[a.kind][0] }); });
+  const party = { id: od.byKey[key], key, name: a.org };
   let out = null;
-  await P.updateRels((d) => { const open = openIn(d, orgs0.byKey[key] || null); if (open) { refresh(open); out = { id: open.id, again: true, key, token }; } });
+  await P.updateRels((d) => {
+    const open = openIn(d, party.id);
+    if (open) { out = { id: open.id, again: true, key }; return false; }
+    const id = P.pad(d.next++);
+    const rel = P.newRelationship({ type: "course", party, stage: "apply", source: "application", region, lang: a.lang, note: "网站「我要教课」申请 / applied on the website" }, by, id);
+    rel.confirmed = true;
+    rel.application = application;
+    d.items[id] = rel; out = { id, again: false, key, token };
+  });
   return out;
+}
+
+// 编辑申请: the applicant changes the form with the key (the résumé, the courses and the key itself stay).
+async function update(relId, token, a) {
+  const cur = await openApp(relId, token);
+  const keep = { account: cur.account, at: new Date().toISOString(), firstAt: cur.firstAt || cur.at, tokenHash: cur.tokenHash, tokenAt: cur.tokenAt, prevTokenHash: cur.prevTokenHash, prevUntil: cur.prevUntil, courses: cur.courses || [], resume: cur.resume || null };
+  await P.updateRels((d) => {
+    const r = d.items[relId]; if (!r || !r.application) return false;
+    r.application = Object.assign({}, a, keep, { email: cur.email }); // the email is the record's identity: it stays
+    if (r.party && a.org && r.party.name !== a.org) r.party.name = a.org;
+    r.log.push(P.logEntry(cur.email, "note", "网站申请 · 修改了申请 / application edited"));
+    r.updatedAt = keep.at;
+  });
+  return { id: relId };
 }
 
 // ---- 第 2 步 填写课程 (Rick 2026-10-22: 「保存后，进入下一步，调用创建课程的模块，让用户输入详细课程信息。照片可以等课程批准
@@ -123,7 +151,7 @@ async function pickLists() {
   const l = await require("./courses").lookups();
   const C = require("./courses");
   return { subjects: (l.subjects || []).map((x) => ({ id: x.id, nameEn: x.nameEn || "", nameZh: x.nameZh || "" })), grades: (l.grades || []).map((x) => ({ id: x.id, name: x.name })),
-    classTypes: C.PAIR_VALUES.classType.map(([en, zh]) => ({ en, zh })), languages: C.PAIR_VALUES.language.map(([en, zh]) => ({ en, zh })) };
+    classTypes: C.PAIR_VALUES.classType.map(([en, zh]) => ({ en, zh })), languages: C.PAIR_VALUES.language.map(([en, zh]) => ({ en, zh })), days: C.DAYS.slice() };
 }
 function cleanCourse(c, lists, lang) {
   const s = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
@@ -140,12 +168,13 @@ function cleanCourse(c, lists, lang) {
     classType: pair(lists.classTypes, c.classType), language: pair(lists.languages, c.language),
     descriptionZh: lang === "en" ? "" : desc, descriptionEn: lang === "en" ? desc : "",
     numClasses: num(c.numClasses, 1, 500), minSize: num(c.minSize, 1, 500), maxSize: num(c.maxSize, 1, 500),
+    days: (Array.isArray(c.days) ? c.days : []).map(String).filter((d) => lists.days.includes(d)),
     classTime: s(c.classTime, 200), prerequisite: long(c.prerequisite, 500),
-    comments: s(c.price, 60) ? "网站申请 · 建议价格 / suggested price: " + s(c.price, 60) : "网站申请 / website application",
+    comments: ["网站申请 / website application", s(c.price, 60) ? "建议价格 / suggested price: " + s(c.price, 60) : "", s(c.subjectOther, 80) ? "学科（其它）/ other subject: " + s(c.subjectOther, 80) : ""].filter(Boolean).join(" · "),
   };
   const problems = [];
   if (!f.nameZh && !f.nameEn) problems.push("courseName");
-  if (!f.subjects.length) problems.push("subjects");
+  if (!f.subjects.length && !s(c.subjectOther, 80)) problems.push("subjects");
   if (!f.grades.length) problems.push("grades");
   if (!longEnough(desc)) problems.push("description");
   if (f.minSize && f.maxSize && f.minSize > f.maxSize) problems.push("size");
@@ -156,14 +185,18 @@ async function openApp(relId, token) {
   const rels = await P.readRels();
   const rel = rels.items && rels.items[relId];
   const a = rel && rel.application;
-  if (!a || rel.closed || a.tokenHash !== tokenHash(token)) throw Object.assign(new Error("no such application"), { status: 404, code: "not_found" });
-  if (Date.now() - Date.parse(a.tokenAt || a.at) > TOKEN_DAYS * 864e5) throw Object.assign(new Error("expired"), { status: 410, code: "expired" });
+  const h = tokenHash(token);
+  const current = a && a.tokenHash === h, previous = a && a.prevTokenHash === h && Date.parse(a.prevUntil || 0) > Date.now();
+  if (!a || rel.closed || !(current || previous)) throw Object.assign(new Error("no such application"), { status: 404, code: "not_found" });
+  if (current && Date.now() - Date.parse(a.tokenAt || a.at) > TOKEN_DAYS * 864e5) throw Object.assign(new Error("expired"), { status: 410, code: "expired" });
+  a._stage = rel.stage;
   return a;
 }
 // the continue link: who applied and the courses so far — nothing the applicant did not type
 async function peek(relId, token) {
   const a = await openApp(relId, token);
-  return { id: relId, kind: a.kind, name: a.name, org: a.org, email: a.email, lang: a.lang, courses: a.courses || [], max: MAX_COURSES, resume: a.resume ? { name: a.resume.name, size: a.resume.size } : null };
+  const form = {}; for (const k of FORM_KEYS) if (a[k] !== undefined) form[k] = a[k];
+  return { id: relId, kind: a.kind, name: a.name, org: a.org, email: a.email, lang: a.lang, stage: a._stage || "apply", courses: a.courses || [], max: MAX_COURSES, resume: a.resume ? { name: a.resume.name, size: a.resume.size } : null, form };
 }
 async function addCourse(relId, token, course) {
   const a = await openApp(relId, token);
@@ -182,6 +215,7 @@ async function addCourse(relId, token, course) {
   }
   const C = require("./courses");
   const d = await C.create({ user: a.email }, { fields, application: relId });
+  if ((fields.syllabus || []).length) await require("./files").claim(fields.syllabus.map((x) => x.id), d.courseId).catch(() => {});
   const row = { id: d.courseId, nameZh: fields.nameZh, nameEn: fields.nameEn, at: new Date().toISOString() };
   await P.updateRels((doc) => { const r = doc.items[relId]; if (!r || !r.application) return false; r.application.courses = (r.application.courses || []).concat([row]); r.log.push(P.logEntry(a.email, "note", `网站申请 · 新课程 / course: ${fields.nameZh || fields.nameEn}`)); r.updatedAt = row.at; });
   return { course: row, count: (a.courses || []).length + 1 };
@@ -196,23 +230,39 @@ const RESUME_MAX = 5 * 1024 * 1024;
 async function uploadFile(relId, token, chunk) {
   const a = await openApp(relId, token);
   const kind = chunk && chunk.kind === "resume" ? "resume" : "syllabus";
-  if (kind === "syllabus") return require("./files").upload({ id: String(chunk.upload || ""), name: chunk.name, size: chunk.size, index: chunk.index, total: chunk.total, data: chunk.data }, "apply:" + relId, { kind: "syllabus" });
   const FILES = require("./files"), blob = require("./blob");
-  const index = Number(chunk.index) || 0, total = Math.max(1, Math.min(4, Number(chunk.total) || 1));
+  if (kind === "syllabus") {
+    try { return await FILES.upload({ id: String(chunk.upload || ""), name: chunk.name, size: chunk.size, index: chunk.index, total: chunk.total, data: chunk.data }, "apply:" + relId, { kind: "syllabus", tag: relId }); }
+    catch (err) { const m = String((err && err.message) || ""); throw Object.assign(err, { code: /only PDF/.test(m) ? "bad_type" : /at most|too large/.test(m) ? "too_big" : "bad_file" }); }
+  }
+  // the résumé: at most 4 chunks, the bytes counted as they arrive, the type decided by the first chunk and remembered
+  // on the application (not taken from the client again)
+  const index = Number(chunk.index), total = Number(chunk.total) || 1;
+  if (!Number.isInteger(index) || !Number.isInteger(total) || total < 1 || total > 4 || index < 0 || index >= total) throw Object.assign(new Error("bad chunk"), { status: 400, code: "bad_file" });
   const buf = Buffer.from(String(chunk.data || ""), "base64");
   if (!buf.length || buf.length > FILES.CHUNK + 1024) throw Object.assign(new Error("bad chunk"), { status: 400, code: "bad_file" });
   const size = Number(chunk.size) || 0;
   if (size > RESUME_MAX) throw Object.assign(new Error("too big"), { status: 400, code: "too_big" });
-  let type = String(chunk.type || "");
-  if (index === 0) { type = FILES.sniff(buf, chunk.name); if (!RESUME_TYPES[type]) throw Object.assign(new Error("PDF or Word only"), { status: 400, code: "bad_type" }); }
-  else if (!RESUME_TYPES[type]) throw Object.assign(new Error("bad chunk"), { status: 400, code: "bad_file" });
+  let type, staged = buf.length;
+  if (index === 0) {
+    type = FILES.sniff(buf, chunk.name); if (!RESUME_TYPES[type]) throw Object.assign(new Error("PDF or Word only"), { status: 400, code: "bad_type" });
+    if (total > 1) await P.updateRels((doc) => { const r = doc.items[relId]; if (!r || !r.application) return false; r.application.resumePending = { type, staged, at: new Date().toISOString() }; });
+  } else {
+    const pend = a.resumePending;
+    if (!pend || !RESUME_TYPES[pend.type]) throw Object.assign(new Error("bad chunk"), { status: 400, code: "bad_file" });
+    type = pend.type; staged = (pend.staged || 0) + buf.length;
+    if (staged > RESUME_MAX) throw Object.assign(new Error("too big"), { status: 400, code: "too_big" });
+    if (index + 1 < total) await P.updateRels((doc) => { const r = doc.items[relId]; if (!r || !r.application) return false; r.application.resumePending = Object.assign({}, pend, { staged }); });
+  }
   const key = `applications/${relId}/resume.${RESUME_TYPES[type]}`;
   await blob.stageAssetBlock(key, Buffer.from(String(index).padStart(6, "0")).toString("base64"), buf);
   if (index + 1 < total) return { done: false, type };
   const blocks = []; for (let i = 0; i < total; i++) blocks.push(Buffer.from(String(i).padStart(6, "0")).toString("base64"));
   await blob.commitAssetBlocks(key, blocks, type, "private, no-store");
-  const file = { key, name: String(chunk.name || "resume").replace(/[\u0000-\u001f\\/:*?"<>|]+/g, " ").trim().slice(0, 120), type, size, at: new Date().toISOString() };
-  await P.updateRels((doc) => { const r = doc.items[relId]; if (!r || !r.application) return false; r.application.resume = file; r.log.push(P.logEntry(a.email, "note", "网站申请 · 简历 / résumé: " + file.name)); r.updatedAt = file.at; });
+  const file = { key, name: String(chunk.name || "resume").replace(/[\u0000-\u001f\\/:*?"<>|]+/g, " ").trim().slice(0, 120), type, size: staged, at: new Date().toISOString() };
+  // a résumé of another type replaced this one: its blob goes too
+  if (a.resume && a.resume.key && a.resume.key !== key) await blob.deleteAsset(a.resume.key).catch(() => {});
+  await P.updateRels((doc) => { const r = doc.items[relId]; if (!r || !r.application) return false; r.application.resume = file; delete r.application.resumePending; r.log.push(P.logEntry(a.email, "note", "网站申请 · 简历 / résumé: " + file.name)); r.updatedAt = file.at; });
   return { done: true, file: { name: file.name, size: file.size, type: file.type } };
 }
 
@@ -226,6 +276,7 @@ async function resend(email, opts) {
   await P.updateRels((doc) => {
     const r = Object.values(doc.items || {}).find((x) => x && x.type === "course" && !x.closed && x.application && x.application.email === e);
     if (!r) return false;
+    if (r.application.tokenHash) { r.application.prevTokenHash = r.application.tokenHash; r.application.prevUntil = new Date(Date.now() + 3600e3).toISOString(); }
     r.application.tokenHash = tokenHash(token); r.application.tokenAt = new Date().toISOString();
     r.log.push(P.logEntry(e, "note", "网站申请 · 找回链接已发送 / recovery link sent"));
     hit = { id: r.id, a: r.application };
@@ -237,7 +288,7 @@ async function sendLink(id, a, token, opts) {
   const log = (opts && opts.log) || (() => {});
   const flowUrl = process.env.POWER_AUTOMATE_URL;
   if (!flowUrl) return { ok: false };
-  const link = `${SITE}/teach?app=${id}&key=${encodeURIComponent(token)}`;
+  const link = `${SITE}/teach#app=${id}&key=${encodeURIComponent(token)}`;
   const m = a.lang === "en"
     ? { subject: `[Hive] Your application ${id}`, body: `Dear ${a.name},\n\nHere is the link to your application ${id} (valid for 7 days; any earlier link no longer works):\n${link}\n\nIf you did not ask for it, you can ignore this email.\n\nHive` }
     : { subject: `【蜂巢】您的授课申请 ${id}`, body: `${a.name} 您好，\n\n这是您的申请 ${id} 的链接（7 天内有效；之前的链接已失效）：\n${link}\n\n如果不是您本人操作，请忽略这封邮件。\n\n蜂巢` };
@@ -250,8 +301,18 @@ async function sendLink(id, a, token, opts) {
 }
 
 const SITE = "https://www.fengchao.life";
+const FAITH = {
+  worldview: { yes: ["听说过圣经世界观", "has heard of a biblical worldview"], no: ["没听说过圣经世界观", "has not heard of a biblical worldview"] },
+  frequency: { never: ["教学中从未融入", "never integrates it in teaching"], sometimes: ["偶尔融入教学", "integrates it sometimes"], often: ["经常融入教学", "integrates it often"], always: ["每堂课都融入", "integrates it in every lesson"] },
+  church: { yes: ["有委身的教会生活", "committed church life"], no: ["没有委身的教会生活", "no committed church life"] },
+  churchKind: { house: ["家庭教会", "house church"], tspm: ["三自教会", "Three-Self church"], online: ["网络教会", "online church"], other: ["其它", "other"] },
+};
+function faithLine(a, en) {
+  const pick = (m, k) => (m[k] ? m[k][en ? 1 : 0] : "");
+  return [pick(FAITH.worldview, a.worldview), pick(FAITH.frequency, a.frequency), pick(FAITH.church, a.church), pick(FAITH.churchKind, a.churchKind) + (a.churchKind === "other" && a.churchOther ? "：" + a.churchOther : "")].filter(Boolean).join(" · ") || "—";
+}
 function texts(id, a, token) {
-  const more = token ? `${SITE}/teach?app=${id}&key=${encodeURIComponent(token)}` : "";
+  const more = token ? `${SITE}/teach#app=${id}&key=${encodeURIComponent(token)}` : "";
   const L = (m, k) => (m[k] ? m[k][0] + " / " + m[k][1] : "");
   const staff = [
     `新的授课申请 / New teaching application · ${id}`,
@@ -260,10 +321,11 @@ function texts(id, a, token) {
     `类型 / Type: ${L(KINDS, a.kind)}`,
     `名称 / Name: ${a.org}${a.abbr ? " (" + a.abbr + ")" : ""}${a.domain ? " · " + a.domain : ""}${a.needDomain ? " · 需要蜂巢帮助创建域名 / needs Hive to create a domain" : ""}${a.website ? " · " + a.website : ""}`,
     `地区 / Where: ${[a.city, a.country].filter(Boolean).join(", ") || "—"}`,
-    `授课 / Teaching: ${a.language ? L(LANGS, a.language) : "—"}${a.teachers ? " · " + a.teachers + " 位老师 / teachers" : ""}`,
-    "",
-    a.intro,
-    a.sample ? "\n样课 / Sample: " + a.sample : "",
+    `老师 / Teachers: ${a.teachers || 1}`,
+    `示范课与作品集 / Sample class and portfolio: ${a.sample}`,
+    `信仰 / Faith: ${faithLine(a)}`,
+    a.resume ? `简历 / Résumé: ${a.resume.name}` : "",
+    a.intro ? "\n" + a.intro : "",
     "",
     `管理中心 / Management centre: ${SITE}/management/#/ops/partners/course/${id}`,
   ].join("\n");
@@ -314,4 +376,4 @@ async function notify(id, a, opts) {
   }
 }
 
-module.exports = { clean, submit, notify, texts, keyOf, KINDS, LANGS, pickLists, cleanCourse, addCourse, peek, uploadFile, resend, RESUME_MAX, EDUCATION, tokenHash, MAX_COURSES };
+module.exports = { clean, submit, notify, texts, keyOf, KINDS, LANGS, pickLists, cleanCourse, addCourse, peek, uploadFile, resend, update, RESUME_MAX, FAITH, faithLine, tokenHash, MAX_COURSES };

@@ -32,6 +32,7 @@ crm.listOrders = async () => Object.values(store).map((o) => JSON.parse(JSON.str
 const calls = [];
 global.fetch = async (url, opts) => { calls.push(JSON.parse(opts.body)); return { ok: true, status: 202, text: async () => "" }; };
 const notify = require(R("api", "shared", "notify.js"));
+const FILES = require(R("api", "shared", "files.js")); let swept = 0; FILES.cleanup = async () => { swept++; return 0; }; // step 7 (2026-10-24): the file sweep, not storage here
 const sweep = require(R("api", "shared", "sweep.js"));
 
 const T0 = Date.parse("2026-10-01T02:00:00Z");
